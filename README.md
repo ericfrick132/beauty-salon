@@ -1,188 +1,307 @@
-# BeautyManager - Landing Page
+ Cómo funciona el sistema multi-tenant:
 
-## Descripción
+  1. Verticales disponibles (ya configurados en el seed):
+  - Barberías (barbershop) - Tema negro/amarillo, terminología "Barbero/Turno"
+  - Peluquerías (beautysalon) - Tema rosa/blanco, terminología "Estilista/Cita"
+  - Centros de Estética (aesthetics) - Tema lavanda/púrpura, terminología "Esteticista/Reserva"
 
-Landing page moderna y atractiva para un SaaS de gestión de salones de belleza y centros de estética dirigido al mercado sudamericano hispanohablante.
+  2. Arquitectura de aislamiento:
+  - Cada tenant tiene su propio schema PostgreSQL (tenant_guid)
+  - Datos completamente aislados entre tenants
+  - Tablas maestras compartidas en schema public (verticales, planes, tenants)
 
-## Características Principales
+  3. Acceso por dominio:
+  - Subdominio: mibarberia.barbershop.com
+  - Dominio personalizado: mibarberia.com (opcional)
+  - El middleware detecta automáticamente el tenant por el dominio
 
-### ✨ Diseño Moderno
-- **Colores vibrantes** que reflejan el mundo beauty
-- **Gradientes atractivos** en rosa y morado
-- **Tipografía moderna** con Google Fonts (Poppins)
-- **Responsive design** optimizado para móviles
+  4. Personalización automática:
+  Cada tenant hereda de su vertical:
+  - Colores y tema visual
+  - Servicios predeterminados (Corte $15, Barba $10, etc.)
+  - Terminología (Barbero vs Estilista vs Esteticista)
+  - Características habilitadas (pagos online, SMS, programa de lealtad)
 
-### 🎯 Enfoque en Conversión
-- **Hero section impactante** con CTA prominente
-- **Pain points específicos** del target (microempresas)
-- **Beneficios tangibles** con números y métricas
-- **Testimonios reales** con fotos y casos de éxito
-- **Pricing simple** sin complejidades
-- **Múltiples CTAs** estratégicamente ubicados
+  5. Creación de nuevos tenants:
+  Desde el panel de SuperAdmin puedes:
+  1. Elegir el vertical (barbería, peluquería, estética)
+  2. Definir subdomain único
+  3. El sistema automáticamente:
+    - Crea el schema PostgreSQL
+    - Configura las tablas
+    - Aplica configuraciones del vertical
+    - Habilita el acceso
 
-### 📱 Experiencia de Usuario
-- **Navegación suave** con scroll animado
-- **Mockup interactivo** del móvil con la app
-- **FAQ acordeón** para resolver dudas
-- **Formularios modales** para trial y demo
-- **Efectos hover** y animaciones sutiles
+  Ejemplo práctico:
+  - Tenant 1: elitebarber.barbershop.com - Barbería con tema negro/amarillo
+  - Tenant 2: glamour.beautysalon.com - Peluquería con tema rosa
+  - Tenant 3: zen.aesthetics.com - Centro estética con tema lavanda
 
-## Estructura del Proyecto
+  Cada uno opera independientemente con sus propios clientes, citas, profesionales y configuraciones.
 
-```
-/
-├── index.html          # Página principal
-├── styles.css          # Estilos CSS
-├── script.js           # JavaScript interactivo
-└── README.md          # Documentación
-```
 
-## Secciones de la Landing
 
-### 1. Hero Section
-- Headline impactante sobre transformación digital
-- Subheadline con beneficios clave
-- CTA principal: "Prueba gratis por 14 días"
-- Mockup animado del software en móvil
-- Estadísticas de credibilidad
 
-### 2. Pain Points
-- "¿Te suena familiar?" con problemas cotidianos:
-  - Clientes que no llegan por olvido
-  - Agenda desordenada con dobles reservas
-  - Coordinación caótica por WhatsApp
-  - Inventario sin control
 
-### 3. Solución/Features
-- Agenda digital inteligente multi-estilista
-- Recordatorios automáticos por WhatsApp
-- Reservas online 24/7
-- Historial completo de clientes
-- Control de caja e inventario
-- Compatible con todos los dispositivos
+# BookingPro - SaaS Multi-Tenant para Gestión de Turnos
 
-### 4. Beneficios Tangibles
-- 50% menos ausencias
-- 2 horas ahorradas diarias
-- +30% más reservas
-- Iconos grandes y números impactantes
+Sistema SaaS multi-tenant para gestión de reservas y turnos, segmentado en tres verticales: barberías, peluquerías y centros de estética.
 
-### 5. Testimonios
-- 3 testimonios con fotos reales
-- Nombres, ciudades y métricas específicas
-- Calificaciones de 5 estrellas
+## 🏗️ Arquitectura
 
-### 6. Pricing
-- Plan único claro: USD $15/mes
-- Conversión a monedas locales
-- Lista completa de features incluidas
-- Garantías y flexibilidad
+- **Backend**: .NET Core 8.0 Web API con Entity Framework y PostgreSQL
+- **Frontend**: React 18 + TypeScript + Material-UI
+- **Base de Datos**: PostgreSQL 16 con esquemas por tenant
+- **Deployment**: Digital Ocean App Platform
+- **Containerización**: Docker + Docker Compose
 
-### 7. FAQ
-- 4 preguntas frecuentes clave
-- Interfaz acordeón intuitiva
-- Respuestas directas y tranquilizadoras
+## 🚀 Quick Start
 
-### 8. CTA Final
-- Urgencia con números sociales
-- Dos opciones: Trial gratuito o Demo
-- Garantías de seguridad
+### Prerrequisitos
 
-## Tecnologías Utilizadas
+- .NET 8.0 SDK
+- Node.js 18+
+- PostgreSQL 16
+- Docker (opcional)
 
-- **HTML5** semántico y accesible
-- **CSS3** con variables CSS y Flexbox/Grid
-- **JavaScript vanilla** para interactividad
-- **Font Awesome** para iconos
-- **Google Fonts** (Poppins)
-- **Imágenes de Unsplash** para testimonios
+### Configuración Local
 
-## Funcionalidades JavaScript
-
-### 🎛️ Interactividad
-- **Menú móvil** responsive con hamburger
-- **FAQ acordeón** con animaciones suaves
-- **Smooth scroll** para navegación interna
-- **Efectos hover** en botones y cards
-- **Modales** para formularios de trial/demo
-
-### 📱 Responsive
-- **Navbar adaptativo** que se oculta al hacer scroll
-- **Animaciones en scroll** para elementos
-- **Detección de país** para precios locales
-- **Lazy loading** para optimización
-
-### ⚡ Optimizaciones
-- **Intersection Observer** para animaciones
-- **CSS custom properties** para fácil theming
-- **Prefiere-reduced-motion** para accesibilidad
-- **Will-change** para mejor performance
-
-## Paleta de Colores
-
-```css
---primary-color: #e91e63;      /* Rosa vibrante */
---secondary-color: #ff4081;    /* Rosa claro */
---accent-color: #ffc107;       /* Amarillo dorado */
---dark-purple: #2d1b69;        /* Morado oscuro */
---light-purple: #9c27b0;       /* Morado claro */
+1. **Clonar el repositorio**
+```bash
+git clone <repository-url>
+cd Bookear
 ```
 
-## Cómo Usar
+2. **Configurar variables de entorno**
+```bash
+cp .env.example .env
+# Editar .env con valores reales
+```
 
-1. **Clonar** el repositorio
-2. **Abrir** `index.html` en un navegador
-3. **Personalizar** contenido según necesidades
-4. **Integrar** con backend para formularios
-5. **Conectar** con analytics y tracking
+3. **Configurar PostgreSQL**
+```sql
+CREATE DATABASE bookingprodb;
+CREATE USER postgres WITH PASSWORD 'password123';
+GRANT ALL PRIVILEGES ON DATABASE bookingprodb TO postgres;
+```
 
-## Personalización
+4. **Ejecutar con Docker Compose**
+```bash
+docker-compose up --build
+```
 
-### 📝 Contenido
-- Modificar textos en `index.html`
-- Actualizar testimonios con casos reales
-- Ajustar precios según mercado local
-- Cambiar imágenes de testimonios
+O ejecutar individualmente:
 
-### 🎨 Diseño
-- Ajustar colores en CSS custom properties
-- Modificar tipografía cambiando Google Fonts
-- Personalizar animaciones en JavaScript
-- Adaptar responsive breakpoints
+5. **Backend**
+```bash
+cd src/backend/BookingPro.API
+dotnet restore
+dotnet run
+```
 
-### ⚙️ Funcionalidad
-- Integrar formularios con backend
-- Conectar con herramientas de analytics
-- Añadir chat en vivo
-- Implementar A/B testing
+6. **Frontend**
+```bash
+cd src/frontend
+npm install
+npm start
+```
 
-## Optimizaciones SEO
+## 🌐 Deployment en Digital Ocean
 
-- **Meta tags** optimizados
-- **Estructura semántica** HTML5
-- **Lazy loading** de imágenes
-- **Schema markup** listo para implementar
-- **URLs limpias** y descriptivas
+### Opción 1: Automático con GitHub (Recomendado)
 
-## Conversión Optimizada
+1. Conectar repositorio en Digital Ocean App Platform
+2. Digital Ocean detectará automáticamente el archivo `.do/app.yaml`
+3. Configurar variables de entorno en el dashboard
+4. Deploy automático en cada push a `master`
 
-### 🎯 Elementos Clave
-- **Multiple CTAs** en posiciones estratégicas
-- **Proof elements** (testimonios, números)
-- **Urgency triggers** ("500+ salones", "esta semana")
-- **Risk reversal** (sin tarjeta, cancela cuando quieras)
-- **Clear value proposition** en cada sección
+### Opción 2: CLI
 
-### 📊 A/B Testing Ready
-- Fácil modificación de headlines
-- CTAs intercambiables
-- Colores personalizables
-- Testimonios modulares
+```bash
+# Instalar doctl CLI
+doctl apps create --spec deploy.yaml
+```
 
-## Soporte
+### Variables de Entorno Requeridas
 
-Para cualquier duda o personalización, el código está bien documentado y es fácilmente modificable. Cada sección es independiente y puede ser ajustada sin afectar el resto.
+```bash
+# En Digital Ocean App Platform
+DATABASE_URL=${db.DATABASE_URL}  # Auto-generada
+JWT_KEY=your-production-jwt-secret-32-chars-minimum
+ASPNETCORE_ENVIRONMENT=Production
+REACT_APP_API_URL=/api
+REACT_APP_APP_NAME=BookingPro
+```
 
-## Licencia
+## 📊 Estructura de Base de Datos
 
-Proyecto creado para fines educativos y comerciales. Libre para usar y modificar según necesidades específicas.
+### Schema Público (Compartido)
+- `verticals` - Configuración de verticales (barbershop, beautysalon, aesthetics)
+- `tenants` - Información de inquilinos
+- `plans` - Planes de suscripción
+- `users` - Usuarios del sistema
+- `subscriptions` - Suscripciones activas
+
+### Schema por Tenant
+- `services` - Servicios ofrecidos
+- `professionals` - Profesionales
+- `customers` - Clientes
+- `bookings` - Reservas/Turnos
+- `service_categories` - Categorías de servicios
+
+## 🔧 API Endpoints
+
+### Autenticación
+- `POST /api/auth/login` - Iniciar sesión
+- `POST /api/auth/register` - Registrar usuario
+- `POST /api/auth/validate` - Validar token
+
+### Tenant
+- `GET /api/tenant/config` - Configuración del tenant
+- `GET /api/tenant/info` - Información del tenant
+
+### Bookings
+- `GET /api/bookings` - Listar reservas
+- `GET /api/bookings/{id}` - Obtener reserva
+- `POST /api/bookings` - Crear reserva
+- `PUT /api/bookings/{id}` - Actualizar reserva
+- `DELETE /api/bookings/{id}` - Eliminar reserva
+
+### Admin (Super Admin)
+- `POST /api/admin/tenantmanagement/provision` - Provisionar nuevo tenant
+- `GET /api/admin/tenantmanagement/tenants` - Listar tenants
+- `GET /api/admin/tenantmanagement/check-subdomain` - Verificar disponibilidad
+
+## 🎨 Personalización por Vertical
+
+Cada vertical tiene su propia configuración:
+
+### Barbershop
+- **Dominio**: `barbershop.com`
+- **Colores**: Negro + Amarillo
+- **Terminología**: Barbero, Cliente, Turno
+
+### Beauty Salon
+- **Dominio**: `beautysalon.com`
+- **Colores**: Rosa + Blanco + Dorado
+- **Terminología**: Estilista, Cliente, Cita
+
+### Aesthetics
+- **Dominio**: `aesthetics.com`
+- **Colores**: Lavanda + Púrpura
+- **Terminología**: Esteticista, Cliente, Reserva
+
+## 🔒 Seguridad
+
+### Sistema Super Admin
+- **Login**: `/super-admin/login` 
+- **Credenciales iniciales**: 
+  - Email: `admin@bookingpro.com`
+  - Password: `BookingPro2024!` (cambiar después del primer login)
+- **Dashboard**: `/super-admin/dashboard` para gestión de tenants
+
+### Multi-Tenant Security
+- **Query Filters Globales**: Filtrado automático por `TenantId` a nivel DbContext
+- **Aislamiento de Datos**: Cada consulta automáticamente filtra por tenant actual
+- **Middleware de Resolución**: Establece contexto de tenant por subdomain/domain
+- **JWT Authentication**: Tokens con expiración de 24 horas
+- **Row Level Security**: Implementado via Entity Framework Query Filters
+
+### Medidas de Seguridad Adicionales
+- Rate limiting configurado (API: 10r/s, General: 30r/s)
+- CORS configurado para múltiples dominios
+- Headers de seguridad implementados
+- Validación de entrada en todos los endpoints
+- Sanitización de datos automática
+
+## 🧪 Testing
+
+```bash
+# Backend
+cd src/backend/BookingPro.API
+dotnet test
+
+# Frontend
+cd src/frontend
+npm test
+```
+
+## 📁 Estructura del Proyecto
+
+```
+Bookear/
+├── .do/
+│   └── app.yaml                    # Configuración DO App Platform
+├── src/
+│   ├── backend/
+│   │   └── BookingPro.API/
+│   │       ├── Controllers/        # API Controllers
+│   │       ├── Data/              # DbContexts
+│   │       ├── Models/            # Entidades
+│   │       ├── Services/          # Servicios de negocio
+│   │       ├── DTOs/              # Data Transfer Objects
+│   │       ├── Utilities/         # Helpers y middleware
+│   │       └── Dockerfile.prod    # Docker para producción
+│   └── frontend/
+│       ├── src/
+│       │   ├── components/        # Componentes React
+│       │   ├── pages/            # Páginas
+│       │   ├── services/         # API client
+│       │   ├── store/            # Redux store
+│       │   ├── types/            # TypeScript types
+│       │   └── contexts/         # React contexts
+│       ├── Dockerfile.prod       # Docker para producción
+│       └── nginx.prod.conf       # Nginx para producción
+├── nginx/
+│   └── nginx.conf                # Nginx para desarrollo
+├── docker-compose.yml            # Desarrollo local
+├── deploy.yaml                   # DO deployment config
+└── README.md
+```
+
+## 📝 Logs y Monitoreo
+
+Los logs estructurados se envían a:
+- Console (desarrollo)
+- PostgreSQL (producción)
+- Digital Ocean Logs (automático)
+
+## 🐛 Troubleshooting
+
+### Error de conexión a BD
+- Verificar `DATABASE_URL` en variables de entorno
+- Asegurar que PostgreSQL esté ejecutándose
+- Verificar permisos de usuario
+
+### Frontend no carga configuración
+- Verificar que el tenant existe en la BD
+- Revisar configuración de CORS
+- Verificar subdomain/domain del tenant
+
+### Docker issues
+- Verificar que todos los puertos estén disponibles
+- Limpiar containers: `docker-compose down -v`
+- Rebuild: `docker-compose up --build`
+
+## 🤝 Contribución
+
+1. Fork el proyecto
+2. Crear feature branch (`git checkout -b feature/nueva-funcionalidad`)
+3. Commit cambios (`git commit -m 'Agregar nueva funcionalidad'`)
+4. Push al branch (`git push origin feature/nueva-funcionalidad`)
+5. Crear Pull Request
+
+## 📄 Licencia
+
+Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para detalles.
+
+## 📞 Soporte
+
+Para soporte técnico:
+- 📧 Email: support@bookingpro.com
+- 📚 Documentación: [docs.bookingpro.com](https://docs.bookingpro.com)
+- 🐛 Issues: [GitHub Issues](https://github.com/usuario/Bookear/issues)
+
+---
+
+⚡ **Desarrollado con .NET 8, React 18 y desplegado en Digital Ocean App Platform**

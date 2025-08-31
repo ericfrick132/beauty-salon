@@ -1,0 +1,3 @@
+﻿<Project>
+  <Import Project="..\build\BookingPro.API.props" />
+</Project>

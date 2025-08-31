@@ -1,0 +1,66 @@
+name: bookingpro-app
+
+static_sites:
+- name: frontend
+  environment_slug: html
+  github:
+    repo: USUARIO/Bookear
+    branch: master
+    deploy_on_push: true
+  source_dir: src/frontend
+  dockerfile_path: src/frontend/Dockerfile.prod
+  output_dir: /usr/share/nginx/html
+  routes:
+  - path: /
+  envs:
+  - key: REACT_APP_API_URL
+    value: "/api"
+  - key: REACT_APP_APP_NAME
+    value: "BookingPro"
+
+services:
+- name: api
+  environment_slug: node
+  github:
+    repo: USUARIO/Bookear
+    branch: master
+    deploy_on_push: true
+  source_dir: src/backend/BookingPro.API
+  dockerfile_path: src/backend/BookingPro.API/Dockerfile.prod
+  http_port: 8080
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  routes:
+  - path: /api
+    preserve_path_prefix: true
+  health_check:
+    http_path: /health
+    timeout_seconds: 10
+    interval_seconds: 30
+  envs:
+  - key: ASPNETCORE_ENVIRONMENT
+    value: "Production"
+  - key: ASPNETCORE_URLS
+    value: "http://+:8080"
+  - key: DATABASE_URL
+    value: "${db.DATABASE_URL}"
+  - key: ConnectionStrings__DefaultConnection
+    value: "${db.DATABASE_URL}"
+  - key: Jwt__Key
+    value: "${JWT_KEY}"
+    type: SECRET
+  - key: FrontendUrl
+    value: "${APP_URL}"
+  - key: EnableSwaggerInProduction
+    value: "true"
+  - key: SEED_DATA
+    value: "true"
+  - key: BackendUrl
+    value: "${APP_URL}"
+
+databases:
+- name: db
+  engine: PG
+  version: "16"
+  size: db-s-dev-database
+  num_nodes: 1

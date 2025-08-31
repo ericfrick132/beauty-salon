@@ -1,0 +1,715 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using BookingPro.API.Data;
+using BookingPro.API.Models.Common;
+using BookingPro.API.Models.DTOs;
+using BookingPro.API.Models.Entities;
+using BookingPro.API.Services.Interfaces;
+using Microsoft.EntityFrameworkCore;
+
+namespace BookingPro.API.Services
+{
+    public class MercadoPagoOAuthService : IMercadoPagoOAuthService
+    {
+        private readonly ApplicationDbContext _context;
+        private readonly ILogger<MercadoPagoOAuthService> _logger;
+        private readonly IConfiguration _configuration;
+        private readonly ITenantProvider _tenantProvider;
+        private readonly HttpClient _httpClient;
+
+        // OAuth endpoints
+        private const string AUTH_URL = "https://auth.mercadopago.com.ar/authorization";
+        private const string TOKEN_URL = "https://api.mercadopago.com/oauth/token";
+        private const string USER_INFO_URL = "https://api.mercadopago.com/users/me";
+        
+        public MercadoPagoOAuthService(
+            ApplicationDbContext context,
+            ILogger<MercadoPagoOAuthService> logger,
+            IConfiguration configuration,
+            ITenantProvider tenantProvider,
+            IHttpClientFactory httpClientFactory)
+        {
+            _context = context;
+            _logger = logger;
+            _configuration = configuration;
+            _tenantProvider = tenantProvider;
+            _httpClient = httpClientFactory.CreateClient();
+        }
+
+        public async Task<ServiceResult<MercadoPagoOAuthUrlDto>> InitiateOAuthFlowAsync(InitiateMercadoPagoOAuthDto dto)
+        {
+            try
+            {
+                var tenantId = _tenantProvider.GetCurrentTenantId();
+                if (tenantId == Guid.Empty)
+                {
+                    return ServiceResult<MercadoPagoOAuthUrlDto>.Fail("Tenant not found");
+                }
+
+                // Get OAuth configuration
+                var clientId = _configuration["MercadoPago:ClientId"];
+                var redirectUri = _configuration["MercadoPago:RedirectUri"];
+
+                if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(redirectUri))
+                {
+                    return ServiceResult<MercadoPagoOAuthUrlDto>.Fail("OAuth not configured");
+                }
+
+                // Generate secure state parameter
+                var state = GenerateStateParameter(tenantId);
+                
+                // Clean up old expired states
+                await CleanupExpiredStatesAsync(tenantId);
+
+                // Save OAuth state
+                var oauthState = new MercadoPagoOAuthState
+                {
+                    TenantId = tenantId,
+                    State = state,
+                    ExpiresAt = DateTime.UtcNow.AddMinutes(15)
+                };
+
+                _context.Set<MercadoPagoOAuthState>().Add(oauthState);
+                await _context.SaveChangesAsync();
+
+                // Build authorization URL
+                var authUrl = BuildAuthorizationUrl(clientId, redirectUri, state);
+                oauthState.AuthorizationUrl = authUrl;
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("OAuth flow initiated for tenant {TenantId}", tenantId);
+
+                return ServiceResult<MercadoPagoOAuthUrlDto>.Ok(new MercadoPagoOAuthUrlDto
+                {
+                    AuthorizationUrl = authUrl,
+                    State = state,
+                    ExpiresAt = oauthState.ExpiresAt
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error initiating OAuth flow");
+                return ServiceResult<MercadoPagoOAuthUrlDto>.Fail("Error initiating OAuth");
+            }
+        }
+
+        public async Task<ServiceResult<bool>> ProcessOAuthCallbackAsync(MercadoPagoOAuthCallbackDto dto)
+        {
+            try
+            {
+                // Validate state and get tenant
+                var stateResult = await ValidateOAuthStateAsync(dto.State);
+                if (!stateResult.Success || stateResult.Data == Guid.Empty)
+                {
+                    return ServiceResult<bool>.Fail("Invalid OAuth state");
+                }
+
+                var tenantId = stateResult.Data;
+
+                // Get OAuth state record
+                var oauthState = await _context.Set<MercadoPagoOAuthState>()
+                    .FirstOrDefaultAsync(s => s.State == dto.State && s.TenantId == tenantId);
+
+                if (oauthState == null || oauthState.IsExpired || oauthState.ExpiresAt < DateTime.UtcNow)
+                {
+                    return ServiceResult<bool>.Fail("OAuth state expired");
+                }
+
+                // Handle OAuth error response
+                if (!string.IsNullOrEmpty(dto.Error))
+                {
+                    oauthState.ErrorCode = dto.Error;
+                    oauthState.ErrorDescription = dto.ErrorDescription;
+                    oauthState.IsCompleted = true;
+                    await _context.SaveChangesAsync();
+
+                    _logger.LogWarning("OAuth error for tenant {TenantId}: {Error} - {Description}", 
+                        tenantId, dto.Error, dto.ErrorDescription);
+                    return ServiceResult<bool>.Fail($"OAuth error: {dto.Error}");
+                }
+
+                // Exchange code for tokens
+                var tokenResult = await ExchangeCodeForTokenAsync(dto.Code);
+                if (!tokenResult.Success || tokenResult.Data == null)
+                {
+                    return ServiceResult<bool>.Fail("Failed to exchange code for token");
+                }
+
+                // Get user info
+                var userInfoResult = await GetUserInfoAsync(tokenResult.Data.AccessToken);
+                if (!userInfoResult.Success || userInfoResult.Data == null)
+                {
+                    return ServiceResult<bool>.Fail("Failed to get user info");
+                }
+
+                // Save/update OAuth configuration
+                await SaveOAuthConfigurationAsync(tenantId, tokenResult.Data, userInfoResult.Data);
+
+                // Mark state as completed
+                oauthState.AuthorizationCode = dto.Code;
+                oauthState.IsCompleted = true;
+                oauthState.CompletedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("OAuth flow completed successfully for tenant {TenantId}", tenantId);
+                return ServiceResult<bool>.Ok(true, "MercadoPago connected successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing OAuth callback");
+                return ServiceResult<bool>.Fail("Error processing OAuth callback");
+            }
+        }
+
+        public async Task<ServiceResult<MercadoPagoConnectionStatusDto>> GetConnectionStatusAsync()
+        {
+            try
+            {
+                var tenantId = _tenantProvider.GetCurrentTenantId();
+                if (tenantId == Guid.Empty)
+                {
+                    return ServiceResult<MercadoPagoConnectionStatusDto>.Fail("Tenant not found");
+                }
+
+                var config = await _context.Set<MercadoPagoOAuthConfiguration>()
+                    .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.IsActive);
+
+                if (config == null)
+                {
+                    return ServiceResult<MercadoPagoConnectionStatusDto>.Ok(new MercadoPagoConnectionStatusDto
+                    {
+                        IsConnected = false
+                    });
+                }
+
+                var needsRefresh = config.AccessTokenExpiresAt <= DateTime.UtcNow.AddDays(7);
+                
+                return ServiceResult<MercadoPagoConnectionStatusDto>.Ok(new MercadoPagoConnectionStatusDto
+                {
+                    IsConnected = true,
+                    AccountEmail = config.AccountEmail,
+                    AccountNickname = config.AccountNickname,
+                    CountryId = config.CountryId,
+                    CurrencyId = config.CurrencyId,
+                    ConnectedAt = config.ConnectedAt,
+                    AccessTokenExpiresAt = config.AccessTokenExpiresAt,
+                    NeedsRefresh = needsRefresh,
+                    IsTestMode = config.IsTestMode,
+                    LastError = config.LastRefreshError
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting connection status");
+                return ServiceResult<MercadoPagoConnectionStatusDto>.Fail("Error getting status");
+            }
+        }
+
+        public async Task<ServiceResult<bool>> RefreshAccessTokenAsync(Guid? tenantId = null)
+        {
+            try
+            {
+                tenantId ??= _tenantProvider.GetCurrentTenantId();
+                if (tenantId == Guid.Empty)
+                {
+                    return ServiceResult<bool>.Fail("Tenant not found");
+                }
+
+                var config = await _context.Set<MercadoPagoOAuthConfiguration>()
+                    .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.IsActive);
+
+                if (config == null || string.IsNullOrEmpty(config.RefreshToken))
+                {
+                    return ServiceResult<bool>.Fail("No refresh token available");
+                }
+
+                var refreshToken = DecryptToken(config.RefreshToken);
+                var tokenResult = await RefreshTokenAsync(refreshToken);
+
+                if (!tokenResult.Success || tokenResult.Data == null)
+                {
+                    config.LastRefreshError = tokenResult.Message;
+                    config.RefreshAttempts++;
+                    config.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                    return ServiceResult<bool>.Fail(tokenResult.Message ?? "Token refresh failed");
+                }
+
+                // Update configuration with new tokens
+                config.AccessToken = EncryptToken(tokenResult.Data.AccessToken);
+                config.AccessTokenExpiresAt = DateTime.UtcNow.AddSeconds(tokenResult.Data.ExpiresIn);
+                config.LastRefreshAt = DateTime.UtcNow;
+                config.RefreshAttempts = 0;
+                config.LastRefreshError = null;
+                config.LastUsedAt = DateTime.UtcNow;
+                config.UpdatedAt = DateTime.UtcNow;
+
+                if (!string.IsNullOrEmpty(tokenResult.Data.RefreshToken))
+                {
+                    config.RefreshToken = EncryptToken(tokenResult.Data.RefreshToken);
+                }
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("Access token refreshed successfully for tenant {TenantId}", tenantId);
+                return ServiceResult<bool>.Ok(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error refreshing access token");
+                return ServiceResult<bool>.Fail("Error refreshing token");
+            }
+        }
+
+        public async Task<ServiceResult<bool>> DisconnectOAuthAsync(DisconnectMercadoPagoDto dto)
+        {
+            try
+            {
+                if (!dto.ConfirmDisconnect)
+                {
+                    return ServiceResult<bool>.Fail("Disconnection not confirmed");
+                }
+
+                var tenantId = _tenantProvider.GetCurrentTenantId();
+                if (tenantId == Guid.Empty)
+                {
+                    return ServiceResult<bool>.Fail("Tenant not found");
+                }
+
+                var config = await _context.Set<MercadoPagoOAuthConfiguration>()
+                    .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.IsActive);
+
+                if (config != null)
+                {
+                    config.IsActive = false;
+                    config.DisconnectedAt = DateTime.UtcNow;
+                    config.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                }
+
+                // Clean up OAuth states
+                var states = await _context.Set<MercadoPagoOAuthState>()
+                    .Where(s => s.TenantId == tenantId)
+                    .ToListAsync();
+
+                _context.Set<MercadoPagoOAuthState>().RemoveRange(states);
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("OAuth disconnected for tenant {TenantId}", tenantId);
+                return ServiceResult<bool>.Ok(true, "MercadoPago disconnected successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error disconnecting OAuth");
+                return ServiceResult<bool>.Fail("Error disconnecting");
+            }
+        }
+
+        public async Task<ServiceResult<string>> GetValidAccessTokenAsync(Guid? tenantId = null)
+        {
+            try
+            {
+                tenantId ??= _tenantProvider.GetCurrentTenantId();
+                if (tenantId == Guid.Empty)
+                {
+                    return ServiceResult<string>.Fail("Tenant not found");
+                }
+
+                var config = await _context.Set<MercadoPagoOAuthConfiguration>()
+                    .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.IsActive);
+
+                if (config == null)
+                {
+                    return ServiceResult<string>.Fail("MercadoPago not connected");
+                }
+
+                // Check if token needs refresh (expires in less than 1 hour)
+                if (config.AccessTokenExpiresAt <= DateTime.UtcNow.AddHours(1))
+                {
+                    var refreshResult = await RefreshAccessTokenAsync(tenantId);
+                    if (!refreshResult.Success)
+                    {
+                        return ServiceResult<string>.Fail("Failed to refresh token");
+                    }
+                    
+                    // Reload config after refresh
+                    config = await _context.Set<MercadoPagoOAuthConfiguration>()
+                        .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.IsActive);
+                }
+
+                if (config == null)
+                {
+                    return ServiceResult<string>.Fail("Configuration not found after refresh");
+                }
+
+                // Update last used timestamp
+                config.LastUsedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                var accessToken = DecryptToken(config.AccessToken);
+                return ServiceResult<string>.Ok(accessToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting valid access token");
+                return ServiceResult<string>.Fail("Error getting access token");
+            }
+        }
+
+        public async Task<ServiceResult<bool>> ConfigurePlatformOAuthAsync(PlatformOAuthConfigDto dto)
+        {
+            try
+            {
+                // This would be called by super admin to configure OAuth settings
+                _configuration["MercadoPago:ClientId"] = dto.ClientId;
+                _configuration["MercadoPago:ClientSecret"] = dto.ClientSecret;
+                _configuration["MercadoPago:RedirectUri"] = dto.RedirectUri;
+                _configuration["MercadoPago:IsTestMode"] = dto.IsTestMode.ToString();
+
+                _logger.LogInformation("Platform OAuth configuration updated");
+                return ServiceResult<bool>.Ok(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error configuring platform OAuth");
+                return ServiceResult<bool>.Fail("Error configuring OAuth");
+            }
+        }
+
+        public async Task<ServiceResult<Guid>> ValidateOAuthStateAsync(string state)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(state))
+                {
+                    return ServiceResult<Guid>.Fail("Invalid state");
+                }
+
+                // State format: tenant_{tenantId}_{randomString}
+                var parts = state.Split('_');
+                if (parts.Length != 3 || parts[0] != "tenant")
+                {
+                    return ServiceResult<Guid>.Fail("Invalid state format");
+                }
+
+                if (!Guid.TryParse(parts[1], out var tenantId))
+                {
+                    return ServiceResult<Guid>.Fail("Invalid tenant ID in state");
+                }
+
+                var oauthState = await _context.Set<MercadoPagoOAuthState>()
+                    .FirstOrDefaultAsync(s => s.State == state && s.TenantId == tenantId);
+
+                if (oauthState == null)
+                {
+                    return ServiceResult<Guid>.Fail("State not found");
+                }
+
+                if (oauthState.ExpiresAt < DateTime.UtcNow)
+                {
+                    oauthState.IsExpired = true;
+                    await _context.SaveChangesAsync();
+                    return ServiceResult<Guid>.Fail("State expired");
+                }
+
+                return ServiceResult<Guid>.Ok(tenantId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error validating OAuth state");
+                return ServiceResult<Guid>.Fail("Error validating state");
+            }
+        }
+
+        public async Task<ServiceResult<int>> RefreshExpiringTokensAsync()
+        {
+            try
+            {
+                var expiringConfigs = await _context.Set<MercadoPagoOAuthConfiguration>()
+                    .Where(c => c.IsActive && 
+                               c.AccessTokenExpiresAt <= DateTime.UtcNow.AddDays(7) &&
+                               !string.IsNullOrEmpty(c.RefreshToken))
+                    .ToListAsync();
+
+                var refreshedCount = 0;
+
+                foreach (var config in expiringConfigs)
+                {
+                    var result = await RefreshAccessTokenAsync(config.TenantId);
+                    if (result.Success)
+                    {
+                        refreshedCount++;
+                    }
+                }
+
+                _logger.LogInformation("Refreshed {Count} expiring tokens", refreshedCount);
+                return ServiceResult<int>.Ok(refreshedCount);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error refreshing expiring tokens");
+                return ServiceResult<int>.Fail("Error refreshing tokens");
+            }
+        }
+
+        public async Task<ServiceResult<MercadoPagoUserInfoDto>> GetAccountInfoAsync()
+        {
+            try
+            {
+                var tokenResult = await GetValidAccessTokenAsync();
+                if (!tokenResult.Success)
+                {
+                    return ServiceResult<MercadoPagoUserInfoDto>.Fail(tokenResult.Message);
+                }
+
+                var userInfoResult = await GetUserInfoAsync(tokenResult.Data!);
+                return userInfoResult;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting account info");
+                return ServiceResult<MercadoPagoUserInfoDto>.Fail("Error getting account info");
+            }
+        }
+
+        public async Task<ServiceResult<bool>> TestConnectionAsync()
+        {
+            try
+            {
+                var accountResult = await GetAccountInfoAsync();
+                return ServiceResult<bool>.Ok(accountResult.Success, accountResult.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error testing connection");
+                return ServiceResult<bool>.Fail("Error testing connection");
+            }
+        }
+
+        #region Private Methods
+
+        private string GenerateStateParameter(Guid tenantId)
+        {
+            var randomBytes = new byte[16];
+            RandomNumberGenerator.Fill(randomBytes);
+            var randomString = Convert.ToBase64String(randomBytes).Replace("+", "").Replace("/", "").Replace("=", "")[..10];
+            return $"tenant_{tenantId}_{randomString}";
+        }
+
+        private string BuildAuthorizationUrl(string clientId, string redirectUri, string state)
+        {
+            var queryParams = new Dictionary<string, string>
+            {
+                ["client_id"] = clientId,
+                ["response_type"] = "code",
+                ["platform_id"] = "mp",
+                ["redirect_uri"] = redirectUri,
+                ["state"] = state
+            };
+
+            var queryString = string.Join("&", queryParams.Select(kvp => $"{kvp.Key}={Uri.EscapeDataString(kvp.Value)}"));
+            return $"{AUTH_URL}?{queryString}";
+        }
+
+        private async Task<ServiceResult<MercadoPagoTokenResponseDto>> ExchangeCodeForTokenAsync(string code)
+        {
+            try
+            {
+                var clientId = _configuration["MercadoPago:ClientId"];
+                var clientSecret = _configuration["MercadoPago:ClientSecret"];
+                var redirectUri = _configuration["MercadoPago:RedirectUri"];
+
+                var requestData = new
+                {
+                    client_id = clientId,
+                    client_secret = clientSecret,
+                    grant_type = "authorization_code",
+                    code = code,
+                    redirect_uri = redirectUri
+                };
+
+                var json = JsonSerializer.Serialize(requestData);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await _httpClient.PostAsync(TOKEN_URL, content);
+                var responseContent = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogError("Token exchange failed: {Response}", responseContent);
+                    return ServiceResult<MercadoPagoTokenResponseDto>.Fail("Token exchange failed");
+                }
+
+                var tokenResponse = JsonSerializer.Deserialize<JsonElement>(responseContent);
+                
+                var result = new MercadoPagoTokenResponseDto
+                {
+                    AccessToken = tokenResponse.GetProperty("access_token").GetString() ?? "",
+                    RefreshToken = tokenResponse.GetProperty("refresh_token").GetString() ?? "",
+                    ExpiresIn = tokenResponse.GetProperty("expires_in").GetInt32(),
+                    TokenType = tokenResponse.GetProperty("token_type").GetString() ?? "",
+                    Scope = tokenResponse.GetProperty("scope").GetString() ?? "",
+                    UserId = tokenResponse.GetProperty("user_id").GetString() ?? ""
+                };
+
+                return ServiceResult<MercadoPagoTokenResponseDto>.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error exchanging code for token");
+                return ServiceResult<MercadoPagoTokenResponseDto>.Fail("Error exchanging code");
+            }
+        }
+
+        private async Task<ServiceResult<MercadoPagoTokenResponseDto>> RefreshTokenAsync(string refreshToken)
+        {
+            try
+            {
+                var clientId = _configuration["MercadoPago:ClientId"];
+                var clientSecret = _configuration["MercadoPago:ClientSecret"];
+
+                var requestData = new
+                {
+                    grant_type = "refresh_token",
+                    client_id = clientId,
+                    client_secret = clientSecret,
+                    refresh_token = refreshToken
+                };
+
+                var json = JsonSerializer.Serialize(requestData);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await _httpClient.PostAsync(TOKEN_URL, content);
+                var responseContent = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogError("Token refresh failed: {Response}", responseContent);
+                    return ServiceResult<MercadoPagoTokenResponseDto>.Fail("Token refresh failed");
+                }
+
+                var tokenResponse = JsonSerializer.Deserialize<JsonElement>(responseContent);
+                
+                var result = new MercadoPagoTokenResponseDto
+                {
+                    AccessToken = tokenResponse.GetProperty("access_token").GetString() ?? "",
+                    RefreshToken = tokenResponse.TryGetProperty("refresh_token", out var rt) ? rt.GetString() ?? "" : "",
+                    ExpiresIn = tokenResponse.GetProperty("expires_in").GetInt32(),
+                    TokenType = tokenResponse.GetProperty("token_type").GetString() ?? "",
+                    Scope = tokenResponse.TryGetProperty("scope", out var scope) ? scope.GetString() ?? "" : "",
+                    UserId = tokenResponse.TryGetProperty("user_id", out var userId) ? userId.GetString() ?? "" : ""
+                };
+
+                return ServiceResult<MercadoPagoTokenResponseDto>.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error refreshing token");
+                return ServiceResult<MercadoPagoTokenResponseDto>.Fail("Error refreshing token");
+            }
+        }
+
+        private async Task<ServiceResult<MercadoPagoUserInfoDto>> GetUserInfoAsync(string accessToken)
+        {
+            try
+            {
+                _httpClient.DefaultRequestHeaders.Authorization = 
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+                var response = await _httpClient.GetAsync(USER_INFO_URL);
+                var responseContent = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogError("Get user info failed: {Response}", responseContent);
+                    return ServiceResult<MercadoPagoUserInfoDto>.Fail("Failed to get user info");
+                }
+
+                var userInfo = JsonSerializer.Deserialize<JsonElement>(responseContent);
+                
+                var result = new MercadoPagoUserInfoDto
+                {
+                    Id = userInfo.GetProperty("id").GetString() ?? "",
+                    Nickname = userInfo.GetProperty("nickname").GetString() ?? "",
+                    Email = userInfo.GetProperty("email").GetString() ?? "",
+                    CountryId = userInfo.GetProperty("country_id").GetString() ?? "",
+                    CurrencyId = userInfo.TryGetProperty("currency_id", out var curr) ? curr.GetString() ?? "" : "",
+                    SiteStatus = userInfo.TryGetProperty("site_status", out var status) ? status.GetString() == "active" : true
+                };
+
+                return ServiceResult<MercadoPagoUserInfoDto>.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting user info");
+                return ServiceResult<MercadoPagoUserInfoDto>.Fail("Error getting user info");
+            }
+        }
+
+        private async Task SaveOAuthConfigurationAsync(Guid tenantId, MercadoPagoTokenResponseDto tokenData, MercadoPagoUserInfoDto userInfo)
+        {
+            // Deactivate existing configurations
+            var existingConfigs = await _context.Set<MercadoPagoOAuthConfiguration>()
+                .Where(c => c.TenantId == tenantId && c.IsActive)
+                .ToListAsync();
+
+            foreach (var config in existingConfigs)
+            {
+                config.IsActive = false;
+                config.DisconnectedAt = DateTime.UtcNow;
+                config.UpdatedAt = DateTime.UtcNow;
+            }
+
+            // Create new configuration
+            var newConfig = new MercadoPagoOAuthConfiguration
+            {
+                TenantId = tenantId,
+                MercadoPagoUserId = tokenData.UserId,
+                AccessToken = EncryptToken(tokenData.AccessToken),
+                RefreshToken = EncryptToken(tokenData.RefreshToken),
+                AccessTokenExpiresAt = DateTime.UtcNow.AddSeconds(tokenData.ExpiresIn),
+                AccountEmail = userInfo.Email,
+                AccountNickname = userInfo.Nickname,
+                CountryId = userInfo.CountryId,
+                CurrencyId = userInfo.CurrencyId,
+                IsActive = true,
+                IsTestMode = _configuration["MercadoPago:IsTestMode"] == "true"
+            };
+
+            _context.Set<MercadoPagoOAuthConfiguration>().Add(newConfig);
+            await _context.SaveChangesAsync();
+        }
+
+        private async Task CleanupExpiredStatesAsync(Guid tenantId)
+        {
+            var expiredStates = await _context.Set<MercadoPagoOAuthState>()
+                .Where(s => s.TenantId == tenantId && 
+                           (s.ExpiresAt < DateTime.UtcNow || s.IsCompleted))
+                .ToListAsync();
+
+            if (expiredStates.Any())
+            {
+                _context.Set<MercadoPagoOAuthState>().RemoveRange(expiredStates);
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        private string EncryptToken(string token)
+        {
+            // Simple encryption - in production, use proper encryption
+            var key = _configuration["EncryptionKey"] ?? "default-key-32-characters-long";
+            return Convert.ToBase64String(Encoding.UTF8.GetBytes(token + key))[..50]; // Simplified
+        }
+
+        private string DecryptToken(string encryptedToken)
+        {
+            // Simple decryption - in production, use proper decryption
+            var key = _configuration["EncryptionKey"] ?? "default-key-32-characters-long";
+            var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(encryptedToken + "=="));
+            return decoded.Replace(key, ""); // Simplified
+        }
+
+        #endregion
+    }
+}
