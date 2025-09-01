@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ./src/backend/BookingPro.API
+      dockerfile: Dockerfile
+    ports:
+      - "5001:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=${DATABASE_URL}
+      - Jwt__Key=${JWT_KEY}
+      - FrontendUrl=${FRONTEND_URL:-https://turnos-pro.com}
+      - SEED_DATA=false
+      - MercadoPago__ClientId=${MERCADOPAGO_CLIENT_ID}
+      - MercadoPago__ClientSecret=${MERCADOPAGO_CLIENT_SECRET}
+      - MercadoPago__AccessToken=${MERCADOPAGO_ACCESS_TOKEN}
+      - MercadoPago__RedirectUri=${MERCADOPAGO_REDIRECT_URI}
+      - MercadoPago__WebhookUrl=${MERCADOPAGO_WEBHOOK_URL}
+    networks:
+      - bookingpro-network
+
+  client:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile.prod
+    ports:
+      - "80:80"
+    environment:
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-https://api.turnos-pro.com/api}
+      - REACT_APP_APP_NAME=TurnosPro
+    depends_on:
+      - api
+    networks:
+      - bookingpro-network
+
+networks:
+  bookingpro-network:
+    driver: bridge
