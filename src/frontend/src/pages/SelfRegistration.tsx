@@ -93,7 +93,7 @@ const SelfRegistration: React.FC = () => {
   const loadVerticals = async () => {
     try {
       const response = await selfRegistrationApi.getVerticals();
-      setVerticals(response.data.data || []);
+      setVerticals(response.data || []);
     } catch (error: any) {
       setError('Error cargando tipos de negocio');
     }
