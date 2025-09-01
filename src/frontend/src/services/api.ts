@@ -14,17 +14,28 @@ const api = axios.create({
 // Request interceptor para agregar token si existe y tenant subdomain
 api.interceptors.request.use(
   (config) => {
+    // Check for super admin token first, then regular token
+    const superAdminToken = localStorage.getItem('superAdminToken');
     const token = localStorage.getItem('authToken');
-    if (token) {
+    
+    if (superAdminToken) {
+      config.headers.Authorization = `Bearer ${superAdminToken}`;
+    } else if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Extraer subdomain del hostname para desarrollo local
-    const hostname = window.location.hostname;
-    const parts = hostname.split('.');
-    if (parts.length >= 2 && parts[0] !== 'localhost' && parts[0] !== 'www') {
-      // Formato: subdomain.localhost o subdomain.domain.com
-      config.headers['X-Tenant-Subdomain'] = parts[0];
+    // Only add tenant subdomain if not super admin route
+    if (!config.url?.includes('/super-admin') && !config.url?.includes('/admin') && !config.url?.includes('/invitation')) {
+      // Extraer subdomain del hostname para desarrollo local
+      const hostname = window.location.hostname;
+      const parts = hostname.split('.');
+      if (parts.length >= 2 && parts[0] !== 'www') {
+        // Formato: subdomain.localhost o subdomain.domain.com
+        const subdomain = parts[0];
+        if (subdomain && subdomain !== 'localhost') {
+          config.headers['X-Tenant-Subdomain'] = subdomain;
+        }
+      }
     }
     
     return config;
@@ -39,8 +50,15 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('authToken');
-      window.location.href = '/login';
+      // Only redirect to login if we're not already on the login page or super admin pages
+      const currentPath = window.location.pathname;
+      const isOnLoginPage = currentPath === '/login' || currentPath.includes('/super-admin');
+      
+      if (!isOnLoginPage) {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('superAdminToken');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -62,6 +80,36 @@ export const authApi = {
   
   resetPassword: (token: string, password: string) =>
     api.post('/auth/reset-password', { token, password }).then(res => res.data),
+};
+
+// Super Admin API
+export const superAdminApi = {
+  login: (email: string, password: string) =>
+    api.post('/super-admin/auth/login', { email, password }).then(res => res.data),
+  
+  getTenants: (params?: { page?: number; pageSize?: number }) =>
+    api.get('/super-admin/tenants', { params }).then(res => res.data),
+  
+  getInvitations: () =>
+    api.get('/invitation').then(res => res.data),
+  
+  createInvitation: (data: any) =>
+    api.post('/api/invitation', data).then(res => res.data),
+  
+  cancelInvitation: (invitationId: string) =>
+    api.post(`/invitation/${invitationId}/cancel`).then(res => res.data),
+  
+  resendInvitation: (invitationId: string) =>
+    api.post(`/invitation/${invitationId}/resend`).then(res => res.data),
+  
+  getTenantTheme: (tenantId: string) =>
+    api.get(`/api/admin/tenanttheme/${tenantId}`).then(res => res.data),
+  
+  saveTenantTheme: (tenantId: string, theme: any) =>
+    api.post(`/api/admin/tenanttheme/${tenantId}`, theme).then(res => res.data),
+  
+  resetTenantTheme: (tenantId: string) =>
+    api.post(`/api/admin/tenanttheme/${tenantId}/reset`).then(res => res.data),
 };
 
 // Tenant API
@@ -170,5 +218,25 @@ export const serviceApi = {
     api.delete(`/services/${id}`).then(res => res.data),
 };
 
+// Invitation API (public endpoints)
+export const invitationApi = {
+  getInvitation: (token: string) =>
+    api.get(`/invitation/${token}`).then(res => res.data),
+  
+  acceptInvitation: (data: any) =>
+    api.post('/invitation/accept', data).then(res => res.data),
+};
+
+// Self Registration API (public endpoints)  
+export const selfRegistrationApi = {
+  register: (data: any) =>
+    api.post('/self-registration', data).then(res => res.data),
+    
+  checkSubdomain: (subdomain: string) =>
+    api.get(`/self-registration/check-subdomain/${subdomain}`).then(res => res.data),
+    
+  getVerticals: () =>
+    api.get('/verticals').then(res => res.data),
+};
 
 export default api;

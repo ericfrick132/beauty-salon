@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BookingPro.API.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250831120301_AddEndUserSystemAndPlatformPayments")]
-    partial class AddEndUserSystemAndPlatformPayments
+    [Migration("20250901031852_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -743,6 +743,155 @@ namespace BookingPro.API.Migrations
                         .IsUnique();
 
                     b.ToTable("mercadopago_configurations", (string)null);
+                });
+
+            modelBuilder.Entity("BookingPro.API.Models.Entities.MercadoPagoOAuthConfiguration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AccessToken")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("AccessTokenExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("AccountEmail")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("AccountNickname")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTime>("ConnectedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CountryId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CurrencyId")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<DateTime?>("DisconnectedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsTestMode")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastRefreshAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastRefreshError")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("LastUsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MercadoPagoUserId")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("PublicKey")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("RefreshAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RefreshToken")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("RefreshTokenExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccessTokenExpiresAt");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("MercadoPagoUserId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("mercadopago_oauth_configurations", (string)null);
+                });
+
+            modelBuilder.Entity("BookingPro.API.Models.Entities.MercadoPagoOAuthState", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AuthorizationCode")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("AuthorizationUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ErrorCode")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ErrorDescription")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsCompleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsExpired")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("IsCompleted");
+
+                    b.HasIndex("State")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("mercadopago_oauth_states", (string)null);
                 });
 
             modelBuilder.Entity("BookingPro.API.Models.Entities.Payment", b =>
@@ -1743,6 +1892,10 @@ namespace BookingPro.API.Migrations
                     b.Property<string>("DefaultTheme")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("Domain")
                         .IsRequired()

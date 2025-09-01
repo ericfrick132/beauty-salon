@@ -21,6 +21,7 @@ export interface TenantConfig {
   tenantId: string;
   businessName: string;
   vertical: 'barbershop' | 'beautysalon' | 'aesthetics';
+  timezone: string;
   theme: ThemeConfiguration;
   features: {
     onlinePayment: boolean;

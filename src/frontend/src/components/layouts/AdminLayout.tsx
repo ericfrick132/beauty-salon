@@ -233,19 +233,12 @@ export const AdminLayout: React.FC = () => {
   const menuItems: MenuItemType[] = [
     { text: 'Panel General', icon: <Dashboard />, path: '/dashboard' },
     { text: 'Calendario', icon: <CalendarToday />, path: '/calendar' },
-    {
-      text: 'Servicios',
-      icon: <Schedule />,
-      children: [
-        { text: 'Gestionar Servicios', icon: <ManageAccounts />, path: '/services' },
-        { text: `${getTerm('professional')}s`, icon: <Group />, path: '/professionals' },
-      ],
-    },
+    { text: `${getTerm('professional')}s`, icon: <Group />, path: '/professionals' },
     {
       text: getTerm('booking') + 's',
       icon: <Book />,
       children: [
-        { text: `Nueva ${getTerm('booking')}`, icon: <AddCircle />, path: '/new-booking' },
+        { text: `Nuevo ${getTerm('booking')}`, icon: <AddCircle />, path: '/new-booking' },
       ],
     },
     {
@@ -281,7 +274,8 @@ export const AdminLayout: React.FC = () => {
       text: 'Configuración', 
       icon: <Settings />,
       children: [
-        { text: 'MercadoPago', icon: <AccountBalance />, path: '/mercadopago-settings' },
+        { text: 'Gestionar Servicios', icon: <ManageAccounts />, path: '/services' },
+        { text: 'Mi MercadoPago', icon: <AccountBalance />, path: '/mercadopago-settings' },
         { text: 'Personalizar Tema', icon: <Palette />, path: '/theme-settings' },
         { text: 'Configuración General', icon: <Settings />, path: '/settings' },
       ]

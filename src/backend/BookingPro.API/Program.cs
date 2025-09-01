@@ -5,6 +5,7 @@ using System.Text;
 using BookingPro.API.Data;
 using BookingPro.API.Services;
 using BookingPro.API.Utilities;
+using BookingPro.API.Middleware;
 using Serilog;
 
 Console.WriteLine("=== INICIANDO APLICACIÓN BOOKINGPRO ===");
@@ -193,6 +194,9 @@ if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Ena
 
 app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
+
+// Rate limiting middleware before tenant resolution
+app.UseRateLimiting();
 
 // Tenant resolution middleware debe ir antes de la autenticación
 app.UseMiddleware<TenantResolutionMiddleware>();

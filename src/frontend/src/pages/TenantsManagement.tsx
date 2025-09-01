@@ -142,9 +142,9 @@ const TenantsManagement: React.FC = () => {
     try {
       setLoading(true);
       const [tenantsResponse, paymentsResponse, configResponse] = await Promise.allSettled([
-        api.get('/api/super-admin/tenants'),
-        api.get('/api/super-admin/tenant-payments'),
-        api.get('/api/super-admin/platform-config'),
+        api.get('/super-admin/tenants'),
+        api.get('/super-admin/tenant-payments'),
+        api.get('/super-admin/platform-config'),
       ]);
       
       let allTenants: Tenant[] = [];
@@ -195,7 +195,7 @@ const TenantsManagement: React.FC = () => {
 
   const handleUpdatePlatformConfig = async () => {
     try {
-      const response = await api.put('/api/super-admin/platform-config', platformConfig);
+      const response = await api.put('/super-admin/platform-config', platformConfig);
       
       if (response.data.success) {
         setMessage({ type: 'success', text: 'Configuración de plataforma actualizada' });
@@ -214,7 +214,7 @@ const TenantsManagement: React.FC = () => {
 
   const handleCreateTenantPayment = async (tenantId: string) => {
     try {
-      const response = await api.post(`/api/super-admin/tenants/${tenantId}/create-payment`);
+      const response = await api.post(`/super-admin/tenants/${tenantId}/create-payment`);
       
       if (response.data.success) {
         setMessage({ 

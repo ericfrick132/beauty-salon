@@ -14,7 +14,7 @@ import {
 import { Visibility, VisibilityOff, AdminPanelSettings } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { superAdminApi } from '../services/api';
 
 const SuperAdminLogin: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -32,12 +32,12 @@ const SuperAdminLogin: React.FC = () => {
     setError('');
 
     try {
-      const response = await axios.post('/api/super-admin/auth/login', formData);
+      const response = await superAdminApi.login(formData.email, formData.password);
       
-      if (response.data.success) {
+      if (response.success) {
         // Guardar token de super admin
-        localStorage.setItem('superAdminToken', response.data.token);
-        localStorage.setItem('superAdminUser', JSON.stringify(response.data.user));
+        localStorage.setItem('superAdminToken', response.token);
+        localStorage.setItem('superAdminUser', JSON.stringify(response.user));
         
         // Redirigir al dashboard de super admin
         navigate('/super-admin/dashboard');

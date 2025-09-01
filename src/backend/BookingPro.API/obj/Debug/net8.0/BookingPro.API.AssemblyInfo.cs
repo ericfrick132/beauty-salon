@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("BookingPro.API")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+276b3542650f193f225f4d6c6498ac290360ec91")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1b78112f4cb7a0f45127c1de7f6d2b5cb662ce8f")]
 [assembly: System.Reflection.AssemblyProductAttribute("BookingPro.API")]
 [assembly: System.Reflection.AssemblyTitleAttribute("BookingPro.API")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

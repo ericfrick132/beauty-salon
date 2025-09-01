@@ -30,7 +30,7 @@ import {
   VisibilityOff,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import axios from 'axios';
+import { invitationApi } from '../../services/api';
 
 interface InvitationDetails {
   id: string;
@@ -96,10 +96,16 @@ const InvitationPage: React.FC = () => {
   }, [token]);
 
   const loadInvitation = async () => {
+    if (!token) {
+      setError('Token de invitación no válido');
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
-      const response = await axios.get(`/api/invitation/${token}`);
-      const invitationData = response.data.data;
+      const response = await invitationApi.getInvitation(token);
+      const invitationData = response.data || response;
       
       setInvitation(invitationData);
       setActiveStep(1); // Ir al paso de completar información
@@ -137,7 +143,7 @@ const InvitationPage: React.FC = () => {
       setAcceptLoading(true);
       setError('');
       
-      const response = await axios.post('/api/invitation/accept', acceptData);
+      const response = await invitationApi.acceptInvitation(acceptData);
       
       setSuccess('¡Tenant creado exitosamente! Redirigiendo...');
       setActiveStep(2); // Ir a confirmación

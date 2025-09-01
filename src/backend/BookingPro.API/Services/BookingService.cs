@@ -268,18 +268,32 @@ namespace BookingPro.API.Services
                 if (service == null)
                     return ServiceResult<IEnumerable<string>>.Fail("Service not found");
 
-                // Ensure date is UTC to avoid PostgreSQL timezone issues
-                var utcDate = date.Kind == DateTimeKind.Unspecified 
-                    ? DateTime.SpecifyKind(date, DateTimeKind.Utc) 
-                    : date.ToUniversalTime();
+                // Get tenant timezone offset
+                var tenantInfo = _tenantService.GetCurrentTenant();
+                var timezoneOffset = tenantInfo?.TimeZone ?? "-3";
                 
-                var startOfDay = utcDate.Date;
+                // Parse timezone offset (e.g., "-3" -> -3 hours)
+                if (!int.TryParse(timezoneOffset, out int offsetHours))
+                {
+                    offsetHours = -3; // Default to Argentina timezone
+                }
+
+                // Convert input date to tenant timezone using simple offset
+                var localDate = date.Kind == DateTimeKind.Utc 
+                    ? date.AddHours(offsetHours)
+                    : date;
+                
+                var startOfDay = localDate.Date;
                 var endOfDay = startOfDay.AddDays(1);
+
+                // Convert to UTC for database query (subtract the offset)
+                var utcStartOfDay = DateTime.SpecifyKind(startOfDay.AddHours(-offsetHours), DateTimeKind.Utc);
+                var utcEndOfDay = DateTime.SpecifyKind(endOfDay.AddHours(-offsetHours), DateTimeKind.Utc);
 
                 var existingBookings = await _bookingRepository.FindAsync(b => 
                     b.EmployeeId == professionalId && 
-                    b.StartTime >= startOfDay &&
-                    b.StartTime < endOfDay &&
+                    b.StartTime >= utcStartOfDay &&
+                    b.StartTime < utcEndOfDay &&
                     b.Status != "cancelled");
 
                 var availableSlots = new List<string>();
@@ -289,20 +303,30 @@ namespace BookingPro.API.Services
 
                 for (var time = businessHours.start; time <= businessHours.end.Subtract(slotDuration); time = time.Add(TimeSpan.FromMinutes(30)))
                 {
-                    var slotStart = DateTime.SpecifyKind(utcDate.Date.Add(time), DateTimeKind.Utc);
-                    var slotEnd = DateTime.SpecifyKind(slotStart.Add(slotDuration), DateTimeKind.Utc);
+                    var localSlotStart = startOfDay.Add(time);
+                    var localSlotEnd = localSlotStart.Add(slotDuration);
+                    
+                    // Convert to UTC for comparison with existing bookings (subtract the offset)
+                    var utcSlotStart = localSlotStart.AddHours(-offsetHours);
+                    var utcSlotEnd = localSlotEnd.AddHours(-offsetHours);
 
                     // Verificar conflictos con reservas existentes (incluyendo tiempo mínimo)
                     var hasConflict = existingBookings.Any(b => 
                     {
                         var bufferStart = b.StartTime.Subtract(minimumGap);
                         var bufferEnd = b.EndTime.Add(minimumGap);
-                        return slotStart < bufferEnd && slotEnd > bufferStart;
+                        return utcSlotStart < bufferEnd && utcSlotEnd > bufferStart;
                     });
 
-                    if (!hasConflict && IsWithinBusinessHours(slotStart, slotEnd))
+                    if (!hasConflict && IsWithinBusinessHours(localSlotStart, localSlotEnd))
                     {
-                        availableSlots.Add(slotStart.ToString("HH:mm"));
+                        // Compare with current time in tenant timezone
+                        var currentTimeInTenantZone = DateTime.UtcNow.AddHours(offsetHours);
+                        var isPast = localSlotStart <= currentTimeInTenantZone;
+                        var timeString = localSlotStart.ToString("HH:mm");
+                        
+                        
+                        availableSlots.Add(isPast ? $"PAST:{timeString}" : timeString);
                     }
                 }
 
@@ -321,9 +345,8 @@ namespace BookingPro.API.Services
             if (!IsWithinBusinessHours(startTime, endTime))
                 return ServiceResult.Fail("La cita está fuera del horario de atención del negocio");
 
-            // 2. Validar que no sea en el pasado
-            if (startTime <= DateTime.UtcNow)
-                return ServiceResult.Fail("No se pueden crear citas en el pasado");
+            // 2. Nota: Permitimos citas en el pasado (puede ser útil para registrar citas que ya ocurrieron)
+            // No validamos si está en el pasado
 
             // 3. Validar duración mínima
             if (endTime <= startTime)
@@ -393,7 +416,7 @@ namespace BookingPro.API.Services
         private (TimeSpan start, TimeSpan end) GetBusinessHours()
         {
             // TODO: Esto debería ser configurable por tenant/negocio
-            return (new TimeSpan(9, 0, 0), new TimeSpan(18, 0, 0));
+            return (new TimeSpan(9, 0, 0), new TimeSpan(22, 0, 0));
         }
 
         private bool IsWithinBusinessHours(DateTime startTime, DateTime endTime)

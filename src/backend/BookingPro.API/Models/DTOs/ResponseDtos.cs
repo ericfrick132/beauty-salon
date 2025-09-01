@@ -44,6 +44,7 @@ namespace BookingPro.API.Models.DTOs
         public string? LastName { get; set; }
         public string? Email { get; set; }
         public string? Phone { get; set; }
+        public string? Dni { get; set; }
         public DateTime? BirthDate { get; set; }
         public int BookingCount { get; set; }
         public DateTime? LastBooking { get; set; }
@@ -56,6 +57,7 @@ namespace BookingPro.API.Models.DTOs
         public string? LastName { get; set; }
         public string? Email { get; set; }
         public string? Phone { get; set; }
+        public string? Dni { get; set; }
         public DateTime? BirthDate { get; set; }
         public string? Notes { get; set; }
         public string? Tags { get; set; }
@@ -70,6 +72,7 @@ namespace BookingPro.API.Models.DTOs
         public string? LastName { get; set; }
         public string? Email { get; set; }
         public string? Phone { get; set; }
+        public string? Dni { get; set; }
         public string FullName { get; set; } = string.Empty;
     }
 

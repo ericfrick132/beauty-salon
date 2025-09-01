@@ -21,7 +21,8 @@
       "Bash(./tools/dotnet-ef migrations add:*)",
       "Bash(dotnet new:*)",
       "Bash(grep:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(dotnet ef migrations:*)"
     ],
     "deny": [],
     "ask": []

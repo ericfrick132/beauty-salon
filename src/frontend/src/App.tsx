@@ -11,7 +11,7 @@ import { TenantProvider } from './contexts/TenantContext';
 import { createTurnosProTheme } from './theme/theme';
 import { TenantConfig, ThemeConfiguration } from './types';
 import { tenantApi } from './services/api';
-import axios from 'axios';
+import api from './services/api';
 import LoadingScreen from './components/common/LoadingScreen';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
@@ -25,6 +25,8 @@ import Services from './pages/Services';
 import Reports from './pages/Reports';
 import BookingPage from './pages/public/BookingPage';
 import InvitationPage from './pages/public/InvitationPage';
+import LandingPage from './pages/LandingPage';
+import SelfRegistration from './pages/SelfRegistration';
 import Payments from './pages/Payments';
 import Employees from './pages/Employees';
 import FinancialReports from './pages/FinancialReports';
@@ -47,6 +49,11 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const isMainDomain = () => {
+    const hostname = window.location.hostname;
+    return hostname === 'turnos-pro.com' || hostname === 'localhost' || hostname === '127.0.0.1';
+  };
+
   const loadTenantConfiguration = async () => {
     try {
       // Verificar si es una ruta de super admin
@@ -55,16 +62,26 @@ function App() {
         return;
       }
 
+      // Check if we're on the main domain (for landing page)
+      if (isMainDomain() && (window.location.pathname === '/' || window.location.pathname === '/register')) {
+        // We're on the main domain, no tenant config needed
+        setLoading(false);
+        return;
+      }
+
       const config = await tenantApi.getConfig();
       
-      // Try to load theme configuration from the API if exists
-      try {
-        const themeResponse = await axios.get('/api/themeconfiguration');
-        if (themeResponse.data?.data) {
-          config.theme = themeResponse.data.data;
+      // Only try to load theme configuration if user is authenticated
+      const authToken = localStorage.getItem('authToken');
+      if (authToken && !window.location.pathname.startsWith('/login')) {
+        try {
+          const themeResponse = await api.get('/ThemeConfiguration');
+          if (themeResponse.data?.data) {
+            config.theme = themeResponse.data.data;
+          }
+        } catch (themeError) {
+          console.log('Theme endpoint not available, using tenant config theme');
         }
-      } catch (themeError) {
-        console.log('Theme endpoint not available, using tenant config theme');
       }
       
       setTenantConfig(config);
@@ -80,6 +97,12 @@ function App() {
     } catch (error) {
       console.error('Failed to load tenant configuration:', error);
       console.log('Current hostname:', window.location.hostname);
+      
+      // If we're on main domain and API fails, still allow access to landing/register
+      if (isMainDomain() && (window.location.pathname === '/' || window.location.pathname === '/register')) {
+        setLoading(false);
+        return;
+      }
       
       // Detectar el vertical basado en el hostname si la API falla
       let detectedVertical: 'barbershop' | 'beautysalon' | 'aesthetics' = 'barbershop';
@@ -124,6 +147,7 @@ function App() {
         businessName: detectedVertical === 'beautysalon' ? 'Salón de Belleza' : 
                      detectedVertical === 'aesthetics' ? 'Centro de Estética' : 'Turnos Pro',
         vertical: detectedVertical,
+        timezone: '-3',
         theme: defaultTheme,
         features: {
           onlinePayment: true,
@@ -204,12 +228,23 @@ function App() {
                 <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />
                 <Route path="/super-admin/tenants" element={<TenantsManagement />} />
                 
-                {/* Rutas Públicas */}
-                <Route path="/" element={<Navigate to="/login" replace />} />
-                <Route path="/book" element={<BookingPage />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/invitation/:token" element={<InvitationPage />} />
-                <Route path="/subscription/plans" element={<SubscriptionPlans />} />
+                {/* Main Domain Routes - Landing Page */}
+                {isMainDomain() ? (
+                  <>
+                    <Route path="/" element={<LandingPage />} />
+                    <Route path="/register" element={<SelfRegistration />} />
+                    <Route path="/invitation/:token" element={<InvitationPage />} />
+                  </>
+                ) : (
+                  <>
+                    {/* Tenant Subdomain Routes */}
+                    <Route path="/" element={<Navigate to="/login" replace />} />
+                    <Route path="/book" element={<BookingPage />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/invitation/:token" element={<InvitationPage />} />
+                    <Route path="/subscription/plans" element={<SubscriptionPlans />} />
+                  </>
+                )}
                 
                 {/* Rutas Admin con Layout */}
                 <Route element={<AdminLayout />}>

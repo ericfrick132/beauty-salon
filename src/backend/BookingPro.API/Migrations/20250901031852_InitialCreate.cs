@@ -86,6 +86,117 @@ namespace BookingPro.API.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "end_users",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Email = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    FirstName = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    LastName = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    Phone = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
+                    Status = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    DemoStartedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    DemoEndsAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    MembershipStartedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    MembershipEndsAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    CurrentPlanType = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
+                    CurrentPlanAmount = table.Column<decimal>(type: "numeric", nullable: true),
+                    LastRenewalReminderSentAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    RenewalReminderCount = table.Column<int>(type: "integer", nullable: false),
+                    WelcomeEmailSentAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    Day3EmailSentAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    Day5EmailSentAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    Day7EmailSentAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    RecoveryEmailSentAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    RecoveryEmailCount = table.Column<int>(type: "integer", nullable: false),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_end_users", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "mercadopago_oauth_configurations",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
+                    MercadoPagoUserId = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    AccessToken = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: false),
+                    RefreshToken = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    AccessTokenExpiresAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    RefreshTokenExpiresAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    AccountEmail = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                    AccountNickname = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                    CountryId = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    CurrencyId = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: true),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
+                    IsTestMode = table.Column<bool>(type: "boolean", nullable: false),
+                    ConnectedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    LastUsedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    DisconnectedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    LastRefreshAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    RefreshAttempts = table.Column<int>(type: "integer", nullable: false),
+                    LastRefreshError = table.Column<string>(type: "text", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    PublicKey = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_mercadopago_oauth_configurations", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "mercadopago_oauth_states",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
+                    State = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    AuthorizationUrl = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    IsCompleted = table.Column<bool>(type: "boolean", nullable: false),
+                    IsExpired = table.Column<bool>(type: "boolean", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    ExpiresAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    AuthorizationCode = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    CompletedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    ErrorCode = table.Column<string>(type: "text", nullable: true),
+                    ErrorDescription = table.Column<string>(type: "text", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_mercadopago_oauth_states", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "platform_mercadopago_config",
+                schema: "public",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    AccessToken = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    RefreshToken = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    PublicKey = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    UserId = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    IsSandbox = table.Column<bool>(type: "boolean", nullable: false),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
+                    TokenExpiresAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    ConnectedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    DisconnectedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_platform_mercadopago_config", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "service_categories",
                 columns: table => new
                 {
@@ -102,6 +213,66 @@ namespace BookingPro.API.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "SubscriptionPlans",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Code = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    Description = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    Price = table.Column<decimal>(type: "numeric", nullable: false),
+                    Currency = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: false),
+                    MaxBookingsPerMonth = table.Column<int>(type: "integer", nullable: false),
+                    MaxServices = table.Column<int>(type: "integer", nullable: false),
+                    MaxStaff = table.Column<int>(type: "integer", nullable: false),
+                    MaxCustomers = table.Column<int>(type: "integer", nullable: false),
+                    AllowOnlinePayments = table.Column<bool>(type: "boolean", nullable: false),
+                    AllowCustomBranding = table.Column<bool>(type: "boolean", nullable: false),
+                    AllowSmsNotifications = table.Column<bool>(type: "boolean", nullable: false),
+                    AllowEmailMarketing = table.Column<bool>(type: "boolean", nullable: false),
+                    AllowReports = table.Column<bool>(type: "boolean", nullable: false),
+                    AllowMultiLocation = table.Column<bool>(type: "boolean", nullable: false),
+                    AllowWhatsApp = table.Column<bool>(type: "boolean", nullable: false),
+                    WhatsAppMonthlyLimit = table.Column<int>(type: "integer", nullable: false),
+                    WhatsAppExtraMessageCost = table.Column<decimal>(type: "numeric", nullable: false),
+                    MercadoPagoPreapprovalPlanId = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                    TrialDays = table.Column<int>(type: "integer", nullable: false),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
+                    IsPopular = table.Column<bool>(type: "boolean", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "integer", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SubscriptionPlans", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "tenant_plans",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Code = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    Description = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    Price = table.Column<decimal>(type: "numeric", nullable: false),
+                    Currency = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: false),
+                    DurationDays = table.Column<int>(type: "integer", nullable: false),
+                    DiscountPercentage = table.Column<decimal>(type: "numeric", nullable: true),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "integer", nullable: false),
+                    IsMostPopular = table.Column<bool>(type: "boolean", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_tenant_plans", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "verticals",
                 schema: "public",
                 columns: table => new
@@ -109,6 +280,7 @@ namespace BookingPro.API.Migrations
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     Code = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    Description = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
                     Domain = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
                     DefaultTheme = table.Column<string>(type: "text", nullable: false),
                     DefaultServices = table.Column<string>(type: "text", nullable: false),
@@ -156,6 +328,11 @@ namespace BookingPro.API.Migrations
                     Description = table.Column<string>(type: "text", nullable: true),
                     DurationMinutes = table.Column<int>(type: "integer", nullable: false),
                     Price = table.Column<decimal>(type: "numeric", nullable: false),
+                    RequiresDeposit = table.Column<bool>(type: "boolean", nullable: false),
+                    DepositPercentage = table.Column<decimal>(type: "numeric", nullable: true),
+                    DepositFixedAmount = table.Column<decimal>(type: "numeric", nullable: true),
+                    DepositPolicy = table.Column<string>(type: "text", nullable: false),
+                    DepositAdvanceDays = table.Column<int>(type: "integer", nullable: true),
                     IsActive = table.Column<bool>(type: "boolean", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
@@ -168,6 +345,47 @@ namespace BookingPro.API.Migrations
                         principalTable: "service_categories",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.SetNull);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "memberships",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
+                    EndUserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    PlanId = table.Column<Guid>(type: "uuid", nullable: false),
+                    StartDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    EndDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    Status = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    AmountPaid = table.Column<decimal>(type: "numeric", nullable: false),
+                    PaymentId = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                    PreferenceId = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                    IsAutoRenewal = table.Column<bool>(type: "boolean", nullable: false),
+                    NextRenewalDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    RenewalLinkGeneratedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    RenewalPaymentLink = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    RenewalReminder3DaysSentAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    RenewalReminder1DaySentAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    ExpirationNoticeSentAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_memberships", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_memberships_end_users_EndUserId",
+                        column: x => x.EndUserId,
+                        principalTable: "end_users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_memberships_tenant_plans_PlanId",
+                        column: x => x.PlanId,
+                        principalTable: "tenant_plans",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -216,7 +434,9 @@ namespace BookingPro.API.Migrations
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     CancelledAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    CancellationReason = table.Column<string>(type: "text", nullable: true)
+                    CancellationReason = table.Column<string>(type: "text", nullable: true),
+                    RequiresDeposit = table.Column<bool>(type: "boolean", nullable: false),
+                    DepositAmount = table.Column<decimal>(type: "numeric", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -237,6 +457,53 @@ namespace BookingPro.API.Migrations
                         name: "FK_bookings_services_ServiceId",
                         column: x => x.ServiceId,
                         principalTable: "services",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "end_user_payments",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
+                    EndUserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    MembershipId = table.Column<Guid>(type: "uuid", nullable: true),
+                    PlanId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Amount = table.Column<decimal>(type: "numeric", nullable: false),
+                    Currency = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: false),
+                    Status = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    PaymentType = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    MercadoPagoPaymentId = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                    PreferenceId = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                    PaymentLink = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    PaymentMethod = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    FailureReason = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    ExternalReference = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    PaidAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    ExpiresAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_end_user_payments", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_end_user_payments_end_users_EndUserId",
+                        column: x => x.EndUserId,
+                        principalTable: "end_users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_end_user_payments_memberships_MembershipId",
+                        column: x => x.MembershipId,
+                        principalTable: "memberships",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "FK_end_user_payments_tenant_plans_PlanId",
+                        column: x => x.PlanId,
+                        principalTable: "tenant_plans",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -315,36 +582,58 @@ namespace BookingPro.API.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Payments",
+                name: "payments",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     TenantId = table.Column<Guid>(type: "uuid", nullable: false),
                     BookingId = table.Column<Guid>(type: "uuid", nullable: false),
+                    CustomerId = table.Column<Guid>(type: "uuid", nullable: true),
                     EmployeeId = table.Column<Guid>(type: "uuid", nullable: true),
                     Amount = table.Column<decimal>(type: "numeric", nullable: false),
                     PaymentMethod = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     Status = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     TransactionId = table.Column<string>(type: "text", nullable: true),
+                    MercadoPagoPaymentId = table.Column<string>(type: "text", nullable: true),
+                    MercadoPagoPreferenceId = table.Column<string>(type: "text", nullable: true),
+                    PaymentLink = table.Column<string>(type: "text", nullable: true),
+                    ExpiresAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    PayerEmail = table.Column<string>(type: "text", nullable: true),
+                    PayerName = table.Column<string>(type: "text", nullable: true),
+                    FailureReason = table.Column<string>(type: "text", nullable: true),
                     CommissionAmount = table.Column<decimal>(type: "numeric", nullable: true),
                     TipAmount = table.Column<decimal>(type: "numeric", nullable: true),
                     PaymentDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    Notes = table.Column<string>(type: "text", nullable: true)
+                    Notes = table.Column<string>(type: "text", nullable: true),
+                    PaymentType = table.Column<string>(type: "text", nullable: false),
+                    ServiceId = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Payments", x => x.Id);
+                    table.PrimaryKey("PK_payments", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Payments_Employees_EmployeeId",
+                        name: "FK_payments_Employees_EmployeeId",
                         column: x => x.EmployeeId,
                         principalTable: "Employees",
-                        principalColumn: "Id");
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
                     table.ForeignKey(
-                        name: "FK_Payments_bookings_BookingId",
+                        name: "FK_payments_bookings_BookingId",
                         column: x => x.BookingId,
                         principalTable: "bookings",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_payments_customers_CustomerId",
+                        column: x => x.CustomerId,
+                        principalTable: "customers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "FK_payments_services_ServiceId",
+                        column: x => x.ServiceId,
+                        principalTable: "services",
+                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateTable(
@@ -398,6 +687,38 @@ namespace BookingPro.API.Migrations
                         principalTable: "verticals",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "mercadopago_configurations",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
+                    AccessToken = table.Column<string>(type: "text", nullable: true),
+                    RefreshToken = table.Column<string>(type: "text", nullable: true),
+                    PublicKey = table.Column<string>(type: "text", nullable: true),
+                    UserId = table.Column<string>(type: "text", nullable: true),
+                    UserEmail = table.Column<string>(type: "text", nullable: true),
+                    TokenExpiresAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    PaymentExpirationMinutes = table.Column<int>(type: "integer", nullable: false),
+                    UseSandbox = table.Column<bool>(type: "boolean", nullable: false),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
+                    ConnectedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    DisconnectedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_mercadopago_configurations", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_mercadopago_configurations_tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalSchema: "public",
+                        principalTable: "tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -483,32 +804,71 @@ namespace BookingPro.API.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "subscriptions",
+                name: "Subscriptions",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
+                    PlanType = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    MonthlyAmount = table.Column<decimal>(type: "numeric", nullable: false),
+                    MercadoPagoPreapprovalId = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                    MercadoPagoPreapprovalPlanId = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                    PayerEmail = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                    Status = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    ActivatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    NextPaymentDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    CancelledAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    CancellationReason = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    IsTrialPeriod = table.Column<bool>(type: "boolean", nullable: false),
+                    TrialEndsAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    PlanId = table.Column<Guid>(type: "uuid", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Subscriptions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Subscriptions_plans_PlanId",
+                        column: x => x.PlanId,
+                        principalSchema: "public",
+                        principalTable: "plans",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_Subscriptions_tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalSchema: "public",
+                        principalTable: "tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "tenant_subscription_payments",
                 schema: "public",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     TenantId = table.Column<Guid>(type: "uuid", nullable: false),
-                    PlanId = table.Column<Guid>(type: "uuid", nullable: false),
+                    PlatformPaymentId = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                    PreferenceId = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                    Amount = table.Column<decimal>(type: "numeric", nullable: false),
+                    Period = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    PeriodStart = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    PeriodEnd = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     Status = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
-                    CurrentPeriodStart = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    CurrentPeriodEnd = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    CancelAtPeriodEnd = table.Column<bool>(type: "boolean", nullable: false),
-                    StripeSubscriptionId = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    PayerEmail = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                    PaymentMethod = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    FailureReason = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    PaidAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_subscriptions", x => x.Id);
+                    table.PrimaryKey("PK_tenant_subscription_payments", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_subscriptions_plans_PlanId",
-                        column: x => x.PlanId,
-                        principalSchema: "public",
-                        principalTable: "plans",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_subscriptions_tenants_TenantId",
+                        name: "FK_tenant_subscription_payments_tenants_TenantId",
                         column: x => x.TenantId,
                         principalSchema: "public",
                         principalTable: "tenants",
@@ -538,6 +898,39 @@ namespace BookingPro.API.Migrations
                     table.PrimaryKey("PK_users", x => x.Id);
                     table.ForeignKey(
                         name: "FK_users_tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalSchema: "public",
+                        principalTable: "tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SubscriptionPayments",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
+                    SubscriptionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    MercadoPagoPaymentId = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    Amount = table.Column<decimal>(type: "numeric", nullable: false),
+                    Status = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    PaymentDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    FailureReason = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    PaymentMethod = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SubscriptionPayments", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_SubscriptionPayments_Subscriptions_SubscriptionId",
+                        column: x => x.SubscriptionId,
+                        principalTable: "Subscriptions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_SubscriptionPayments_tenants_TenantId",
                         column: x => x.TenantId,
                         principalSchema: "public",
                         principalTable: "tenants",
@@ -608,6 +1001,67 @@ namespace BookingPro.API.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_end_user_payments_EndUserId",
+                table: "end_user_payments",
+                column: "EndUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_end_user_payments_ExternalReference",
+                table: "end_user_payments",
+                column: "ExternalReference");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_end_user_payments_MembershipId",
+                table: "end_user_payments",
+                column: "MembershipId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_end_user_payments_MercadoPagoPaymentId",
+                table: "end_user_payments",
+                column: "MercadoPagoPaymentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_end_user_payments_PlanId",
+                table: "end_user_payments",
+                column: "PlanId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_end_user_payments_Status",
+                table: "end_user_payments",
+                column: "Status");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_end_user_payments_TenantId",
+                table: "end_user_payments",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_end_users_DemoEndsAt",
+                table: "end_users",
+                column: "DemoEndsAt");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_end_users_Email_TenantId",
+                table: "end_users",
+                columns: new[] { "Email", "TenantId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_end_users_MembershipEndsAt",
+                table: "end_users",
+                column: "MembershipEndsAt");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_end_users_Status",
+                table: "end_users",
+                column: "Status");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_end_users_TenantId",
+                table: "end_users",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_invitations_CreatedTenantId",
                 schema: "public",
                 table: "invitations",
@@ -652,6 +1106,78 @@ namespace BookingPro.API.Migrations
                 column: "VerticalId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_memberships_EndDate",
+                table: "memberships",
+                column: "EndDate");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_memberships_EndUserId",
+                table: "memberships",
+                column: "EndUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_memberships_PlanId",
+                table: "memberships",
+                column: "PlanId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_memberships_Status",
+                table: "memberships",
+                column: "Status");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_memberships_TenantId",
+                table: "memberships",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_mercadopago_configurations_TenantId",
+                table: "mercadopago_configurations",
+                column: "TenantId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_mercadopago_oauth_configurations_AccessTokenExpiresAt",
+                table: "mercadopago_oauth_configurations",
+                column: "AccessTokenExpiresAt");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_mercadopago_oauth_configurations_IsActive",
+                table: "mercadopago_oauth_configurations",
+                column: "IsActive");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_mercadopago_oauth_configurations_MercadoPagoUserId",
+                table: "mercadopago_oauth_configurations",
+                column: "MercadoPagoUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_mercadopago_oauth_configurations_TenantId",
+                table: "mercadopago_oauth_configurations",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_mercadopago_oauth_states_ExpiresAt",
+                table: "mercadopago_oauth_states",
+                column: "ExpiresAt");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_mercadopago_oauth_states_IsCompleted",
+                table: "mercadopago_oauth_states",
+                column: "IsCompleted");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_mercadopago_oauth_states_State",
+                table: "mercadopago_oauth_states",
+                column: "State",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_mercadopago_oauth_states_TenantId",
+                table: "mercadopago_oauth_states",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_payment_configurations_TenantId",
                 table: "payment_configurations",
                 column: "TenantId");
@@ -672,20 +1198,52 @@ namespace BookingPro.API.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Payments_BookingId",
-                table: "Payments",
+                name: "IX_payments_BookingId",
+                table: "payments",
                 column: "BookingId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Payments_EmployeeId",
-                table: "Payments",
+                name: "IX_payments_CustomerId",
+                table: "payments",
+                column: "CustomerId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_payments_EmployeeId",
+                table: "payments",
                 column: "EmployeeId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_payments_ServiceId",
+                table: "payments",
+                column: "ServiceId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_payments_Status",
+                table: "payments",
+                column: "Status");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_payments_TenantId",
+                table: "payments",
+                column: "TenantId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_plans_VerticalId",
                 schema: "public",
                 table: "plans",
                 column: "VerticalId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_platform_mercadopago_config_IsActive",
+                schema: "public",
+                table: "platform_mercadopago_config",
+                column: "IsActive");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_platform_mercadopago_config_IsSandbox",
+                schema: "public",
+                table: "platform_mercadopago_config",
+                column: "IsSandbox");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Schedules_EmployeeId",
@@ -723,15 +1281,68 @@ namespace BookingPro.API.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_subscriptions_PlanId",
-                schema: "public",
-                table: "subscriptions",
+                name: "IX_SubscriptionPayments_SubscriptionId",
+                table: "SubscriptionPayments",
+                column: "SubscriptionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SubscriptionPayments_TenantId",
+                table: "SubscriptionPayments",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Subscriptions_PlanId",
+                table: "Subscriptions",
                 column: "PlanId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_subscriptions_TenantId",
+                name: "IX_Subscriptions_TenantId",
+                table: "Subscriptions",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_tenant_plans_Code_TenantId",
+                table: "tenant_plans",
+                columns: new[] { "Code", "TenantId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_tenant_plans_DisplayOrder",
+                table: "tenant_plans",
+                column: "DisplayOrder");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_tenant_plans_IsActive",
+                table: "tenant_plans",
+                column: "IsActive");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_tenant_plans_TenantId",
+                table: "tenant_plans",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_tenant_subscription_payments_PeriodEnd",
                 schema: "public",
-                table: "subscriptions",
+                table: "tenant_subscription_payments",
+                column: "PeriodEnd");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_tenant_subscription_payments_PlatformPaymentId",
+                schema: "public",
+                table: "tenant_subscription_payments",
+                column: "PlatformPaymentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_tenant_subscription_payments_Status",
+                schema: "public",
+                table: "tenant_subscription_payments",
+                column: "Status");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_tenant_subscription_payments_TenantId",
+                schema: "public",
+                table: "tenant_subscription_payments",
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
@@ -805,8 +1416,20 @@ namespace BookingPro.API.Migrations
                 name: "DailyReports");
 
             migrationBuilder.DropTable(
+                name: "end_user_payments");
+
+            migrationBuilder.DropTable(
                 name: "invitations",
                 schema: "public");
+
+            migrationBuilder.DropTable(
+                name: "mercadopago_configurations");
+
+            migrationBuilder.DropTable(
+                name: "mercadopago_oauth_configurations");
+
+            migrationBuilder.DropTable(
+                name: "mercadopago_oauth_states");
 
             migrationBuilder.DropTable(
                 name: "payment_configurations");
@@ -815,13 +1438,23 @@ namespace BookingPro.API.Migrations
                 name: "payment_transactions");
 
             migrationBuilder.DropTable(
-                name: "Payments");
+                name: "payments");
+
+            migrationBuilder.DropTable(
+                name: "platform_mercadopago_config",
+                schema: "public");
 
             migrationBuilder.DropTable(
                 name: "Schedules");
 
             migrationBuilder.DropTable(
-                name: "subscriptions",
+                name: "SubscriptionPayments");
+
+            migrationBuilder.DropTable(
+                name: "SubscriptionPlans");
+
+            migrationBuilder.DropTable(
+                name: "tenant_subscription_payments",
                 schema: "public");
 
             migrationBuilder.DropTable(
@@ -829,11 +1462,19 @@ namespace BookingPro.API.Migrations
                 schema: "public");
 
             migrationBuilder.DropTable(
+                name: "memberships");
+
+            migrationBuilder.DropTable(
                 name: "bookings");
 
             migrationBuilder.DropTable(
-                name: "tenants",
-                schema: "public");
+                name: "Subscriptions");
+
+            migrationBuilder.DropTable(
+                name: "end_users");
+
+            migrationBuilder.DropTable(
+                name: "tenant_plans");
 
             migrationBuilder.DropTable(
                 name: "Employees");
@@ -845,11 +1486,15 @@ namespace BookingPro.API.Migrations
                 name: "services");
 
             migrationBuilder.DropTable(
-                name: "plans",
+                name: "tenants",
                 schema: "public");
 
             migrationBuilder.DropTable(
                 name: "service_categories");
+
+            migrationBuilder.DropTable(
+                name: "plans",
+                schema: "public");
 
             migrationBuilder.DropTable(
                 name: "verticals",

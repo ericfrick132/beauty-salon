@@ -32,6 +32,7 @@ namespace BookingPro.API.Services
                         LastName = c.LastName,
                         Email = c.Email,
                         Phone = c.Phone,
+                        Dni = c.Dni,
                         BirthDate = c.BirthDate,
                         BookingCount = c.Bookings.Count(),
                         LastBooking = c.Bookings
@@ -62,6 +63,7 @@ namespace BookingPro.API.Services
                         LastName = c.LastName,
                         Email = c.Email,
                         Phone = c.Phone,
+                        Dni = c.Dni,
                         BirthDate = c.BirthDate,
                         Notes = c.Notes,
                         Tags = c.Tags,
@@ -117,6 +119,7 @@ namespace BookingPro.API.Services
                     LastName = dto.LastName,
                     Email = dto.Email,
                     Phone = dto.Phone,
+                    Dni = dto.Dni,
                     BirthDate = dto.BirthDate,
                     Notes = dto.Notes,
                     Tags = dto.Tags,
@@ -157,6 +160,8 @@ namespace BookingPro.API.Services
                     customer.Email = dto.Email;
                 if (!string.IsNullOrEmpty(dto.Phone))
                     customer.Phone = dto.Phone;
+                if (dto.Dni != null)
+                    customer.Dni = dto.Dni;
                 if (dto.BirthDate.HasValue)
                     customer.BirthDate = dto.BirthDate;
                 if (dto.Notes != null)
@@ -217,7 +222,8 @@ namespace BookingPro.API.Services
                         c.FirstName.Contains(searchTerm) ||
                         c.LastName != null && c.LastName.Contains(searchTerm) ||
                         c.Phone != null && c.Phone.Contains(searchTerm) ||
-                        c.Email != null && c.Email.Contains(searchTerm));
+                        c.Email != null && c.Email.Contains(searchTerm) ||
+                        c.Dni != null && c.Dni.Contains(searchTerm));
                 }
 
                 var customers = await query
@@ -228,6 +234,7 @@ namespace BookingPro.API.Services
                         LastName = c.LastName,
                         Email = c.Email,
                         Phone = c.Phone,
+                        Dni = c.Dni,
                         FullName = $"{c.FirstName} {c.LastName}".Trim()
                     })
                     .OrderBy(c => c.FirstName)

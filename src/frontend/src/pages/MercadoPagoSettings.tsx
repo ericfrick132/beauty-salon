@@ -177,7 +177,7 @@ const MercadoPagoSettings: React.FC = () => {
   const handleDisconnect = async () => {
     try {
       setSaving(true);
-      const response = await api.post('/api/mercadopago/oauth/disconnect', {
+      const response = await api.post('/mercadopago/oauth/disconnect', {
         confirmDisconnect: true
       });
       
@@ -199,7 +199,7 @@ const MercadoPagoSettings: React.FC = () => {
   const handleTestConnection = async () => {
     try {
       setTesting(true);
-      const response = await api.post('/api/mercadopago/oauth/test');
+      const response = await api.post('/mercadopago/oauth/test');
       
       if (response.data.success) {
         setMessage({ type: 'success', text: 'Conexión funcionando correctamente' });
@@ -217,7 +217,7 @@ const MercadoPagoSettings: React.FC = () => {
   const handleRefreshToken = async () => {
     try {
       setRefreshing(true);
-      const response = await api.post('/api/mercadopago/oauth/refresh');
+      const response = await api.post('/mercadopago/oauth/refresh');
       
       if (response.data.success) {
         setMessage({ type: 'success', text: 'Token actualizado exitosamente' });

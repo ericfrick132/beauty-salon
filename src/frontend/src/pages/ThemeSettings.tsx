@@ -17,6 +17,10 @@ import {
   Snackbar,
   Divider,
   Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Save,
@@ -26,10 +30,28 @@ import {
   ColorLens,
   Visibility,
   ContentCopy,
+  Schedule,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import axios from 'axios';
+import api from '../services/api';
 import { ThemeConfiguration } from '../types';
+
+const TIMEZONES = [
+  { value: '-3', label: 'Argentina (UTC-3)' },
+  { value: '-3', label: 'Brasil (UTC-3)' },
+  { value: '-4', label: 'Chile (UTC-4)' },
+  { value: '-5', label: 'Perú/Colombia (UTC-5)' },
+  { value: '-4', label: 'Venezuela (UTC-4)' },
+  { value: '-3', label: 'Uruguay (UTC-3)' },
+  { value: '-3', label: 'Paraguay (UTC-3)' },
+  { value: '-4', label: 'Bolivia (UTC-4)' },
+  { value: '-5', label: 'Ecuador (UTC-5)' },
+  { value: '+1', label: 'España (UTC+1)' },
+  { value: '0', label: 'Reino Unido (UTC+0)' },
+  { value: '-5', label: 'Estados Unidos Este (UTC-5)' },
+  { value: '-8', label: 'Estados Unidos Oeste (UTC-8)' },
+  { value: '0', label: 'UTC' },
+];
 
 const ThemeSettings: React.FC = () => {
   const [themeConfig, setThemeConfig] = useState<ThemeConfiguration>({
@@ -51,6 +73,9 @@ const ThemeSettings: React.FC = () => {
     autoContrastText: true,
   });
 
+  const [timezone, setTimezone] = useState<string>('-3');
+  const [originalTimezone, setOriginalTimezone] = useState<string>('-3');
+
   const [originalTheme, setOriginalTheme] = useState<ThemeConfiguration | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -63,13 +88,22 @@ const ThemeSettings: React.FC = () => {
   const loadThemeConfiguration = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/themeconfiguration');
-      const theme = response.data.data;
+      
+      // Load theme configuration
+      const themeResponse = await api.get('/ThemeConfiguration');
+      const theme = themeResponse.data.data;
       setThemeConfig(theme);
       setOriginalTheme(theme);
+      
+      // Load tenant configuration for timezone
+      const tenantResponse = await api.get('/tenant/config');
+      const tenantConfig = tenantResponse.data;
+      const loadedTimezone = tenantConfig.timezone || '-3';
+      setTimezone(loadedTimezone);
+      setOriginalTimezone(loadedTimezone);
     } catch (error) {
-      console.error('Error loading theme configuration:', error);
-      setSnackbar({ open: true, message: 'Error al cargar la configuración del tema', severity: 'error' });
+      console.error('Error loading configuration:', error);
+      setSnackbar({ open: true, message: 'Error al cargar la configuración', severity: 'error' });
     } finally {
       setLoading(false);
     }
@@ -82,17 +116,26 @@ const ThemeSettings: React.FC = () => {
   const handleSaveTheme = async () => {
     try {
       setSaving(true);
-      await axios.post('/api/themeconfiguration', themeConfig);
+      
+      // Save theme configuration
+      await api.post('/ThemeConfiguration', themeConfig);
       setOriginalTheme(themeConfig);
-      setSnackbar({ open: true, message: 'Tema guardado exitosamente', severity: 'success' });
+      
+      // Save timezone if changed
+      if (timezone !== originalTimezone) {
+        await api.put('/tenant/timezone', { timezone });
+        setOriginalTimezone(timezone);
+      }
+      
+      setSnackbar({ open: true, message: 'Configuración guardada exitosamente', severity: 'success' });
       
       // Reload the page to apply new theme
       setTimeout(() => {
         window.location.reload();
       }, 1500);
     } catch (error) {
-      console.error('Error saving theme configuration:', error);
-      setSnackbar({ open: true, message: 'Error al guardar el tema', severity: 'error' });
+      console.error('Error saving configuration:', error);
+      setSnackbar({ open: true, message: 'Error al guardar la configuración', severity: 'error' });
     } finally {
       setSaving(false);
     }
@@ -101,7 +144,7 @@ const ThemeSettings: React.FC = () => {
   const handleResetTheme = async () => {
     try {
       setSaving(true);
-      const response = await axios.post('/api/themeconfiguration/reset');
+      const response = await api.post('/ThemeConfiguration/reset');
       const theme = response.data.data;
       setThemeConfig(theme);
       setOriginalTheme(theme);
@@ -124,7 +167,7 @@ const ThemeSettings: React.FC = () => {
     setSnackbar({ open: true, message: 'Color copiado al portapapeles', severity: 'success' });
   };
 
-  const hasChanges = JSON.stringify(themeConfig) !== JSON.stringify(originalTheme);
+  const hasChanges = JSON.stringify(themeConfig) !== JSON.stringify(originalTheme) || timezone !== originalTimezone;
 
   const ColorInput: React.FC<{
     label: string;
@@ -407,6 +450,44 @@ const ThemeSettings: React.FC = () => {
                       }
                       label="Usar sombras"
                     />
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Configuración Regional */}
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Schedule /> Configuración Regional
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <FormControl fullWidth>
+                      <InputLabel id="timezone-label">Zona Horaria</InputLabel>
+                      <Select
+                        labelId="timezone-label"
+                        value={timezone}
+                        label="Zona Horaria"
+                        onChange={(e) => setTimezone(e.target.value)}
+                      >
+                        {TIMEZONES.map((tz) => (
+                          <MenuItem key={tz.value} value={tz.value}>
+                            {tz.label}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                      Esta configuración afecta los horarios disponibles y las notificaciones de tu negocio.
+                      Por defecto está configurado para Argentina.
+                    </Typography>
                   </Grid>
                 </Grid>
               </CardContent>

@@ -1890,6 +1890,10 @@ namespace BookingPro.API.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<string>("Domain")
                         .IsRequired()
                         .HasMaxLength(255)

@@ -17,6 +17,9 @@ namespace BookingPro.API.Models.Entities
         [Required, MaxLength(100)]
         public string Name { get; set; } = string.Empty;
         
+        [MaxLength(500)]
+        public string? Description { get; set; }
+        
         [Required, MaxLength(255)]
         public string Domain { get; set; } = string.Empty;
         

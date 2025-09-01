@@ -86,7 +86,9 @@ const NewBooking: React.FC = () => {
       const response = await api.get('/bookings/available-slots', {
         params: {
           employeeId: bookingData.professionalId,
-          date: bookingData.date.toISOString().split('T')[0],
+          date: bookingData.date.getFullYear() + '-' + 
+                String(bookingData.date.getMonth() + 1).padStart(2, '0') + '-' + 
+                String(bookingData.date.getDate()).padStart(2, '0'),
           serviceId: bookingData.serviceId,
         }
       });
@@ -109,15 +111,6 @@ const NewBooking: React.FC = () => {
       case 2:
         if (!bookingData.date) newErrors.date = 'Seleccione una fecha';
         if (!bookingData.time) newErrors.time = 'Seleccione una hora';
-        
-        // Validate that the selected date and time are not in the past
-        const selectedDateTime = new Date(bookingData.date);
-        selectedDateTime.setHours(bookingData.time.getHours(), bookingData.time.getMinutes(), 0, 0);
-        const now = new Date();
-        
-        if (selectedDateTime < now) {
-          newErrors.datetime = 'No se puede crear una reserva en el pasado';
-        }
         break;
       case 3:
         if (newCustomer) {
@@ -153,12 +146,16 @@ const NewBooking: React.FC = () => {
       const startTime = new Date(bookingData.date);
       startTime.setHours(bookingData.time.getHours(), bookingData.time.getMinutes(), 0, 0);
       
-      // Final validation: ensure the booking is not in the past
+      // Show warning for past bookings but allow them
       const now = new Date();
       if (startTime < now) {
-        setErrors({ submit: 'No se puede crear una reserva en el pasado. Por favor, seleccione una fecha y hora futuras.' });
-        setSubmitting(false);
-        return;
+        const confirmPastBooking = window.confirm(
+          '⚠️ Estás creando una reserva en el pasado.\n\n¿Estás seguro de que quieres continuar?\n\n(Esto puede ser útil para registrar una cita que ya ocurrió)'
+        );
+        if (!confirmPastBooking) {
+          setSubmitting(false);
+          return;
+        }
       }
       
       const endTime = new Date(startTime);
@@ -368,24 +365,39 @@ const NewBooking: React.FC = () => {
                   Horarios disponibles:
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  {availableSlots.map((slot) => (
-                    <Chip
-                      key={slot}
-                      label={slot}
-                      onClick={() => {
-                        const [hours, minutes] = slot.split(':');
-                        const newTime = new Date();
-                        newTime.setHours(parseInt(hours), parseInt(minutes));
-                        setBookingData({ ...bookingData, time: newTime });
-                      }}
-                      color={
-                        bookingData.time.getHours() === parseInt(slot.split(':')[0]) &&
-                        bookingData.time.getMinutes() === parseInt(slot.split(':')[1])
-                          ? 'primary'
-                          : 'default'
-                      }
-                    />
-                  ))}
+                  {availableSlots.map((slot) => {
+                    const isPast = slot.startsWith('PAST:');
+                    const timeString = isPast ? slot.replace('PAST:', '') : slot;
+                    const [hours, minutes] = timeString.split(':');
+                    const isSelected = bookingData.time.getHours() === parseInt(hours) &&
+                                     bookingData.time.getMinutes() === parseInt(minutes);
+                    
+                    return (
+                      <Chip
+                        key={slot}
+                        label={timeString}
+                        onClick={() => {
+                          if (isPast) {
+                            const confirmPast = window.confirm(
+                              '⚠️ Estás seleccionando un horario en el pasado.\n\n¿Estás seguro de que quieres continuar?\n\n(Esto puede ser útil para registrar una cita que ya ocurrió)'
+                            );
+                            if (!confirmPast) return;
+                          }
+                          
+                          const newTime = new Date();
+                          newTime.setHours(parseInt(hours), parseInt(minutes));
+                          setBookingData({ ...bookingData, time: newTime });
+                        }}
+                        color={isSelected ? 'primary' : (isPast ? 'warning' : 'default')}
+                        sx={isPast ? { 
+                          opacity: 0.7,
+                          '&:hover': { opacity: 1 },
+                          backgroundColor: 'warning.light',
+                          color: 'warning.contrastText'
+                        } : {}}
+                      />
+                    );
+                  })}
                 </Box>
               </Grid>
             )}

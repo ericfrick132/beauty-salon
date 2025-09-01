@@ -58,14 +58,17 @@ import {
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { superAdminApi } from '../services/api';
 
 interface Tenant {
   id: string;
   subdomain: string;
   businessName: string;
   ownerEmail: string;
-  vertical: string;
+  vertical: {
+    name: string;
+    code: string;
+  };
   status: string;
   createdAt: string;
 }
@@ -146,8 +149,8 @@ const SuperAdminDashboard: React.FC = () => {
     businessAddress: '',
     adminEmail: '',
     adminPhone: '',
-    timeZone: 'UTC-3',
-    currency: 'USD',
+    timeZone: '-3',
+    currency: 'ARS',
     language: 'es-AR',
     notes: '',
     isDemo: false,
@@ -200,9 +203,6 @@ const SuperAdminDashboard: React.FC = () => {
       return;
     }
     
-    // Configurar axios con el token
-    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    
     loadData();
   }, [navigate]);
 
@@ -220,8 +220,8 @@ const SuperAdminDashboard: React.FC = () => {
 
   const loadTenants = async () => {
     try {
-      const response = await axios.get('/api/admin/tenantmanagement/tenants');
-      const tenantsData = response.data.data;
+      const response = await superAdminApi.getTenants();
+      const tenantsData = response.data || response;
       setTenants(tenantsData);
       
       // Calcular estadísticas
@@ -238,8 +238,8 @@ const SuperAdminDashboard: React.FC = () => {
 
   const loadInvitations = async () => {
     try {
-      const response = await axios.get('/api/invitation');
-      const invitationsData = response.data.data;
+      const response = await superAdminApi.getInvitations();
+      const invitationsData = response.data || response;
       setInvitations(invitationsData);
       
       setStats(prev => ({ 
@@ -256,9 +256,9 @@ const SuperAdminDashboard: React.FC = () => {
       setCreateLoading(true);
       setError('');
       
-      const response = await axios.post('/api/invitation', createInvitationData);
+      const response = await superAdminApi.createInvitation(createInvitationData);
       
-      setCreatedInvitation(response.data.data);
+      setCreatedInvitation(response.data || response);
       setOpenInvitationCreatedDialog(true);
       setOpenCreateInvitationDialog(false);
       
@@ -271,8 +271,8 @@ const SuperAdminDashboard: React.FC = () => {
         businessAddress: '',
         adminEmail: '',
         adminPhone: '',
-        timeZone: 'UTC-3',
-        currency: 'USD',
+        timeZone: '-3',
+        currency: 'ARS',
         language: 'es-AR',
         notes: '',
         isDemo: false,
@@ -291,7 +291,7 @@ const SuperAdminDashboard: React.FC = () => {
 
   const handleCancelInvitation = async (invitationId: string) => {
     try {
-      await axios.post(`/api/invitation/${invitationId}/cancel`);
+      await superAdminApi.cancelInvitation(invitationId);
       await loadInvitations();
       setSuccess('Invitación cancelada exitosamente');
     } catch (error: any) {
@@ -301,7 +301,7 @@ const SuperAdminDashboard: React.FC = () => {
 
   const handleResendInvitation = async (invitationId: string) => {
     try {
-      await axios.post(`/api/invitation/${invitationId}/resend`);
+      await superAdminApi.resendInvitation(invitationId);
       setSuccess('Invitación reenviada exitosamente');
     } catch (error: any) {
       setError(error.response?.data?.message || 'Error reenviando invitación');
@@ -311,7 +311,6 @@ const SuperAdminDashboard: React.FC = () => {
   const handleLogout = () => {
     localStorage.removeItem('superAdminToken');
     localStorage.removeItem('superAdminUser');
-    delete axios.defaults.headers.common['Authorization'];
     navigate('/super-admin/login');
   };
 
@@ -321,8 +320,8 @@ const SuperAdminDashboard: React.FC = () => {
     setOpenThemeDialog(true);
     
     try {
-      const response = await axios.get(`/api/admin/tenanttheme/${tenant.id}`);
-      setTenantTheme(response.data.data);
+      const response = await superAdminApi.getTenantTheme(tenant.id);
+      setTenantTheme(response.data || response);
     } catch (error: any) {
       console.error('Error loading tenant theme:', error);
       setError('Error cargando el tema del negocio');
@@ -336,7 +335,7 @@ const SuperAdminDashboard: React.FC = () => {
     
     try {
       setThemeLoading(true);
-      await axios.post(`/api/admin/tenanttheme/${selectedTenantForTheme.id}`, tenantTheme);
+      await superAdminApi.saveTenantTheme(selectedTenantForTheme.id, tenantTheme);
       setSuccess('Tema actualizado exitosamente');
       setOpenThemeDialog(false);
     } catch (error: any) {
@@ -351,8 +350,8 @@ const SuperAdminDashboard: React.FC = () => {
     
     try {
       setThemeLoading(true);
-      const response = await axios.post(`/api/admin/tenanttheme/${selectedTenantForTheme.id}/reset`);
-      setTenantTheme(response.data.data);
+      const response = await superAdminApi.resetTenantTheme(selectedTenantForTheme.id);
+      setTenantTheme(response.data || response);
       setSuccess('Tema restablecido a valores por defecto');
     } catch (error: any) {
       setError(error.response?.data?.message || 'Error restableciendo el tema');
@@ -595,7 +594,7 @@ const SuperAdminDashboard: React.FC = () => {
                         </Typography>
                       </TableCell>
                       <TableCell>{tenant.ownerEmail}</TableCell>
-                      <TableCell>{tenant.vertical}</TableCell>
+                      <TableCell>{tenant.vertical?.name || 'N/A'}</TableCell>
                       <TableCell>
                         <Chip 
                           label={tenant.status.toUpperCase()} 
@@ -778,7 +777,7 @@ const SuperAdminDashboard: React.FC = () => {
                   label="Vertical"
                 >
                   <MenuItem value="barbershop">Barbería</MenuItem>
-                  <MenuItem value="beautysalon">Salón de Belleza</MenuItem>
+                  <MenuItem value="peluqueria">Peluquería</MenuItem>
                   <MenuItem value="aesthetics">Centro de Estética</MenuItem>
                 </Select>
               </FormControl>
@@ -801,9 +800,9 @@ const SuperAdminDashboard: React.FC = () => {
                   onChange={(e) => setCreateInvitationData({...createInvitationData, timeZone: e.target.value})}
                   label="Zona Horaria"
                 >
-                  <MenuItem value="UTC-3">UTC-3</MenuItem>
-                  <MenuItem value="UTC-5">UTC-5</MenuItem>
-                  <MenuItem value="UTC+0">UTC+0</MenuItem>
+                  <MenuItem value="-3">UTC-3 (Argentina)</MenuItem>
+                  <MenuItem value="-5">UTC-5 (New York)</MenuItem>
+                  <MenuItem value="0">UTC+0 (GMT)</MenuItem>
                 </Select>
               </FormControl>
             </Grid>

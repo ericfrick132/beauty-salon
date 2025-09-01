@@ -16,6 +16,9 @@ namespace BookingPro.API.Models.DTOs
         [Required, MaxLength(50)]
         public string Phone { get; set; } = string.Empty;
         
+        [MaxLength(20)]
+        public string? Dni { get; set; }
+        
         public DateTime? BirthDate { get; set; }
         public string? Notes { get; set; }
         public string? Tags { get; set; }
@@ -34,6 +37,9 @@ namespace BookingPro.API.Models.DTOs
         
         [MaxLength(50)]
         public string? Phone { get; set; }
+        
+        [MaxLength(20)]
+        public string? Dni { get; set; }
         
         public DateTime? BirthDate { get; set; }
         public string? Notes { get; set; }

@@ -23,16 +23,20 @@ namespace BookingPro.API.Utilities
         {
             var path = context.Request.Path.Value?.ToLower() ?? "";
             
-            // Skip tenant resolution para rutas de super admin, admin, health checks, swagger y OAuth callbacks
+            // Skip tenant resolution para rutas de super admin, admin, health checks, swagger, OAuth callbacks y self-registration
             if (path.StartsWith("/api/super-admin") || 
                 path.StartsWith("/api/admin") ||
                 path.StartsWith("/api/invitation") ||
+                path.StartsWith("/api/self-registration") ||
+                path.StartsWith("/api/verticals") ||
                 path.StartsWith("/api/mercadopago/callback") ||
                 path.StartsWith("/api/webhooks/") ||
                 path.StartsWith("/health") || 
                 path.StartsWith("/ping") ||
                 path.StartsWith("/swagger"))
             {
+                // Log for debugging
+                Console.WriteLine($"[TenantMiddleware] Skipping tenant resolution for path: {path}");
                 await _next(context);
                 return;
             }

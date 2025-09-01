@@ -236,10 +236,10 @@ namespace BookingPro.API.Data
         {
             return new List<ProfessionalData>
             {
-                new ProfessionalData { Name = "Carlos Rodríguez", Specialties = new[] { "Cortes", "Barba" }, Email = "carlos@barbershop.com", Phone = "1122334455" },
-                new ProfessionalData { Name = "Miguel Fernández", Specialties = new[] { "Cortes", "Diseños" }, Email = "miguel@barbershop.com", Phone = "1122334456" },
-                new ProfessionalData { Name = "Roberto Silva", Specialties = new[] { "Barba", "Tratamientos" }, Email = "roberto@barbershop.com", Phone = "1122334457" },
-                new ProfessionalData { Name = "Juan Martínez", Specialties = new[] { "Cortes", "Tintes" }, Email = "juan@barbershop.com", Phone = "1122334458" }
+                new ProfessionalData { Name = "Carlos Rodríguez", Email = "carlos@barbershop.com", Phone = "1122334455" },
+                new ProfessionalData { Name = "Miguel Fernández", Email = "miguel@barbershop.com", Phone = "1122334456" },
+                new ProfessionalData { Name = "Roberto Silva", Email = "roberto@barbershop.com", Phone = "1122334457" },
+                new ProfessionalData { Name = "Juan Martínez", Email = "juan@barbershop.com", Phone = "1122334458" }
             };
         }
 
@@ -247,11 +247,11 @@ namespace BookingPro.API.Data
         {
             return new List<ProfessionalData>
             {
-                new ProfessionalData { Name = "María González", Specialties = new[] { "Coloración", "Cortes" }, Email = "maria@beautysalon.com", Phone = "1133445566" },
-                new ProfessionalData { Name = "Laura Pérez", Specialties = new[] { "Peinados", "Maquillaje" }, Email = "laura@beautysalon.com", Phone = "1133445567" },
-                new ProfessionalData { Name = "Ana López", Specialties = new[] { "Manicura", "Pedicura" }, Email = "ana@beautysalon.com", Phone = "1133445568" },
-                new ProfessionalData { Name = "Carmen Díaz", Specialties = new[] { "Tratamientos", "Keratina" }, Email = "carmen@beautysalon.com", Phone = "1133445569" },
-                new ProfessionalData { Name = "Sofia Ruiz", Specialties = new[] { "Depilación", "Cejas" }, Email = "sofia@beautysalon.com", Phone = "1133445570" }
+                new ProfessionalData { Name = "María González", Email = "maria@peluqueria.com", Phone = "1133445566" },
+                new ProfessionalData { Name = "Laura Pérez", Email = "laura@peluqueria.com", Phone = "1133445567" },
+                new ProfessionalData { Name = "Ana López", Email = "ana@peluqueria.com", Phone = "1133445568" },
+                new ProfessionalData { Name = "Carmen Díaz", Email = "carmen@peluqueria.com", Phone = "1133445569" },
+                new ProfessionalData { Name = "Sofia Ruiz", Email = "sofia@peluqueria.com", Phone = "1133445570" }
             };
         }
 
@@ -259,11 +259,11 @@ namespace BookingPro.API.Data
         {
             return new List<ProfessionalData>
             {
-                new ProfessionalData { Name = "Dra. Patricia Morales", Specialties = new[] { "Medicina Estética", "Botox" }, Email = "patricia@aesthetics.com", Phone = "1144556677" },
-                new ProfessionalData { Name = "Lic. Valentina Torres", Specialties = new[] { "Faciales", "Peeling" }, Email = "valentina@aesthetics.com", Phone = "1144556678" },
-                new ProfessionalData { Name = "Lic. Gabriela Sánchez", Specialties = new[] { "Corporales", "Masajes" }, Email = "gabriela@aesthetics.com", Phone = "1144556679" },
-                new ProfessionalData { Name = "Téc. Lucía Romero", Specialties = new[] { "Depilación Láser", "IPL" }, Email = "lucia@aesthetics.com", Phone = "1144556680" },
-                new ProfessionalData { Name = "Dr. Andrés Vargas", Specialties = new[] { "Medicina Estética", "Rellenos" }, Email = "andres@aesthetics.com", Phone = "1144556681" }
+                new ProfessionalData { Name = "Dra. Patricia Morales", Email = "patricia@aesthetics.com", Phone = "1144556677" },
+                new ProfessionalData { Name = "Lic. Valentina Torres", Email = "valentina@aesthetics.com", Phone = "1144556678" },
+                new ProfessionalData { Name = "Lic. Gabriela Sánchez", Email = "gabriela@aesthetics.com", Phone = "1144556679" },
+                new ProfessionalData { Name = "Téc. Lucía Romero", Email = "lucia@aesthetics.com", Phone = "1144556680" },
+                new ProfessionalData { Name = "Dr. Andrés Vargas", Email = "andres@aesthetics.com", Phone = "1144556681" }
             };
         }
     }

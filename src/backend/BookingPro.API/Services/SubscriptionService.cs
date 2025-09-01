@@ -90,53 +90,12 @@ namespace BookingPro.API.Services
                 {
                     new SubscriptionPlan
                     {
-                        Code = "basic",
-                        Name = "Plan Básico",
-                        Description = "Ideal para pequeños negocios",
-                        Price = 4999m,
-                        Currency = "ARS",
-                        MaxBookingsPerMonth = 100,
-                        MaxServices = 5,
-                        MaxStaff = 2,
-                        MaxCustomers = 50,
-                        AllowOnlinePayments = false,
-                        AllowCustomBranding = false,
-                        AllowSmsNotifications = false,
-                        AllowEmailMarketing = false,
-                        AllowReports = true,
-                        AllowMultiLocation = false,
-                        TrialDays = 14,
-                        DisplayOrder = 1
-                    },
-                    new SubscriptionPlan
-                    {
                         Code = "pro",
                         Name = "Plan Profesional",
-                        Description = "Para negocios en crecimiento",
-                        Price = 9999m,
+                        Description = "Plan completo para tu negocio",
+                        Price = 15000m,
                         Currency = "ARS",
-                        MaxBookingsPerMonth = 500,
-                        MaxServices = 20,
-                        MaxStaff = 10,
-                        MaxCustomers = 500,
-                        AllowOnlinePayments = true,
-                        AllowCustomBranding = true,
-                        AllowSmsNotifications = true,
-                        AllowEmailMarketing = false,
-                        AllowReports = true,
-                        AllowMultiLocation = false,
-                        TrialDays = 14,
-                        IsPopular = true,
-                        DisplayOrder = 2
-                    },
-                    new SubscriptionPlan
-                    {
-                        Code = "enterprise",
-                        Name = "Plan Empresa",
-                        Description = "Solución completa para grandes empresas",
-                        Price = 19999m,
-                        Currency = "ARS",
-                        MaxBookingsPerMonth = -1, // Unlimited
+                        MaxBookingsPerMonth = -1,
                         MaxServices = -1,
                         MaxStaff = -1,
                         MaxCustomers = -1,
@@ -146,8 +105,9 @@ namespace BookingPro.API.Services
                         AllowEmailMarketing = true,
                         AllowReports = true,
                         AllowMultiLocation = true,
-                        TrialDays = 30,
-                        DisplayOrder = 3
+                        TrialDays = 14,
+                        IsPopular = true,
+                        DisplayOrder = 1
                     }
                 };
 

@@ -26,6 +26,12 @@ namespace BookingPro.API.Controllers
             _tenantService = tenantService;
         }
 
+        [HttpGet("test")]
+        public IActionResult Test()
+        {
+            return Ok(new { message = "Dashboard controller is working", timestamp = DateTime.UtcNow });
+        }
+
         [HttpGet("financial-stats")]
         public async Task<IActionResult> GetFinancialStats(
             [FromQuery] DateTime? startDate = null,

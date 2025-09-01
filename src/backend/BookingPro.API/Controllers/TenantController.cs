@@ -31,6 +31,7 @@ namespace BookingPro.API.Controllers
                     tenantId = tenant.Id,
                     businessName = tenant.BusinessName,
                     vertical = tenant.VerticalCode,
+                    timezone = tenant.TimeZone ?? "-3",
                     theme = tenant.Theme,
                     features = tenant.Features,
                     terminology = tenant.Terminology
@@ -70,5 +71,30 @@ namespace BookingPro.API.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
+
+        [HttpPut("timezone")]
+        public async Task<IActionResult> UpdateTimezone([FromBody] UpdateTimezoneRequest request)
+        {
+            try
+            {
+                var result = await _tenantService.UpdateTimezoneAsync(request.Timezone);
+                
+                if (!result)
+                {
+                    return BadRequest(new { message = "Failed to update timezone" });
+                }
+
+                return Ok(new { message = "Timezone updated successfully" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+    }
+
+    public class UpdateTimezoneRequest
+    {
+        public string Timezone { get; set; } = string.Empty;
     }
 }

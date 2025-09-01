@@ -29,6 +29,7 @@ namespace BookingPro.API.Data
                 {
                     Code = "barbershop",
                     Name = "Barberías",
+                    Description = "Gestión de turnos para barberías",
                     Domain = "barbershop.com",
                     DefaultTheme = JsonSerializer.Serialize(new
                     {
@@ -61,9 +62,10 @@ namespace BookingPro.API.Data
                 },
                 new Vertical
                 {
-                    Code = "beautysalon",
+                    Code = "peluqueria",
                     Name = "Peluquerías",
-                    Domain = "beautysalon.com",
+                    Description = "Gestión de citas para peluquerías",
+                    Domain = "peluqueria.com",
                     DefaultTheme = JsonSerializer.Serialize(new
                     {
                         PrimaryColor = "#C8A2C8",       // Rosa polvoso/malva
@@ -96,7 +98,8 @@ namespace BookingPro.API.Data
                 new Vertical
                 {
                     Code = "aesthetics",
-                    Name = "Centros de Estética",
+                    Name = "Centros de Estética", 
+                    Description = "Gestión de citas para centros estéticos",
                     Domain = "aesthetics.com",
                     DefaultTheme = JsonSerializer.Serialize(new
                     {
@@ -131,6 +134,7 @@ namespace BookingPro.API.Data
                 {
                     Code = "nailsalon",
                     Name = "Salones de Uñas",
+                    Description = "Gestión de citas para salones de uñas",
                     Domain = "nailsalon.com",
                     DefaultTheme = JsonSerializer.Serialize(new
                     {

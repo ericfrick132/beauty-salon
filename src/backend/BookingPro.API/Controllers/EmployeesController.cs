@@ -33,6 +33,7 @@ namespace BookingPro.API.Controllers
             try
             {
                 var employees = await _context.Employees
+                    .Where(e => e.IsActive)
                     .Select(e => new
                     {
                         id = e.Id,
@@ -172,10 +173,27 @@ namespace BookingPro.API.Controllers
                     return NotFound(new { message = "Employee not found" });
                 }
 
-                _context.Employees.Remove(employee);
-                await _context.SaveChangesAsync();
-
-                return Ok(new { message = "Employee deleted successfully" });
+                // Check if employee has associated bookings
+                var hasBookings = await _context.Bookings.AnyAsync(b => b.EmployeeId == id);
+                
+                if (hasBookings)
+                {
+                    // Soft delete: deactivate instead of hard delete
+                    employee.IsActive = false;
+                    employee.DeactivatedAt = DateTime.UtcNow;
+                    
+                    await _context.SaveChangesAsync();
+                    
+                    return Ok(new { message = "Employee deactivated successfully (has associated bookings)" });
+                }
+                else
+                {
+                    // Hard delete if no bookings exist
+                    _context.Employees.Remove(employee);
+                    await _context.SaveChangesAsync();
+                    
+                    return Ok(new { message = "Employee deleted successfully" });
+                }
             }
             catch (Exception ex)
             {

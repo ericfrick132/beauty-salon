@@ -6,6 +6,7 @@ using BookingPro.API.Models.DTOs;
 using BookingPro.API.Models.Common;
 using System.Security.Cryptography;
 using System.Text;
+using BookingPro.API.Services.Interfaces;
 
 namespace BookingPro.API.Services
 {
@@ -20,15 +21,18 @@ namespace BookingPro.API.Services
         private readonly IConfiguration _configuration;
         private readonly ApplicationDbContext _context;
         private readonly ILogger<TenantProvisioningService> _logger;
+        private readonly ISubscriptionService _subscriptionService;
 
         public TenantProvisioningService(
             IConfiguration configuration,
             ApplicationDbContext context,
-            ILogger<TenantProvisioningService> logger)
+            ILogger<TenantProvisioningService> logger,
+            ISubscriptionService subscriptionService)
         {
             _configuration = configuration;
             _context = context;
             _logger = logger;
+            _subscriptionService = subscriptionService;
         }
 
         public async Task<bool> ProvisionNewTenantAsync(Guid tenantId)
@@ -47,7 +51,7 @@ namespace BookingPro.API.Services
                 List<ServiceCategory> categories = verticalCode switch
                 {
                     "barbershop" => GetBarbershopCategories(tenantId),
-                    "beautysalon" => GetBeautySalonCategories(tenantId),
+                    "peluqueria" => GetBeautySalonCategories(tenantId), // Usa los mismos servicios que beautysalon
                     "aesthetics" => GetAestheticsCategories(tenantId),
                     _ => new List<ServiceCategory>()
                 };
@@ -56,7 +60,7 @@ namespace BookingPro.API.Services
                 List<Employee> professionals = verticalCode switch
                 {
                     "barbershop" => GetBarbershopProfessionals(tenantId),
-                    "beautysalon" => GetBeautySalonProfessionals(tenantId),
+                    "peluqueria" => GetBeautySalonProfessionals(tenantId), // Usa los mismos profesionales que beautysalon
                     "aesthetics" => GetAestheticsProfessionals(tenantId),
                     _ => new List<Employee>()
                 };
@@ -143,14 +147,28 @@ namespace BookingPro.API.Services
                 _context.Users.Add(adminUser);
                 await _context.SaveChangesAsync();
 
-                // 4. Provisionar datos iniciales del tenant
+                // 4. Crear suscripción demo si es necesario
+                if (dto.IsDemo)
+                {
+                    var subscriptionResult = await _subscriptionService.CreateTrialSubscriptionAsync(tenant.Id);
+                    if (!subscriptionResult.Success)
+                    {
+                        _logger.LogWarning($"Could not create demo subscription for tenant {tenant.Id}: {subscriptionResult.Message}");
+                    }
+                    else
+                    {
+                        _logger.LogInformation($"Demo subscription created for tenant {tenant.Id}");
+                    }
+                }
+
+                // 5. Provisionar datos iniciales del tenant
                 var provisionSuccess = await ProvisionNewTenantAsync(tenant.Id);
                 if (!provisionSuccess)
                 {
                     _logger.LogWarning($"Could not provision initial data for tenant {tenant.Id}");
                 }
 
-                // 5. Generar URL del tenant
+                // 6. Generar URL del tenant
                 var baseUrl = _configuration["FrontendUrl"] ?? "https://app.bookingpro.com";
                 var tenantUrl = $"https://{dto.Subdomain}.{dto.VerticalCode}.com";
                 
