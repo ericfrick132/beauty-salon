@@ -233,7 +233,7 @@ const SelfRegistration: React.FC = () => {
       
       // Redirect after 3 seconds
       setTimeout(() => {
-        window.location.href = response.data.data.tenantUrl;
+        window.location.href = response.data.tenantUrl;
       }, 3000);
       
     } catch (error: any) {
