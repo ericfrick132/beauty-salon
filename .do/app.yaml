@@ -1,32 +1,32 @@
-name: bookingpro-app
+name: turnos-pro
 
-static_sites:
+services:
 - name: frontend
-  environment_slug: html
   github:
-    repo: USUARIO/Bookear
+    repo: ericfrick132/beauty-salon
     branch: master
     deploy_on_push: true
   source_dir: src/frontend
   dockerfile_path: src/frontend/Dockerfile.prod
-  output_dir: /usr/share/nginx/html
+  http_port: 80
+  instance_count: 1
+  instance_size_slug: basic-xxs
   routes:
   - path: /
+    preserve_path_prefix: true
   envs:
   - key: REACT_APP_API_URL
-    value: "/api"
+    value: "https://turnos-pro.com/api"
   - key: REACT_APP_APP_NAME
-    value: "BookingPro"
+    value: "TurnosPro"
 
-services:
 - name: api
-  environment_slug: node
   github:
-    repo: USUARIO/Bookear
+    repo: ericfrick132/beauty-salon
     branch: master
     deploy_on_push: true
   source_dir: src/backend/BookingPro.API
-  dockerfile_path: src/backend/BookingPro.API/Dockerfile.prod
+  dockerfile_path: src/backend/BookingPro.API/Dockerfile
   http_port: 8080
   instance_count: 1
   instance_size_slug: basic-xxs
@@ -50,13 +50,26 @@ services:
     value: "${JWT_KEY}"
     type: SECRET
   - key: FrontendUrl
-    value: "${APP_URL}"
+    value: "https://turnos-pro.com"
   - key: EnableSwaggerInProduction
     value: "true"
   - key: SEED_DATA
     value: "true"
   - key: BackendUrl
-    value: "${APP_URL}"
+    value: "https://turnos-pro.com"
+  - key: MercadoPago__ClientId
+    value: "${MERCADOPAGO_CLIENT_ID}"
+    type: SECRET
+  - key: MercadoPago__ClientSecret
+    value: "${MERCADOPAGO_CLIENT_SECRET}"
+    type: SECRET
+  - key: MercadoPago__AccessToken
+    value: "${MERCADOPAGO_ACCESS_TOKEN}"
+    type: SECRET
+  - key: MercadoPago__RedirectUri
+    value: "https://turnos-pro.com/api/mercadopago/callback"
+  - key: MercadoPago__WebhookUrl
+    value: "https://turnos-pro.com/api/webhooks/mercadopago"
 
 databases:
 - name: db

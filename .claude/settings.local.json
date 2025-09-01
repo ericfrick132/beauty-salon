@@ -22,7 +22,8 @@
       "Bash(dotnet new:*)",
       "Bash(grep:*)",
       "Bash(sed:*)",
-      "Bash(dotnet ef migrations:*)"
+      "Bash(dotnet ef migrations:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
