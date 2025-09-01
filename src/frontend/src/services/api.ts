@@ -94,7 +94,7 @@ export const superAdminApi = {
     api.get('/invitation').then(res => res.data),
   
   createInvitation: (data: any) =>
-    api.post('/api/invitation', data).then(res => res.data),
+    api.post('/invitation', data).then(res => res.data),
   
   cancelInvitation: (invitationId: string) =>
     api.post(`/invitation/${invitationId}/cancel`).then(res => res.data),

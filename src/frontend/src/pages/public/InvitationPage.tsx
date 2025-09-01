@@ -150,7 +150,12 @@ const InvitationPage: React.FC = () => {
       
       // Redirigir al tenant después de 3 segundos
       setTimeout(() => {
-        window.location.href = response.data.data.tenantUrl;
+        const tenantUrl = response.data?.tenantUrl || response.tenantUrl;
+        if (tenantUrl) {
+          window.location.href = tenantUrl;
+        } else {
+          setError('No se pudo obtener la URL del tenant');
+        }
       }, 3000);
       
     } catch (error: any) {
