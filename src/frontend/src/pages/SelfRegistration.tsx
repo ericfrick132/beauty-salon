@@ -108,7 +108,7 @@ const SelfRegistration: React.FC = () => {
     setCheckingSubdomain(true);
     try {
       const response = await selfRegistrationApi.checkSubdomain(subdomain);
-      setSubdomainAvailable(response.data.available);
+      setSubdomainAvailable(response.available);
     } catch (error) {
       setSubdomainAvailable(false);
     } finally {
