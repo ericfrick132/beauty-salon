@@ -7,7 +7,7 @@ services:
     branch: master
     deploy_on_push: true
   source_dir: src/frontend
-  dockerfile_path: src/frontend/Dockerfile.prod
+  dockerfile_path: src/frontend/Dockerfile
   http_port: 80
   instance_count: 1
   instance_size_slug: basic-xxs
