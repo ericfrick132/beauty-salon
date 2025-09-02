@@ -170,7 +170,7 @@ namespace BookingPro.API.Services
 
                 // 6. Generar URL del tenant
                 var baseUrl = _configuration["FrontendUrl"] ?? "https://www.turnos-pro.com";
-                var tenantUrl = $"https://{dto.Subdomain}.{dto.VerticalCode}.com";
+                var tenantUrl = $"https://{dto.Subdomain}.turnos-pro.com";
                 
                 _logger.LogInformation($"Tenant {tenant.Id} created successfully with URL {tenantUrl}");
                 return ServiceResult<string>.Ok(tenantUrl);
