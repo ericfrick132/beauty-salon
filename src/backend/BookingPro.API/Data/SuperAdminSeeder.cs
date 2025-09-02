@@ -36,7 +36,7 @@ namespace BookingPro.API.Data
                     VerticalId = firstVertical.Id,
                     Subdomain = "system",
                     BusinessName = "BookingPro System",
-                    OwnerEmail = "admin@bookingpro.com",
+                    OwnerEmail = "admin@turnos-pro.com",
                     SchemaName = "public", // El super admin usa el schema público
                     Status = TenantStatus.Active.ToString().ToLower(),
                     CreatedAt = DateTime.UtcNow,
@@ -52,7 +52,7 @@ namespace BookingPro.API.Data
             {
                 Id = Guid.NewGuid(),
                 TenantId = systemTenant.Id,
-                Email = "admin@turnospro.com",
+                Email = "admin@turnos-pro.com",
                 PasswordHash = HashPassword("TurnosPro2024!"), // Contraseña inicial
                 FirstName = "Super",
                 LastName = "Admin",

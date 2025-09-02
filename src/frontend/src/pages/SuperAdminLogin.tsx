@@ -18,7 +18,7 @@ import { superAdminApi } from '../services/api';
 
 const SuperAdminLogin: React.FC = () => {
   const [formData, setFormData] = useState({
-    email: 'admin@bookingpro.com',
+    email: 'admin@turnos-pro.com',
     password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -167,7 +167,7 @@ const SuperAdminLogin: React.FC = () => {
               {/* Help Text */}
               <Box sx={{ textAlign: 'center' }}>
                 <Typography variant="caption" sx={{ color: '#888888' }}>
-                  Credenciales por defecto: admin@turnospro.com / TurnosPro2024!
+                  Credenciales por defecto: admin@turnos-pro.com / TurnosPro2024!
                 </Typography>
               </Box>
             </CardContent>

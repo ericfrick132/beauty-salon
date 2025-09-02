@@ -72,7 +72,6 @@ namespace BookingPro.API.Data
             modelBuilder.Entity<Vertical>(entity =>
             {
                 entity.HasIndex(v => v.Code).IsUnique();
-                entity.HasIndex(v => v.Domain).IsUnique();
             });
 
             modelBuilder.Entity<Tenant>(entity =>

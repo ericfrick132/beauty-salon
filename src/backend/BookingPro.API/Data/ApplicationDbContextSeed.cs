@@ -30,7 +30,7 @@ namespace BookingPro.API.Data
                     Code = "barbershop",
                     Name = "Barberías",
                     Description = "Gestión de turnos para barberías",
-                    Domain = "barbershop.com",
+                    Domain = "turnos-pro.com",
                     DefaultTheme = JsonSerializer.Serialize(new
                     {
                         PrimaryColor = "#000000",      // Negro puro
@@ -65,7 +65,7 @@ namespace BookingPro.API.Data
                     Code = "peluqueria",
                     Name = "Peluquerías",
                     Description = "Gestión de citas para peluquerías",
-                    Domain = "peluqueria.com",
+                    Domain = "turnos-pro.com",
                     DefaultTheme = JsonSerializer.Serialize(new
                     {
                         PrimaryColor = "#C8A2C8",       // Rosa polvoso/malva
@@ -100,7 +100,7 @@ namespace BookingPro.API.Data
                     Code = "aesthetics",
                     Name = "Centros de Estética", 
                     Description = "Gestión de citas para centros estéticos",
-                    Domain = "aesthetics.com",
+                    Domain = "turnos-pro.com",
                     DefaultTheme = JsonSerializer.Serialize(new
                     {
                         PrimaryColor = "#87CEEB",       // Azul claro/celeste
@@ -135,7 +135,7 @@ namespace BookingPro.API.Data
                     Code = "nailsalon",
                     Name = "Salones de Uñas",
                     Description = "Gestión de citas para salones de uñas",
-                    Domain = "nailsalon.com",
+                    Domain = "turnos-pro.com",
                     DefaultTheme = JsonSerializer.Serialize(new
                     {
                         PrimaryColor = "#FF69B4",       // Rosa chicle/fucsia suave

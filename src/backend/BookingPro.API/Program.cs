@@ -39,8 +39,8 @@ builder.Services.AddCors(options =>
             
             // Permitir dominios específicos
             var allowedOrigins = new[] {
-                "https://bookingpro.com",
-                "https://www.bookingpro.com"
+                "https://turnos-pro.com",
+                "https://www.turnos-pro.com"
             };
             
             if (allowedOrigins.Contains(origin))

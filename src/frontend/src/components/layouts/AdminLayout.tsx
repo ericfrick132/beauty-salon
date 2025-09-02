@@ -423,7 +423,7 @@ export const AdminLayout: React.FC = () => {
                   color: config?.vertical === 'beautysalon' ? '#9D8DA5' : 'text.secondary'
                 }}
               >
-                {user?.email || 'admin@turnospro.com'}
+                {user?.email || 'admin@turnos-pro.com'}
               </Typography>
             </Box>
           </Box>

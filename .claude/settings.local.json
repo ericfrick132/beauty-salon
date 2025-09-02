@@ -23,7 +23,9 @@
       "Bash(grep:*)",
       "Bash(sed:*)",
       "Bash(dotnet ef migrations:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(nslookup:*)",
+      "Bash(dig:*)"
     ],
     "deny": [],
     "ask": []
