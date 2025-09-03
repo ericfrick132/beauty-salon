@@ -179,10 +179,12 @@ const BookingPage: React.FC = () => {
         }
       });
       
-      const slots = response.data.map((time: string) => ({
-        time,
-        available: true,
-      }));
+      const slots = response.data
+        .filter((time: string) => !time.startsWith('PAST:'))
+        .map((time: string) => ({
+          time,
+          available: true,
+        }));
       
       setAvailableSlots(slots);
     } catch (error) {
