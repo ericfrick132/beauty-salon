@@ -19,17 +19,20 @@ namespace BookingPro.API.Controllers
         private readonly ApplicationDbContext _context;
         private readonly ITenantService _tenantService;
         private readonly IMercadoPagoService _mercadoPagoService;
+        private readonly IBookingService _bookingService;
         private readonly ILogger<PublicController> _logger;
 
         public PublicController(
             ApplicationDbContext context,
             ITenantService tenantService,
             IMercadoPagoService mercadoPagoService,
+            IBookingService bookingService,
             ILogger<PublicController> logger)
         {
             _context = context;
             _tenantService = tenantService;
             _mercadoPagoService = mercadoPagoService;
+            _bookingService = bookingService;
             _logger = logger;
         }
 
@@ -88,78 +91,19 @@ namespace BookingPro.API.Controllers
             }
         }
 
+
         [HttpGet("available-slots")]
         public async Task<IActionResult> GetAvailableSlots(
             [FromQuery] Guid professionalId,
             [FromQuery] DateTime date,
             [FromQuery] Guid serviceId)
         {
-            try
-            {
-                var service = await _context.Services.FindAsync(serviceId);
-                if (service == null)
-                {
-                    return NotFound(new { message = "Service not found" });
-                }
-
-                var employee = await _context.Employees
-                    .Include(p => p.Schedules)
-                    .FirstOrDefaultAsync(p => p.Id == professionalId);
-                    
-                if (employee == null)
-                {
-                    return NotFound(new { message = "Employee not found" });
-                }
-
-                // Get the day of week for the requested date
-                var dayOfWeek = (int)date.DayOfWeek;
+            var result = await _bookingService.GetAvailableTimeSlotsAsync(professionalId, date, serviceId);
+            
+            if (!result.Success)
+                return BadRequest(new { message = result.Message, errors = result.Errors });
                 
-                // Get the professional's schedule for this day
-                var schedule = employee.Schedules
-                    .FirstOrDefault(s => s.DayOfWeek == dayOfWeek && s.IsActive);
-                    
-                if (schedule == null)
-                {
-                    return Ok(new List<string>()); // No working hours for this day
-                }
-
-                // Get existing bookings for this professional on this date
-                var existingBookings = await _context.Bookings
-                    .Where(b => b.EmployeeId == professionalId && 
-                               b.StartTime.Date == date.Date &&
-                               b.Status != "cancelled")
-                    .OrderBy(b => b.StartTime)
-                    .ToListAsync();
-
-                var slots = new List<string>();
-                var workStart = date.Date.Add(schedule.StartTime);
-                var workEnd = date.Date.Add(schedule.EndTime);
-                var slotDuration = TimeSpan.FromMinutes(service.DurationMinutes);
-
-                // Generate time slots every 30 minutes
-                for (var time = workStart; time.Add(slotDuration) <= workEnd; time = time.AddMinutes(30))
-                {
-                    var slotEnd = time.Add(slotDuration);
-                    
-                    // Check if this slot overlaps with any existing booking
-                    var isAvailable = !existingBookings.Any(b => 
-                        (time >= b.StartTime && time < b.EndTime) ||
-                        (slotEnd > b.StartTime && slotEnd <= b.EndTime) ||
-                        (time <= b.StartTime && slotEnd >= b.EndTime));
-
-                    // Only add future slots (not past times for today)
-                    if (isAvailable && time > DateTime.Now)
-                    {
-                        slots.Add(time.ToString("HH:mm"));
-                    }
-                }
-
-                return Ok(slots);
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
+            return Ok(result.Data);
         }
 
         [HttpGet("tenant-info")]
