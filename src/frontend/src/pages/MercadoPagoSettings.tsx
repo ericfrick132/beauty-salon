@@ -101,7 +101,7 @@ const MercadoPagoSettings: React.FC = () => {
     try {
       setLoading(true);
       const [statusResponse] = await Promise.allSettled([
-        api.get('/api/mercadopago/oauth/status')
+        api.get('/mercadopago/oauth/status')
       ]);
       
       if (statusResponse.status === 'fulfilled') {
