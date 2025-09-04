@@ -75,8 +75,10 @@ export class SuperAdminService {
         impersonatedAt: new Date().toISOString()
       }));
 
-      // 4. Redirect to tenant subdomain with impersonation token
-      const redirectUrl = `https://${tenantSubdomain}.localhost:3001/dashboard?impersonationToken=${impersonationData.token}`;
+      // 4. Redirect to tenant subdomain with impersonation token  
+      const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const domain = isLocalDev ? 'localhost:3001' : 'turnos-pro.com';
+      const redirectUrl = `https://${tenantSubdomain}.${domain}/dashboard?impersonationToken=${impersonationData.token}`;
       window.location.href = redirectUrl;
     } catch (error) {
       console.error('Error in impersonation flow:', error);
@@ -101,11 +103,15 @@ export class SuperAdminService {
       localStorage.removeItem('authToken'); // Remove impersonation token
 
       // 3. Redirect back to super admin
-      window.location.href = 'https://localhost:3001/super-admin/dashboard';
+      const isLocalDev = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1');
+      const baseUrl = isLocalDev ? 'http://localhost:3001' : 'https://turnos-pro.com';
+      window.location.href = `${baseUrl}/super-admin/dashboard`;
     } catch (error) {
       console.error('Error stopping impersonation:', error);
       // Force redirect anyway
-      window.location.href = 'https://localhost:3001/super-admin/dashboard';
+      const isLocalDev = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1');
+      const baseUrl = isLocalDev ? 'http://localhost:3001' : 'https://turnos-pro.com';
+      window.location.href = `${baseUrl}/super-admin/dashboard`;
     }
   }
 

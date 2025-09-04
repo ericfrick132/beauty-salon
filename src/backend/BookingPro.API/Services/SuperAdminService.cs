@@ -91,8 +91,9 @@ namespace BookingPro.API.Services
                 var tokenString = tokenHandler.WriteToken(token);
 
                 // 5. Generar URL de redirect con el subdominio del tenant
-                var baseUrl = _configuration["App:BaseUrl"] ?? "https://localhost:3001";
-                var redirectUrl = $"https://{tenant.Subdomain}.localhost:3001/dashboard?impersonationToken={tokenString}";
+                var baseUrl = _configuration["App:BaseUrl"] ?? "https://turnos-pro.com";
+                var domain = _configuration["App:Domain"] ?? "turnos-pro.com";
+                var redirectUrl = $"https://{tenant.Subdomain}.{domain}/dashboard?impersonationToken={tokenString}";
 
                 // Log de auditoría crítico
                 _logger.LogWarning("IMPERSONATION INITIATED: SuperAdmin impersonating Admin {AdminEmail} ({AdminId}) in Tenant {TenantName} ({TenantId})",
