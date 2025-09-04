@@ -1,7 +1,10 @@
 using BookingPro.API.Models.DTOs;
+using BookingPro.API.Models.Entities;
 using BookingPro.API.Services.Interfaces;
+using BookingPro.API.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace BookingPro.API.Controllers
 {
@@ -11,13 +14,16 @@ namespace BookingPro.API.Controllers
     {
         private readonly IMercadoPagoOAuthService _oauthService;
         private readonly ILogger<MercadoPagoOAuthController> _logger;
+        private readonly ApplicationDbContext _context;
 
         public MercadoPagoOAuthController(
             IMercadoPagoOAuthService oauthService,
-            ILogger<MercadoPagoOAuthController> logger)
+            ILogger<MercadoPagoOAuthController> logger,
+            ApplicationDbContext context)
         {
             _oauthService = oauthService;
             _logger = logger;
+            _context = context;
         }
 
         /// <summary>
@@ -66,6 +72,28 @@ namespace BookingPro.API.Controllers
                     state ?? "null", 
                     error ?? "none");
 
+                // Extract tenant ID from state to get subdomain
+                string? tenantSubdomain = null;
+                if (!string.IsNullOrEmpty(state))
+                {
+                    // State format: tenant_{tenantId}_{randomString}
+                    var parts = state.Split('_');
+                    if (parts.Length >= 2 && parts[0] == "tenant" && Guid.TryParse(parts[1], out var tenantId))
+                    {
+                        // Get tenant subdomain from database
+                        var tenant = await _context.Set<Tenant>()
+                            .Where(t => t.Id == tenantId)
+                            .Select(t => new { t.Subdomain })
+                            .FirstOrDefaultAsync();
+                        
+                        if (tenant != null)
+                        {
+                            tenantSubdomain = tenant.Subdomain;
+                            _logger.LogInformation("Found tenant subdomain: {Subdomain} for tenant {TenantId}", tenantSubdomain, tenantId);
+                        }
+                    }
+                }
+
                 var callbackDto = new MercadoPagoOAuthCallbackDto
                 {
                     Code = code ?? "",
@@ -79,20 +107,20 @@ namespace BookingPro.API.Controllers
                 if (result.Success)
                 {
                     // Return HTML page that closes popup and notifies parent window
-                    var successHtml = GenerateCallbackHtml(true, "MercadoPago conectado exitosamente", null);
+                    var successHtml = GenerateCallbackHtml(true, "MercadoPago conectado exitosamente", null, tenantSubdomain);
                     return Content(successHtml, "text/html");
                 }
                 else
                 {
                     _logger.LogWarning("OAuth callback failed: {Message}", result.Message);
-                    var errorHtml = GenerateCallbackHtml(false, "Error conectando MercadoPago", result.Message);
+                    var errorHtml = GenerateCallbackHtml(false, "Error conectando MercadoPago", result.Message, tenantSubdomain);
                     return Content(errorHtml, "text/html");
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing OAuth callback");
-                var errorHtml = GenerateCallbackHtml(false, "Error procesando callback", ex.Message);
+                var errorHtml = GenerateCallbackHtml(false, "Error procesando callback", ex.Message, null);
                 return Content(errorHtml, "text/html");
             }
         }
@@ -265,10 +293,15 @@ namespace BookingPro.API.Controllers
 
         #region Private Methods
 
-        private string GenerateCallbackHtml(bool success, string message, string? error)
+        private string GenerateCallbackHtml(bool success, string message, string? error, string? tenantSubdomain = null)
         {
             var statusClass = success ? "success" : "error";
             var icon = success ? "✅" : "❌";
+            
+            // Build redirect URL with tenant subdomain if available
+            var redirectUrl = !string.IsNullOrEmpty(tenantSubdomain) 
+                ? $"https://{tenantSubdomain}.turnos-pro.com/mercadopago-settings"
+                : "/dashboard/settings/payments";
             
             return $@"
 <!DOCTYPE html>
@@ -333,7 +366,9 @@ namespace BookingPro.API.Controllers
                 type: 'mercadopago-oauth-result',
                 success: {success.ToString().ToLower()},
                 message: '{message}',
-                error: '{error ?? ""}'
+                error: '{error ?? ""}',
+                tenantSubdomain: '{tenantSubdomain ?? ""}',
+                redirectUrl: '{redirectUrl}'
             }}, '*');
             
             setTimeout(() => {{
@@ -342,7 +377,7 @@ namespace BookingPro.API.Controllers
         }} else {{
             // If not in popup, redirect to app after 3 seconds
             setTimeout(() => {{
-                window.location.href = '/dashboard/settings/payments';
+                window.location.href = '{redirectUrl}';
             }}, 3000);
         }}
     </script>
