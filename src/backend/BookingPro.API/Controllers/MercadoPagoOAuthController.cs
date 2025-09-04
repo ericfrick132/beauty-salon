@@ -61,6 +61,11 @@ namespace BookingPro.API.Controllers
         {
             try
             {
+                _logger.LogInformation("OAuth callback received - Code: {Code}, State: {State}, Error: {Error}", 
+                    code?.Substring(0, Math.Min(10, code?.Length ?? 0)) ?? "null", 
+                    state ?? "null", 
+                    error ?? "none");
+
                 var callbackDto = new MercadoPagoOAuthCallbackDto
                 {
                     Code = code ?? "",
@@ -79,6 +84,7 @@ namespace BookingPro.API.Controllers
                 }
                 else
                 {
+                    _logger.LogWarning("OAuth callback failed: {Message}", result.Message);
                     var errorHtml = GenerateCallbackHtml(false, "Error conectando MercadoPago", result.Message);
                     return Content(errorHtml, "text/html");
                 }

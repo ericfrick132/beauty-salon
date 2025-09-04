@@ -20,17 +20,20 @@ namespace BookingPro.API.Services
         private readonly ILogger<MercadoPagoService> _logger;
         private readonly IConfiguration _configuration;
         private readonly ITenantProvider _tenantProvider;
+        private readonly IMercadoPagoOAuthService _oauthService;
 
         public MercadoPagoService(
             ApplicationDbContext context,
             ILogger<MercadoPagoService> logger,
             IConfiguration configuration,
-            ITenantProvider tenantProvider)
+            ITenantProvider tenantProvider,
+            IMercadoPagoOAuthService oauthService)
         {
             _context = context;
             _logger = logger;
             _configuration = configuration;
             _tenantProvider = tenantProvider;
+            _oauthService = oauthService;
         }
 
         public async Task<ServiceResult<CreatePaymentResponseDto>> CreatePaymentPreferenceAsync(CreatePaymentDto dto)
@@ -75,8 +78,27 @@ namespace BookingPro.API.Services
                     return ServiceResult<CreatePaymentResponseDto>.Fail("Reserva no encontrada");
                 }
 
-                // Configurar MercadoPago SDK con las credenciales del tenant
-                MercadoPagoConfig.AccessToken = paymentConfig.MercadoPagoAccessToken;
+                // Obtener el access token OAuth del tenant
+                var tokenResult = await _oauthService.GetValidAccessTokenAsync(tenantId);
+                if (!tokenResult.Success)
+                {
+                    // Si no hay OAuth, intentar con credenciales manuales (fallback)
+                    if (!string.IsNullOrEmpty(paymentConfig.MercadoPagoAccessToken))
+                    {
+                        _logger.LogWarning("Using manual MercadoPago credentials for tenant {TenantId}. OAuth is recommended.", tenantId);
+                        MercadoPagoConfig.AccessToken = paymentConfig.MercadoPagoAccessToken;
+                    }
+                    else
+                    {
+                        return ServiceResult<CreatePaymentResponseDto>.Fail("MercadoPago no está conectado. Por favor, conecte su cuenta de MercadoPago en Configuración.");
+                    }
+                }
+                else
+                {
+                    // Usar el token OAuth
+                    MercadoPagoConfig.AccessToken = tokenResult.Data;
+                    _logger.LogInformation("Using OAuth access token for tenant {TenantId}", tenantId);
+                }
 
                 // Calcular monto a cobrar
                 decimal amountToPay = CalculateAmountToPay(
@@ -184,8 +206,25 @@ namespace BookingPro.API.Services
                     return ServiceResult<bool>.Fail("Configuration not found");
                 }
 
-                // Configurar MercadoPago con las credenciales del tenant
-                MercadoPagoConfig.AccessToken = paymentConfig.MercadoPagoAccessToken;
+                // Obtener el access token OAuth del tenant
+                var tokenResult = await _oauthService.GetValidAccessTokenAsync(tenantGuid);
+                if (!tokenResult.Success)
+                {
+                    // Si no hay OAuth, intentar con credenciales manuales (fallback)
+                    if (!string.IsNullOrEmpty(paymentConfig.MercadoPagoAccessToken))
+                    {
+                        _logger.LogWarning("Using manual MercadoPago credentials for webhook processing. OAuth is recommended.");
+                        MercadoPagoConfig.AccessToken = paymentConfig.MercadoPagoAccessToken;
+                    }
+                    else
+                    {
+                        return ServiceResult<bool>.Fail("MercadoPago not connected");
+                    }
+                }
+                else
+                {
+                    MercadoPagoConfig.AccessToken = tokenResult.Data;
+                }
 
                 // Procesar notificación según el tipo
                 if (data.ContainsKey("type") && data["type"]?.ToString() == "payment")
@@ -762,15 +801,26 @@ namespace BookingPro.API.Services
             try
             {
                 var tenantId = _tenantProvider.GetCurrentTenantId();
-                var mpConfig = await _context.MercadoPagoConfigurations
-                    .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.IsActive);
-                    
-                if (mpConfig == null)
+                // Obtener el access token OAuth del tenant
+                var tokenResult = await _oauthService.GetValidAccessTokenAsync(tenantId);
+                if (!tokenResult.Success)
                 {
-                    return ServiceResult<PaymentPreferenceResponseDto>.Fail("MercadoPago not configured");
+                    // Verificar si hay configuración manual como fallback
+                    var mpConfig = await _context.MercadoPagoConfigurations
+                        .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.IsActive);
+                    
+                    if (mpConfig == null || string.IsNullOrEmpty(mpConfig.AccessToken))
+                    {
+                        return ServiceResult<PaymentPreferenceResponseDto>.Fail("MercadoPago no está conectado. Por favor, conecte su cuenta.");
+                    }
+                    
+                    _logger.LogWarning("Using manual MercadoPago credentials for deposit preference. OAuth is recommended.");
+                    MercadoPagoConfig.AccessToken = mpConfig.AccessToken;
                 }
-                
-                MercadoPagoConfig.AccessToken = mpConfig.AccessToken;
+                else
+                {
+                    MercadoPagoConfig.AccessToken = tokenResult.Data;
+                }
                 
                 var preferenceRequest = new PreferenceRequest
                 {
@@ -794,8 +844,8 @@ namespace BookingPro.API.Services
                         Failure = $"{_configuration["FrontendUrl"]}/booking-failed",
                         Pending = $"{_configuration["FrontendUrl"]}/booking-pending"
                     },
-                    AutoReturn = "approved",
-                    ExpirationDateTo = DateTime.UtcNow.AddMinutes(mpConfig.PaymentExpirationMinutes)
+                    AutoReturn = "approved"
+                    // ExpirationDateTo se puede configurar si es necesario
                 };
                 
                 var client = new PreferenceClient();
@@ -810,7 +860,7 @@ namespace BookingPro.API.Services
                     InitPoint = preference.InitPoint,
                     SandboxInitPoint = preference.SandboxInitPoint,
                     DeepLink = deepLink,
-                    ExpiresAt = preference.ExpirationDateTo ?? DateTime.UtcNow.AddMinutes(mpConfig.PaymentExpirationMinutes)
+                    ExpiresAt = preference.ExpirationDateTo ?? DateTime.UtcNow.AddMinutes(30) // Default 30 minutos
                 };
                 
                 return ServiceResult<PaymentPreferenceResponseDto>.Ok(response);
