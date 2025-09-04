@@ -620,7 +620,13 @@ const SuperAdminDashboard: React.FC = () => {
                           <Tooltip title="Impersonar Tenant">
                             <IconButton 
                               size="small"
-                              color="secondary"
+                              sx={{ 
+                                color: '#ff9800',
+                                '&:hover': {
+                                  backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                                  color: '#f57c00'
+                                }
+                              }}
                               onClick={() => handleImpersonateTenant(tenant.id, tenant.subdomain)}
                             >
                               <PersonImpersonateIcon fontSize="small" />
