@@ -49,10 +49,12 @@ import {
   Send as SendIcon,
   ExpandMore,
   Timeline,
+  PersonAdd as PersonImpersonateIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../services/api';
+import { superAdminService } from '../services/superAdminService';
 
 interface Tenant {
   id: string;
@@ -230,6 +232,19 @@ const TenantsManagement: React.FC = () => {
       setMessage({ 
         type: 'error', 
         text: error.response?.data?.message || 'Error creando link de pago' 
+      });
+    }
+  };
+
+  const handleImpersonateTenant = async (tenantId: string, subdomain: string) => {
+    try {
+      setMessage({ type: 'info', text: 'Iniciando impersonación...' });
+      await superAdminService.handleImpersonateFlow(tenantId, subdomain);
+    } catch (error: any) {
+      console.error('Error impersonating tenant:', error);
+      setMessage({ 
+        type: 'error', 
+        text: error.message || 'Error al impersonar tenant' 
       });
     }
   };
@@ -499,12 +514,21 @@ const TenantsManagement: React.FC = () => {
                           }
                         </TableCell>
                         <TableCell>
-                          <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                             <Button
                               size="small"
                               onClick={() => openTenantDetails(tenant)}
                             >
                               Ver Detalles
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              color="secondary"
+                              startIcon={<PersonImpersonateIcon />}
+                              onClick={() => handleImpersonateTenant(tenant.id, tenant.subdomain)}
+                            >
+                              Impersonar
                             </Button>
                             {['EXPIRED', 'NEVER_SUBSCRIBED'].includes(tenant.subscriptionStatus) && (
                               <Button

@@ -2,6 +2,7 @@ using System.Text.Json;
 using BookingPro.API.Data;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Models.Entities;
+using BookingPro.API.Models.Enums;
 using BookingPro.API.Models.Common;
 using BookingPro.API.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -134,7 +135,7 @@ namespace BookingPro.API.Services
                     MercadoPagoPreferenceId = preference.Id,
                     Amount = amountToPay,
                     Currency = "ARS",
-                    Status = "pending",
+                    Status = PaymentTransactionStatus.Pending,
                     PaymentType = dto.PaymentType,
                     Description = $"Pago por {booking.Service.Name}",
                     MetadataJson = JsonSerializer.Serialize(new
@@ -284,20 +285,20 @@ namespace BookingPro.API.Services
             return servicePrice;
         }
 
-        private string MapMercadoPagoStatus(string? mpStatus)
+        private PaymentTransactionStatus MapMercadoPagoStatus(string? mpStatus)
         {
             return mpStatus?.ToLower() switch
             {
-                "approved" => "approved",
-                "pending" => "pending",
-                "authorized" => "pending",
-                "in_process" => "pending",
-                "in_mediation" => "pending",
-                "rejected" => "rejected",
-                "cancelled" => "cancelled",
-                "refunded" => "refunded",
-                "charged_back" => "refunded",
-                _ => "pending"
+                "approved" => PaymentTransactionStatus.Approved,
+                "pending" => PaymentTransactionStatus.Pending,
+                "authorized" => PaymentTransactionStatus.Pending,
+                "in_process" => PaymentTransactionStatus.Processing,
+                "in_mediation" => PaymentTransactionStatus.Pending,
+                "rejected" => PaymentTransactionStatus.Rejected,
+                "cancelled" => PaymentTransactionStatus.Cancelled,
+                "refunded" => PaymentTransactionStatus.Refunded,
+                "charged_back" => PaymentTransactionStatus.Refunded,
+                _ => PaymentTransactionStatus.Pending
             };
         }
 

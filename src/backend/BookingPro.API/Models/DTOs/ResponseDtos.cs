@@ -16,6 +16,8 @@ namespace BookingPro.API.Models.DTOs
         public string Status { get; set; } = string.Empty;
         public decimal Price { get; set; }
         public string? Notes { get; set; }
+        public bool HasPayment { get; set; }
+        public bool IsPaymentSuccessful { get; set; }
     }
 
     public class BookingDetailDto

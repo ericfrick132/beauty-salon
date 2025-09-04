@@ -92,7 +92,7 @@ const BookingPage: React.FC = () => {
   
   const [bookingData, setBookingData] = useState({
     serviceId: '',
-    professionalId: '',
+    employeeId: '',
     date: new Date(),
     time: getInitialTime(),
     customerName: '',
@@ -122,10 +122,10 @@ const BookingPage: React.FC = () => {
   }, [bookingData.serviceId, services]);
 
   useEffect(() => {
-    if (bookingData.professionalId && bookingData.date && bookingData.serviceId) {
+    if (bookingData.employeeId && bookingData.date && bookingData.serviceId) {
       fetchAvailableSlots();
     }
-  }, [bookingData.professionalId, bookingData.date, bookingData.serviceId]);
+  }, [bookingData.employeeId, bookingData.date, bookingData.serviceId]);
   
   // Auto-select initial time when slots are loaded
   useEffect(() => {
@@ -173,7 +173,7 @@ const BookingPage: React.FC = () => {
     try {
       const response = await api.get('/public/available-slots', {
         params: {
-          professionalId: bookingData.professionalId,
+          professionalId: bookingData.employeeId,
           date: bookingData.date.toISOString().split('T')[0],
           serviceId: bookingData.serviceId,
         }
@@ -203,8 +203,8 @@ const BookingPage: React.FC = () => {
         }
         break;
       case 1:
-        if (!bookingData.professionalId) {
-          newErrors.professionalId = 'Por favor selecciona un profesional';
+        if (!bookingData.employeeId) {
+          newErrors.employeeId = 'Por favor selecciona un profesional';
         }
         break;
       case 2:
@@ -262,7 +262,7 @@ const BookingPage: React.FC = () => {
 
       const response = await api.post('/public/bookings', {
         serviceId: bookingData.serviceId,
-        professionalId: bookingData.professionalId,
+        employeeId: bookingData.employeeId,
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
         customerName: bookingData.customerName,
@@ -282,7 +282,7 @@ const BookingPage: React.FC = () => {
   };
 
   const selectedService = services.find(s => s.id === bookingData.serviceId);
-  const selectedProfessional = professionals.find(p => p.id === bookingData.professionalId);
+  const selectedProfessional = professionals.find(p => p.id === bookingData.employeeId);
 
   const renderStepContent = () => {
     switch (activeStep) {
@@ -475,8 +475,8 @@ const BookingPage: React.FC = () => {
                       sx={{
                         cursor: 'pointer',
                         height: '100%',
-                        border: bookingData.professionalId === professional.id ? '2px solid' : '1px solid',
-                        borderColor: bookingData.professionalId === professional.id ? 'primary.main' : 'divider',
+                        border: bookingData.employeeId === professional.id ? '2px solid' : '1px solid',
+                        borderColor: bookingData.employeeId === professional.id ? 'primary.main' : 'divider',
                         transition: 'all 0.3s',
                         '&:hover': {
                           boxShadow: 4,
@@ -484,7 +484,7 @@ const BookingPage: React.FC = () => {
                       }}
                       onClick={() => {
                         console.log('Professional selected:', professional.name);
-                        setBookingData(prev => ({ ...prev, professionalId: professional.id }));
+                        setBookingData(prev => ({ ...prev, employeeId: professional.id }));
                         // Auto-advance to date & time selection
                         setTimeout(() => {
                           console.log('Auto-advancing to date & time selection');
@@ -524,6 +524,13 @@ const BookingPage: React.FC = () => {
                   </motion.div>
                 </Grid>
               ))}
+              {errors.employeeId && (
+                <Grid item xs={12}>
+                  <Alert severity="error">
+                    {errors.employeeId}
+                  </Alert>
+                </Grid>
+              )}
             </Grid>
           </Fade>
         );

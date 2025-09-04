@@ -32,8 +32,7 @@ namespace BookingPro.API.Models.Entities
         [MaxLength(10)]
         public string Currency { get; set; } = "ARS";
         
-        [MaxLength(50)]
-        public string Status { get; set; } = PaymentTransactionStatus.Pending.ToString().ToLower();
+        public PaymentTransactionStatus Status { get; set; } = PaymentTransactionStatus.Pending;
         
         [MaxLength(50)]
         public string PaymentType { get; set; } = "full"; // full, deposit, balance

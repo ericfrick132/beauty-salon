@@ -19,6 +19,10 @@ import {
   Chip,
   Alert,
   Toolbar,
+  Grid,
+  InputAdornment,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import {
   ChevronLeft,
@@ -33,6 +37,10 @@ import {
   Delete,
   Check,
   Close,
+  Payment,
+  LocalAtm,
+  CreditCard,
+  AccountBalance,
 } from '@mui/icons-material';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -47,6 +55,7 @@ import { useTenant } from '../../contexts/TenantContext';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { fetchBookings, updateBooking, deleteBooking } from '../../store/slices/bookingSlice';
 import { EventImpl } from '@fullcalendar/core/internal';
+import api from '../../services/api';
 
 interface BookingEvent {
   id: string;
@@ -65,6 +74,8 @@ interface BookingEvent {
     status: string;
     price: number;
     notes?: string;
+    hasPayment?: boolean;
+    isPaymentSuccessful?: boolean;
   };
 }
 
@@ -93,6 +104,25 @@ const CalendarView: React.FC = () => {
     newEnd?: string;
   }>({ open: false, event: null });
 
+  // Payment Modal State
+  const [paymentDialog, setPaymentDialog] = useState<{
+    open: boolean;
+    booking: BookingEvent | null;
+  }>({ open: false, booking: null });
+  
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [paymentForm, setPaymentForm] = useState({
+    bookingId: '',
+    employeeId: '',
+    amount: 0,
+    tipAmount: 0,
+    paymentMethod: 'cash',
+    transactionId: '',
+    notes: '',
+  });
+  
+  const [paymentErrors, setPaymentErrors] = useState<any>({});
+
   // Colores del tema
   const primaryColor = config?.theme?.primaryColor || '#1976d2';
   const accentColor = config?.theme?.accentColor || '#ffc107';
@@ -105,9 +135,26 @@ const CalendarView: React.FC = () => {
     'no_show': '#9e9e9e'
   };
 
+  const paymentMethods = [
+    { value: 'cash', label: 'Efectivo', icon: <LocalAtm /> },
+    { value: 'card', label: 'Tarjeta', icon: <CreditCard /> },
+    { value: 'transfer', label: 'Transferencia', icon: <AccountBalance /> },
+    { value: 'mercadopago', label: 'MercadoPago', icon: <Payment /> },
+  ];
+
   useEffect(() => {
     dispatch(fetchBookings());
+    fetchEmployees();
   }, [dispatch]);
+
+  const fetchEmployees = async () => {
+    try {
+      const response = await api.get('/employees');
+      setEmployees(response.data);
+    } catch (error) {
+      console.error('Error fetching employees:', error);
+    }
+  };
 
   // Convertir bookings a eventos de calendario
   const calendarEvents: BookingEvent[] = bookings
@@ -132,7 +179,9 @@ const CalendarView: React.FC = () => {
         serviceName: booking.serviceName,
         status: booking.status,
         price: booking.price || 0,
-        notes: booking.notes
+        notes: booking.notes,
+        hasPayment: booking.hasPayment || false,
+        isPaymentSuccessful: booking.isPaymentSuccessful || false
       }
     }));
 
@@ -250,6 +299,78 @@ const CalendarView: React.FC = () => {
       case 'pending': return 'warning';
       case 'no_show': return 'default';
       default: return 'default';
+    }
+  };
+
+  // Payment functions
+  const handleOpenPaymentDialog = (booking: BookingEvent) => {
+    setPaymentDialog({ open: true, booking });
+    setPaymentForm({
+      bookingId: booking.id,
+      employeeId: '',
+      amount: booking.extendedProps?.price || 0,
+      tipAmount: 0,
+      paymentMethod: 'cash',
+      transactionId: '',
+      notes: '',
+    });
+    setPaymentErrors({});
+  };
+
+  const handleClosePaymentDialog = () => {
+    setPaymentDialog({ open: false, booking: null });
+    setPaymentForm({
+      bookingId: '',
+      employeeId: '',
+      amount: 0,
+      tipAmount: 0,
+      paymentMethod: 'cash',
+      transactionId: '',
+      notes: '',
+    });
+    setPaymentErrors({});
+  };
+
+  const validatePaymentForm = () => {
+    const newErrors: any = {};
+    
+    if (!paymentForm.bookingId) {
+      newErrors.bookingId = 'Seleccione una reserva';
+    }
+    
+    if (!paymentForm.amount || paymentForm.amount <= 0) {
+      newErrors.amount = 'El monto debe ser mayor a 0';
+    }
+    
+    if (paymentForm.paymentMethod === 'mercadopago' || paymentForm.paymentMethod === 'transfer') {
+      if (!paymentForm.transactionId) {
+        newErrors.transactionId = 'Ingrese el ID de transacción';
+      }
+    }
+    
+    setPaymentErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSavePayment = async () => {
+    if (!validatePaymentForm()) return;
+
+    try {
+      // Convert empty strings to null for Guid fields
+      const paymentData = {
+        ...paymentForm,
+        employeeId: paymentForm.employeeId === '' ? null : paymentForm.employeeId,
+        transactionId: paymentForm.transactionId === '' ? null : paymentForm.transactionId,
+        notes: paymentForm.notes === '' ? null : paymentForm.notes
+      };
+
+      await api.post('/payments', paymentData);
+      dispatch(fetchBookings()); // Refresh calendar
+      handleClosePaymentDialog();
+      setEventDialog({ open: false, event: null, mode: 'view' });
+    } catch (error) {
+      console.error('Error saving payment:', error);
+      setPaymentErrors({ submit: 'Error al registrar el pago' });
     }
   };
 
@@ -520,6 +641,17 @@ const CalendarView: React.FC = () => {
                   Completar
                 </Button>
               )}
+              {/* Payment button - only show for non-cancelled bookings without successful payment */}
+              {eventDialog.event?.extendedProps?.status !== 'cancelled' && 
+               !eventDialog.event?.extendedProps?.isPaymentSuccessful && (
+                <Button
+                  color="success"
+                  startIcon={<Payment />}
+                  onClick={() => handleOpenPaymentDialog(eventDialog.event!)}
+                >
+                  Registrar Pago
+                </Button>
+              )}
               <Button onClick={() => setEventDialog({ open: false, event: null, mode: 'view' })}>
                 Cerrar
               </Button>
@@ -539,6 +671,144 @@ const CalendarView: React.FC = () => {
               </Button>
             </>
           )}
+        </DialogActions>
+      </Dialog>
+
+      {/* Payment Dialog */}
+      <Dialog open={paymentDialog.open} onClose={handleClosePaymentDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Registrar Pago
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            {paymentDialog.booking && (
+              <Grid item xs={12}>
+                <Alert severity="info">
+                  <Typography variant="subtitle2">
+                    <strong>Cliente:</strong> {paymentDialog.booking.extendedProps?.customerName}
+                  </Typography>
+                  <Typography variant="subtitle2">
+                    <strong>Servicio:</strong> {paymentDialog.booking.extendedProps?.serviceName}
+                  </Typography>
+                  <Typography variant="subtitle2">
+                    <strong>Profesional:</strong> {paymentDialog.booking.extendedProps?.employeeName}
+                  </Typography>
+                </Alert>
+              </Grid>
+            )}
+
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>Empleado que cobró</InputLabel>
+                <Select
+                  value={paymentForm.employeeId}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, employeeId: e.target.value as string })}
+                  label="Empleado que cobró"
+                >
+                  <MenuItem value="">Sin especificar</MenuItem>
+                  {employees.map((employee) => (
+                    <MenuItem key={employee.id} value={employee.id}>
+                      {employee.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Monto"
+                type="number"
+                value={paymentForm.amount}
+                onChange={(e) => setPaymentForm({ ...paymentForm, amount: parseFloat(e.target.value) })}
+                error={!!paymentErrors.amount}
+                helperText={paymentErrors.amount}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                }}
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Propina"
+                type="number"
+                value={paymentForm.tipAmount}
+                onChange={(e) => setPaymentForm({ ...paymentForm, tipAmount: parseFloat(e.target.value) || 0 })}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                }}
+              />
+            </Grid>
+
+            <Grid item xs={12}>
+              <Typography variant="subtitle2" gutterBottom>
+                Método de Pago
+              </Typography>
+              <ToggleButtonGroup
+                value={paymentForm.paymentMethod}
+                exclusive
+                onChange={(e, value) => value && setPaymentForm({ ...paymentForm, paymentMethod: value })}
+                aria-label="payment method"
+                fullWidth
+              >
+                {paymentMethods.map((method) => (
+                  <ToggleButton key={method.value} value={method.value}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      {method.icon}
+                      <Typography variant="caption">{method.label}</Typography>
+                    </Box>
+                  </ToggleButton>
+                ))}
+              </ToggleButtonGroup>
+            </Grid>
+
+            {(paymentForm.paymentMethod === 'mercadopago' || paymentForm.paymentMethod === 'transfer') && (
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="ID de Transacción"
+                  value={paymentForm.transactionId}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, transactionId: e.target.value })}
+                  error={!!paymentErrors.transactionId}
+                  helperText={paymentErrors.transactionId}
+                />
+              </Grid>
+            )}
+
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Notas (opcional)"
+                multiline
+                rows={2}
+                value={paymentForm.notes}
+                onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+              />
+            </Grid>
+
+            <Grid item xs={12}>
+              <Alert severity="success">
+                <Typography variant="h6">
+                  Total a cobrar: ${(paymentForm.amount + paymentForm.tipAmount).toFixed(2)}
+                </Typography>
+              </Alert>
+            </Grid>
+          </Grid>
+
+          {paymentErrors.submit && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {paymentErrors.submit}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClosePaymentDialog}>Cancelar</Button>
+          <Button onClick={handleSavePayment} variant="contained">
+            Registrar Pago
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

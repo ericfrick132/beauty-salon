@@ -241,5 +241,10 @@ namespace BookingPro.API.Repositories
 
             return (items, totalCount);
         }
+
+        public ApplicationDbContext GetContext()
+        {
+            return _context;
+        }
     }
 }

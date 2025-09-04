@@ -53,7 +53,7 @@ const NewBooking: React.FC = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [bookingData, setBookingData] = useState({
     serviceId: '',
-    professionalId: '',
+    employeeId: '',
     customerId: '',
     date: new Date(),
     time: new Date(),
@@ -75,17 +75,17 @@ const NewBooking: React.FC = () => {
   }, [dispatch]);
 
   useEffect(() => {
-    if (bookingData.professionalId && bookingData.date && bookingData.serviceId) {
+    if (bookingData.employeeId && bookingData.date && bookingData.serviceId) {
       fetchAvailableSlots();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookingData.professionalId, bookingData.date, bookingData.serviceId]);
+  }, [bookingData.employeeId, bookingData.date, bookingData.serviceId]);
 
   const fetchAvailableSlots = async () => {
     try {
       const response = await api.get('/bookings/available-slots', {
         params: {
-          employeeId: bookingData.professionalId,
+          employeeId: bookingData.employeeId,
           date: bookingData.date.getFullYear() + '-' + 
                 String(bookingData.date.getMonth() + 1).padStart(2, '0') + '-' + 
                 String(bookingData.date.getDate()).padStart(2, '0'),
@@ -106,7 +106,7 @@ const NewBooking: React.FC = () => {
         if (!bookingData.serviceId) newErrors.serviceId = 'Seleccione un servicio';
         break;
       case 1:
-        if (!bookingData.professionalId) newErrors.professionalId = 'Seleccione un profesional';
+        if (!bookingData.employeeId) newErrors.employeeId = 'Seleccione un profesional';
         break;
       case 2:
         if (!bookingData.date) newErrors.date = 'Seleccione una fecha';
@@ -180,7 +180,7 @@ const NewBooking: React.FC = () => {
 
       await dispatch(createBooking({
         serviceId: bookingData.serviceId,
-        employeeId: bookingData.professionalId,
+        employeeId: bookingData.employeeId,
         customerId: customerId,
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
@@ -198,7 +198,7 @@ const NewBooking: React.FC = () => {
   };
 
   const selectedService = services.find(s => s.id === bookingData.serviceId);
-  const selectedEmployee = employees.find((p: any) => p.id === bookingData.professionalId);
+  const selectedEmployee = employees.find((p: any) => p.id === bookingData.employeeId);
   const selectedCustomer = customers.find(c => c.id === bookingData.customerId);
 
   const renderStepContent = () => {
@@ -288,12 +288,12 @@ const NewBooking: React.FC = () => {
                   <Card
                     sx={{
                       cursor: 'pointer',
-                      border: bookingData.professionalId === employee.id ? '2px solid' : '1px solid',
-                      borderColor: bookingData.professionalId === employee.id ? 'primary.main' : 'grey.300',
+                      border: bookingData.employeeId === employee.id ? '2px solid' : '1px solid',
+                      borderColor: bookingData.employeeId === employee.id ? 'primary.main' : 'grey.300',
                     }}
                     onClick={() => {
                       console.log('Professional selected:', employee.name);
-                      setBookingData({ ...bookingData, professionalId: employee.id });
+                      setBookingData({ ...bookingData, employeeId: employee.id });
                       // Auto-advance to next step after a short delay
                       setTimeout(() => {
                         console.log('Auto-advancing to date & time selection');

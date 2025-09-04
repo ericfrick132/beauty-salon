@@ -102,6 +102,8 @@ export interface Booking {
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
   price?: number;
   notes?: string;
+  hasPayment?: boolean;
+  isPaymentSuccessful?: boolean;
   createdAt: string;
 }
 

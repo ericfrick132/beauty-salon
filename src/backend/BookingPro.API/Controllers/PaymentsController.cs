@@ -158,7 +158,7 @@ namespace BookingPro.API.Controllers
         {
             try
             {
-                var today = DateTime.Today;
+                var today = DateTime.UtcNow.Date;
                 var tomorrow = today.AddDays(1);
 
                 var payments = await _context.Payments

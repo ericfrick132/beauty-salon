@@ -2,6 +2,7 @@ using BookingPro.API.Data;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Models.Entities;
 using BookingPro.API.Models.Common;
+using BookingPro.API.Models.Enums;
 using BookingPro.API.Services.Interfaces;
 using BookingPro.API.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -67,7 +68,11 @@ namespace BookingPro.API.Services
                         EndTime = b.EndTime,
                         Status = b.Status,
                         Price = b.Price ?? 0,
-                        Notes = b.Notes
+                        Notes = b.Notes,
+                        HasPayment = _bookingRepository.GetContext().Set<Payment>()
+                            .Any(p => p.BookingId == b.Id),
+                        IsPaymentSuccessful = _bookingRepository.GetContext().Set<Payment>()
+                            .Any(p => p.BookingId == b.Id && p.Status == "completed")
                     })
                     .ToListAsync();
 
@@ -76,6 +81,44 @@ namespace BookingPro.API.Services
             catch (Exception ex)
             {
                 return ServiceResult<IEnumerable<BookingListDto>>.Fail($"Error retrieving bookings: {ex.Message}");
+            }
+        }
+
+        public async Task<ServiceResult<IEnumerable<BookingListDto>>> GetUnpaidBookingsAsync()
+        {
+            try
+            {
+                // Get all bookings that are not cancelled and don't have successful payments
+                var bookings = await _bookingRepository.Query(b => b.Customer, b => b.Employee, b => b.Service)
+                    .Where(b => b.Status != "cancelled")
+                    .Where(b => !_bookingRepository.GetContext().Set<Payment>()
+                        .Any(p => p.BookingId == b.Id && p.Status == "completed"))
+                    .Select(b => new BookingListDto
+                    {
+                        Id = b.Id,
+                        CustomerId = b.CustomerId,
+                        CustomerName = $"{b.Customer.FirstName} {b.Customer.LastName}",
+                        CustomerPhone = b.Customer.Phone,
+                        EmployeeId = b.EmployeeId,
+                        EmployeeName = b.Employee.Name,
+                        ServiceId = b.ServiceId,
+                        ServiceName = b.Service.Name,
+                        StartTime = b.StartTime,
+                        EndTime = b.EndTime,
+                        Status = b.Status,
+                        Price = b.Price ?? 0,
+                        Notes = b.Notes,
+                        HasPayment = false, // By definition, unpaid bookings don't have successful payments
+                        IsPaymentSuccessful = false
+                    })
+                    .OrderBy(b => b.StartTime)
+                    .ToListAsync();
+
+                return ServiceResult<IEnumerable<BookingListDto>>.Ok(bookings);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<IEnumerable<BookingListDto>>.Fail($"Error retrieving unpaid bookings: {ex.Message}");
             }
         }
 
@@ -251,6 +294,29 @@ namespace BookingPro.API.Services
                 if (booking == null)
                     return ServiceResult.Fail("Booking not found");
 
+                var context = _bookingRepository.GetContext();
+
+                // Delete associated PaymentTransactions first (they have Restrict on BookingId)
+                var paymentTransactions = await context.Set<PaymentTransaction>()
+                    .Where(pt => pt.BookingId == id)
+                    .ToListAsync();
+
+                if (paymentTransactions.Any())
+                {
+                    context.Set<PaymentTransaction>().RemoveRange(paymentTransactions);
+                }
+
+                // Delete associated Payments (they have Restrict on BookingId)
+                var payments = await context.Set<Payment>()
+                    .Where(p => p.BookingId == id)
+                    .ToListAsync();
+
+                if (payments.Any())
+                {
+                    context.Set<Payment>().RemoveRange(payments);
+                }
+
+                // Now delete the booking
                 await _bookingRepository.DeleteAsync(booking);
                 return ServiceResult.Ok("Booking deleted successfully");
             }
@@ -428,6 +494,21 @@ namespace BookingPro.API.Services
             return startTimeOfDay >= businessHours.start &&
                    endTimeOfDay <= businessHours.end &&
                    startTime.Date == endTime.Date; // Misma fecha
+        }
+
+        public async Task<ServiceResult<bool>> HasSuccessfulPaymentAsync(Guid bookingId)
+        {
+            try
+            {
+                var hasSuccessfulPayment = await _bookingRepository.GetContext().Set<Payment>()
+                    .AnyAsync(p => p.BookingId == bookingId && p.Status == "completed");
+
+                return ServiceResult<bool>.Ok(hasSuccessfulPayment);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<bool>.Fail($"Error checking payment status: {ex.Message}");
+            }
         }
     }
 }

@@ -96,6 +96,17 @@ namespace BookingPro.API.Controllers
             return Ok(new { message = result.Message });
         }
 
+        [HttpGet("unpaid")]
+        public async Task<IActionResult> GetUnpaidBookings()
+        {
+            var result = await _bookingService.GetUnpaidBookingsAsync();
+            
+            if (!result.Success)
+                return BadRequest(new { message = result.Message, errors = result.Errors });
+                
+            return Ok(result.Data);
+        }
+
         [HttpGet("available-slots")]
         public async Task<IActionResult> GetAvailableSlots(
             [FromQuery] Guid employeeId,

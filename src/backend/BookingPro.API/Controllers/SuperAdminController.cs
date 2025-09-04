@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using BookingPro.API.Data;
 using BookingPro.API.Models.Entities;
 using BookingPro.API.Models.DTOs;
+using BookingPro.API.Services.Interfaces;
 
 namespace BookingPro.API.Controllers
 {
@@ -14,13 +16,16 @@ namespace BookingPro.API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<SuperAdminController> _logger;
+        private readonly ISuperAdminService _superAdminService;
 
         public SuperAdminController(
             ApplicationDbContext context,
-            ILogger<SuperAdminController> logger)
+            ILogger<SuperAdminController> logger,
+            ISuperAdminService superAdminService)
         {
             _context = context;
             _logger = logger;
+            _superAdminService = superAdminService;
         }
 
         [HttpGet("tenants")]
@@ -139,6 +144,65 @@ namespace BookingPro.API.Controllers
             {
                 _logger.LogError(ex, "Error creating tenant payment for super admin");
                 return StatusCode(500, new { success = false, message = "Error creating payment" });
+            }
+        }
+
+        [HttpPost("tenants/{tenantId}/impersonate")]
+        public async Task<IActionResult> ImpersonateTenant(Guid tenantId)
+        {
+            try
+            {
+                // 1. Verificar que el usuario es super admin
+                var userRole = User?.FindFirst("role")?.Value;
+                var claimRole = User?.FindFirst(ClaimTypes.Role)?.Value;
+                var isSuperAdmin = User?.FindFirst("is_super_admin")?.Value;
+                
+                _logger.LogWarning("IMPERSONATION DEBUG: role claim: {UserRole}, ClaimTypes.Role: {ClaimRole}, is_super_admin: {IsSuperAdmin}", userRole, claimRole, isSuperAdmin);
+                
+                if (userRole != "super_admin" && claimRole != "super_admin" && isSuperAdmin != "true")
+                {
+                    return Unauthorized(new { success = false, message = $"Only super admins can impersonate tenants. Current role: {userRole}, claimRole: {claimRole}, isSuperAdmin: {isSuperAdmin}" });
+                }
+
+                // 2. Realizar impersonation
+                var result = await _superAdminService.ImpersonateTenantAsync(tenantId);
+
+                if (!result.Success)
+                {
+                    return BadRequest(new { success = false, message = result.Message });
+                }
+
+                return Ok(new { 
+                    success = true, 
+                    data = result.Data,
+                    message = "Impersonation token generated successfully" 
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during impersonation for tenant {TenantId}", tenantId);
+                return StatusCode(500, new { success = false, message = "Error during impersonation" });
+            }
+        }
+
+        [HttpGet("tenants/list")]
+        public async Task<IActionResult> GetTenantsForImpersonation()
+        {
+            try
+            {
+                var result = await _superAdminService.GetTenantsForSuperAdminAsync();
+
+                if (!result.Success)
+                {
+                    return BadRequest(new { success = false, message = result.Message });
+                }
+
+                return Ok(new { success = true, data = result.Data });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching tenants for impersonation");
+                return StatusCode(500, new { success = false, message = "Error fetching tenants" });
             }
         }
     }

@@ -33,6 +33,7 @@ import FinancialReports from './pages/FinancialReports';
 import Payroll from './pages/Payroll';
 import ThemeSettings from './pages/ThemeSettings';
 import MercadoPagoSettings from './pages/MercadoPagoSettings';
+import Settings from './pages/Settings';
 import SubscriptionPlans from './pages/SubscriptionPlans';
 import SubscriptionManagement from './pages/SubscriptionManagement';
 import PlatformSubscriptionStatus from './pages/PlatformSubscriptionStatus';
@@ -45,9 +46,25 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    handleImpersonationToken();
     loadTenantConfiguration();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleImpersonationToken = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const impersonationToken = urlParams.get('impersonationToken');
+    
+    if (impersonationToken) {
+      // Store the impersonation token as the auth token
+      localStorage.setItem('authToken', impersonationToken);
+      
+      // Clean up the URL by removing the token parameter
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('impersonationToken');
+      window.history.replaceState({}, '', newUrl.toString());
+    }
+  };
 
   const isMainDomain = () => {
     const hostname = window.location.hostname;
@@ -261,6 +278,7 @@ function App() {
                   <Route path="/professionals" element={<Employees />} />
                   <Route path="/payroll" element={<Payroll />} />
                   <Route path="/financial-reports" element={<FinancialReports />} />
+                  <Route path="/settings" element={<Settings />} />
                   <Route path="/theme-settings" element={<ThemeSettings />} />
                   <Route path="/mercadopago-settings" element={<MercadoPagoSettings />} />
                   <Route path="/subscription" element={<SubscriptionManagement />} />

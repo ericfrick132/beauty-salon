@@ -55,10 +55,12 @@ import {
   Refresh,
   Palette,
   Save,
+  PersonAdd as PersonImpersonateIcon,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { superAdminApi } from '../services/api';
+import { superAdminService } from '../services/superAdminService';
 
 interface Tenant {
   id: string;
@@ -389,6 +391,16 @@ const SuperAdminDashboard: React.FC = () => {
     setSuccess('Copiado al portapapeles');
   };
 
+  const handleImpersonateTenant = async (tenantId: string, subdomain: string) => {
+    try {
+      setSuccess('Iniciando impersonación...');
+      await superAdminService.handleImpersonateFlow(tenantId, subdomain);
+    } catch (error: any) {
+      console.error('Error impersonating tenant:', error);
+      setError(error.message || 'Error al impersonar tenant');
+    }
+  };
+
   const renderDashboard = () => (
     <Box sx={{ p: 3 }}>
       <Grid container spacing={3}>
@@ -605,6 +617,15 @@ const SuperAdminDashboard: React.FC = () => {
                       <TableCell>{formatDate(tenant.createdAt)}</TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Tooltip title="Impersonar Tenant">
+                            <IconButton 
+                              size="small"
+                              color="secondary"
+                              onClick={() => handleImpersonateTenant(tenant.id, tenant.subdomain)}
+                            >
+                              <PersonImpersonateIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
                           <Tooltip title="Ver Detalles">
                             <IconButton 
                               size="small"

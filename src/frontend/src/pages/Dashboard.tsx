@@ -13,6 +13,12 @@ import {
   Divider,
   IconButton,
   Tooltip,
+  Button,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  Collapse,
 } from '@mui/material';
 import {
   CalendarToday,
@@ -28,6 +34,10 @@ import {
   Info,
   MonetizationOn,
   AccountBalanceWallet,
+  Warning,
+  Payment,
+  ExpandMore,
+  ExpandLess,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -67,11 +77,15 @@ const Dashboard: React.FC = () => {
   const { bookings, employees, services, loading } = useAppSelector(state => state.booking);
   const [financialStats, setFinancialStats] = useState<any>(null);
   const [loadingFinancials, setLoadingFinancials] = useState(false);
+  const [unpaidBookings, setUnpaidBookings] = useState<any[]>([]);
+  const [loadingUnpaid, setLoadingUnpaid] = useState(false);
+  const [showUnpaidDetails, setShowUnpaidDetails] = useState(false);
 
   useEffect(() => {
     dispatch(fetchBookings());
     dispatch(fetchEmployees());
     dispatch(fetchServices());
+    fetchUnpaidBookings();
   }, [dispatch]);
 
   useEffect(() => {
@@ -94,6 +108,25 @@ const Dashboard: React.FC = () => {
       console.error('Error fetching financial stats:', error);
     } finally {
       setLoadingFinancials(false);
+    }
+  };
+
+  const fetchUnpaidBookings = async () => {
+    setLoadingUnpaid(true);
+    try {
+      const response = await fetch('/api/bookings/unpaid', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setUnpaidBookings(data);
+      }
+    } catch (error) {
+      console.error('Error fetching unpaid bookings:', error);
+    } finally {
+      setLoadingUnpaid(false);
     }
   };
 
@@ -388,6 +421,107 @@ const Dashboard: React.FC = () => {
                   </Grid>
                 </CardContent>
               </Card>
+            </Grid>
+          </Grid>
+        )}
+
+        {/* Unpaid Bookings Alert */}
+        {unpaidBookings.length > 0 && (
+          <Grid container spacing={3} sx={{ mb: 3 }}>
+            <Grid item xs={12}>
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+              >
+                <Card sx={{ 
+                  background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+                  color: 'white',
+                  boxShadow: '0 8px 25px rgba(255, 152, 0, 0.3)',
+                  border: '1px solid rgba(255, 152, 0, 0.3)',
+                }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                      <Warning sx={{ fontSize: 30, mr: 2 }} />
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                          ⚠️ Reservas Pendientes de Pago
+                        </Typography>
+                        <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                          Hay {unpaidBookings.length} reserva{unpaidBookings.length !== 1 ? 's' : ''} sin pago registrado
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                          variant="contained"
+                          startIcon={<Payment />}
+                          onClick={() => navigate('/payments')}
+                          sx={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                            color: 'white',
+                            '&:hover': {
+                              backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                            }
+                          }}
+                        >
+                          Registrar Pagos
+                        </Button>
+                        <IconButton
+                          onClick={() => setShowUnpaidDetails(!showUnpaidDetails)}
+                          sx={{ color: 'white' }}
+                        >
+                          {showUnpaidDetails ? <ExpandLess /> : <ExpandMore />}
+                        </IconButton>
+                      </Box>
+                    </Box>
+                    
+                    <Collapse in={showUnpaidDetails}>
+                      <Divider sx={{ mb: 2, backgroundColor: 'rgba(255, 255, 255, 0.3)' }} />
+                      <List sx={{ py: 0 }}>
+                        {unpaidBookings.slice(0, 5).map((booking, index) => (
+                          <ListItem 
+                            key={booking.id} 
+                            sx={{ 
+                              py: 1,
+                              borderRadius: 1,
+                              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                              mb: index < Math.min(unpaidBookings.length, 5) - 1 ? 1 : 0,
+                            }}
+                          >
+                            <ListItemText
+                              primary={
+                                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'white' }}>
+                                  {booking.customerName}
+                                </Typography>
+                              }
+                              secondary={
+                                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                                  {booking.serviceName} • {format(new Date(booking.startTime), 'dd/MM HH:mm')}
+                                </Typography>
+                              }
+                            />
+                            <ListItemSecondaryAction>
+                              <Chip
+                                label={`$${booking.price}`}
+                                sx={{
+                                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                                  color: 'white',
+                                  fontWeight: 600,
+                                }}
+                              />
+                            </ListItemSecondaryAction>
+                          </ListItem>
+                        ))}
+                        {unpaidBookings.length > 5 && (
+                          <Typography variant="body2" sx={{ mt: 1, opacity: 0.8, textAlign: 'center' }}>
+                            ... y {unpaidBookings.length - 5} más
+                          </Typography>
+                        )}
+                      </List>
+                    </Collapse>
+                  </CardContent>
+                </Card>
+              </motion.div>
             </Grid>
           </Grid>
         )}

@@ -1,3 +1,4 @@
+using BookingPro.API.Data;
 using BookingPro.API.Models.Entities;
 using BookingPro.API.Models.Interfaces;
 using System.Linq.Expressions;
@@ -40,5 +41,8 @@ namespace BookingPro.API.Repositories
             Expression<Func<T, object>>? orderBy = null,
             bool descending = false,
             params Expression<Func<T, object>>[] includes);
+
+        // Access to underlying context for advanced scenarios
+        ApplicationDbContext GetContext();
     }
 }

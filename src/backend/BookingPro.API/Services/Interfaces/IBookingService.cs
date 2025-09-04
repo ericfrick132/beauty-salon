@@ -7,10 +7,12 @@ namespace BookingPro.API.Services.Interfaces
     public interface IBookingService
     {
         Task<ServiceResult<IEnumerable<BookingListDto>>> GetBookingsAsync(DateTime? date = null, Guid? employeeId = null, string? status = null);
+        Task<ServiceResult<IEnumerable<BookingListDto>>> GetUnpaidBookingsAsync();
         Task<ServiceResult<BookingDetailDto>> GetBookingByIdAsync(Guid id);
         Task<ServiceResult<Booking>> CreateBookingAsync(CreateBookingDto dto);
         Task<ServiceResult<Booking>> UpdateBookingAsync(Guid id, UpdateBookingDto dto);
         Task<ServiceResult> DeleteBookingAsync(Guid id);
         Task<ServiceResult<IEnumerable<string>>> GetAvailableTimeSlotsAsync(Guid professionalId, DateTime date, Guid serviceId);
+        Task<ServiceResult<bool>> HasSuccessfulPaymentAsync(Guid bookingId);
     }
 }

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using BookingPro.API.Models.Entities;
+using BookingPro.API.Models.Enums;
 using BookingPro.API.Models.Interfaces;
 
 namespace BookingPro.API.Data
@@ -309,6 +310,32 @@ namespace BookingPro.API.Data
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
+            modelBuilder.Entity<PaymentTransaction>(entity =>
+            {
+                entity.ToTable("payment_transactions");
+                entity.HasIndex(pt => pt.BookingId);
+                entity.HasIndex(pt => pt.Status);
+                entity.HasIndex(pt => pt.TenantId);
+                entity.HasIndex(pt => pt.MercadoPagoPaymentId);
+                
+                // Configure enum to string conversion
+                entity.Property(pt => pt.Status)
+                    .HasConversion(
+                        v => v.ToString().ToLower(),
+                        v => Enum.Parse<PaymentTransactionStatus>(v, true))
+                    .HasMaxLength(50);
+
+                entity.HasOne(pt => pt.Booking)
+                    .WithMany()
+                    .HasForeignKey(pt => pt.BookingId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(pt => pt.Customer)
+                    .WithMany()
+                    .HasForeignKey(pt => pt.CustomerId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
             modelBuilder.Entity<EndUserPayment>(entity =>
             {
                 entity.ToTable("end_user_payments");
@@ -368,6 +395,7 @@ namespace BookingPro.API.Data
             modelBuilder.Entity<DailyReport>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<Schedule>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<MercadoPagoConfiguration>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<PaymentTransaction>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             
             // New End User entities filters
             modelBuilder.Entity<EndUser>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());

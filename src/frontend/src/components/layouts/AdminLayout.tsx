@@ -66,6 +66,7 @@ import {
   getHeaderTextColor,
   getCardBackground 
 } from '../../utils/themeUtils';
+import ImpersonationBanner from '../common/ImpersonationBanner';
 
 const drawerWidth = 280;
 const mobileDrawerWidth = 260;
@@ -423,7 +424,7 @@ export const AdminLayout: React.FC = () => {
                   color: config?.vertical === 'beautysalon' ? '#9D8DA5' : 'text.secondary'
                 }}
               >
-                {user?.email || 'admin@turnos-pro.com'}
+                {user?.email || 'admin@turnospro.com'}
               </Typography>
             </Box>
           </Box>
@@ -631,6 +632,9 @@ export const AdminLayout: React.FC = () => {
 
       <MainContent open={drawerOpen}>
         <Toolbar />
+        <Box sx={{ p: 2, pt: 1 }}>
+          <ImpersonationBanner />
+        </Box>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

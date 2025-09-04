@@ -116,6 +116,7 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ISubscriptionServi
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IPlatformPaymentService, BookingPro.API.Services.PlatformPaymentService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IEndUserService, BookingPro.API.Services.EndUserService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IEmailAutomationService, BookingPro.API.Services.EmailAutomationService>();
+builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ISuperAdminService, BookingPro.API.Services.SuperAdminService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();
@@ -202,6 +203,8 @@ app.UseRateLimiting();
 app.UseMiddleware<TenantResolutionMiddleware>();
 
 app.UseAuthentication();
+// Impersonation audit middleware after authentication
+app.UseMiddleware<BookingPro.API.Middleware.ImpersonationAuditMiddleware>();
 app.UseAuthorization();
 
 // Add subscription verification middleware
