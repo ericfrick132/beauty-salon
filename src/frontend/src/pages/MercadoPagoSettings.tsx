@@ -72,6 +72,8 @@ const MercadoPagoSettings: React.FC = () => {
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [oauthPopup, setOauthPopup] = useState<Window | null>(null);
   const [disconnectDialog, setDisconnectDialog] = useState(false);
+  const closeCheckRef = React.useRef<number | null>(null);
+  const resultReceivedRef = React.useRef(false);
 
   useEffect(() => {
     fetchConfiguration();
@@ -79,6 +81,11 @@ const MercadoPagoSettings: React.FC = () => {
     // Listen for OAuth popup messages
     const handleMessage = (event: MessageEvent) => {
       if (event.data.type === 'mercadopago-oauth-result') {
+        resultReceivedRef.current = true;
+        if (closeCheckRef.current) {
+          window.clearInterval(closeCheckRef.current);
+          closeCheckRef.current = null;
+        }
         if (oauthPopup) {
           oauthPopup.close();
           setOauthPopup(null);
@@ -157,11 +164,16 @@ const MercadoPagoSettings: React.FC = () => {
         setOauthPopup(popup);
         
         // Check if popup was closed manually
-        const checkClosed = setInterval(() => {
+        closeCheckRef.current = window.setInterval(() => {
           if (popup?.closed) {
-            clearInterval(checkClosed);
+            if (closeCheckRef.current) {
+              window.clearInterval(closeCheckRef.current);
+              closeCheckRef.current = null;
+            }
             setOauthPopup(null);
-            setMessage({ type: 'info', text: 'Conexión cancelada por el usuario' });
+            if (!resultReceivedRef.current) {
+              setMessage({ type: 'info', text: 'Conexión cancelada por el usuario' });
+            }
           }
         }, 1000);
         

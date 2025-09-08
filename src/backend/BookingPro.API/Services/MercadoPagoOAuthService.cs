@@ -109,6 +109,7 @@ namespace BookingPro.API.Services
 
                 // Get OAuth state record
                 var oauthState = await _context.Set<MercadoPagoOAuthState>()
+                    .IgnoreQueryFilters()
                     .FirstOrDefaultAsync(s => s.State == dto.State && s.TenantId == tenantId);
 
                 if (oauthState == null || oauthState.IsExpired || oauthState.ExpiresAt < DateTime.UtcNow)
@@ -399,6 +400,7 @@ namespace BookingPro.API.Services
                 }
 
                 var oauthState = await _context.Set<MercadoPagoOAuthState>()
+                    .IgnoreQueryFilters()
                     .FirstOrDefaultAsync(s => s.State == state && s.TenantId == tenantId);
 
                 if (oauthState == null)
@@ -520,17 +522,16 @@ namespace BookingPro.API.Services
                 var clientSecret = _configuration["MercadoPago:ClientSecret"];
                 var redirectUri = _configuration["MercadoPago:RedirectUri"];
 
-                var requestData = new
+                // MercadoPago expects x-www-form-urlencoded
+                var form = new List<KeyValuePair<string, string>>
                 {
-                    client_id = clientId,
-                    client_secret = clientSecret,
-                    grant_type = "authorization_code",
-                    code = code,
-                    redirect_uri = redirectUri
+                    new("client_id", clientId ?? string.Empty),
+                    new("client_secret", clientSecret ?? string.Empty),
+                    new("grant_type", "authorization_code"),
+                    new("code", code),
+                    new("redirect_uri", redirectUri ?? string.Empty),
                 };
-
-                var json = JsonSerializer.Serialize(requestData);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var content = new FormUrlEncodedContent(form);
 
                 var response = await _httpClient.PostAsync(TOKEN_URL, content);
                 var responseContent = await response.Content.ReadAsStringAsync();
@@ -569,16 +570,14 @@ namespace BookingPro.API.Services
                 var clientId = _configuration["MercadoPago:ClientId"];
                 var clientSecret = _configuration["MercadoPago:ClientSecret"];
 
-                var requestData = new
+                var form = new List<KeyValuePair<string, string>>
                 {
-                    grant_type = "refresh_token",
-                    client_id = clientId,
-                    client_secret = clientSecret,
-                    refresh_token = refreshToken
+                    new("grant_type", "refresh_token"),
+                    new("client_id", clientId ?? string.Empty),
+                    new("client_secret", clientSecret ?? string.Empty),
+                    new("refresh_token", refreshToken),
                 };
-
-                var json = JsonSerializer.Serialize(requestData);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var content = new FormUrlEncodedContent(form);
 
                 var response = await _httpClient.PostAsync(TOKEN_URL, content);
                 var responseContent = await response.Content.ReadAsStringAsync();
@@ -697,17 +696,14 @@ namespace BookingPro.API.Services
 
         private string EncryptToken(string token)
         {
-            // Simple encryption - in production, use proper encryption
-            var key = _configuration["EncryptionKey"] ?? "default-key-32-characters-long";
-            return Convert.ToBase64String(Encoding.UTF8.GetBytes(token + key))[..50]; // Simplified
+            // Minimal reversible encoding (Base64). For production, replace with proper encryption at rest.
+            return Convert.ToBase64String(Encoding.UTF8.GetBytes(token));
         }
 
         private string DecryptToken(string encryptedToken)
         {
-            // Simple decryption - in production, use proper decryption
-            var key = _configuration["EncryptionKey"] ?? "default-key-32-characters-long";
-            var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(encryptedToken + "=="));
-            return decoded.Replace(key, ""); // Simplified
+            var bytes = Convert.FromBase64String(encryptedToken);
+            return Encoding.UTF8.GetString(bytes);
         }
 
         #endregion
