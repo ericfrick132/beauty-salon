@@ -19,7 +19,8 @@ namespace BookingPro.API.Services
         private readonly HttpClient _httpClient;
 
         // OAuth endpoints
-        private const string AUTH_URL = "https://auth.mercadopago.com.ar/authorization";
+        // Use global auth host per official docs
+        private const string AUTH_URL = "https://auth.mercadopago.com/authorization";
         private const string TOKEN_URL = "https://api.mercadopago.com/oauth/token";
         private const string USER_INFO_URL = "https://api.mercadopago.com/users/me";
         
@@ -136,7 +137,14 @@ namespace BookingPro.API.Services
                     return ServiceResult<bool>.Fail($"OAuth error: {dto.Error}");
                 }
 
-                // Exchange code for tokens (include PKCE code_verifier if present)
+                // Ensure PKCE verifier exists if PKCE is enabled on the app
+                if (string.IsNullOrWhiteSpace(oauthState.CodeVerifier))
+                {
+                    _logger.LogWarning("OAuth state missing code_verifier for tenant {TenantId}. User must restart OAuth flow.", tenantId);
+                    return ServiceResult<bool>.Fail("Missing PKCE verifier. Please restart the Mercado Pago connection.");
+                }
+
+                // Exchange code for tokens (include PKCE code_verifier)
                 var tokenResult = await ExchangeCodeForTokenAsync(dto.Code, oauthState.CodeVerifier);
                 if (!tokenResult.Success || tokenResult.Data == null)
                 {
