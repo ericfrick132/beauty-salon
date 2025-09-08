@@ -55,19 +55,9 @@ namespace BookingPro.API.Services
                     tenantId = tenant.Id;
                 }
 
-                // Obtener configuración de pago del tenant
+                // Obtener configuración opcional de pagos (para mínimos/clave pública)
                 var paymentConfig = await _context.Set<PaymentConfiguration>()
                     .FirstOrDefaultAsync(pc => pc.TenantId == tenantId);
-
-                if (paymentConfig == null || !paymentConfig.IsEnabled)
-                {
-                    return ServiceResult<CreatePaymentResponseDto>.Fail("Pagos no configurados para este negocio");
-                }
-
-                if (string.IsNullOrEmpty(paymentConfig.MercadoPagoAccessToken))
-                {
-                    return ServiceResult<CreatePaymentResponseDto>.Fail("Credenciales de MercadoPago no configuradas");
-                }
 
                 // Obtener la reserva
                 var booking = await _context.Bookings
@@ -85,7 +75,7 @@ namespace BookingPro.API.Services
                 if (!tokenResult.Success)
                 {
                     // Si no hay OAuth, intentar con credenciales manuales (fallback)
-                    if (!string.IsNullOrEmpty(paymentConfig.MercadoPagoAccessToken))
+                    if (paymentConfig != null && !string.IsNullOrEmpty(paymentConfig.MercadoPagoAccessToken))
                     {
                         _logger.LogWarning("Using manual MercadoPago credentials for tenant {TenantId}. OAuth is recommended.", tenantId);
                         MercadoPagoConfig.AccessToken = paymentConfig.MercadoPagoAccessToken;
@@ -114,8 +104,8 @@ namespace BookingPro.API.Services
                     amountToPay = CalculateAmountToPay(
                         booking.Service.Price,
                         dto.PaymentType,
-                        paymentConfig.MinimumDepositPercentage,
-                        paymentConfig.MinimumDepositAmount);
+                        paymentConfig?.MinimumDepositPercentage,
+                        paymentConfig?.MinimumDepositAmount);
                 }
 
                 // Crear preferencia de pago
@@ -182,6 +172,18 @@ namespace BookingPro.API.Services
                 _context.Set<PaymentTransaction>().Add(transaction);
                 await _context.SaveChangesAsync();
 
+                // Intentar obtener public key
+                string? publicKey = paymentConfig?.MercadoPagoPublicKey;
+                if (string.IsNullOrEmpty(publicKey))
+                {
+                    var mpConfig = await _context.MercadoPagoConfigurations
+                        .FirstOrDefaultAsync(c => c.TenantId == tenantId);
+                    if (mpConfig != null && !string.IsNullOrEmpty(mpConfig.PublicKey))
+                    {
+                        publicKey = mpConfig.PublicKey;
+                    }
+                }
+
                 var response = new CreatePaymentResponseDto
                 {
                     PreferenceId = preference.Id,
@@ -189,7 +191,7 @@ namespace BookingPro.API.Services
                     SandboxInitPoint = preference.SandboxInitPoint,
                     TransactionId = transaction.Id,
                     Amount = amountToPay,
-                    PublicKey = paymentConfig.MercadoPagoPublicKey
+                    PublicKey = publicKey
                 };
 
                 return ServiceResult<CreatePaymentResponseDto>.Ok(response);
