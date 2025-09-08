@@ -454,7 +454,7 @@ namespace BookingPro.API.Services
                 var response = await httpClient.PostAsync(
                     "https://api.mercadopago.com/oauth/token",
                     new FormUrlEncodedContent(tokenRequest));
-                    
+                
                 if (response.IsSuccessStatusCode)
                 {
                     var json = await response.Content.ReadAsStringAsync();
@@ -491,8 +491,27 @@ namespace BookingPro.API.Services
                     await _context.SaveChangesAsync();
                     return ServiceResult<bool>.Ok(true);
                 }
-                
-                return ServiceResult<bool>.Fail("Failed to exchange code for token");
+                // Surface MercadoPago error details to help troubleshooting
+                var errorBody = await response.Content.ReadAsStringAsync();
+                try
+                {
+                    var errJson = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(errorBody);
+                    string? mpError = null;
+                    if (errJson != null)
+                    {
+                        if (errJson.TryGetValue("error_description", out var errDesc)) mpError = errDesc.GetString();
+                        else if (errJson.TryGetValue("message", out var msg)) mpError = msg.GetString();
+                        else if (errJson.TryGetValue("error", out var err)) mpError = err.GetString();
+                    }
+                    var msgText = string.IsNullOrWhiteSpace(mpError) ? "Failed to exchange code for token" : $"Failed to exchange code for token: {mpError}";
+                    _logger.LogError("MercadoPago token exchange failed. Status: {Status} Body: {Body}", (int)response.StatusCode, errorBody);
+                    return ServiceResult<bool>.Fail(msgText);
+                }
+                catch
+                {
+                    _logger.LogError("MercadoPago token exchange failed. Status: {Status} Body: {Body}", (int)response.StatusCode, errorBody);
+                    return ServiceResult<bool>.Fail("Failed to exchange code for token");
+                }
             }
             catch (Exception ex)
             {

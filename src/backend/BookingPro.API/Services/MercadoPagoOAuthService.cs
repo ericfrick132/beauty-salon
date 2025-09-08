@@ -134,7 +134,18 @@ namespace BookingPro.API.Services
                 var tokenResult = await ExchangeCodeForTokenAsync(dto.Code);
                 if (!tokenResult.Success || tokenResult.Data == null)
                 {
-                    return ServiceResult<bool>.Fail("Failed to exchange code for token");
+                    // Persist error details in state for audit/debugging
+                    oauthState.ErrorCode = "token_exchange_failed";
+                    oauthState.ErrorDescription = tokenResult.Message;
+                    oauthState.IsCompleted = true;
+                    oauthState.CompletedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+
+                    // Surface MercadoPago's error message if available
+                    var reason = string.IsNullOrWhiteSpace(tokenResult.Message)
+                        ? "Failed to exchange code for token"
+                        : $"Failed to exchange code for token: {tokenResult.Message}";
+                    return ServiceResult<bool>.Fail(reason);
                 }
 
                 // Get user info
