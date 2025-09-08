@@ -30,6 +30,8 @@ namespace BookingPro.API.Utilities
                 path.StartsWith("/api/self-registration") ||
                 path.StartsWith("/api/verticals") ||
                 path.StartsWith("/api/mercadopago/callback") ||
+                // Skip OAuth callback which can arrive on apex domain without subdomain
+                path.StartsWith("/api/mercadopago/oauth/callback") ||
                 path.StartsWith("/api/webhooks/") ||
                 path.StartsWith("/health") || 
                 path.StartsWith("/ping") ||
