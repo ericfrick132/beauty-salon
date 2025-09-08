@@ -162,15 +162,27 @@ namespace BookingPro.API.Services
                     return ServiceResult<bool>.Fail(reason);
                 }
 
-                // Get user info
+                // Get user info (best effort). If it fails, proceed with minimal info.
                 var userInfoResult = await GetUserInfoAsync(tokenResult.Data.AccessToken);
                 if (!userInfoResult.Success || userInfoResult.Data == null)
                 {
-                    return ServiceResult<bool>.Fail("Failed to get user info");
+                    _logger.LogWarning("MercadoPago user info fetch failed after token exchange. Proceeding with minimal config.");
+                    var minimalInfo = new MercadoPagoUserInfoDto
+                    {
+                        Id = tokenResult.Data.UserId ?? string.Empty,
+                        Nickname = string.Empty,
+                        Email = string.Empty,
+                        CountryId = string.Empty,
+                        CurrencyId = string.Empty,
+                        SiteStatus = true
+                    };
+                    await SaveOAuthConfigurationAsync(tenantId, tokenResult.Data, minimalInfo);
                 }
-
-                // Save/update OAuth configuration
-                await SaveOAuthConfigurationAsync(tenantId, tokenResult.Data, userInfoResult.Data);
+                else
+                {
+                    // Save/update OAuth configuration
+                    await SaveOAuthConfigurationAsync(tenantId, tokenResult.Data, userInfoResult.Data);
+                }
 
                 // Mark state as completed
                 oauthState.AuthorizationCode = dto.Code;
@@ -723,13 +735,15 @@ namespace BookingPro.API.Services
             {
                 _httpClient.DefaultRequestHeaders.Authorization = 
                     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+                _httpClient.DefaultRequestHeaders.Accept.Clear();
+                _httpClient.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 
                 var response = await _httpClient.GetAsync(USER_INFO_URL);
                 var responseContent = await response.Content.ReadAsStringAsync();
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.LogError("Get user info failed: {Response}", responseContent);
+                    _logger.LogError("Get user info failed. Status: {Status} Body: {Body}", (int)response.StatusCode, responseContent);
                     return ServiceResult<MercadoPagoUserInfoDto>.Fail("Failed to get user info");
                 }
 
