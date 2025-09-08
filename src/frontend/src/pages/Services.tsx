@@ -190,13 +190,24 @@ const Services: React.FC = () => {
     if (!validateForm()) return;
 
     try {
-      const serviceData = {
+      const serviceData: any = {
         name: formData.name,
         description: formData.description,
         price: parseFloat(formData.price),
         durationMinutes: parseInt(formData.duration),
-        category: formData.category,
         isActive: formData.isActive,
+        // Deposit/Seña configuration
+        requiresDeposit: formData.requiresDeposit,
+        depositPercentage: formData.requiresDeposit && formData.depositType === 'percentage' && formData.depositPercentage !== ''
+          ? parseFloat(formData.depositPercentage as any)
+          : null,
+        depositFixedAmount: formData.requiresDeposit && formData.depositType === 'fixed' && formData.depositFixedAmount !== ''
+          ? parseFloat(formData.depositFixedAmount as any)
+          : null,
+        depositPolicy: formData.requiresDeposit ? formData.depositPolicy : 'AllCustomers',
+        depositAdvanceDays: formData.requiresDeposit && formData.depositPolicy === 'AdvanceBookingOnly' && formData.depositAdvanceDays !== ''
+          ? parseInt(formData.depositAdvanceDays as any)
+          : null,
       };
 
       if (editingService) {

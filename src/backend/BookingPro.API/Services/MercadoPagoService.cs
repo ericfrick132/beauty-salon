@@ -103,11 +103,20 @@ namespace BookingPro.API.Services
                 }
 
                 // Calcular monto a cobrar
-                decimal amountToPay = CalculateAmountToPay(
-                    booking.Service.Price, 
-                    dto.PaymentType,
-                    paymentConfig.MinimumDepositPercentage,
-                    paymentConfig.MinimumDepositAmount);
+                decimal amountToPay;
+                if (dto.PaymentType == "deposit" && dto.Amount > 0)
+                {
+                    // Respetar monto explícito de seña si viene especificado
+                    amountToPay = Math.Min(dto.Amount, booking.Service.Price);
+                }
+                else
+                {
+                    amountToPay = CalculateAmountToPay(
+                        booking.Service.Price,
+                        dto.PaymentType,
+                        paymentConfig.MinimumDepositPercentage,
+                        paymentConfig.MinimumDepositAmount);
+                }
 
                 // Crear preferencia de pago
                 var preferenceRequest = new PreferenceRequest
@@ -960,7 +969,7 @@ namespace BookingPro.API.Services
                         }
                     },
                     ExternalReference = bookingId.ToString(),
-                    NotificationUrl = $"{_configuration["BaseUrl"]}/api/webhooks/mercadopago",
+                    NotificationUrl = $"{_configuration["BaseUrl"]}/api/webhooks/mercadopago/{tenantId}",
                     BackUrls = new PreferenceBackUrlsRequest
                     {
                         Success = $"{_configuration["FrontendUrl"]}/booking-confirmed",

@@ -1,530 +1,111 @@
-# Build results
-[Dd]ebug/
-[Dd]ebugPublic/
-[Rr]elease/
-[Rr]eleases/
-x64/
-x86/
-[Ww][Ii][Nn]32/
-[Aa][Rr][Mm]/
-[Aa][Rr][Mm]64/
-bld/
+############################################################
+# .NET / Visual Studio / Rider
+############################################################
+
+# Build output
 [Bb]in/
 [Oo]bj/
-[Ll]og/
-[Ll]ogs/
-
-# Visual Studio 2015/2017 cache/options directory
-.vs/
-# Uncomment if you have tasks that create the project's static files in wwwroot
-#wwwroot/
-
-# Visual Studio 2017 auto generated files
-Generated\ Files/
-
-# MSTest test Results
+[Rr]elease/
+[Dd]ebug/
 [Tt]est[Rr]esult*/
-[Bb]uild[Ll]og.*
-
-# NUnit
-*.VisualState.xml
-TestResult.xml
-nunit-*.xml
-
-# Build Results of an ATL Project
-[Dd]ebugPS/
-[Rr]eleasePS/
-dlldata.c
-
-# Benchmark Results
-BenchmarkDotNet.Artifacts/
-
-# .NET Core
-project.lock.json
-project.fragment.lock.json
 artifacts/
+publish/
 
-# .NET build artifacts
-*.dll
-*.pdb
-*.deps.json
-*.runtimeconfig.json
-*.runtimeconfig.dev.json
-*.dll.config
-*.exe.config
-launchSettings.json
+# VS cache/settings
+.vs/
+*.user
+*.suo
+*.DotSettings.user
+.localhistory/
 
-# Entity Framework
-*.EntityFrameworkCore.targets
-
-# .NET tool manifests
-.config/dotnet-tools.json
-tools/.store/
-
-# Assembly info files (auto-generated)
-**/AssemblyInfo.cs
-**/AssemblyInfoInputs.cache
-**/AssemblyAttributes.cs
-
-# MSBuild
+# MSBuild/NuGet generated
 *.csproj.nuget.g.props
 *.csproj.nuget.g.targets
 *.csproj.nuget.dgspec.json
-*.csproj.FileListAbsolute.txt
-*.csproj.CoreCompileInputs.cache
-*.genruntimeconfig.cache
-*.sourcelink.json
-staticwebassets.build.json
 project.assets.json
 project.nuget.cache
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nupkg
+*.snupkg
 
-# ASP.NET Scaffolding
-ScaffoldingReadMe.txt
-
-# StyleCop
-StyleCopReport.xml
-
-# Files built by Visual Studio
-*.obj
-*.exe
-*.pdb
-*.user
-*.aps
-*.pch
-*.vspscc
-*_i.c
-*_p.c
-*.ncb
-*.suo
-*.tlb
-*.tlh
-*.bak
-*.cache
-*.ilk
+# Logs/coverage
+[Ll]og*/
 *.log
-*.dll
-*.lib
-*.sbr
-*.scc
-*.exp
-*.tmp
-
-# Visual C++ cache files
-ipch/
-*.aps
-*.ncb
-*.opendb
-*.opensdf
-*.sdf
-*.cachefile
-*.VC.db
-*.VC.VC.opendb
-
-# Visual Studio profiler
-*.psess
-*.vsp
-*.vspx
-*.sap
-
-# Visual Studio Trace Files
-*.e2e
-
-# TFS 2012 Local Workspace
-$tf/
-
-# Guidance Automation Toolkit
-*.gpState
-
-# ReSharper
-_ReSharper*/
-*.[Rr]e[Ss]harper
-*.DotSettings.user
-
-# TeamCity
-_TeamCity*
-
-# DotCover
-*.dotCover
-
-# AxoCover
-.axoCover/*
-!.axoCover/settings.json
-
-# Coverlet
-coverage*.json
-coverage*.xml
-coverage*.info
-
-# Visual Studio code coverage results
+*.binlog
+coverage*/
 *.coverage
 *.coveragexml
 
-# NCrunch
-_NCrunch_*
-.*crunch*.local.xml
-nCrunchTemp_*
-
-# MightyMoose
-*.mm.*
-AutoTest.Net/
-
-# Web workbench (sass)
-.sass-cache/
-
-# Installshield output folder
-[Ee]xpress/
-
-# DocProject
-DocProject/buildhelp/
-DocProject/Help/*.HxT
-DocProject/Help/*.HxC
-DocProject/Help/Html2
-DocProject/Help/html
-
-# Click-Once directory
-publish/
-
-# Publish Web Output
-*.[Pp]ublish.xml
-*.azurePubxml
-# Note: Comment the next line if you want to checkin your web deploy settings,
-# but database connection strings (with potential passwords) will be unencrypted
-*.pubxml
-*.publishproj
-
-# Microsoft Azure Web App publish settings. Comment the next line if you want to
-# checkin your Azure Web App publish settings, but sensitive information contained
-# in these files may be revealed
-*.azurePubxml
-
-# NuGet Packages
-*.nupkg
-# NuGet Symbol Packages
-*.snupkg
-# The packages folder can be ignored because of Package Restore
-**/[Pp]ackages/*
-# except build/, which is used as an MSBuild target.
-!**/[Pp]ackages/build/
-# Uncomment if necessary however generally it will be regenerated when needed
-#!**/[Pp]ackages/repositories.config
-# NuGet v3's project.json files produces more ignorable files
-*.nuget.props
-*.nuget.targets
-
-# Microsoft Azure Build Output
-csx/
-*.build.csdef
-
-# Microsoft Azure Emulator
-ecf/
-rcf/
-
-# Windows Store app package directories and files
-AppPackages/
-BundleArtifacts/
-Package.StoreAssociation.xml
-_pkginfo.txt
-*.appx
-*.appxbundle
-*.appxupload
-
-# Visual Studio cache files
-# files ending in .cache can be ignored
-*.[Cc]ache
-# but keep track of directories ending in .cache
-!?*.[Cc]ache/
-
-# Others
-ClientBin/
-~$*
-*~
-*.dbmdl
-*.dbproj.schemaview
-*.jfm
-*.pfx
-*.publishsettings
-orleans.codegen.cs
-
-# Including strong name files can present a security risk
-# (https://github.com/github/gitignore/pull/2483#issue-259490424)
-#*.snk
-
-# Since there are multiple workflows, uncomment the next line to ignore bower_components
-# (https://github.com/github/gitignore/pull/1529#issuecomment-104372622)
-#bower_components/
-
-# RIA/Silverlight projects
-Generated_Code/
-
-# Backup & report files from converting an old project file
-# to a newer Visual Studio version. Backup files are not needed,
-# because we have git ;-)
-_UpgradeReport_Files/
-Backup*/
-UpgradeLog*.XML
-UpgradeLog*.htm
-CDF_MDF_Log*.txt
-
-# SQL Server files
-*.mdf
-*.ldf
-*.ndf
-
-# Business Intelligence projects
-*.rdl.data
-*.bim.layout
-*.bim_*.settings
-*.rptproj.rsuser
-*- [Bb]ackup.rdl
-*- [Bb]ackup ([0-9]).rdl
-*- [Bb]ackup ([0-9][0-9]).rdl
-
-# Microsoft Fakes
-FakesAssemblies/
-
-# GhostDoc plugin setting file
-*.GhostDoc.xml
-
-# Node.js Tools for Visual Studio
-.ntvs_analysis.dat
-node_modules/
-
-# Visual Studio 6 build log
-*.plg
-
-# Visual Studio 6 workspace options file
-*.opt
-
-# Visual Studio 6 auto-generated workspace file (contains which files were open etc.)
-*.vbw
-
-# Visual Studio LightSwitch build output
-**/*.HTMLClient/GeneratedArtifacts
-**/*.DesktopClient/GeneratedArtifacts
-**/*.DesktopClient/ModelManifest.xml
-**/*.Server/GeneratedArtifacts
-**/*.Server/ModelManifest.xml
-_Pvt_Extensions
-
-# Paket dependency manager
-.paket/paket.exe
-paket-files/
-
-# FAKE - F# Make
-.fake/
-
-# CodeRush personal settings
-.cr/personal
-
-# Python Tools for Visual Studio (PTVS)
-__pycache__/
-*.pyc
-
-# Cake - Uncomment if you are using it
-# tools/**
-# !tools/packages.config
-
-# Tabs Studio
-*.tss
-
-# Telerik's JustMock configuration file
-*.jmconfig
-
-# BizTalk build output
-*.btp.cs
-*.btm.cs
-*.odx.cs
-*.xsd.cs
-
-# OpenCover UI analysis results
+# Test/benchmark tools
+BenchmarkDotNet.Artifacts/
 OpenCover/
 
-# Azure Stream Analytics local run output
-ASALocalRun/
+# Azure publish profiles
+*.pubxml
+*.publishproj
+*.azurePubxml
 
-# MSBuild Binary and Structured Log
-*.binlog
+# ClickOnce
+*.[Pp]ublish.xml
 
-# NVidia Nsight GPU debugger configuration file
-*.nvuser
+# Misc project files
+Generated\ Files/
+ScaffoldingReadMe.txt
+staticwebassets.build.json
 
-# MFractors (Xamarin productivity tool) working folder
-.mfractor/
+# Optional: launchSettings.json is user/machine-specific; keep ignored
+launchSettings.json
 
-# Local History for Visual Studio
-.localhistory/
+# Dotnet tools
+.config/dotnet-tools.json
+tools/.store/
 
-# BeatPulse healthcheck temp database
-healthchecksdb
-
-# Backup folder for Package Reference Convert tool in Visual Studio 2017
-MigrationBackup/
-
-# Ionide (cross platform F# VS Code tools) working folder
-.ionide/
-
-# Fody - auto-generated XML schema
-FodyWeavers.xsd
-
-# VS Code files for those working on multiple tools
+# Rider / VSCode / IDEs
+.idea/
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
-*.code-workspace
 
-# Local History for Visual Studio Code
-.history/
+############################################################
+# Frontend (Node/React)
+############################################################
 
-# Windows Installer files from build outputs
-*.cab
-*.msi
-*.msix
-*.msm
-*.msp
-
-# JetBrains Rider
-.idea/
-*.sln.iml
-
-# Frontend
-# dependencies
 node_modules/
-.pnp
-.pnp.js
-
-# testing
-coverage/
-
-# production
-build/
+src/frontend/node_modules/
 dist/
+build/
+src/frontend/build/
+coverage/
+.cache
+.parcel-cache
+*.tsbuildinfo
+*.tgz
+.npm
+.eslintcache
+.rpt2_cache/
+.rts2_cache_*/
+.next
+.nuxt
+.cache/
+public
 
-# misc
-.DS_Store
+# Env files
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
-
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# IDEs and editors
-/.idea
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
-
-# IDE - VSCode
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-.history/*
-
-# System Files
-.DS_Store
-Thumbs.db
-
-# Logs
-logs
-*.log
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Coverage directory used by tools like istanbul
-coverage
-*.lcov
-
-# nyc test coverage
-.nyc_output
-
-# Grunt intermediate storage
-.grunt
-
-# Bower dependency directory
-bower_components
-
-# node-waf configuration
-.lock-wscript
-
-# Compiled binary addons
-build/Release
-
-# Dependency directories
-jspm_packages/
-
-# TypeScript cache
-*.tsbuildinfo
-
-# Optional npm cache directory
-.npm
-
-# Optional eslint cache
-.eslintcache
-
-# Microbundle cache
-.rpt2_cache/
-.rts2_cache_cjs/
-.rts2_cache_es/
-.rts2_cache_umd/
-
-# Optional REPL history
-.node_repl_history
-
-# Output of 'npm pack'
-*.tgz
-
-# Yarn Integrity file
-.yarn-integrity
-
-# parcel-bundler cache
-.cache
-.parcel-cache
-
-# Next.js build output
-.next
-
-# Nuxt.js build / generate output
-.nuxt
-
-# Gatsby files
-.cache/
-public
-
-# Storybook build outputs
-.out
-.storybook-out
-
-# Temporary folders
-tmp/
-temp/
-# --- Custom additions (TurnosPro) ---
-
-# Frontend env and build
 src/frontend/.env
 src/frontend/.env.local
 src/frontend/.env.*.local
-src/frontend/build/
-src/frontend/node_modules/
 
-# Backend build artifacts (explicit)
-src/backend/**/bin/
-src/backend/**/obj/
-src/backend/**/tools/
+############################################################
+# OS/editor junk
+############################################################
 
-# IDE/editor
-.vscode/
-.idea/
+.DS_Store
+Thumbs.db
+.history/*

@@ -105,6 +105,8 @@ const BookingPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [bookingConfirmed, setBookingConfirmed] = useState(false);
   const [confirmationCode, setConfirmationCode] = useState('');
+  const [paymentRequired, setPaymentRequired] = useState(false);
+  const [paymentInfo, setPaymentInfo] = useState<{ initPoint?: string; amount?: number } | null>(null);
   const [serviceSearchValue, setServiceSearchValue] = useState<Service | null>(null);
 
   useEffect(() => {
@@ -272,7 +274,16 @@ const BookingPage: React.FC = () => {
       });
 
       setConfirmationCode(response.data.confirmationCode);
-      setBookingConfirmed(true);
+      if (response.data?.requiresPayment) {
+        setPaymentRequired(true);
+        setPaymentInfo({ initPoint: response.data.payment?.initPoint, amount: response.data.payment?.amount });
+        setBookingConfirmed(true);
+        if (response.data.payment?.initPoint) {
+          window.open(response.data.payment.initPoint, '_blank');
+        }
+      } else {
+        setBookingConfirmed(true);
+      }
     } catch (error: any) {
       console.error('Error creating booking:', error);
       setErrors({ submit: error.response?.data?.message || 'Error al crear la reserva. Por favor intenta nuevamente.' });
@@ -790,7 +801,7 @@ const BookingPage: React.FC = () => {
                 sx={{
                   width: 80,
                   height: 80,
-                  bgcolor: 'success.main',
+                  bgcolor: paymentRequired ? 'warning.main' : 'success.main',
                   margin: '0 auto 24px',
                 }}
               >
@@ -798,13 +809,25 @@ const BookingPage: React.FC = () => {
               </Avatar>
             </Zoom>
             
-            <Typography variant="h4" gutterBottom color="success.main">
-              ¡Reserva Confirmada!
-            </Typography>
+            {paymentRequired ? (
+              <Typography variant="h4" gutterBottom color="warning.main">
+                Pago de seña pendiente
+              </Typography>
+            ) : (
+              <Typography variant="h4" gutterBottom color="success.main">
+                ¡Reserva Confirmada!
+              </Typography>
+            )}
             
-            <Typography variant="body1" color="text.secondary" paragraph>
-              Tu reserva ha sido confirmada exitosamente.
-            </Typography>
+            {paymentRequired ? (
+              <Typography variant="body1" color="text.secondary" paragraph>
+                Para confirmar tu reserva, pagá la seña{paymentInfo?.amount ? ` de $${paymentInfo.amount}` : ''}.
+              </Typography>
+            ) : (
+              <Typography variant="body1" color="text.secondary" paragraph>
+                Tu reserva ha sido confirmada exitosamente.
+              </Typography>
+            )}
             
             <Paper sx={{ p: 2, bgcolor: 'grey.100', mb: 3 }}>
               <Typography variant="h6" gutterBottom>
@@ -815,9 +838,22 @@ const BookingPage: React.FC = () => {
               </Typography>
             </Paper>
             
-            <Alert severity="info" sx={{ mb: 3 }}>
-              Hemos enviado los detalles de tu reserva a {bookingData.customerEmail}
-            </Alert>
+            {paymentRequired ? (
+              <>
+                {paymentInfo?.initPoint && (
+                  <Button variant="contained" color="primary" onClick={() => window.open(paymentInfo.initPoint!, '_blank')} sx={{ mb: 2 }}>
+                    Pagar ahora con MercadoPago
+                  </Button>
+                )}
+                <Alert severity="warning" sx={{ mb: 3 }}>
+                  Tu reserva quedará confirmada automáticamente cuando se acredite el pago de la seña.
+                </Alert>
+              </>
+            ) : (
+              <Alert severity="info" sx={{ mb: 3 }}>
+                Hemos enviado los detalles de tu reserva a {bookingData.customerEmail}
+              </Alert>
+            )}
             
             <Typography variant="body2" color="text.secondary" paragraph>
               Te esperamos el {format(bookingData.date, "EEEE d 'de' MMMM", { locale: es })} a las {bookingData.time}

@@ -36,6 +36,12 @@ namespace BookingPro.API.Controllers
                     s.Description,
                     s.DurationMinutes,
                     s.Price,
+                    // Deposit/Seña configuration
+                    s.RequiresDeposit,
+                    s.DepositPercentage,
+                    s.DepositFixedAmount,
+                    s.DepositPolicy,
+                    s.DepositAdvanceDays,
                     s.IsActive,
                     category = s.Category != null ? new 
                     {
@@ -64,6 +70,12 @@ namespace BookingPro.API.Controllers
                     s.Description,
                     s.DurationMinutes,
                     s.Price,
+                    // Deposit/Seña configuration
+                    s.RequiresDeposit,
+                    s.DepositPercentage,
+                    s.DepositFixedAmount,
+                    s.DepositPolicy,
+                    s.DepositAdvanceDays,
                     s.IsActive,
                     category = s.Category != null ? new 
                     {
@@ -101,6 +113,12 @@ namespace BookingPro.API.Controllers
                 Description = dto.Description,
                 DurationMinutes = dto.DurationMinutes,
                 Price = dto.Price,
+                // Deposit/Seña configuration
+                RequiresDeposit = dto.RequiresDeposit,
+                DepositPercentage = dto.DepositPercentage,
+                DepositFixedAmount = dto.DepositFixedAmount,
+                DepositPolicy = dto.DepositPolicy ?? "AllCustomers",
+                DepositAdvanceDays = dto.DepositAdvanceDays,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             };
@@ -128,6 +146,12 @@ namespace BookingPro.API.Controllers
             service.Price = dto.Price;
             service.CategoryId = dto.CategoryId;
             service.IsActive = dto.IsActive;
+            // Deposit/Seña configuration
+            service.RequiresDeposit = dto.RequiresDeposit;
+            service.DepositPercentage = dto.DepositPercentage;
+            service.DepositFixedAmount = dto.DepositFixedAmount;
+            service.DepositPolicy = dto.DepositPolicy ?? service.DepositPolicy;
+            service.DepositAdvanceDays = dto.DepositAdvanceDays;
 
             await _context.SaveChangesAsync();
 
@@ -176,6 +200,12 @@ namespace BookingPro.API.Controllers
         public int DurationMinutes { get; set; }
         public decimal Price { get; set; }
         public Guid? CategoryId { get; set; }
+        // Deposit/Seña configuration
+        public bool RequiresDeposit { get; set; } = false;
+        public decimal? DepositPercentage { get; set; }
+        public decimal? DepositFixedAmount { get; set; }
+        public string? DepositPolicy { get; set; }
+        public int? DepositAdvanceDays { get; set; }
     }
 
     public class UpdateServiceDto
@@ -186,5 +216,11 @@ namespace BookingPro.API.Controllers
         public decimal Price { get; set; }
         public Guid? CategoryId { get; set; }
         public bool IsActive { get; set; }
+        // Deposit/Seña configuration
+        public bool RequiresDeposit { get; set; } = false;
+        public decimal? DepositPercentage { get; set; }
+        public decimal? DepositFixedAmount { get; set; }
+        public string? DepositPolicy { get; set; }
+        public int? DepositAdvanceDays { get; set; }
     }
 }
