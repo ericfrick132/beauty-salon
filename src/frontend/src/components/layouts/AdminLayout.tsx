@@ -262,6 +262,14 @@ export const AdminLayout: React.FC = () => {
       ],
     },
     { text: 'Reportes', icon: <Assessment />, path: '/reports' },
+    {
+      text: 'Inventario',
+      icon: <Assessment />,
+      children: [
+        { text: 'Venta de artículos', icon: <AttachMoney />, path: '/pos' },
+        { text: 'Productos', icon: <ManageAccounts />, path: '/products' },
+      ],
+    },
     { 
       text: 'Suscripción',
       icon: <Business />,

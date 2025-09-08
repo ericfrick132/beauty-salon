@@ -41,5 +41,10 @@ namespace BookingPro.API.Services.Interfaces
         Task<List<TopProductDto>> GetTopSellingProductsAsync(DateTime startDate, DateTime endDate, int limit = 10);
         Task<List<CategorySalesDto>> GetCategorySalesAsync(DateTime startDate, DateTime endDate);
         Task<decimal> GetInventoryValueAsync();
+
+        // Sales
+        Task<SaleDto> CreateSaleAsync(CreateSaleDto dto, string? soldBy = null);
+        Task<List<SaleDto>> GetSalesAsync(DateTime? startDate = null, DateTime? endDate = null);
+        Task<SaleDto?> GetSaleByIdAsync(Guid saleId);
     }
 }

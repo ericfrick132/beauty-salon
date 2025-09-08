@@ -786,6 +786,238 @@ namespace BookingPro.API.Services
                 .SumAsync(p => p.CurrentStock * p.CostPrice);
         }
 
+        // Sales
+        public async Task<SaleDto> CreateSaleAsync(CreateSaleDto dto, string? soldBy = null)
+        {
+            using var tx = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                if (dto.Items == null || dto.Items.Count == 0)
+                {
+                    throw new ArgumentException("Sale must contain at least one item");
+                }
+
+                var productIds = dto.Items.Select(i => i.ProductId).ToList();
+                var products = await _context.Products
+                    .Where(p => productIds.Contains(p.Id))
+                    .ToDictionaryAsync(p => p.Id);
+
+                foreach (var item in dto.Items)
+                {
+                    if (!products.TryGetValue(item.ProductId, out var prod))
+                        throw new KeyNotFoundException($"Product {item.ProductId} not found");
+
+                    if (prod.IsActive == false)
+                        throw new InvalidOperationException($"Product {prod.Name} is inactive");
+
+                    if (prod.TrackInventory && prod.CurrentStock < item.Quantity)
+                        throw new InvalidOperationException($"Insufficient stock for {prod.Name}. Available: {prod.CurrentStock}");
+                }
+
+                // Generate sale number: POS-YYYYMMDD-####
+                var today = DateTime.UtcNow.Date;
+                var todayCount = await _context.Sales.CountAsync(s => s.SaleDate.Date == today);
+                var saleNumber = $"POS-{today:yyyyMMdd}-{(todayCount + 1).ToString("D4")}";
+
+                var sale = new Sale
+                {
+                    SaleNumber = saleNumber,
+                    CustomerId = dto.CustomerId,
+                    EmployeeId = dto.EmployeeId,
+                    Notes = dto.Notes,
+                    PaymentMethod = dto.PaymentMethod,
+                    SaleDate = DateTime.UtcNow,
+                    SoldBy = soldBy,
+                    Status = "completed",
+                };
+
+                _context.Sales.Add(sale);
+                await _context.SaveChangesAsync();
+
+                decimal subTotal = 0;
+                decimal discountTotal = dto.DiscountAmount ?? 0;
+                decimal taxTotal = 0;
+
+                foreach (var item in dto.Items)
+                {
+                    var prod = products[item.ProductId];
+                    var unitPrice = prod.SalePrice;
+                    var lineBase = unitPrice * item.Quantity;
+                    var lineDiscount = item.DiscountPercentage > 0 ? (lineBase * (item.DiscountPercentage / 100m)) : 0m;
+                    var taxableBase = lineBase - lineDiscount;
+                    var lineTax = prod.TaxRate > 0 ? taxableBase * (prod.TaxRate / 100m) : 0m;
+                    var lineTotal = taxableBase + lineTax;
+
+                    var saleItem = new SaleItem
+                    {
+                        SaleId = sale.Id,
+                        ProductId = prod.Id,
+                        Quantity = item.Quantity,
+                        UnitPrice = unitPrice,
+                        DiscountPercentage = item.DiscountPercentage,
+                        DiscountAmount = lineDiscount,
+                        TaxAmount = lineTax,
+                        TotalAmount = lineTotal,
+                        UnitCost = prod.CostPrice,
+                    };
+
+                    _context.SaleItems.Add(saleItem);
+
+                    // Stock update + movement
+                    if (prod.TrackInventory)
+                    {
+                        var previous = prod.CurrentStock;
+                        var newStock = previous - item.Quantity;
+                        if (newStock < 0)
+                            throw new InvalidOperationException($"Insufficient stock for {prod.Name}");
+
+                        prod.CurrentStock = newStock;
+                        prod.UpdatedAt = DateTime.UtcNow;
+
+                        var movement = new StockMovement
+                        {
+                            ProductId = prod.Id,
+                            MovementType = "Out",
+                            Quantity = item.Quantity,
+                            PreviousStock = previous,
+                            NewStock = newStock,
+                            ReferenceType = "Sale",
+                            ReferenceId = sale.Id,
+                            UnitCost = prod.CostPrice,
+                            Reason = "POS sale",
+                            PerformedBy = soldBy,
+                        };
+                        _context.StockMovements.Add(movement);
+                    }
+
+                    subTotal += lineBase;
+                    discountTotal += lineDiscount;
+                    taxTotal += lineTax;
+                }
+
+                sale.SubTotal = subTotal;
+                sale.DiscountAmount = discountTotal;
+                sale.TaxAmount = taxTotal;
+                sale.TotalAmount = subTotal - discountTotal + taxTotal;
+                sale.ReceivedAmount = dto.ReceivedAmount;
+                if (dto.PaymentMethod == "cash" && dto.ReceivedAmount.HasValue)
+                {
+                    sale.ChangeAmount = Math.Max(0, dto.ReceivedAmount.Value - sale.TotalAmount);
+                }
+                sale.CompletedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                return await GetSaleByIdAsync(sale.Id) ?? throw new InvalidOperationException("Failed to load created sale");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating sale");
+                await tx.RollbackAsync();
+                throw;
+            }
+        }
+
+        public async Task<List<SaleDto>> GetSalesAsync(DateTime? startDate = null, DateTime? endDate = null)
+        {
+            var query = _context.Sales
+                .Include(s => s.SaleItems)
+                    .ThenInclude(si => si.Product)
+                .AsQueryable();
+
+            if (startDate.HasValue)
+                query = query.Where(s => s.SaleDate >= startDate.Value);
+            if (endDate.HasValue)
+                query = query.Where(s => s.SaleDate <= endDate.Value);
+
+            return await query
+                .OrderByDescending(s => s.SaleDate)
+                .Select(s => new SaleDto
+                {
+                    Id = s.Id,
+                    SaleNumber = s.SaleNumber,
+                    CustomerId = s.CustomerId,
+                    EmployeeId = s.EmployeeId,
+                    SubTotal = s.SubTotal,
+                    DiscountAmount = s.DiscountAmount,
+                    TaxAmount = s.TaxAmount,
+                    TotalAmount = s.TotalAmount,
+                    PaymentMethod = s.PaymentMethod,
+                    Status = s.Status,
+                    PaymentReference = s.PaymentReference,
+                    ReceivedAmount = s.ReceivedAmount,
+                    ChangeAmount = s.ChangeAmount,
+                    Notes = s.Notes,
+                    InvoiceNumber = s.InvoiceNumber,
+                    SaleDate = s.SaleDate,
+                    CompletedAt = s.CompletedAt,
+                    SoldBy = s.SoldBy,
+                    Items = s.SaleItems.Select(si => new SaleItemDto
+                    {
+                        Id = si.Id,
+                        ProductId = si.ProductId,
+                        ProductName = si.Product.Name,
+                        ProductBarcode = si.Product.Barcode,
+                        Quantity = si.Quantity,
+                        UnitPrice = si.UnitPrice,
+                        DiscountPercentage = si.DiscountPercentage,
+                        DiscountAmount = si.DiscountAmount,
+                        TaxAmount = si.TaxAmount,
+                        TotalAmount = si.TotalAmount,
+                        UnitCost = si.UnitCost,
+                        ProfitAmount = si.ProfitAmount,
+                    }).ToList()
+                })
+                .ToListAsync();
+        }
+
+        public async Task<SaleDto?> GetSaleByIdAsync(Guid saleId)
+        {
+            var sale = await _context.Sales
+                .Include(s => s.SaleItems)
+                    .ThenInclude(si => si.Product)
+                .Where(s => s.Id == saleId)
+                .Select(s => new SaleDto
+                {
+                    Id = s.Id,
+                    SaleNumber = s.SaleNumber,
+                    CustomerId = s.CustomerId,
+                    EmployeeId = s.EmployeeId,
+                    SubTotal = s.SubTotal,
+                    DiscountAmount = s.DiscountAmount,
+                    TaxAmount = s.TaxAmount,
+                    TotalAmount = s.TotalAmount,
+                    PaymentMethod = s.PaymentMethod,
+                    Status = s.Status,
+                    PaymentReference = s.PaymentReference,
+                    ReceivedAmount = s.ReceivedAmount,
+                    ChangeAmount = s.ChangeAmount,
+                    Notes = s.Notes,
+                    InvoiceNumber = s.InvoiceNumber,
+                    SaleDate = s.SaleDate,
+                    CompletedAt = s.CompletedAt,
+                    SoldBy = s.SoldBy,
+                    Items = s.SaleItems.Select(si => new SaleItemDto
+                    {
+                        Id = si.Id,
+                        ProductId = si.ProductId,
+                        ProductName = si.Product.Name,
+                        ProductBarcode = si.Product.Barcode,
+                        Quantity = si.Quantity,
+                        UnitPrice = si.UnitPrice,
+                        DiscountPercentage = si.DiscountPercentage,
+                        DiscountAmount = si.DiscountAmount,
+                        TaxAmount = si.TaxAmount,
+                        TotalAmount = si.TotalAmount,
+                        UnitCost = si.UnitCost,
+                        ProfitAmount = si.ProfitAmount,
+                    }).ToList()
+                })
+                .FirstOrDefaultAsync();
+            return sale;
+        }
+
         // Helper method to map Product entity to ProductDto
         private static Expression<Func<Product, ProductDto>> MapToProductDto()
         {

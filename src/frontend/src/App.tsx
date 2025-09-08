@@ -37,6 +37,8 @@ import Settings from './pages/Settings';
 import SubscriptionPlans from './pages/SubscriptionPlans';
 import SubscriptionManagement from './pages/SubscriptionManagement';
 import PlatformSubscriptionStatus from './pages/PlatformSubscriptionStatus';
+import SalesPOS from './pages/SalesPOS';
+import Products from './pages/Products';
 import TenantsManagement from './pages/TenantsManagement';
 import { AdminLayout } from './components/layouts/AdminLayout';
 import SubscriptionVerification from './components/SubscriptionVerification';
@@ -278,6 +280,8 @@ function App() {
                   <Route path="/professionals" element={<Employees />} />
                   <Route path="/payroll" element={<Payroll />} />
                   <Route path="/financial-reports" element={<FinancialReports />} />
+                  <Route path="/pos" element={<SalesPOS />} />
+                  <Route path="/products" element={<Products />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/theme-settings" element={<ThemeSettings />} />
                   <Route path="/mercadopago-settings" element={<MercadoPagoSettings />} />
