@@ -108,6 +108,7 @@ const BookingPage: React.FC = () => {
   const [paymentRequired, setPaymentRequired] = useState(false);
   const [paymentInfo, setPaymentInfo] = useState<{ initPoint?: string; amount?: number } | null>(null);
   const [serviceSearchValue, setServiceSearchValue] = useState<Service | null>(null);
+  const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchInitialData();
@@ -274,6 +275,7 @@ const BookingPage: React.FC = () => {
       });
 
       setConfirmationCode(response.data.confirmationCode);
+      setCreatedBookingId(response.data.bookingId);
       if (response.data?.requiresPayment) {
         setPaymentRequired(true);
         setPaymentInfo({ initPoint: response.data.payment?.initPoint, amount: response.data.payment?.amount });
@@ -294,6 +296,39 @@ const BookingPage: React.FC = () => {
 
   const selectedService = services.find(s => s.id === bookingData.serviceId);
   const selectedProfessional = professionals.find(p => p.id === bookingData.employeeId);
+
+  // Poll booking status after redirecting to MercadoPago until confirmed or timeout
+  useEffect(() => {
+    if (!paymentRequired || !createdBookingId) return;
+
+    let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 120; // ~10 minutes at 5s interval
+    const intervalMs = 5000;
+
+    const tick = async () => {
+      if (cancelled) return;
+      try {
+        const res = await api.get(`/bookings/${createdBookingId}`);
+        const status = (res?.data?.status || res?.data?.Status || '').toString().toLowerCase();
+        if (status === 'confirmed' || status === 'completed') {
+          setPaymentRequired(false);
+          return; // stop polling
+        }
+        if (status === 'cancelled') {
+          setPaymentRequired(false);
+          return;
+        }
+      } catch {}
+      attempts++;
+      if (!cancelled && attempts < maxAttempts && paymentRequired) {
+        timer = window.setTimeout(tick, intervalMs);
+      }
+    };
+
+    let timer = window.setTimeout(tick, intervalMs);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [paymentRequired, createdBookingId]);
 
   const renderStepContent = () => {
     switch (activeStep) {

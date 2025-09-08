@@ -221,107 +221,98 @@ namespace BookingPro.API.Controllers
                 // Generate confirmation code
                 var confirmationCode = GenerateConfirmationCode(booking.Id);
 
-                // Check if payment is configured for this tenant
+                // Procesar pago/Seña según configuración del servicio y MP del tenant
                 var tenantInfo = _tenantService.GetCurrentTenant();
                 if (tenantInfo != null)
                 {
-                    var paymentConfig = await _context.Set<PaymentConfiguration>()
-                        .FirstOrDefaultAsync(pc => pc.TenantId == tenantInfo.Id && pc.IsEnabled);
-                    
-                    // Priority: if service requires deposit, enforce deposit payment; else if tenant requires immediate full payment, enforce full payment
-                    if (paymentConfig != null)
+                    // 1) Intentar seña si corresponde por configuración del servicio (independiente de toggles de UI)
+                    var depositCalc = await _mercadoPagoService.CalculateDepositAsync(service.Id, customer.Id, dto.StartTime);
+                    if (depositCalc.Success && depositCalc.Data != null && depositCalc.Data.RequiresDeposit && depositCalc.Data.Amount > 0)
                     {
-                        // Calculate if deposit is required for this service/booking
-                        var depositCalc = await _mercadoPagoService.CalculateDepositAsync(service.Id, customer.Id, dto.StartTime);
-                        if (depositCalc.Success && depositCalc.Data != null && depositCalc.Data.RequiresDeposit && depositCalc.Data.Amount > 0)
+                        booking.RequiresDeposit = true;
+                        booking.DepositAmount = depositCalc.Data.Amount;
+                        booking.Status = "pending_payment";
+                        await _context.SaveChangesAsync();
+
+                        var paymentDto = new BookingPro.API.Models.DTOs.CreatePaymentDto
                         {
-                            // Mark booking as requiring deposit
-                            booking.RequiresDeposit = true;
-                            booking.DepositAmount = depositCalc.Data.Amount;
-                            booking.Status = "pending_payment";
-                            await _context.SaveChangesAsync();
+                            BookingId = booking.Id,
+                            Amount = depositCalc.Data.Amount,
+                            PaymentMethod = "mercadopago",
+                            PaymentType = "deposit",
+                            CustomerName = dto.CustomerName,
+                            CustomerEmail = dto.CustomerEmail,
+                            Subdomain = tenantInfo.Subdomain
+                        };
 
-                            // Create MercadoPago preference for deposit amount
-                            var paymentDto = new BookingPro.API.Models.DTOs.CreatePaymentDto
-                            {
-                                BookingId = booking.Id,
-                                Amount = depositCalc.Data.Amount,
-                                PaymentMethod = "mercadopago",
-                                PaymentType = "deposit",
-                                CustomerName = dto.CustomerName,
-                                CustomerEmail = dto.CustomerEmail,
-                                Subdomain = tenantInfo.Subdomain
-                            };
-
-                            var paymentResult = await _mercadoPagoService.CreatePaymentPreferenceAsync(paymentDto);
-                            if (!paymentResult.Success)
-                            {
-                                _logger.LogWarning("Failed to create deposit payment preference: {Error}", paymentResult.Message);
-                                return BadRequest(new { message = "No se pudo iniciar el pago de la seña. Intenta nuevamente o contacta al comercio." });
-                            }
-
-                            return Ok(new 
-                            { 
-                                success = true,
-                                bookingId = booking.Id,
-                                confirmationCode = confirmationCode,
-                                requiresPayment = true,
-                                payment = new
-                                {
-                                    preferenceId = paymentResult.Data?.PreferenceId,
-                                    initPoint = paymentResult.Data?.InitPoint,
-                                    sandboxInitPoint = paymentResult.Data?.SandboxInitPoint,
-                                    publicKey = paymentResult.Data?.PublicKey,
-                                    amount = paymentResult.Data?.Amount
-                                },
-                                message = "Reserva creada. Por favor pagá la seña para confirmar." 
-                            });
-                        }
-                        else if (paymentConfig.RequireImmediatePayment)
+                        var paymentResult = await _mercadoPagoService.CreatePaymentPreferenceAsync(paymentDto);
+                        if (!paymentResult.Success)
                         {
-                            // Require full payment if configured
-                            var paymentDto = new BookingPro.API.Models.DTOs.CreatePaymentDto
-                            {
-                                BookingId = booking.Id,
-                                Amount = service.Price,
-                                PaymentMethod = "mercadopago",
-                                PaymentType = "full",
-                                CustomerName = dto.CustomerName,
-                                CustomerEmail = dto.CustomerEmail,
-                                Subdomain = tenantInfo.Subdomain
-                            };
-
-                            var paymentResult = await _mercadoPagoService.CreatePaymentPreferenceAsync(paymentDto);
-                            
-                            if (paymentResult.Success)
-                            {
-                                // Update booking status to pending payment
-                                booking.Status = "pending_payment";
-                                await _context.SaveChangesAsync();
-                                
-                                return Ok(new 
-                                { 
-                                    success = true,
-                                    bookingId = booking.Id,
-                                    confirmationCode = confirmationCode,
-                                    requiresPayment = true,
-                                    payment = new
-                                    {
-                                        preferenceId = paymentResult.Data?.PreferenceId,
-                                        initPoint = paymentResult.Data?.InitPoint,
-                                        sandboxInitPoint = paymentResult.Data?.SandboxInitPoint,
-                                        publicKey = paymentResult.Data?.PublicKey,
-                                        amount = paymentResult.Data?.Amount
-                                    },
-                                    message = "Reserva creada. Por favor complete el pago para confirmar." 
-                                });
-                            }
-                            else
-                            {
-                                _logger.LogWarning("Failed to create payment preference: {Error}", paymentResult.Message);
-                                // Continue without payment if preference creation fails
-                            }
+                            _logger.LogWarning("Failed to create deposit payment preference: {Error}", paymentResult.Message);
+                            return BadRequest(new { message = "No se pudo iniciar el pago de la seña. Intenta nuevamente o contacta al comercio." });
                         }
+
+                        return Ok(new 
+                        { 
+                            success = true,
+                            bookingId = booking.Id,
+                            confirmationCode = confirmationCode,
+                            requiresPayment = true,
+                            payment = new
+                            {
+                                preferenceId = paymentResult.Data?.PreferenceId,
+                                initPoint = paymentResult.Data?.InitPoint,
+                                sandboxInitPoint = paymentResult.Data?.SandboxInitPoint,
+                                publicKey = paymentResult.Data?.PublicKey,
+                                amount = paymentResult.Data?.Amount
+                            },
+                            message = "Reserva creada. Por favor pagá la seña para confirmar." 
+                        });
+                    }
+
+                    // 2) Si no requiere seña, ver si el tenant exige pago inmediato completo
+                    var paymentConfig = await _context.Set<PaymentConfiguration>()
+                        .FirstOrDefaultAsync(pc => pc.TenantId == tenantInfo.Id);
+                    if (paymentConfig?.RequireImmediatePayment == true)
+                    {
+                        var paymentDto = new BookingPro.API.Models.DTOs.CreatePaymentDto
+                        {
+                            BookingId = booking.Id,
+                            Amount = service.Price,
+                            PaymentMethod = "mercadopago",
+                            PaymentType = "full",
+                            CustomerName = dto.CustomerName,
+                            CustomerEmail = dto.CustomerEmail,
+                            Subdomain = tenantInfo.Subdomain
+                        };
+
+                        var paymentResult = await _mercadoPagoService.CreatePaymentPreferenceAsync(paymentDto);
+                        if (!paymentResult.Success)
+                        {
+                            _logger.LogWarning("Failed to create full payment preference: {Error}", paymentResult.Message);
+                            // opcional: permitir crear sin pago si falla. Por ahora informamos error.
+                            return BadRequest(new { message = "No se pudo iniciar el pago. Intenta nuevamente o contacta al comercio." });
+                        }
+
+                        booking.Status = "pending_payment";
+                        await _context.SaveChangesAsync();
+
+                        return Ok(new 
+                        { 
+                            success = true,
+                            bookingId = booking.Id,
+                            confirmationCode = confirmationCode,
+                            requiresPayment = true,
+                            payment = new
+                            {
+                                preferenceId = paymentResult.Data?.PreferenceId,
+                                initPoint = paymentResult.Data?.InitPoint,
+                                sandboxInitPoint = paymentResult.Data?.SandboxInitPoint,
+                                publicKey = paymentResult.Data?.PublicKey,
+                                amount = paymentResult.Data?.Amount
+                            },
+                            message = "Reserva creada. Por favor complete el pago para confirmar." 
+                        });
                     }
                 }
 

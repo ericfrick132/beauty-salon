@@ -337,13 +337,29 @@ const Services: React.FC = () => {
                     }}
                   >
                     <CardContent sx={{ flexGrow: 1 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                        <Typography variant="h6" component="h2" gutterBottom>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Typography variant="h6" component="h2" gutterBottom sx={{ mb: 0 }}>
                           {service.name}
                         </Typography>
-                        {!service.isActive && (
-                          <Chip label="Inactivo" size="small" color="default" />
-                        )}
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                          {typeof service.requiresDeposit !== 'undefined' && (
+                            <Chip
+                              size="small"
+                              color={service.requiresDeposit ? 'warning' : 'default'}
+                              variant={service.requiresDeposit ? 'filled' : 'outlined'}
+                              label={service.requiresDeposit
+                                ? (service.depositFixedAmount
+                                  ? `Seña $${service.depositFixedAmount}`
+                                  : (service.depositPercentage
+                                    ? `Seña ${service.depositPercentage}%`
+                                    : 'Requiere seña'))
+                                : 'Sin seña'}
+                            />
+                          )}
+                          {!service.isActive && (
+                            <Chip label="Inactivo" size="small" color="default" />
+                          )}
+                        </Box>
                       </Box>
                       
                       <Typography

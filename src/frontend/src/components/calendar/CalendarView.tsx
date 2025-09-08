@@ -135,6 +135,14 @@ const CalendarView: React.FC = () => {
     'no_show': '#9e9e9e'
   };
 
+  // Scroll near current time on first render
+  const initialScrollTime = React.useMemo(() => {
+    const now = new Date();
+    const hh = Math.max(0, now.getHours() - 1).toString().padStart(2, '0');
+    const mm = now.getMinutes().toString().padStart(2, '0');
+    return `${hh}:${mm}:00`;
+  }, []);
+
   const paymentMethods = [
     { value: 'cash', label: 'Efectivo', icon: <LocalAtm /> },
     { value: 'card', label: 'Tarjeta', icon: <CreditCard /> },
@@ -453,12 +461,14 @@ const CalendarView: React.FC = () => {
           locale="es"
           height="100%"
           headerToolbar={false}
+          nowIndicator={true}
           businessHours={{
             startTime: '09:00',
             endTime: '18:00',
           }}
           slotMinTime="08:00"
           slotMaxTime="19:00"
+          scrollTime={initialScrollTime}
           editable={true}
           selectable={true}
           selectMirror={true}
