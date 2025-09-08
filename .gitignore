@@ -511,3 +511,20 @@ public
 # Temporary folders
 tmp/
 temp/
+# --- Custom additions (TurnosPro) ---
+
+# Frontend env and build
+src/frontend/.env
+src/frontend/.env.local
+src/frontend/.env.*.local
+src/frontend/build/
+src/frontend/node_modules/
+
+# Backend build artifacts (explicit)
+src/backend/**/bin/
+src/backend/**/obj/
+src/backend/**/tools/
+
+# IDE/editor
+.vscode/
+.idea/
