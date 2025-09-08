@@ -53,6 +53,15 @@ namespace BookingPro.API.Data
         // OAuth entities
         public DbSet<MercadoPagoOAuthState> MercadoPagoOAuthStates { get; set; }
         public DbSet<MercadoPagoOAuthConfiguration> MercadoPagoOAuthConfigurations { get; set; }
+        
+        // Inventory entities
+        public DbSet<ProductCategory> ProductCategories { get; set; }
+        public DbSet<Product> Products { get; set; }
+        public DbSet<Sale> Sales { get; set; }
+        public DbSet<SaleItem> SaleItems { get; set; }
+        public DbSet<StockMovement> StockMovements { get; set; }
+        public DbSet<PriceHistory> PriceHistories { get; set; }
+        public DbSet<InventoryReport> InventoryReports { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -379,6 +388,105 @@ namespace BookingPro.API.Data
                 entity.HasIndex(c => c.IsActive);
                 entity.HasIndex(c => c.AccessTokenExpiresAt);
             });
+            
+            // === Inventory Entities Configuration ===
+            modelBuilder.Entity<ProductCategory>(entity =>
+            {
+                entity.ToTable("product_categories");
+                entity.HasIndex(pc => new { pc.Name, pc.TenantId }).IsUnique();
+                entity.HasIndex(pc => pc.IsActive);
+                entity.HasIndex(pc => pc.TenantId);
+            });
+            
+            modelBuilder.Entity<Product>(entity =>
+            {
+                entity.ToTable("products");
+                entity.HasIndex(p => new { p.Barcode, p.TenantId }).IsUnique();
+                entity.HasIndex(p => p.Name);
+                entity.HasIndex(p => p.CategoryId);
+                entity.HasIndex(p => p.IsActive);
+                entity.HasIndex(p => p.CurrentStock);
+                entity.HasIndex(p => p.TenantId);
+                
+                entity.HasOne(p => p.Category)
+                    .WithMany(c => c.Products)
+                    .HasForeignKey(p => p.CategoryId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+            
+            modelBuilder.Entity<Sale>(entity =>
+            {
+                entity.ToTable("sales");
+                entity.HasIndex(s => new { s.SaleNumber, s.TenantId }).IsUnique();
+                entity.HasIndex(s => s.CustomerId);
+                entity.HasIndex(s => s.EmployeeId);
+                entity.HasIndex(s => s.Status);
+                entity.HasIndex(s => s.SaleDate);
+                entity.HasIndex(s => s.TenantId);
+                
+                entity.HasOne(s => s.Customer)
+                    .WithMany()
+                    .HasForeignKey(s => s.CustomerId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                    
+                entity.HasOne(s => s.Employee)
+                    .WithMany()
+                    .HasForeignKey(s => s.EmployeeId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+            
+            modelBuilder.Entity<SaleItem>(entity =>
+            {
+                entity.ToTable("sale_items");
+                entity.HasIndex(si => si.SaleId);
+                entity.HasIndex(si => si.ProductId);
+                entity.HasIndex(si => si.TenantId);
+                
+                entity.HasOne(si => si.Sale)
+                    .WithMany(s => s.SaleItems)
+                    .HasForeignKey(si => si.SaleId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                    
+                entity.HasOne(si => si.Product)
+                    .WithMany(p => p.SaleItems)
+                    .HasForeignKey(si => si.ProductId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+            
+            modelBuilder.Entity<StockMovement>(entity =>
+            {
+                entity.ToTable("stock_movements");
+                entity.HasIndex(sm => sm.ProductId);
+                entity.HasIndex(sm => sm.MovementType);
+                entity.HasIndex(sm => sm.MovementDate);
+                entity.HasIndex(sm => sm.ReferenceId);
+                entity.HasIndex(sm => sm.TenantId);
+                
+                entity.HasOne(sm => sm.Product)
+                    .WithMany(p => p.StockMovements)
+                    .HasForeignKey(sm => sm.ProductId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+            
+            modelBuilder.Entity<PriceHistory>(entity =>
+            {
+                entity.ToTable("price_histories");
+                entity.HasIndex(ph => ph.ProductId);
+                entity.HasIndex(ph => ph.ChangedAt);
+                entity.HasIndex(ph => ph.TenantId);
+                
+                entity.HasOne(ph => ph.Product)
+                    .WithMany(p => p.PriceHistories)
+                    .HasForeignKey(ph => ph.ProductId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+            
+            modelBuilder.Entity<InventoryReport>(entity =>
+            {
+                entity.ToTable("inventory_reports");
+                entity.HasIndex(ir => ir.ReportDate);
+                entity.HasIndex(ir => ir.TenantId);
+            });
         }
 
         private void ConfigureMultiTenantFilters(ModelBuilder modelBuilder)
@@ -406,6 +514,15 @@ namespace BookingPro.API.Data
             // OAuth entities filters
             modelBuilder.Entity<MercadoPagoOAuthState>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<MercadoPagoOAuthConfiguration>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            
+            // Inventory entities filters
+            modelBuilder.Entity<ProductCategory>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<Product>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<Sale>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<SaleItem>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<StockMovement>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<PriceHistory>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<InventoryReport>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             
             // Nota: Service ya tiene su filtro combinado en ConfigureTenantEntities
         }

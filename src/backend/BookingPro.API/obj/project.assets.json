@@ -5718,11 +5718,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/mnt/d/code/efcloud/projects/Bookear/src/backend/BookingPro.API/BookingPro.API.csproj",
+      "projectUniqueName": "/mnt/d/code/efcloud/projects/TurnosPro/src/backend/BookingPro.API/BookingPro.API.csproj",
       "projectName": "BookingPro.API",
-      "projectPath": "/mnt/d/code/efcloud/projects/Bookear/src/backend/BookingPro.API/BookingPro.API.csproj",
+      "projectPath": "/mnt/d/code/efcloud/projects/TurnosPro/src/backend/BookingPro.API/BookingPro.API.csproj",
       "packagesPath": "/home/eric/.nuget/packages/",
-      "outputPath": "/mnt/d/code/efcloud/projects/Bookear/src/backend/BookingPro.API/obj/",
+      "outputPath": "/mnt/d/code/efcloud/projects/TurnosPro/src/backend/BookingPro.API/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "/home/eric/.nuget/NuGet/NuGet.Config"

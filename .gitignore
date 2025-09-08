@@ -44,6 +44,40 @@ project.lock.json
 project.fragment.lock.json
 artifacts/
 
+# .NET build artifacts
+*.dll
+*.pdb
+*.deps.json
+*.runtimeconfig.json
+*.runtimeconfig.dev.json
+*.dll.config
+*.exe.config
+launchSettings.json
+
+# Entity Framework
+*.EntityFrameworkCore.targets
+
+# .NET tool manifests
+.config/dotnet-tools.json
+tools/.store/
+
+# Assembly info files (auto-generated)
+**/AssemblyInfo.cs
+**/AssemblyInfoInputs.cache
+**/AssemblyAttributes.cs
+
+# MSBuild
+*.csproj.nuget.g.props
+*.csproj.nuget.g.targets
+*.csproj.nuget.dgspec.json
+*.csproj.FileListAbsolute.txt
+*.csproj.CoreCompileInputs.cache
+*.genruntimeconfig.cache
+*.sourcelink.json
+staticwebassets.build.json
+project.assets.json
+project.nuget.cache
+
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt
 

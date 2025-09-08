@@ -18,7 +18,7 @@ import { superAdminApi } from '../services/api';
 
 const SuperAdminLogin: React.FC = () => {
   const [formData, setFormData] = useState({
-    email: 'admin@turnos-pro.com',
+    email: 'admin@turnospro.com',
     password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
