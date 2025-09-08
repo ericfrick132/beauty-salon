@@ -503,10 +503,21 @@ namespace BookingPro.API.Services
                         _context.MercadoPagoConfigurations.Add(mpConfig);
                     }
                     
-                    mpConfig.AccessToken = tokenData["access_token"].GetString();
-                    mpConfig.RefreshToken = tokenData["refresh_token"].GetString();
-                    mpConfig.PublicKey = tokenData["public_key"].GetString();
-                    mpConfig.UserId = tokenData["user_id"].GetString();
+                    string GetStr(string key)
+                    {
+                        if (!tokenData.ContainsKey(key)) return string.Empty;
+                        var el = tokenData[key];
+                        return el.ValueKind == JsonValueKind.String
+                            ? (el.GetString() ?? string.Empty)
+                            : el.ValueKind == JsonValueKind.Number
+                                ? (el.TryGetInt64(out var n) ? n.ToString() : el.GetRawText())
+                                : el.GetRawText();
+                    }
+
+                    mpConfig.AccessToken = GetStr("access_token");
+                    mpConfig.RefreshToken = GetStr("refresh_token");
+                    mpConfig.PublicKey = GetStr("public_key");
+                    mpConfig.UserId = GetStr("user_id");
                     mpConfig.IsActive = true;
                     mpConfig.ConnectedAt = DateTime.UtcNow;
                     mpConfig.UpdatedAt = DateTime.UtcNow;

@@ -618,15 +618,34 @@ namespace BookingPro.API.Services
                 }
 
                 var tokenResponse = JsonSerializer.Deserialize<JsonElement>(responseContent);
-                
+
+                string GetStringFlexible(JsonElement el)
+                {
+                    return el.ValueKind switch
+                    {
+                        JsonValueKind.String => el.GetString() ?? string.Empty,
+                        JsonValueKind.Number => el.TryGetInt64(out var n) ? n.ToString() : el.GetRawText(),
+                        JsonValueKind.True => "true",
+                        JsonValueKind.False => "false",
+                        _ => el.GetRawText()
+                    };
+                }
+
+                string accessToken = tokenResponse.GetProperty("access_token").GetString() ?? string.Empty;
+                int expiresIn = tokenResponse.GetProperty("expires_in").GetInt32();
+                string tokenType = tokenResponse.TryGetProperty("token_type", out var tt) ? GetStringFlexible(tt) : string.Empty;
+                string scope = tokenResponse.TryGetProperty("scope", out var sc) ? GetStringFlexible(sc) : string.Empty;
+                string refreshToken = tokenResponse.TryGetProperty("refresh_token", out var rt) ? GetStringFlexible(rt) : string.Empty;
+                string userId = tokenResponse.TryGetProperty("user_id", out var uid) ? GetStringFlexible(uid) : string.Empty;
+
                 var result = new MercadoPagoTokenResponseDto
                 {
-                    AccessToken = tokenResponse.GetProperty("access_token").GetString() ?? "",
-                    RefreshToken = tokenResponse.GetProperty("refresh_token").GetString() ?? "",
-                    ExpiresIn = tokenResponse.GetProperty("expires_in").GetInt32(),
-                    TokenType = tokenResponse.GetProperty("token_type").GetString() ?? "",
-                    Scope = tokenResponse.GetProperty("scope").GetString() ?? "",
-                    UserId = tokenResponse.GetProperty("user_id").GetString() ?? ""
+                    AccessToken = accessToken,
+                    RefreshToken = refreshToken,
+                    ExpiresIn = expiresIn,
+                    TokenType = tokenType,
+                    Scope = scope,
+                    UserId = userId
                 };
 
                 return ServiceResult<MercadoPagoTokenResponseDto>.Ok(result);
