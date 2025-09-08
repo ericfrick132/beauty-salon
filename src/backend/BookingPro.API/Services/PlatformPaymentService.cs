@@ -9,11 +9,12 @@ using MercadoPago.Client.Preference;
 using MercadoPago.Config;
 using MercadoPago.Resource.Preference;
 using MercadoPago.Client.Payment;
+using BookingPro.API.Models.DTOs;
 
 namespace BookingPro.API.Services
 {
-    public class PlatformPaymentService : IPlatformPaymentService
-    {
+        public class PlatformPaymentService : IPlatformPaymentService
+        {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<PlatformPaymentService> _logger;
         private readonly IConfiguration _configuration;
@@ -29,6 +30,100 @@ namespace BookingPro.API.Services
             _logger = logger;
             _configuration = configuration;
             _httpClient = httpClientFactory.CreateClient();
+        }
+
+        public async Task<ServiceResult<PurchaseMessagePackageResponseDto>> CreateMessagePackagePurchaseAsync(Guid tenantId, Guid packageId)
+        {
+            try
+            {
+                // Load platform MP config
+                var platformConfig = await GetActivePlatformConfigAsync();
+                if (platformConfig == null)
+                {
+                    return ServiceResult<PurchaseMessagePackageResponseDto>.Fail("Platform MercadoPago not configured");
+                }
+
+                // Load tenant and package
+                var tenant = await _context.Tenants.FindAsync(tenantId);
+                if (tenant == null)
+                {
+                    return ServiceResult<PurchaseMessagePackageResponseDto>.Fail("Tenant not found");
+                }
+
+                var pack = await _context.MessagePackages.FirstOrDefaultAsync(p => p.Id == packageId && p.IsActive);
+                if (pack == null)
+                {
+                    return ServiceResult<PurchaseMessagePackageResponseDto>.Fail("Package not found");
+                }
+
+                MercadoPagoConfig.AccessToken = platformConfig.AccessToken;
+
+                var externalRef = $"MSG-{tenantId}-{packageId}-{DateTime.UtcNow:yyyyMMddHHmmss}";
+
+                var prefReq = new PreferenceRequest
+                {
+                    Items = new List<PreferenceItemRequest>
+                    {
+                        new PreferenceItemRequest
+                        {
+                            Id = packageId.ToString(),
+                            Title = $"Paquete WhatsApp {pack.Quantity}",
+                            Description = $"Créditos de mensajes WhatsApp ({pack.Quantity})",
+                            Quantity = 1,
+                            CurrencyId = pack.Currency,
+                            UnitPrice = pack.Price
+                        }
+                    },
+                    Payer = new PreferencePayerRequest
+                    {
+                        Name = tenant.BusinessName,
+                        Email = tenant.OwnerEmail
+                    },
+                    BackUrls = new PreferenceBackUrlsRequest
+                    {
+                        Success = $"{_configuration["FrontendUrl"]}/admin/messaging/success",
+                        Failure = $"{_configuration["FrontendUrl"]}/admin/messaging/failure",
+                        Pending = $"{_configuration["FrontendUrl"]}/admin/messaging/pending"
+                    },
+                    AutoReturn = "approved",
+                    NotificationUrl = $"{_configuration["BaseUrl"]}/api/webhooks/platform/mercadopago",
+                    ExternalReference = externalRef,
+                    ExpirationDateTo = DateTime.UtcNow.AddDays(7),
+                    Expires = true
+                };
+
+                var client = new PreferenceClient();
+                var preference = await client.CreateAsync(prefReq);
+
+                // Save purchase record (tenant scope)
+                var purchase = new MessagePurchase
+                {
+                    TenantId = tenantId,
+                    PackageId = pack.Id,
+                    Quantity = pack.Quantity,
+                    UnitPrice = pack.Price,
+                    TotalPrice = pack.Price,
+                    Status = "pending",
+                    PreferenceId = preference.Id,
+                    ExternalReference = externalRef
+                };
+                _context.MessagePurchases.Add(purchase);
+                await _context.SaveChangesAsync();
+
+                return ServiceResult<PurchaseMessagePackageResponseDto>.Ok(new PurchaseMessagePackageResponseDto
+                {
+                    PurchaseId = purchase.Id,
+                    PaymentLink = preference.InitPoint ?? string.Empty,
+                    PreferenceId = preference.Id ?? string.Empty,
+                    Amount = pack.Price,
+                    ExpiresAt = preference.ExpirationDateTo ?? DateTime.UtcNow.AddDays(7)
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating message package purchase");
+                return ServiceResult<PurchaseMessagePackageResponseDto>.Fail("Error creating purchase");
+            }
         }
 
         public async Task<ServiceResult<TenantSubscriptionPaymentResponseDto>> CreateTenantSubscriptionPaymentAsync(CreateTenantSubscriptionPaymentDto dto)
@@ -151,7 +246,55 @@ namespace BookingPro.API.Services
                     return ServiceResult<bool>.Fail("Invalid payment reference");
                 }
 
-                // Find the payment record
+                // Decide which flow by external reference prefix
+                if (payment.ExternalReference.StartsWith("MSG-"))
+                {
+                    // Message package purchase
+                    var mpurchase = await _context.MessagePurchases
+                        .IgnoreQueryFilters()
+                        .FirstOrDefaultAsync(p => p.ExternalReference == payment.ExternalReference || p.PreferenceId == payment.ExternalReference);
+
+                    if (mpurchase == null)
+                    {
+                        _logger.LogWarning("Message purchase not found for external reference: {ExternalReference}", payment.ExternalReference);
+                        return ServiceResult<bool>.Ok(true);
+                    }
+
+                    mpurchase.PlatformPaymentId = paymentId;
+                    mpurchase.Status = MapPaymentStatus(payment.Status);
+                    mpurchase.UpdatedAt = DateTime.UtcNow;
+                    if (payment.Status == "approved")
+                    {
+                        mpurchase.PaidAt = DateTime.UtcNow;
+
+                        // Credit wallet
+                        var wallet = await _context.TenantMessageWallets
+                            .IgnoreQueryFilters()
+                            .FirstOrDefaultAsync(w => w.TenantId == mpurchase.TenantId);
+                        if (wallet == null)
+                        {
+                            wallet = new TenantMessageWallet
+                            {
+                                TenantId = mpurchase.TenantId,
+                                Balance = 0,
+                                TotalPurchased = 0,
+                                TotalSent = 0
+                            };
+                            _context.TenantMessageWallets.Add(wallet);
+                        }
+                        wallet.Balance += mpurchase.Quantity;
+                        wallet.TotalPurchased += mpurchase.Quantity;
+                        wallet.UpdatedAt = DateTime.UtcNow;
+                        await _context.SaveChangesAsync();
+
+                        _logger.LogInformation("Credited {Qty} message credits to tenant {TenantId}", mpurchase.Quantity, mpurchase.TenantId);
+                    }
+
+                    await _context.SaveChangesAsync();
+                    return ServiceResult<bool>.Ok(true);
+                }
+
+                // Find the subscription payment record
                 var subscriptionPayment = await _context.TenantSubscriptionPayments
                     .Include(p => p.Tenant)
                     .FirstOrDefaultAsync(p => p.PreferenceId == payment.ExternalReference ||

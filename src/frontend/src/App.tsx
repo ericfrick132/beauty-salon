@@ -17,6 +17,7 @@ import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import SuperAdminLogin from './pages/SuperAdminLogin';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import MessagePackagesAdmin from './pages/admin/MessagePackagesAdmin';
 import NewBooking from './pages/NewBooking';
 import Calendar from './pages/Calendar';
 import Customers from './pages/Customers';
@@ -39,6 +40,8 @@ import SubscriptionManagement from './pages/SubscriptionManagement';
 import PlatformSubscriptionStatus from './pages/PlatformSubscriptionStatus';
 import SalesPOS from './pages/SalesPOS';
 import Products from './pages/Products';
+import MessagingCredits from './pages/MessagingCredits';
+import MessagingSettings from './pages/MessagingSettings';
 import TenantsManagement from './pages/TenantsManagement';
 import { AdminLayout } from './components/layouts/AdminLayout';
 import SubscriptionVerification from './components/SubscriptionVerification';
@@ -245,6 +248,7 @@ function App() {
                 {/* Rutas Super Admin */}
                 <Route path="/super-admin/login" element={<SuperAdminLogin />} />
                 <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />
+                <Route path="/super-admin/message-packages" element={<MessagePackagesAdmin />} />
                 <Route path="/super-admin/tenants" element={<TenantsManagement />} />
                 
                 {/* Main Domain Routes - Landing Page */}
@@ -287,6 +291,8 @@ function App() {
                   <Route path="/mercadopago-settings" element={<MercadoPagoSettings />} />
                   <Route path="/subscription" element={<SubscriptionManagement />} />
                   <Route path="/platform-subscription" element={<PlatformSubscriptionStatus />} />
+                  <Route path="/messaging" element={<MessagingCredits />} />
+                  <Route path="/messaging/settings" element={<MessagingSettings />} />
                 </Route>
               </Routes>
             </Router>

@@ -227,8 +227,13 @@ namespace BookingPro.API.Controllers
         public bool IsSandbox { get; set; } = true;
     }
 
-    public class CreateTenantRenewalDto
-    {
-        public string Period { get; set; } = "monthly";
-    }
+        public class CreateTenantRenewalDto
+        {
+            public string Period { get; set; } = "monthly";
+        }
+
+        public class CreateMessagePurchaseDto
+        {
+            public Guid PackageId { get; set; }
+        }
 }

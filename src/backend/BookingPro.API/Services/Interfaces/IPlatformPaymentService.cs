@@ -47,5 +47,8 @@ namespace BookingPro.API.Services.Interfaces
         /// Creates renewal payment link for expired tenants
         /// </summary>
         Task<ServiceResult<TenantSubscriptionPaymentResponseDto>> CreateTenantRenewalPaymentAsync(Guid tenantId, string period);
+
+        // Messaging packages
+        Task<ServiceResult<PurchaseMessagePackageResponseDto>> CreateMessagePackagePurchaseAsync(Guid tenantId, Guid packageId);
     }
 }

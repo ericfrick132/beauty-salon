@@ -227,4 +227,27 @@ namespace BookingPro.API.Models.Entities
         public Plan? Plan { get; set; }
         public Tenant? CreatedTenant { get; set; }
     }
+
+    // Messaging packages sold by platform (no tenant scope)
+    public class MessagePackage
+    {
+        public Guid Id { get; set; } = Guid.NewGuid();
+        
+        [Required, MaxLength(100)]
+        public string Name { get; set; } = string.Empty; // e.g., "Paquete 100"
+
+        [Range(1, int.MaxValue)]
+        public int Quantity { get; set; } // 100, 500, 1000
+
+        [Range(0.01, double.MaxValue)]
+        public decimal Price { get; set; } // total price for the package
+
+        [Required, MaxLength(10)]
+        public string Currency { get; set; } = "ARS";
+
+        public bool IsActive { get; set; } = true;
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    }
 }

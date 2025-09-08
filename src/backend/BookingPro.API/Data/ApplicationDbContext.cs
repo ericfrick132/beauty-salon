@@ -23,6 +23,7 @@ namespace BookingPro.API.Data
         public DbSet<User> Users { get; set; }
         public DbSet<Subscription> Subscriptions { get; set; }
         public DbSet<Invitation> Invitations { get; set; }
+        public DbSet<MessagePackage> MessagePackages { get; set; }
 
         // DbSets para entidades por tenant
         public DbSet<Models.Entities.ServiceCategory> ServiceCategories { get; set; }
@@ -39,6 +40,10 @@ namespace BookingPro.API.Data
         public DbSet<MercadoPagoConfiguration> MercadoPagoConfigurations { get; set; }
         public DbSet<SubscriptionPayment> SubscriptionPayments { get; set; }
         public DbSet<SubscriptionPlan> SubscriptionPlans { get; set; }
+        public DbSet<TenantMessagingSettings> TenantMessagingSettings { get; set; }
+        public DbSet<TenantMessageWallet> TenantMessageWallets { get; set; }
+        public DbSet<MessagePurchase> MessagePurchases { get; set; }
+        public DbSet<MessageLog> MessageLogs { get; set; }
         
         // Platform entities (B2B)
         public DbSet<PlatformMercadoPagoConfiguration> PlatformMercadoPagoConfigurations { get; set; }
@@ -168,6 +173,16 @@ namespace BookingPro.API.Data
                     .WithMany()
                     .HasForeignKey(p => p.TenantId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // Messaging packages (platform level)
+            modelBuilder.Entity<MessagePackage>(entity =>
+            {
+                entity.ToTable("message_packages");
+                entity.HasIndex(p => p.IsActive);
+                entity.HasIndex(p => p.Quantity);
+                entity.Property(p => p.Currency).HasMaxLength(10);
+                entity.Property(p => p.Name).HasMaxLength(100);
             });
         }
 
@@ -487,6 +502,37 @@ namespace BookingPro.API.Data
                 entity.HasIndex(ir => ir.ReportDate);
                 entity.HasIndex(ir => ir.TenantId);
             });
+
+            // Messaging per-tenant entities
+            modelBuilder.Entity<TenantMessagingSettings>(entity =>
+            {
+                entity.ToTable("tenant_messaging_settings");
+                entity.HasIndex(s => s.TenantId).IsUnique();
+            });
+
+            modelBuilder.Entity<TenantMessageWallet>(entity =>
+            {
+                entity.ToTable("tenant_message_wallets");
+                entity.HasIndex(w => w.TenantId).IsUnique();
+            });
+
+            modelBuilder.Entity<MessagePurchase>(entity =>
+            {
+                entity.ToTable("message_purchases");
+                entity.HasIndex(p => p.TenantId);
+                entity.HasIndex(p => p.Status);
+                entity.HasIndex(p => p.PreferenceId);
+                entity.HasIndex(p => p.ExternalReference);
+            });
+
+            modelBuilder.Entity<MessageLog>(entity =>
+            {
+                entity.ToTable("message_logs");
+                entity.HasIndex(l => l.TenantId);
+                entity.HasIndex(l => l.BookingId);
+                entity.HasIndex(l => l.Status);
+                entity.HasIndex(l => l.CreatedAt);
+            });
         }
 
         private void ConfigureMultiTenantFilters(ModelBuilder modelBuilder)
@@ -523,6 +569,12 @@ namespace BookingPro.API.Data
             modelBuilder.Entity<StockMovement>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<PriceHistory>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<InventoryReport>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+
+            // Messaging filters
+            modelBuilder.Entity<TenantMessagingSettings>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<TenantMessageWallet>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<MessagePurchase>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<MessageLog>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             
             // Nota: Service ya tiene su filtro combinado en ConfigureTenantEntities
         }

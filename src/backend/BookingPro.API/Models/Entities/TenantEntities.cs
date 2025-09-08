@@ -132,6 +132,97 @@ namespace BookingPro.API.Models.Entities
         public ICollection<Payment> Payments { get; set; } = new List<Payment>(); // One booking can have multiple payments
     }
 
+    // Tenant messaging settings and balances
+    public class TenantMessagingSettings : ITenantEntity
+    {
+        public Guid TenantId { get; set; }
+        public Guid Id { get; set; } = Guid.NewGuid();
+
+        public bool WhatsAppRemindersEnabled { get; set; } = false;
+
+        // Minutes before appointment to send reminder (e.g., 60, 1440)
+        public int ReminderAdvanceMinutes { get; set; } = 60;
+
+        // Template with tokens: {customer_name}, {service_name}, {date}, {time}, {business_name}
+        public string ReminderTemplate { get; set; } = "Hola {customer_name}! Te recordamos tu turno para {service_name} el {date} a las {time}. Si no podés asistir, avisanos respondiendo este mensaje.";
+
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    }
+
+    public class TenantMessageWallet : ITenantEntity
+    {
+        public Guid TenantId { get; set; }
+        public Guid Id { get; set; } = Guid.NewGuid();
+
+        public int Balance { get; set; } = 0; // Remaining message credits
+        public int TotalPurchased { get; set; } = 0;
+        public int TotalSent { get; set; } = 0;
+
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    }
+
+    public class MessagePurchase : ITenantEntity
+    {
+        public Guid TenantId { get; set; }
+        public Guid Id { get; set; } = Guid.NewGuid();
+
+        public Guid PackageId { get; set; }
+        public int Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+        public decimal TotalPrice { get; set; }
+        
+        [MaxLength(50)]
+        public string Status { get; set; } = "pending"; // pending, approved, cancelled
+
+        [MaxLength(100)]
+        public string? PreferenceId { get; set; }
+
+        [MaxLength(100)]
+        public string? PlatformPaymentId { get; set; }
+
+        [MaxLength(200)]
+        public string? ExternalReference { get; set; } // e.g., MSG-tenantId-packageId-...
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime? PaidAt { get; set; }
+
+        // Not mapped navigation, optional
+    }
+
+    public class MessageLog : ITenantEntity
+    {
+        public Guid TenantId { get; set; }
+        public Guid Id { get; set; } = Guid.NewGuid();
+
+        public Guid? BookingId { get; set; }
+        public Guid? CustomerId { get; set; }
+
+        [MaxLength(30)]
+        public string Channel { get; set; } = "whatsapp";
+
+        [MaxLength(30)]
+        public string MessageType { get; set; } = "reminder"; // reminder, marketing, etc.
+
+        [MaxLength(50)]
+        public string Status { get; set; } = "queued"; // queued, sent, failed, delivered
+
+        [MaxLength(50)]
+        public string? ProviderMessageId { get; set; } // Twilio SID
+
+        [MaxLength(100)]
+        public string To { get; set; } = string.Empty; // phone in E.164
+
+        public string Body { get; set; } = string.Empty;
+        public string? ErrorMessage { get; set; }
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime? SentAt { get; set; }
+        public DateTime? DeliveredAt { get; set; }
+    }
+
     public class Schedule : ITenantEntity
     {
         public Guid TenantId { get; set; }

@@ -240,3 +240,23 @@ export const selfRegistrationApi = {
 };
 
 export default api;
+// Messaging API
+export const messagingApi = {
+  getPackages: () => api.get('/messaging/packages').then(res => res.data),
+  purchase: (packageId: string) => api.post('/messaging/purchase', { packageId }).then(res => res.data),
+  getBalance: () => api.get('/messaging/balance').then(res => res.data),
+  getSettings: () => api.get('/messaging/settings').then(res => res.data),
+  updateSettings: (data: { whatsappRemindersEnabled: boolean; reminderAdvanceMinutes: number; reminderTemplate: string }) =>
+    api.put('/messaging/settings', data).then(res => res.data),
+  sendDueReminders: () => api.post('/messaging/send-due-reminders').then(res => res.data),
+};
+
+// Admin packages API (super admin)
+export const messagePackagesAdminApi = {
+  list: () => api.get('/admin/message-packages').then(res => res.data),
+  create: (data: { name: string; quantity: number; price: number; currency: string; isActive: boolean }) =>
+    api.post('/admin/message-packages', data).then(res => res.data),
+  update: (id: string, data: { name: string; quantity: number; price: number; currency: string; isActive: boolean }) =>
+    api.put(`/admin/message-packages/${id}`, data).then(res => res.data),
+  remove: (id: string) => api.delete(`/admin/message-packages/${id}`).then(res => res.data),
+};

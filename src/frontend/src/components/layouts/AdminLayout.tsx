@@ -284,6 +284,8 @@ export const AdminLayout: React.FC = () => {
       icon: <Settings />,
       children: [
         { text: 'Gestionar Servicios', icon: <ManageAccounts />, path: '/services' },
+        { text: 'Créditos de Mensajes', icon: <CreditCard />, path: '/messaging' },
+        { text: 'Mensajes (WhatsApp)', icon: <ManageAccounts />, path: '/messaging/settings' },
         { text: 'Mi MercadoPago', icon: <AccountBalance />, path: '/mercadopago-settings' },
         { text: 'Personalizar Tema', icon: <Palette />, path: '/theme-settings' },
         { text: 'Configuración General', icon: <Settings />, path: '/settings' },

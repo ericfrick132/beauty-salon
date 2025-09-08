@@ -110,6 +110,7 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IPaymentService, B
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IPublicService, BookingPro.API.Services.PublicService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IMercadoPagoService, BookingPro.API.Services.MercadoPagoService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IMercadoPagoOAuthService, BookingPro.API.Services.MercadoPagoOAuthService>();
+builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IWhatsAppService, BookingPro.API.Services.WhatsAppService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ISubscriptionService, BookingPro.API.Services.SubscriptionService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IInventoryService, BookingPro.API.Services.InventoryService>();
 
