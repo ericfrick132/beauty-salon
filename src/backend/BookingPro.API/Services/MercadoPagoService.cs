@@ -119,7 +119,7 @@ namespace BookingPro.API.Services
                             Title = $"{booking.Service.Name}",
                             Description = $"Reserva para {booking.StartTime:dd/MM/yyyy HH:mm}",
                             Quantity = 1,
-                            CurrencyId = paymentConfig.IsSandbox ? "ARS" : "ARS", // Ajustar según moneda del tenant
+                            CurrencyId = "ARS", // Default currency; TODO: derive from tenant/MP config
                             UnitPrice = amountToPay
                         }
                     },
@@ -213,21 +213,15 @@ namespace BookingPro.API.Services
                 var paymentConfig = await _context.Set<PaymentConfiguration>()
                     .FirstOrDefaultAsync(pc => pc.TenantId == tenantGuid);
 
-                if (paymentConfig == null)
-                {
-                    _logger.LogWarning("Payment configuration not found for tenant {TenantId}", tenantId);
-                    return ServiceResult<bool>.Fail("Configuration not found");
-                }
-
                 // Obtener el access token OAuth del tenant
                 var tokenResult = await _oauthService.GetValidAccessTokenAsync(tenantGuid);
                 if (!tokenResult.Success)
                 {
                     // Si no hay OAuth, intentar con credenciales manuales (fallback)
-                    if (!string.IsNullOrEmpty(paymentConfig.MercadoPagoAccessToken))
+                    if (!string.IsNullOrEmpty(paymentConfig?.MercadoPagoAccessToken))
                     {
                         _logger.LogWarning("Using manual MercadoPago credentials for webhook processing. OAuth is recommended.");
-                        MercadoPagoConfig.AccessToken = paymentConfig.MercadoPagoAccessToken;
+                        MercadoPagoConfig.AccessToken = paymentConfig!.MercadoPagoAccessToken;
                     }
                     else
                     {

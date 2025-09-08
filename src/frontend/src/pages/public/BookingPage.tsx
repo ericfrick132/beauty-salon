@@ -50,7 +50,8 @@ import { es } from 'date-fns/locale';
 import { format, addDays, isSameDay, isAfter, isBefore, startOfDay } from 'date-fns';
 import api from '../../services/api';
 
-const steps = ['Servicio', 'Profesional', 'Fecha y Hora', 'Tus Datos', 'Pago', 'Confirmación'];
+// Steps are computed dynamically depending on whether the service requires a deposit
+const baseSteps = ['Servicio', 'Profesional', 'Fecha y Hora', 'Tus Datos'] as const;
 
 interface Service {
   id: string;
@@ -60,6 +61,7 @@ interface Service {
   durationMinutes: number;
   category?: string;
   bookingCount?: number;
+  requiresDeposit?: boolean;
 }
 
 interface Professional {
@@ -276,15 +278,17 @@ const BookingPage: React.FC = () => {
 
       setConfirmationCode(response.data.confirmationCode);
       setCreatedBookingId(response.data.bookingId);
-      if (response.data?.requiresPayment) {
+      const requiresDeposit = services.find(s => s.id === bookingData.serviceId)?.requiresDeposit;
+      if (requiresDeposit && response.data?.requiresPayment) {
         // Ir al paso de Pago y esperar acción del usuario
         setPaymentRequired(true);
         setPaymentInfo({ initPoint: response.data.payment?.initPoint, amount: response.data.payment?.amount });
-        setActiveStep(5);
+        setActiveStep(4);
       } else {
         // Sin pago requerido, ir al paso final
         setBookingConfirmed(true);
-        setActiveStep(5);
+        const finalIndex = 4; // Confirmación es el último paso cuando no hay pago
+        setActiveStep(finalIndex);
       }
     } catch (error: any) {
       console.error('Error creating booking:', error);
@@ -917,13 +921,21 @@ const BookingPage: React.FC = () => {
 
         {/* Stepper */}
         <Paper sx={{ p: 2, mb: 3 }}>
-          <Stepper activeStep={activeStep} alternativeLabel>
-            {steps.map((label) => (
-              <Step key={label}>
-                <StepLabel>{label}</StepLabel>
-              </Step>
-            ))}
-          </Stepper>
+          {(() => {
+            const requiresDeposit = services.find(s => s.id === bookingData.serviceId)?.requiresDeposit;
+            const steps = requiresDeposit
+              ? [...baseSteps, 'Pago', 'Confirmación']
+              : [...baseSteps, 'Confirmación'];
+            return (
+              <Stepper activeStep={activeStep} alternativeLabel>
+                {steps.map((label) => (
+                  <Step key={label}>
+                    <StepLabel>{label}</StepLabel>
+                  </Step>
+                ))}
+              </Stepper>
+            );
+          })()}
         </Paper>
 
         {/* Content */}
@@ -956,7 +968,7 @@ const BookingPage: React.FC = () => {
                   Anterior
                 </Button>
                 
-                {activeStep === steps.length - 1 ? (
+                {activeStep === 4 ? (
                   !createdBookingId ? (
                     <Button
                       variant="contained"
@@ -977,7 +989,7 @@ const BookingPage: React.FC = () => {
                       Pagar ahora
                     </Button>
                   ) : null
-                ) : (
+                ) : activeStep === steps.length - 1 ? null : (
                   <Button
                     variant="contained"
                     size="large"
