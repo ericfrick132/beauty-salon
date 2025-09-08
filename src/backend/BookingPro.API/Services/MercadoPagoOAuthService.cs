@@ -522,6 +522,13 @@ namespace BookingPro.API.Services
                 var clientSecret = _configuration["MercadoPago:ClientSecret"];
                 var redirectUri = _configuration["MercadoPago:RedirectUri"];
 
+                if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret) || string.IsNullOrWhiteSpace(redirectUri))
+                {
+                    _logger.LogError("Missing OAuth config. ClientId set: {HasId}, ClientSecret set: {HasSecret}, RedirectUri: {RedirectUri}",
+                        !string.IsNullOrWhiteSpace(clientId), !string.IsNullOrWhiteSpace(clientSecret), redirectUri);
+                    return ServiceResult<MercadoPagoTokenResponseDto>.Fail("OAuth configuration missing");
+                }
+
                 // MercadoPago expects x-www-form-urlencoded
                 var form = new List<KeyValuePair<string, string>>
                 {
@@ -533,13 +540,28 @@ namespace BookingPro.API.Services
                 };
                 var content = new FormUrlEncodedContent(form);
 
+                _httpClient.DefaultRequestHeaders.Accept.Clear();
+                _httpClient.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
                 var response = await _httpClient.PostAsync(TOKEN_URL, content);
                 var responseContent = await response.Content.ReadAsStringAsync();
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.LogError("Token exchange failed: {Response}", responseContent);
-                    return ServiceResult<MercadoPagoTokenResponseDto>.Fail("Token exchange failed");
+                    _logger.LogError("Token exchange failed. Status: {Status}, Body: {Body}", (int)response.StatusCode, responseContent);
+                    // Try to surface MP error
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(responseContent);
+                        var root = doc.RootElement;
+                        var err = root.TryGetProperty("error_description", out var ed) ? ed.GetString() :
+                                  root.TryGetProperty("message", out var msg) ? msg.GetString() :
+                                  root.TryGetProperty("error", out var e) ? e.GetString() : null;
+                        return ServiceResult<MercadoPagoTokenResponseDto>.Fail(err ?? "Token exchange failed");
+                    }
+                    catch
+                    {
+                        return ServiceResult<MercadoPagoTokenResponseDto>.Fail("Token exchange failed");
+                    }
                 }
 
                 var tokenResponse = JsonSerializer.Deserialize<JsonElement>(responseContent);
@@ -579,13 +601,27 @@ namespace BookingPro.API.Services
                 };
                 var content = new FormUrlEncodedContent(form);
 
+                _httpClient.DefaultRequestHeaders.Accept.Clear();
+                _httpClient.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
                 var response = await _httpClient.PostAsync(TOKEN_URL, content);
                 var responseContent = await response.Content.ReadAsStringAsync();
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.LogError("Token refresh failed: {Response}", responseContent);
-                    return ServiceResult<MercadoPagoTokenResponseDto>.Fail("Token refresh failed");
+                    _logger.LogError("Token refresh failed. Status: {Status}, Body: {Body}", (int)response.StatusCode, responseContent);
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(responseContent);
+                        var root = doc.RootElement;
+                        var err = root.TryGetProperty("error_description", out var ed) ? ed.GetString() :
+                                  root.TryGetProperty("message", out var msg) ? msg.GetString() :
+                                  root.TryGetProperty("error", out var e) ? e.GetString() : null;
+                        return ServiceResult<MercadoPagoTokenResponseDto>.Fail(err ?? "Token refresh failed");
+                    }
+                    catch
+                    {
+                        return ServiceResult<MercadoPagoTokenResponseDto>.Fail("Token refresh failed");
+                    }
                 }
 
                 var tokenResponse = JsonSerializer.Deserialize<JsonElement>(responseContent);
