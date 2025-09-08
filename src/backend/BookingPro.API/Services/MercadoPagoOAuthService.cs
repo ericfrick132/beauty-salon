@@ -62,19 +62,25 @@ namespace BookingPro.API.Services
                 // Clean up old expired states
                 await CleanupExpiredStatesAsync(tenantId);
 
-                // Save OAuth state
+                // Generate PKCE (code_verifier/challenge)
+                var pkce = GeneratePkce();
+
+                // Save OAuth state including PKCE
                 var oauthState = new MercadoPagoOAuthState
                 {
                     TenantId = tenantId,
                     State = state,
-                    ExpiresAt = DateTime.UtcNow.AddMinutes(15)
+                    ExpiresAt = DateTime.UtcNow.AddMinutes(15),
+                    CodeVerifier = pkce.CodeVerifier,
+                    CodeChallenge = pkce.CodeChallenge,
+                    CodeChallengeMethod = pkce.CodeChallengeMethod
                 };
 
                 _context.Set<MercadoPagoOAuthState>().Add(oauthState);
                 await _context.SaveChangesAsync();
 
-                // Build authorization URL
-                var authUrl = BuildAuthorizationUrl(clientId, redirectUri, state);
+                // Build authorization URL (with PKCE)
+                var authUrl = BuildAuthorizationUrl(clientId, redirectUri, state, pkce.CodeChallenge, pkce.CodeChallengeMethod);
                 oauthState.AuthorizationUrl = authUrl;
                 await _context.SaveChangesAsync();
 
@@ -130,8 +136,8 @@ namespace BookingPro.API.Services
                     return ServiceResult<bool>.Fail($"OAuth error: {dto.Error}");
                 }
 
-                // Exchange code for tokens
-                var tokenResult = await ExchangeCodeForTokenAsync(dto.Code);
+                // Exchange code for tokens (include PKCE code_verifier if present)
+                var tokenResult = await ExchangeCodeForTokenAsync(dto.Code, oauthState.CodeVerifier);
                 if (!tokenResult.Success || tokenResult.Data == null)
                 {
                     // Persist error details in state for audit/debugging
@@ -510,7 +516,29 @@ namespace BookingPro.API.Services
             return $"tenant_{tenantId}_{randomString}";
         }
 
-        private string BuildAuthorizationUrl(string clientId, string redirectUri, string state)
+        private (string CodeVerifier, string CodeChallenge, string CodeChallengeMethod) GeneratePkce()
+        {
+            // Generate code_verifier (43-128 chars) and S256 code_challenge
+            var bytes = new byte[64];
+            RandomNumberGenerator.Fill(bytes);
+            var verifier = Convert.ToBase64String(bytes)
+                .Replace("+", "-")
+                .Replace("/", "_")
+                .Replace("=", "");
+            if (verifier.Length < 43) verifier = verifier.PadRight(43, '0');
+            if (verifier.Length > 128) verifier = verifier[..128];
+
+            using var sha256 = SHA256.Create();
+            var hash = sha256.ComputeHash(Encoding.ASCII.GetBytes(verifier));
+            var challenge = Convert.ToBase64String(hash)
+                .Replace("+", "-")
+                .Replace("/", "_")
+                .Replace("=", "");
+
+            return (verifier, challenge, "S256");
+        }
+
+        private string BuildAuthorizationUrl(string clientId, string redirectUri, string state, string codeChallenge, string codeChallengeMethod)
         {
             var queryParams = new Dictionary<string, string>
             {
@@ -518,14 +546,16 @@ namespace BookingPro.API.Services
                 ["response_type"] = "code",
                 ["platform_id"] = "mp",
                 ["redirect_uri"] = redirectUri,
-                ["state"] = state
+                ["state"] = state,
+                ["code_challenge"] = codeChallenge,
+                ["code_challenge_method"] = codeChallengeMethod
             };
 
             var queryString = string.Join("&", queryParams.Select(kvp => $"{kvp.Key}={Uri.EscapeDataString(kvp.Value)}"));
             return $"{AUTH_URL}?{queryString}";
         }
 
-        private async Task<ServiceResult<MercadoPagoTokenResponseDto>> ExchangeCodeForTokenAsync(string code)
+        private async Task<ServiceResult<MercadoPagoTokenResponseDto>> ExchangeCodeForTokenAsync(string code, string? codeVerifier)
         {
             try
             {
@@ -549,6 +579,10 @@ namespace BookingPro.API.Services
                     new("code", code),
                     new("redirect_uri", redirectUri ?? string.Empty),
                 };
+                if (!string.IsNullOrWhiteSpace(codeVerifier))
+                {
+                    form.Add(new("code_verifier", codeVerifier!));
+                }
                 var content = new FormUrlEncodedContent(form);
 
                 _httpClient.DefaultRequestHeaders.Accept.Clear();

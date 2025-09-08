@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 using BookingPro.API.Data;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Models.Entities;
@@ -421,9 +423,32 @@ namespace BookingPro.API.Services
             {
                 var clientId = _configuration["MercadoPago:ClientId"];
                 var redirectUri = _configuration["MercadoPago:RedirectUri"];
-                var state = tenantId;
-                
-                var url = $"https://auth.mercadopago.com/authorization?client_id={clientId}&response_type=code&platform_id=mp&redirect_uri={redirectUri}&state={state}";
+
+                if (!Guid.TryParse(tenantId, out var tenantGuid))
+                {
+                    return ServiceResult<string>.Fail("Invalid tenant ID");
+                }
+
+                // Generate state and PKCE, persist to OAuth state table
+                var state = GenerateStateParameter(tenantGuid);
+                var pkce = GeneratePkce();
+
+                var oauthState = new MercadoPagoOAuthState
+                {
+                    TenantId = tenantGuid,
+                    State = state,
+                    ExpiresAt = DateTime.UtcNow.AddMinutes(15),
+                    CodeVerifier = pkce.CodeVerifier,
+                    CodeChallenge = pkce.CodeChallenge,
+                    CodeChallengeMethod = pkce.CodeChallengeMethod
+                };
+                _context.Set<MercadoPagoOAuthState>().Add(oauthState);
+                await _context.SaveChangesAsync();
+
+                var url = $"https://auth.mercadopago.com/authorization?client_id={Uri.EscapeDataString(clientId)}&response_type=code&platform_id=mp&redirect_uri={Uri.EscapeDataString(redirectUri)}&state={Uri.EscapeDataString(state)}&code_challenge={Uri.EscapeDataString(pkce.CodeChallenge)}&code_challenge_method={Uri.EscapeDataString(pkce.CodeChallengeMethod)}";
+                oauthState.AuthorizationUrl = url;
+                await _context.SaveChangesAsync();
+
                 return ServiceResult<string>.Ok(url);
             }
             catch (Exception ex)
@@ -433,7 +458,7 @@ namespace BookingPro.API.Services
             }
         }
 
-        public async Task<ServiceResult<bool>> ExchangeCodeForTokenAsync(Guid tenantId, string code)
+        public async Task<ServiceResult<bool>> ExchangeCodeForTokenAsync(Guid tenantId, string code, string? codeVerifier = null)
         {
             try
             {
@@ -450,6 +475,10 @@ namespace BookingPro.API.Services
                     ["code"] = code,
                     ["redirect_uri"] = redirectUri
                 };
+                if (!string.IsNullOrWhiteSpace(codeVerifier))
+                {
+                    tokenRequest["code_verifier"] = codeVerifier;
+                }
                 
                 var response = await httpClient.PostAsync(
                     "https://api.mercadopago.com/oauth/token",
@@ -524,18 +553,82 @@ namespace BookingPro.API.Services
         {
             try
             {
-                if (!Guid.TryParse(state, out var tenantId))
+                Guid tenantId;
+                string? codeVerifier = null;
+
+                // New format: tenant_{tenantId}_{random}
+                if (state.StartsWith("tenant_"))
+                {
+                    var parts = state.Split('_');
+                    if (parts.Length >= 3 && Guid.TryParse(parts[1], out var parsedTenant))
+                    {
+                        tenantId = parsedTenant;
+                        var oauthState = await _context.Set<MercadoPagoOAuthState>()
+                            .IgnoreQueryFilters()
+                            .FirstOrDefaultAsync(s => s.State == state && s.TenantId == tenantId);
+                        if (oauthState == null)
+                        {
+                            return ServiceResult<bool>.Fail("Invalid or expired state");
+                        }
+                        if (oauthState.ExpiresAt < DateTime.UtcNow)
+                        {
+                            oauthState.IsExpired = true;
+                            await _context.SaveChangesAsync();
+                            return ServiceResult<bool>.Fail("State expired");
+                        }
+                        codeVerifier = oauthState.CodeVerifier;
+                    }
+                    else
+                    {
+                        return ServiceResult<bool>.Fail("Invalid state parameter");
+                    }
+                }
+                else if (!Guid.TryParse(state, out tenantId))
                 {
                     return ServiceResult<bool>.Fail("Invalid state parameter");
                 }
-                
-                return await ExchangeCodeForTokenAsync(tenantId, code);
+
+                return await ExchangeCodeForTokenAsync(tenantId, code, codeVerifier);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing OAuth callback");
                 return ServiceResult<bool>.Fail($"Error: {ex.Message}");
             }
+        }
+
+        // Backward-compatible signature (interface requires this)
+        public async Task<ServiceResult<bool>> ExchangeCodeForTokenAsync(Guid tenantId, string code)
+            => await ExchangeCodeForTokenAsync(tenantId, code, null);
+
+        private string GenerateStateParameter(Guid tenantId)
+        {
+            var randomBytes = new byte[16];
+            RandomNumberGenerator.Fill(randomBytes);
+            var randomString = Convert.ToBase64String(randomBytes).Replace("+", "").Replace("/", "").Replace("=", "")[..10];
+            return $"tenant_{tenantId}_{randomString}";
+        }
+
+        private (string CodeVerifier, string CodeChallenge, string CodeChallengeMethod) GeneratePkce()
+        {
+            // Generate code_verifier (43-128 length), and S256 challenge
+            var bytes = new byte[64];
+            RandomNumberGenerator.Fill(bytes);
+            var verifier = Convert.ToBase64String(bytes)
+                .Replace("+", "-")
+                .Replace("/", "_")
+                .Replace("=", "");
+            if (verifier.Length < 43) verifier = verifier.PadRight(43, '0');
+            if (verifier.Length > 128) verifier = verifier[..128];
+
+            using var sha256 = SHA256.Create();
+            var hash = sha256.ComputeHash(Encoding.ASCII.GetBytes(verifier));
+            var challenge = Convert.ToBase64String(hash)
+                .Replace("+", "-")
+                .Replace("/", "_")
+                .Replace("=", "");
+
+            return (verifier, challenge, "S256");
         }
 
         public async Task<ServiceResult<MercadoPagoConfiguration>> GetConfigurationAsync(string tenantId)

@@ -16,6 +16,16 @@ namespace BookingPro.API.Models.Entities
         
         [MaxLength(1000)]
         public string? AuthorizationUrl { get; set; }
+
+        // PKCE parameters
+        [MaxLength(256)]
+        public string? CodeVerifier { get; set; }
+
+        [MaxLength(256)]
+        public string? CodeChallenge { get; set; }
+
+        [MaxLength(10)]
+        public string? CodeChallengeMethod { get; set; } // e.g., S256 or plain
         
         public bool IsCompleted { get; set; } = false;
         public bool IsExpired { get; set; } = false;
