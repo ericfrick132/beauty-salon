@@ -50,7 +50,7 @@ import { es } from 'date-fns/locale';
 import { format, addDays, isSameDay, isAfter, isBefore, startOfDay } from 'date-fns';
 import api from '../../services/api';
 
-const steps = ['Servicio', 'Profesional', 'Fecha y Hora', 'Tus Datos', 'Confirmación'];
+const steps = ['Servicio', 'Profesional', 'Fecha y Hora', 'Tus Datos', 'Pago', 'Confirmación'];
 
 interface Service {
   id: string;
@@ -277,14 +277,14 @@ const BookingPage: React.FC = () => {
       setConfirmationCode(response.data.confirmationCode);
       setCreatedBookingId(response.data.bookingId);
       if (response.data?.requiresPayment) {
+        // Ir al paso de Pago y esperar acción del usuario
         setPaymentRequired(true);
         setPaymentInfo({ initPoint: response.data.payment?.initPoint, amount: response.data.payment?.amount });
-        setBookingConfirmed(true);
-        if (response.data.payment?.initPoint) {
-          window.open(response.data.payment.initPoint, '_blank');
-        }
+        setActiveStep(5);
       } else {
+        // Sin pago requerido, ir al paso final
         setBookingConfirmed(true);
+        setActiveStep(5);
       }
     } catch (error: any) {
       console.error('Error creating booking:', error);
@@ -297,7 +297,7 @@ const BookingPage: React.FC = () => {
   const selectedService = services.find(s => s.id === bookingData.serviceId);
   const selectedProfessional = professionals.find(p => p.id === bookingData.employeeId);
 
-  // Poll booking status after redirecting to MercadoPago until confirmed or timeout
+  // Poll booking status after initiating MercadoPago until confirmed or timeout
   useEffect(() => {
     if (!paymentRequired || !createdBookingId) return;
 
@@ -313,6 +313,8 @@ const BookingPage: React.FC = () => {
         const status = (res?.data?.status || res?.data?.Status || '').toString().toLowerCase();
         if (status === 'confirmed' || status === 'completed') {
           setPaymentRequired(false);
+          setBookingConfirmed(true);
+          setActiveStep(5);
           return; // stop polling
         }
         if (status === 'cancelled') {
@@ -718,7 +720,7 @@ const BookingPage: React.FC = () => {
                 Confirma tu reserva
               </Typography>
               <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
-                Revisa los detalles de tu reserva antes de confirmar
+                Revisa los detalles de tu reserva antes de continuar al pago
               </Typography>
               <Paper sx={{ p: 3, maxWidth: 600, margin: '0 auto', bgcolor: 'background.default' }}>
                 <Grid container spacing={2}>
@@ -817,96 +819,88 @@ const BookingPage: React.FC = () => {
           </Fade>
         );
 
+      case 5:
+        // Paso de Pago y Confirmación final
+        return (
+          <Fade in timeout={500}>
+            <Box>
+              {!bookingConfirmed ? (
+                <>
+                  <Typography variant="h5" gutterBottom align="center">
+                    Pago con MercadoPago
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
+                    Generá el pago y completalo para confirmar tu reserva
+                  </Typography>
+                  <Paper sx={{ p: 3, textAlign: 'center' }}>
+                    {errors.submit && (
+                      <Alert severity="error" sx={{ mb: 2 }}>{errors.submit}</Alert>
+                    )}
+                    {!createdBookingId ? (
+                      <Button variant="contained" size="large" onClick={handleSubmit} disabled={submitting}>
+                        {submitting ? 'Generando pago...' : 'Generar pago'}
+                      </Button>
+                    ) : paymentRequired && paymentInfo?.initPoint ? (
+                      <>
+                        <Typography variant="h6" sx={{ mb: 1 }}>
+                          Seña {paymentInfo.amount ? `: $${paymentInfo.amount}` : ''}
+                        </Typography>
+                        <Button variant="contained" size="large" onClick={() => window.location.assign(paymentInfo.initPoint!)}>
+                          Pagar ahora con MercadoPago
+                        </Button>
+                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                          Se abrirá la pasarela de pago en esta pestaña
+                        </Typography>
+                        <Alert severity="info" sx={{ mt: 2 }}>
+                          Luego de pagar, volveremos a esta pantalla y confirmaremos tu reserva automáticamente.
+                        </Alert>
+                      </>
+                    ) : (
+                      <Alert severity="success">No se requiere pago. Podés finalizar.</Alert>
+                    )}
+                  </Paper>
+                </>
+              ) : (
+                <Container maxWidth="sm" sx={{ py: 2 }}>
+                  <Paper sx={{ p: 4, textAlign: 'center' }}>
+                    <Zoom in timeout={300}>
+                      <Avatar sx={{ width: 80, height: 80, bgcolor: 'success.main', margin: '0 auto 24px' }}>
+                        <Check sx={{ fontSize: 48 }} />
+                      </Avatar>
+                    </Zoom>
+                    <Typography variant="h4" gutterBottom color="success.main">
+                      ¡Reserva Confirmada!
+                    </Typography>
+                    <Paper sx={{ p: 2, bgcolor: 'grey.100', mb: 3 }}>
+                      <Typography variant="h6" gutterBottom>
+                        Código de confirmación:
+                      </Typography>
+                      <Typography variant="h4" color="primary" sx={{ fontFamily: 'monospace' }}>
+                        {confirmationCode}
+                      </Typography>
+                    </Paper>
+                    <Alert severity="info" sx={{ mb: 3 }}>
+                      Hemos enviado los detalles de tu reserva a {bookingData.customerEmail}
+                    </Alert>
+                    <Typography variant="body2" color="text.secondary" paragraph>
+                      Te esperamos el {format(bookingData.date, "EEEE d 'de' MMMM", { locale: es })} a las {bookingData.time}
+                    </Typography>
+                    <Button variant="outlined" size="large" onClick={() => window.location.reload()}>
+                      Hacer otra reserva
+                    </Button>
+                  </Paper>
+                </Container>
+              )}
+            </Box>
+          </Fade>
+        );
+
       default:
         return null;
     }
   };
 
-  if (bookingConfirmed) {
-    return (
-      <Container maxWidth="sm" sx={{ py: 8 }}>
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.5 }}
-        >
-          <Paper sx={{ p: 4, textAlign: 'center' }}>
-            <Zoom in timeout={300}>
-              <Avatar
-                sx={{
-                  width: 80,
-                  height: 80,
-                  bgcolor: paymentRequired ? 'warning.main' : 'success.main',
-                  margin: '0 auto 24px',
-                }}
-              >
-                <Check sx={{ fontSize: 48 }} />
-              </Avatar>
-            </Zoom>
-            
-            {paymentRequired ? (
-              <Typography variant="h4" gutterBottom color="warning.main">
-                Pago de seña pendiente
-              </Typography>
-            ) : (
-              <Typography variant="h4" gutterBottom color="success.main">
-                ¡Reserva Confirmada!
-              </Typography>
-            )}
-            
-            {paymentRequired ? (
-              <Typography variant="body1" color="text.secondary" paragraph>
-                Para confirmar tu reserva, pagá la seña{paymentInfo?.amount ? ` de $${paymentInfo.amount}` : ''}.
-              </Typography>
-            ) : (
-              <Typography variant="body1" color="text.secondary" paragraph>
-                Tu reserva ha sido confirmada exitosamente.
-              </Typography>
-            )}
-            
-            <Paper sx={{ p: 2, bgcolor: 'grey.100', mb: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                Código de confirmación:
-              </Typography>
-              <Typography variant="h4" color="primary" sx={{ fontFamily: 'monospace' }}>
-                {confirmationCode}
-              </Typography>
-            </Paper>
-            
-            {paymentRequired ? (
-              <>
-                {paymentInfo?.initPoint && (
-                  <Button variant="contained" color="primary" onClick={() => window.open(paymentInfo.initPoint!, '_blank')} sx={{ mb: 2 }}>
-                    Pagar ahora con MercadoPago
-                  </Button>
-                )}
-                <Alert severity="warning" sx={{ mb: 3 }}>
-                  Tu reserva quedará confirmada automáticamente cuando se acredite el pago de la seña.
-                </Alert>
-              </>
-            ) : (
-              <Alert severity="info" sx={{ mb: 3 }}>
-                Hemos enviado los detalles de tu reserva a {bookingData.customerEmail}
-              </Alert>
-            )}
-            
-            <Typography variant="body2" color="text.secondary" paragraph>
-              Te esperamos el {format(bookingData.date, "EEEE d 'de' MMMM", { locale: es })} a las {bookingData.time}
-            </Typography>
-            
-            <Button
-              variant="contained"
-              size="large"
-              onClick={() => window.location.reload()}
-              sx={{ mt: 2 }}
-            >
-              Hacer otra reserva
-            </Button>
-          </Paper>
-        </motion.div>
-      </Container>
-    );
-  }
+  // No early return; el contenido final se muestra como último paso del stepper
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50', py: 4 }}>
@@ -963,15 +957,26 @@ const BookingPage: React.FC = () => {
                 </Button>
                 
                 {activeStep === steps.length - 1 ? (
-                  <Button
-                    variant="contained"
-                    size="large"
-                    onClick={handleSubmit}
-                    disabled={submitting}
-                    endIcon={submitting ? <CircularProgress size={20} /> : <Check />}
-                  >
-                    Confirmar Reserva
-                  </Button>
+                  !createdBookingId ? (
+                    <Button
+                      variant="contained"
+                      size="large"
+                      onClick={handleSubmit}
+                      disabled={submitting}
+                      endIcon={submitting ? <CircularProgress size={20} /> : <Check />}
+                    >
+                      Confirmar Reserva
+                    </Button>
+                  ) : paymentRequired && !bookingConfirmed ? (
+                    <Button
+                      variant="contained"
+                      size="large"
+                      onClick={() => paymentInfo?.initPoint && window.location.assign(paymentInfo.initPoint)}
+                      disabled={!paymentInfo?.initPoint}
+                    >
+                      Pagar ahora
+                    </Button>
+                  ) : null
                 ) : (
                   <Button
                     variant="contained"
