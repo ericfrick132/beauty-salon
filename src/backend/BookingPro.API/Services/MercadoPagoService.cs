@@ -97,7 +97,7 @@ namespace BookingPro.API.Services
                 {
                     var oauthConfig = await _context.MercadoPagoConfigurations
                         .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.IsActive);
-                    var merchantEmail = oauthConfig?.AccountEmail?.Trim().ToLowerInvariant();
+                    var merchantEmail = oauthConfig?.UserEmail?.Trim().ToLowerInvariant();
                     var buyerEmail = (booking.Customer?.Email ?? dto.CustomerEmail ?? string.Empty).Trim().ToLowerInvariant();
                     if (!string.IsNullOrEmpty(merchantEmail) && !string.IsNullOrEmpty(buyerEmail) && merchantEmail == buyerEmail)
                     {
@@ -835,11 +835,13 @@ namespace BookingPro.API.Services
                 }
                 
                 var httpClient = new HttpClient();
+                var clientId = _configuration["MercadoPago:ClientId"] ?? string.Empty;
+                var clientSecret = _configuration["MercadoPago:ClientSecret"] ?? string.Empty;
                 var tokenRequest = new Dictionary<string, string>
                 {
                     ["grant_type"] = "refresh_token",
-                    ["client_id"] = _configuration["MercadoPago:ClientId"],
-                    ["client_secret"] = _configuration["MercadoPago:ClientSecret"],
+                    ["client_id"] = clientId,
+                    ["client_secret"] = clientSecret,
                     ["refresh_token"] = mpConfig.RefreshToken
                 };
                 
