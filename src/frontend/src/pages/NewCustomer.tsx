@@ -41,15 +41,12 @@ const NewCustomer: React.FC = () => {
     if (!formData.firstName.trim()) {
       newErrors.firstName = 'El nombre es requerido';
     }
-    
-    if (!formData.email.trim()) {
-      newErrors.email = 'El email es requerido';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'El email no es válido';
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = 'El apellido es requerido';
     }
-    
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'El teléfono es requerido';
+    // Email opcional: validar formato solo si está presente
+    if (formData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'El email no es válido';
     }
     
     setErrors(newErrors);
@@ -68,8 +65,8 @@ const NewCustomer: React.FC = () => {
       await api.post('/customers', {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim() || null,
-        email: formData.email.trim(),
-        phone: formData.phone.trim(),
+        email: formData.email.trim() || null,
+        phone: formData.phone.trim() || null,
         address: formData.address.trim() || null,
         notes: formData.notes.trim() || null,
       });
@@ -146,52 +143,52 @@ const NewCustomer: React.FC = () => {
               </Grid>
 
               <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Nombre *"
-                  value={formData.firstName}
-                  onChange={handleChange('firstName')}
-                  error={!!errors.firstName}
-                  helperText={errors.firstName}
-                  disabled={submitting}
-                />
+              <TextField
+                fullWidth
+                label="Nombre *"
+                value={formData.firstName}
+                onChange={handleChange('firstName')}
+                error={!!errors.firstName}
+                helperText={errors.firstName}
+                disabled={submitting}
+              />
               </Grid>
 
               <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Apellido"
-                  value={formData.lastName}
-                  onChange={handleChange('lastName')}
-                  error={!!errors.lastName}
-                  helperText={errors.lastName}
-                  disabled={submitting}
-                />
+              <TextField
+                fullWidth
+                label="Apellido *"
+                value={formData.lastName}
+                onChange={handleChange('lastName')}
+                error={!!errors.lastName}
+                helperText={errors.lastName}
+                disabled={submitting}
+              />
               </Grid>
 
               <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Email *"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleChange('email')}
-                  error={!!errors.email}
-                  helperText={errors.email}
-                  disabled={submitting}
-                />
+              <TextField
+                fullWidth
+                label="Email"
+                type="email"
+                value={formData.email}
+                onChange={handleChange('email')}
+                error={!!errors.email}
+                helperText={errors.email}
+                disabled={submitting}
+              />
               </Grid>
 
               <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Teléfono *"
-                  value={formData.phone}
-                  onChange={handleChange('phone')}
-                  error={!!errors.phone}
-                  helperText={errors.phone}
-                  disabled={submitting}
-                />
+              <TextField
+                fullWidth
+                label="Teléfono"
+                value={formData.phone}
+                onChange={handleChange('phone')}
+                error={!!errors.phone}
+                helperText={errors.phone}
+                disabled={submitting}
+              />
               </Grid>
 
               <Grid item xs={12}>

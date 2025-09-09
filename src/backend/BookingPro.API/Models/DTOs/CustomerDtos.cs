@@ -7,14 +7,14 @@ namespace BookingPro.API.Models.DTOs
         [Required, MaxLength(100)]
         public string FirstName { get; set; } = string.Empty;
         
-        [MaxLength(100)]
-        public string? LastName { get; set; }
+        [Required, MaxLength(100)]
+        public string LastName { get; set; } = string.Empty;
         
         [MaxLength(255)]
         public string? Email { get; set; }
         
-        [Required, MaxLength(50)]
-        public string Phone { get; set; } = string.Empty;
+        [MaxLength(50)]
+        public string? Phone { get; set; }
         
         [MaxLength(20)]
         public string? Dni { get; set; }
