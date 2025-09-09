@@ -92,6 +92,20 @@ namespace BookingPro.API.Services
                     _logger.LogInformation("Using OAuth access token for tenant {TenantId}", tenantId);
                 }
 
+                // Validación: evitar que el comprador sea la misma cuenta del comercio (collector)
+                try
+                {
+                    var oauthConfig = await _context.MercadoPagoConfigurations
+                        .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.IsActive);
+                    var merchantEmail = oauthConfig?.AccountEmail?.Trim().ToLowerInvariant();
+                    var buyerEmail = (booking.Customer?.Email ?? dto.CustomerEmail ?? string.Empty).Trim().ToLowerInvariant();
+                    if (!string.IsNullOrEmpty(merchantEmail) && !string.IsNullOrEmpty(buyerEmail) && merchantEmail == buyerEmail)
+                    {
+                        return ServiceResult<CreatePaymentResponseDto>.Fail("No se puede pagar con la misma cuenta del comercio. Cerrá sesión en MercadoPago e iniciá con otra cuenta.");
+                    }
+                }
+                catch { /* ignore non-critical check */ }
+
                 // Calcular monto a cobrar
                 decimal amountToPay;
                 if (dto.PaymentType == "deposit" && dto.Amount > 0)
@@ -106,6 +120,12 @@ namespace BookingPro.API.Services
                         dto.PaymentType,
                         paymentConfig?.MinimumDepositPercentage,
                         paymentConfig?.MinimumDepositAmount);
+                }
+
+                // Enforce MP minimum amount (>= 1 ARS) to avoid disabled checkout
+                if (amountToPay < 1)
+                {
+                    amountToPay = 1;
                 }
 
                 // Crear preferencia de pago
