@@ -283,7 +283,7 @@ const BookingPage: React.FC = () => {
         // Ir al paso de Pago y esperar acción del usuario
         setPaymentRequired(true);
         setPaymentInfo({ initPoint: response.data.payment?.initPoint, amount: response.data.payment?.amount });
-        setActiveStep(4);
+        setActiveStep(5);
       } else {
         // Sin pago requerido, ir al paso final
         setBookingConfirmed(true);
@@ -989,7 +989,7 @@ const BookingPage: React.FC = () => {
                       Pagar ahora
                     </Button>
                   ) : null
-                ) : activeStep === steps.length - 1 ? null : (
+                ) : activeStep === ((services.find(s => s.id === bookingData.serviceId)?.requiresDeposit) ? 5 : 4) ? null : (
                   <Button
                     variant="contained"
                     size="large"
