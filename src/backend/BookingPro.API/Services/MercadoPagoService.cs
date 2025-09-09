@@ -131,9 +131,9 @@ namespace BookingPro.API.Services
                     },
                     BackUrls = new PreferenceBackUrlsRequest
                     {
-                        Success = $"{_configuration["BaseUrl"]}/booking-confirmation?status=success&bookingId={booking.Id}",
-                        Failure = $"{_configuration["BaseUrl"]}/booking-confirmation?status=failure&bookingId={booking.Id}",
-                        Pending = $"{_configuration["BaseUrl"]}/booking-confirmation?status=pending&bookingId={booking.Id}"
+                        Success = $"{(_configuration["FrontendUrl"] ?? _configuration["BaseUrl"] ?? string.Empty).TrimEnd('/')}/booking-confirmation?status=success&bookingId={booking.Id}",
+                        Failure = $"{(_configuration["FrontendUrl"] ?? _configuration["BaseUrl"] ?? string.Empty).TrimEnd('/')}/booking-confirmation?status=failure&bookingId={booking.Id}",
+                        Pending = $"{(_configuration["FrontendUrl"] ?? _configuration["BaseUrl"] ?? string.Empty).TrimEnd('/')}/booking-confirmation?status=pending&bookingId={booking.Id}"
                     },
                     AutoReturn = "approved",
                     NotificationUrl = $"{_configuration["BaseUrl"]}/api/webhooks/mercadopago/{tenantId}",
