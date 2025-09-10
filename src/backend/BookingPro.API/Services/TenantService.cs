@@ -235,8 +235,8 @@ namespace BookingPro.API.Services
 
                 await transaction.CommitAsync();
 
-                // Build tenant URL
-                var tenantUrl = $"https://{tenant.Subdomain}.{vertical.Domain}";
+                // Build tenant URL (always use production domain; controllers may override for localhost)
+                var tenantUrl = $"https://{tenant.Subdomain}.turnos-pro.com";
 
                 var result = new TenantCreationResult
                 {

@@ -324,6 +324,68 @@ namespace BookingPro.API.Services
 
                     _logger.LogInformation("Tenant {TenantId} subscription payment approved for period {Period}", 
                         tenant.Id, subscriptionPayment.Period);
+
+                    // Credit included WhatsApp messages for the paid period (idempotent by paymentId)
+                    try
+                    {
+                        var alreadyCredited = await _context.MessageLogs
+                            .IgnoreQueryFilters()
+                            .AnyAsync(l => l.TenantId == tenant.Id &&
+                                          l.Channel == "system" &&
+                                          l.MessageType == "include" &&
+                                          l.ProviderMessageId == paymentId);
+
+                        if (!alreadyCredited)
+                        {
+                            // Determine included messages based on period
+                            int perMonthIncluded = 600; // default included per month (AR strategy)
+                            int months = subscriptionPayment.Period?.ToLower() switch
+                            {
+                                "monthly" => 1,
+                                "quarterly" => 3,
+                                "annual" or "yearly" => 12,
+                                _ => 1
+                            };
+                            int toCredit = perMonthIncluded * months;
+
+                            var wallet = await _context.TenantMessageWallets
+                                .IgnoreQueryFilters()
+                                .FirstOrDefaultAsync(w => w.TenantId == tenant.Id);
+                            if (wallet == null)
+                            {
+                                wallet = new TenantMessageWallet
+                                {
+                                    TenantId = tenant.Id,
+                                    Balance = 0,
+                                    TotalPurchased = 0,
+                                    TotalSent = 0,
+                                };
+                                _context.TenantMessageWallets.Add(wallet);
+                            }
+
+                            wallet.Balance += toCredit;
+                            wallet.TotalPurchased += toCredit; // track as agregado al saldo
+                            wallet.UpdatedAt = DateTime.UtcNow;
+
+                            _context.MessageLogs.Add(new MessageLog
+                            {
+                                TenantId = tenant.Id,
+                                Channel = "system",
+                                MessageType = "include",
+                                Status = "sent",
+                                ProviderMessageId = paymentId,
+                                To = "",
+                                Body = $"Crédito de {toCredit} mensajes incluidos por período {subscriptionPayment.Period}",
+                                SentAt = DateTime.UtcNow,
+                            });
+
+                            _logger.LogInformation("Credited {Qty} included WhatsApp messages to tenant {TenantId} for period {Period}", toCredit, tenant.Id, subscriptionPayment.Period);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error crediting included WhatsApp messages for tenant {TenantId}", tenant.Id);
+                    }
                 }
 
                 await _context.SaveChangesAsync();

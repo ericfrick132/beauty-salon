@@ -38,6 +38,8 @@ import {
   Payment,
   ExpandMore,
   ExpandLess,
+  ContentCopy,
+  OpenInNew,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -80,6 +82,17 @@ const Dashboard: React.FC = () => {
   const [unpaidBookings, setUnpaidBookings] = useState<any[]>([]);
   const [loadingUnpaid, setLoadingUnpaid] = useState(false);
   const [showUnpaidDetails, setShowUnpaidDetails] = useState(false);
+  const [copiedBookingLink, setCopiedBookingLink] = useState(false);
+  const bookingShareUrl = `${window.location.origin}/book`;
+  const handleCopyBookingLink = async () => {
+    try {
+      await navigator.clipboard.writeText(bookingShareUrl);
+      setCopiedBookingLink(true);
+      setTimeout(() => setCopiedBookingLink(false), 1500);
+    } catch {
+      setCopiedBookingLink(false);
+    }
+  };
 
   useEffect(() => {
     dispatch(fetchBookings());
@@ -330,6 +343,52 @@ const Dashboard: React.FC = () => {
             </Typography>
           </Box>
         </motion.div>
+
+        {/* Customer Booking Link - prominent */}
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          <Grid item xs={12}>
+            <Card
+              sx={{
+                background: cardBackground,
+                boxShadow: shadowStyle,
+                border: '1px solid',
+                borderColor: 'divider',
+              }}
+            >
+              <CardContent>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Typography variant="h6" sx={{ mb: 0.5 }}>
+                    Comparte este enlace con tus clientes para reservar
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                    <Paper variant="outlined" sx={{ p: 1.5, px: 2, flex: 1, minWidth: 280 }}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700, wordBreak: 'break-all' }}>
+                        {bookingShareUrl}
+                      </Typography>
+                    </Paper>
+                    <Tooltip title={copiedBookingLink ? 'Copiado!' : 'Copiar enlace'}>
+                      <span>
+                        <Button variant="contained" onClick={handleCopyBookingLink} startIcon={<ContentCopy />}>
+                          {copiedBookingLink ? 'Copiado' : 'Copiar'}
+                        </Button>
+                      </span>
+                    </Tooltip>
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      startIcon={<OpenInNew />}
+                      href={bookingShareUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Abrir
+                    </Button>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
 
         {/* Subscription Status Card */}
         <SubscriptionStatus showActions={true} />

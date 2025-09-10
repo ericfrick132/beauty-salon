@@ -520,7 +520,7 @@ const SuperAdminDashboard: React.FC = () => {
                 <Button
                   variant="outlined"
                   startIcon={<People />}
-                  onClick={() => setCurrentTab(2)}
+                  onClick={() => setCurrentTab(3)}
                 >
                   Ver Negocios
                 </Button>
@@ -552,6 +552,83 @@ const SuperAdminDashboard: React.FC = () => {
             Crea invitaciones para que nuevos negocios se registren en la plataforma.
             Los administradores recibirán un enlace para completar su registro y definir su contraseña.
           </Typography>
+        </CardContent>
+      </Card>
+    </Box>
+  );
+
+  const renderInvitationsList = () => (
+    <Box sx={{ p: 3 }}>
+      <Card>
+        <CardHeader 
+          title="Invitaciones Enviadas"
+          action={
+            <Button startIcon={<Refresh />} onClick={loadInvitations}>Actualizar</Button>
+          }
+        />
+        <CardContent>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Negocio</TableCell>
+                  <TableCell>Subdominio</TableCell>
+                  <TableCell>Email Admin</TableCell>
+                  <TableCell>Vertical</TableCell>
+                  <TableCell>Estado</TableCell>
+                  <TableCell>Creada</TableCell>
+                  <TableCell>Expira</TableCell>
+                  <TableCell>Acciones</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {invitations.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} sx={{ textAlign: 'center', py: 4 }}>
+                      No hay invitaciones enviadas
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  invitations.map((inv) => (
+                    <TableRow key={inv.id}>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight="medium">{inv.businessName}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="primary">{inv.subdomain}</Typography>
+                      </TableCell>
+                      <TableCell>{inv.adminEmail}</TableCell>
+                      <TableCell>{inv.verticalName || 'N/A'}</TableCell>
+                      <TableCell>
+                        <Chip size="small" label={String(inv.status).toUpperCase()} color={getStatusColor(String(inv.status)) as any} />
+                      </TableCell>
+                      <TableCell>{formatDate(inv.createdAt)}</TableCell>
+                      <TableCell>{formatDate(inv.expiresAt)}</TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Tooltip title="Copiar enlace">
+                            <IconButton size="small" onClick={() => copyToClipboard(inv.invitationUrl)}>
+                              <ContentCopy fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Reenviar invitación">
+                            <IconButton size="small" color="primary" onClick={() => handleResendInvitation(inv.id)}>
+                              <Send fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Cancelar invitación">
+                            <IconButton size="small" color="error" onClick={() => handleCancelInvitation(inv.id)}>
+                              <Cancel fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
         </CardContent>
       </Card>
     </Box>
@@ -709,6 +786,7 @@ const SuperAdminDashboard: React.FC = () => {
           >
             <Tab icon={<Dashboard />} label="Dashboard" />
             <Tab icon={<Email />} label="Crear Invitación" />
+            <Tab icon={<Email />} label="Invitaciones Enviadas" />
             <Tab icon={<People />} label="Negocios Registrados" />
             <Tab icon={<Subscriptions />} label="Suscripciones" />
             <Tab icon={<AttachMoney />} label="Facturación" />
@@ -725,11 +803,15 @@ const SuperAdminDashboard: React.FC = () => {
           </div>
           
           <div role="tabpanel" hidden={currentTab !== 2}>
-            {currentTab === 2 && renderManageInvitations()}
+            {currentTab === 2 && renderInvitationsList()}
           </div>
           
           <div role="tabpanel" hidden={currentTab !== 3}>
-            {currentTab === 3 && (
+            {currentTab === 3 && renderManageInvitations()}
+          </div>
+          
+          <div role="tabpanel" hidden={currentTab !== 4}>
+            {currentTab === 4 && (
               <Box sx={{ p: 3 }}>
                 <Typography variant="h5">Suscripciones</Typography>
                 <Typography color="text.secondary">Próximamente...</Typography>
@@ -737,8 +819,8 @@ const SuperAdminDashboard: React.FC = () => {
             )}
           </div>
           
-          <div role="tabpanel" hidden={currentTab !== 4}>
-            {currentTab === 4 && (
+          <div role="tabpanel" hidden={currentTab !== 5}>
+            {currentTab === 5 && (
               <Box sx={{ p: 3 }}>
                 <Typography variant="h5">Facturación</Typography>
                 <Typography color="text.secondary">Próximamente...</Typography>
@@ -746,8 +828,8 @@ const SuperAdminDashboard: React.FC = () => {
             )}
           </div>
           
-          <div role="tabpanel" hidden={currentTab !== 5}>
-            {currentTab === 5 && (
+          <div role="tabpanel" hidden={currentTab !== 6}>
+            {currentTab === 6 && (
               <Box sx={{ p: 3 }}>
                 <Typography variant="h5">Configuración</Typography>
                 <Typography color="text.secondary">Próximamente...</Typography>

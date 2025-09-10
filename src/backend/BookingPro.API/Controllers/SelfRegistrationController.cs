@@ -14,6 +14,7 @@ namespace BookingPro.API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly ITenantService _tenantService;
+        private readonly IAuthService _authService;
         private readonly ILogger<SelfRegistrationController> _logger;
 
         // Reserved subdomains that cannot be used
@@ -30,10 +31,12 @@ namespace BookingPro.API.Controllers
         public SelfRegistrationController(
             ApplicationDbContext context,
             ITenantService tenantService,
+            IAuthService authService,
             ILogger<SelfRegistrationController> logger)
         {
             _context = context;
             _tenantService = tenantService;
+            _authService = authService;
             _logger = logger;
         }
 
@@ -102,16 +105,53 @@ namespace BookingPro.API.Controllers
 
                 _logger.LogInformation("Self-registered tenant created successfully: {Subdomain}", dto.Subdomain);
 
+                // Build final tenant URL (prod domain or localhost for dev)
+                var host = HttpContext?.Request?.Host.Host ?? string.Empty;
+                var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");
+                var sub = result.Data!.Subdomain;
+                var finalTenantUrl = isLocal
+                    ? $"http://{sub}.localhost:3001"
+                    : $"https://{sub}.turnos-pro.com";
+
+                // Generate auto-login token for the newly created admin
+                string? token = null;
+                try
+                {
+                    var adminUser = await _context.Users
+                        .IgnoreQueryFilters()
+                        .Where(u => u.TenantId == result.Data.Id && u.Email == dto.AdminEmail)
+                        .FirstOrDefaultAsync();
+
+                    if (adminUser != null)
+                    {
+                        token = _authService.GenerateJwtToken(adminUser);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("[SelfRegistration] Admin user not found to generate token for tenant {TenantId}", result.Data.Id);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "[SelfRegistration] Error generating auto-login token for tenant {TenantId}", result.Data.Id);
+                }
+
+                var redirectUrl = token != null
+                    ? $"{finalTenantUrl}/dashboard?impersonationToken={token}"
+                    : finalTenantUrl;
+
                 // Return success response
                 var response = new SelfRegistrationResponseDto
                 {
                     TenantId = result.Data!.Id,
-                    TenantUrl = result.Data.TenantUrl,
+                    TenantUrl = finalTenantUrl,
                     Subdomain = result.Data.Subdomain,
                     BusinessName = result.Data.BusinessName,
                     IsDemo = true,
                     DemoDays = 7,
-                    DemoExpiresAt = DateTime.UtcNow.AddDays(7)
+                    DemoExpiresAt = DateTime.UtcNow.AddDays(7),
+                    Token = token,
+                    RedirectUrl = redirectUrl
                 };
 
                 return Ok(new { 

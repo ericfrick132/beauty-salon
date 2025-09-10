@@ -71,6 +71,9 @@ namespace BookingPro.API.Models.DTOs
         public bool IsDemo { get; set; }
         public int DemoDays { get; set; }
         public DateTime DemoExpiresAt { get; set; }
+        // Auto-login support
+        public string? Token { get; set; }
+        public string? RedirectUrl { get; set; }
     }
 
     public class CheckSubdomainDto
