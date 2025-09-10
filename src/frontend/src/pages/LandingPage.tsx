@@ -315,8 +315,8 @@ const LandingPage: React.FC = () => {
     const protocol = isLocal ? 'http:' : 'https:';
 
     if (token && tenantSubdomain) {
-      // Direct auto-login into dashboard via impersonationToken
-      return `${protocol}//${tenantSubdomain}.${domain}/dashboard?impersonationToken=${encodeURIComponent(token)}`;
+      // Direct auto-login into dashboard via impersonationToken and start tour
+      return `${protocol}//${tenantSubdomain}.${domain}/dashboard?impersonationToken=${encodeURIComponent(token)}&tour=onboarding`;
     }
 
     if (tenantSubdomain && dashboardUrl) {

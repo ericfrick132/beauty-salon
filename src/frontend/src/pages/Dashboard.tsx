@@ -71,6 +71,7 @@ import {
   getTextColor, 
   getCardBackground 
 } from '../utils/themeUtils';
+import { startOnboardingTour } from '../tours/onboarding';
 
 const Dashboard: React.FC = () => {
   const { config, getTerm } = useTenant();
@@ -103,6 +104,25 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     fetchFinancialStats();
+  }, []);
+
+  // Launch guided tour if query param says so and not shown before
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const wantsTour = params.get('tour') === 'onboarding' || params.get('onboarding') === '1';
+    const alreadyShown = localStorage.getItem('tp_onboarding_shown') === '1';
+    if (wantsTour && !alreadyShown) {
+      // Clean the param to avoid restarting on refresh
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('tour');
+      newUrl.searchParams.delete('onboarding');
+      window.history.replaceState({}, '', newUrl.toString());
+      // Start tour after small delay to ensure elements are present
+      setTimeout(() => {
+        startOnboardingTour();
+        localStorage.setItem('tp_onboarding_shown', '1');
+      }, 500);
+    }
   }, []);
 
   const fetchFinancialStats = async () => {
@@ -368,7 +388,7 @@ const Dashboard: React.FC = () => {
                     </Paper>
                     <Tooltip title={copiedBookingLink ? 'Copiado!' : 'Copiar enlace'}>
                       <span>
-                        <Button variant="contained" onClick={handleCopyBookingLink} startIcon={<ContentCopy />}>
+                        <Button id="tp-copy-link" variant="contained" onClick={handleCopyBookingLink} startIcon={<ContentCopy />}>
                           {copiedBookingLink ? 'Copiado' : 'Copiar'}
                         </Button>
                       </span>

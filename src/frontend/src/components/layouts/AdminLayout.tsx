@@ -460,6 +460,10 @@ export const AdminLayout: React.FC = () => {
                     sx={{
                       mx: { xs: 0.5, sm: 1 },
                     }}
+                    id={
+                      item.text === 'Clientes' ? 'tp-menu-customers' :
+                      item.text === 'Configuración' ? 'tp-menu-settings' : undefined
+                    }
                   >
                     <ListItemIcon sx={{ minWidth: { xs: 35, sm: 40 } }}>
                       {item.icon}
@@ -509,6 +513,12 @@ export const AdminLayout: React.FC = () => {
                       fontSize: { xs: '0.875rem', sm: '1rem' },
                     },
                   }}
+                  id={
+                    item.text === 'Calendario' ? 'tp-menu-calendar' :
+                    item.text === 'Clientes' ? 'tp-menu-customers' :
+                    item.text === 'Reportes' ? 'tp-menu-reports' :
+                    item.text === 'Configuración' ? 'tp-menu-settings' : undefined
+                  }
                 >
                   <ListItemIcon sx={{ minWidth: { xs: 35, sm: 40 } }}>
                     {item.icon}
@@ -634,7 +644,7 @@ export const AdminLayout: React.FC = () => {
             {drawer}
           </Drawer>
         ) : (
-          <StyledDrawer variant="permanent" open>
+          <StyledDrawer variant="permanent" open id="tp-sidebar">
             {drawer}
           </StyledDrawer>
         )}

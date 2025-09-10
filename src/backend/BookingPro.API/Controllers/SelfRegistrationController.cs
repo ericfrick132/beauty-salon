@@ -137,7 +137,7 @@ namespace BookingPro.API.Controllers
                 }
 
                 var redirectUrl = token != null
-                    ? $"{finalTenantUrl}/dashboard?impersonationToken={token}"
+                    ? $"{finalTenantUrl}/dashboard?impersonationToken={token}&tour=onboarding"
                     : finalTenantUrl;
 
                 // Return success response
