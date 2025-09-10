@@ -452,8 +452,11 @@ namespace BookingPro.API.Services
 
                 var status = new SubscriptionStatusDto
                 {
-                    IsActive = subscription.Status == "active" || 
-                               (subscription.IsTrialPeriod && subscription.TrialEndsAt > DateTime.UtcNow),
+                    IsActive = subscription.Status == "active" ||
+                               (subscription.IsTrialPeriod && (
+                                   (subscription.TrialEndsAt.HasValue && subscription.TrialEndsAt > DateTime.UtcNow) ||
+                                   (!subscription.TrialEndsAt.HasValue && subscription.NextPaymentDate.HasValue && subscription.NextPaymentDate > DateTime.UtcNow)
+                               )),
                     PlanType = subscription.PlanType,
                     PlanName = plan?.Name ?? subscription.PlanType,
                     MonthlyAmount = subscription.MonthlyAmount,

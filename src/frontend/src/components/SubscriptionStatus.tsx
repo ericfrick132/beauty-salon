@@ -34,6 +34,7 @@ interface SubscriptionStatusData {
   isTrialPeriod: boolean;
   trialEndsAt?: string;
   qrCodeData?: string;
+  createdAt?: string;
 }
 
 interface SubscriptionStatusProps {
@@ -169,7 +170,7 @@ const SubscriptionStatus: React.FC<SubscriptionStatusProps> = ({
             </Alert>
           )}
 
-          {!status.isActive && (
+          {!status.isActive && (!status.isTrialPeriod || status.daysRemaining <= 0) && (
             <Alert severity="error" sx={{ mb: 2 }}>
               <Typography variant="body2">
                 Tu período de prueba ha expirado. Suscríbete para continuar usando Turnos Pro.
@@ -211,14 +212,32 @@ const SubscriptionStatus: React.FC<SubscriptionStatusProps> = ({
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Progreso del período de prueba
               </Typography>
-              <LinearProgress
-                variant="determinate"
-                value={((14 - status.daysRemaining) / 14) * 100}
-                sx={{ height: 8, borderRadius: 4 }}
-              />
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
-                {14 - status.daysRemaining} de 14 días utilizados
-              </Typography>
+              {(() => {
+                const dayMs = 24 * 60 * 60 * 1000;
+                const createdAt = status.createdAt ? new Date(status.createdAt) : null;
+                const trialEndsAt = status.trialEndsAt ? new Date(status.trialEndsAt) : null;
+                const totalTrialDays = createdAt && trialEndsAt
+                  ? Math.max(1, Math.round((trialEndsAt.getTime() - createdAt.getTime()) / dayMs))
+                  : 14; // fallback
+                const usedDays = Math.min(
+                  totalTrialDays,
+                  Math.max(0, totalTrialDays - status.daysRemaining)
+                );
+                const progress = (usedDays / totalTrialDays) * 100;
+                return (
+                  <>
+                    <LinearProgress
+                      variant="determinate"
+                      value={progress}
+                      sx={{ height: 8, borderRadius: 4 }}
+                    />
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                      {usedDays} de {totalTrialDays} días utilizados
+                    </Typography>
+                  </>
+                );
+              })()}
+              
             </Box>
           )}
 

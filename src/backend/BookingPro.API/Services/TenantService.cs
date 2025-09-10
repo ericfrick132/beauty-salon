@@ -214,6 +214,7 @@ namespace BookingPro.API.Services
                 // Create subscription for demo
                 if (dto.IsDemo)
                 {
+                    var trialDays = dto.DemoDays ?? 7;
                     var subscription = new Subscription
                     {
                         Id = Guid.NewGuid(),
@@ -221,7 +222,9 @@ namespace BookingPro.API.Services
                         PlanType = "demo",
                         MonthlyAmount = 0,
                         Status = "trial",
-                        NextPaymentDate = DateTime.UtcNow.AddDays(dto.DemoDays ?? 7),
+                        IsTrialPeriod = true,
+                        TrialEndsAt = DateTime.UtcNow.AddDays(trialDays),
+                        // NextPaymentDate is NOT used for trial; use TrialEndsAt instead
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
                     };

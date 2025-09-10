@@ -90,7 +90,10 @@ namespace BookingPro.API.Middleware
                 {
                     // Check subscription status
                     var isActive = subscription.Status == "active" ||
-                                  (subscription.IsTrialPeriod && subscription.TrialEndsAt > DateTime.UtcNow);
+                                  (subscription.IsTrialPeriod && (
+                                      (subscription.TrialEndsAt.HasValue && subscription.TrialEndsAt > DateTime.UtcNow) ||
+                                      (!subscription.TrialEndsAt.HasValue && subscription.NextPaymentDate.HasValue && subscription.NextPaymentDate > DateTime.UtcNow)
+                                  ));
 
                     if (!isActive)
                     {

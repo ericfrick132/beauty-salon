@@ -21,6 +21,7 @@ interface SubscriptionStatus {
   daysRemaining: number;
   isTrialPeriod: boolean;
   trialEndsAt?: string;
+  createdAt?: string;
 }
 
 const SubscriptionVerification: React.FC = () => {
