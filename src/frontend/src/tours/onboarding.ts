@@ -2,11 +2,46 @@
 // this will no-op gracefully.
 
 export async function startOnboardingTour() {
-  try {
-    const Shepherd = (await import('shepherd.js')).default as any;
-    await import('shepherd.js/dist/css/shepherd.css');
+  // Helper to load a script/link dynamically
+  const loadScript = (src: string) => new Promise<void>((resolve, reject) => {
+    const el = document.createElement('script');
+    el.src = src;
+    el.async = true;
+    el.onload = () => resolve();
+    el.onerror = () => reject(new Error(`Failed to load ${src}`));
+    document.head.appendChild(el);
+  });
+  const loadCss = (href: string) => {
+    return new Promise<void>((resolve) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = href;
+      link.onload = () => resolve();
+      document.head.appendChild(link);
+    });
+  };
 
-    const tour = new Shepherd.Tour({
+  try {
+    let ShepherdLib: any | null = null;
+    try {
+      // Try local dependency first
+      ShepherdLib = (await import('shepherd.js')).default as any;
+      await import('shepherd.js/dist/css/shepherd.css');
+    } catch (err) {
+      // Fallback: load from CDN if not installed locally
+      await Promise.all([
+        loadCss('https://unpkg.com/shepherd.js@13.0.0/dist/css/shepherd.css'),
+        loadScript('https://unpkg.com/shepherd.js@13.0.0/dist/js/shepherd.min.js'),
+      ]);
+      ShepherdLib = (window as any).Shepherd || null;
+    }
+
+    if (!ShepherdLib) {
+      console.warn('[Onboarding] Shepherd no disponible tras intentar import/CDN.');
+      return;
+    }
+
+    const tour = new ShepherdLib.Tour({
       useModalOverlay: true,
       defaultStepOptions: {
         cancelIcon: { enabled: true },
@@ -64,4 +99,3 @@ export async function startOnboardingTour() {
     console.warn('[Onboarding] Shepherd no disponible; omitiendo tour.', e);
   }
 }
-

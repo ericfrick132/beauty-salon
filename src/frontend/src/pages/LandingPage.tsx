@@ -316,7 +316,7 @@ const LandingPage: React.FC = () => {
 
     if (token && tenantSubdomain) {
       // Direct auto-login into dashboard via impersonationToken and start tour
-      return `${protocol}//${tenantSubdomain}.${domain}/dashboard?impersonationToken=${encodeURIComponent(token)}&tour=onboarding`;
+      return `${protocol}//${tenantSubdomain}.${domain}/dashboard?impersonationToken=${encodeURIComponent(token)}&tour=onboarding&onboarding=1`;
     }
 
     if (tenantSubdomain && dashboardUrl) {
