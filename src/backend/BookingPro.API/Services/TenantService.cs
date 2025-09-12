@@ -201,7 +201,7 @@ namespace BookingPro.API.Services
                     FirstName = dto.AdminFirstName,
                     LastName = dto.AdminLastName,
                     Phone = dto.AdminPhone,
-                    PasswordHash = HashPassword(dto.AdminPassword),
+                    PasswordHash = Services.Security.PasswordHasher.Hash(dto.AdminPassword),
                     Role = "admin",
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow,
@@ -265,12 +265,7 @@ namespace BookingPro.API.Services
             return $"tenant_{subdomain.Replace("-", "_")}";
         }
 
-        private string HashPassword(string password)
-        {
-            using var sha256 = SHA256.Create();
-            var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password + "BookingProSalt2024"));
-            return Convert.ToBase64String(hashedBytes);
-        }
+        // Password hashing centralized in Services.Security.PasswordHasher
 
         private async Task InitializeTenantData(Guid tenantId, string verticalCode)
         {

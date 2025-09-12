@@ -64,10 +64,57 @@ namespace BookingPro.API.Controllers
             
             return Ok(new { isValid });
         }
+
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Email))
+            {
+                return BadRequest(new { message = "Email es requerido" });
+            }
+
+            var result = await _authService.GeneratePasswordResetTokenAsync(dto.Email);
+            if (!result.Success)
+            {
+                // Do not reveal whether email exists
+                return Ok(new { message = "Si el email existe, se envió un enlace de recuperación" });
+            }
+
+            // For now we return the token so the frontend can proceed without email infra
+            return Ok(new { message = "Token generado", token = result.Data });
+        }
+
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Token) || string.IsNullOrWhiteSpace(dto.NewPassword))
+            {
+                return BadRequest(new { message = "Token y nueva contraseña son requeridos" });
+            }
+
+            var result = await _authService.ResetPasswordAsync(dto.Token, dto.NewPassword);
+            if (!result.Success)
+            {
+                return BadRequest(new { message = result.Message });
+            }
+
+            return Ok(new { message = "Contraseña actualizada" });
+        }
     }
 
     public class ValidateTokenDto
     {
         public string Token { get; set; } = string.Empty;
+    }
+
+    public class ForgotPasswordDto
+    {
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public class ResetPasswordDto
+    {
+        public string Token { get; set; } = string.Empty;
+        public string NewPassword { get; set; } = string.Empty;
     }
 }

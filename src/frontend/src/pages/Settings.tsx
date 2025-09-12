@@ -152,6 +152,7 @@ const Settings: React.FC = () => {
     cancellationPolicy: '24', // hours
     autoConfirmBookings: false,
     allowCustomerNotes: true,
+    minAdvanceMinutes: 0,
   });
 
   // Payment Settings State
@@ -238,7 +239,18 @@ const Settings: React.FC = () => {
         console.log('Payment configuration not available');
       }
 
-      // You can add more API calls here to load other settings
+      // Load services settings (min advance minutes)
+      try {
+        const servicesRes = await api.get('/settings/services');
+        if (servicesRes?.data) {
+          setServicesSettings(prev => ({
+            ...prev,
+            minAdvanceMinutes: servicesRes.data.minAdvanceMinutes ?? 0,
+          }));
+        }
+      } catch (error) {
+        console.log('Services settings not available');
+      }
 
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -280,7 +292,7 @@ const Settings: React.FC = () => {
   const saveServicesSettings = async () => {
     setLoading(true);
     try {
-      await api.put('/settings/services', servicesSettings);
+      await api.put('/settings/services', { minAdvanceMinutes: servicesSettings.minAdvanceMinutes });
       setSnackbar({
         open: true,
         message: 'Configuración de servicios guardada exitosamente',
@@ -724,6 +736,19 @@ const Settings: React.FC = () => {
                     )}
                   </CardContent>
                 </Card>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Anticipación mínima (minutos) para reservas online"
+                  type="number"
+                  value={servicesSettings.minAdvanceMinutes}
+                  onChange={(e) => setServicesSettings(prev => ({
+                    ...prev,
+                    minAdvanceMinutes: parseInt(e.target.value) || 0
+                  }))}
+                />
               </Grid>
 
               <Grid item xs={12} md={6}>

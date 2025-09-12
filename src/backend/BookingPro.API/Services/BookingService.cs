@@ -362,8 +362,14 @@ namespace BookingPro.API.Services
                     b.StartTime < utcEndOfDay &&
                     b.Status != "cancelled");
 
+                // Load employee blocks for the day (in UTC)
+                var context = _bookingRepository.GetContext();
+                var blocks = await context.Set<EmployeeTimeBlock>()
+                    .Where(b => b.EmployeeId == professionalId && b.StartTime < utcEndOfDay && b.EndTime > utcStartOfDay)
+                    .ToListAsync();
+
                 var availableSlots = new List<string>();
-                var businessHours = GetBusinessHours();
+                var businessHours = GetEmployeeBusinessHoursForDate(professionalId, localDate) ?? GetBusinessHours();
                 var slotDuration = TimeSpan.FromMinutes(service.DurationMinutes);
                 var minimumGap = TimeSpan.FromMinutes(15); // Tiempo mínimo entre citas
 
@@ -382,7 +388,7 @@ namespace BookingPro.API.Services
                         var bufferStart = b.StartTime.Subtract(minimumGap);
                         var bufferEnd = b.EndTime.Add(minimumGap);
                         return utcSlotStart < bufferEnd && utcSlotEnd > bufferStart;
-                    });
+                    }) || blocks.Any(bl => utcSlotStart < bl.EndTime && utcSlotEnd > bl.StartTime);
 
                     if (!hasConflict && IsWithinBusinessHours(localSlotStart, localSlotEnd))
                     {
@@ -407,9 +413,13 @@ namespace BookingPro.API.Services
         // Validaciones críticas de negocio
         private async Task<ServiceResult> ValidateBookingBusinessRules(Guid employeeId, DateTime startTime, DateTime endTime, Service service, Guid? bookingIdToExclude = null)
         {
-            // 1. Validar horario de negocio
+            // 1. Validar horario de negocio (general window)
             if (!IsWithinBusinessHours(startTime, endTime))
                 return ServiceResult.Fail("La cita está fuera del horario de atención del negocio");
+
+            // 1b. Validar horario del empleado (turno de trabajo)
+            var withinSchedule = await ValidateWithinEmployeeSchedule(employeeId, startTime, endTime);
+            if (!withinSchedule.Success) return withinSchedule;
 
             // 2. Nota: Permitimos citas en el pasado (puede ser útil para registrar citas que ya ocurrieron)
             // No validamos si está en el pasado
@@ -423,7 +433,12 @@ namespace BookingPro.API.Services
             if (!doubleBookingResult.Success)
                 return doubleBookingResult;
 
-            // 5. Validar tiempo mínimo entre citas
+            // 5. Validar bloqueos del empleado
+            var blockResult = await ValidateEmployeeNotBlocked(employeeId, startTime, endTime);
+            if (!blockResult.Success)
+                return blockResult;
+
+            // 6. Validar tiempo mínimo entre citas
             var gapResult = await ValidateMinimumGapBetweenAppointments(employeeId, startTime, endTime, bookingIdToExclude);
             if (!gapResult.Success)
                 return gapResult;
@@ -485,6 +500,21 @@ namespace BookingPro.API.Services
             return (new TimeSpan(9, 0, 0), new TimeSpan(22, 0, 0));
         }
 
+        private (TimeSpan start, TimeSpan end)? GetEmployeeBusinessHoursForDate(Guid employeeId, DateTime localDate)
+        {
+            var ctx = _bookingRepository.GetContext();
+            var dow = (int)localDate.DayOfWeek;
+            var sched = ctx.Set<Schedule>()
+                .AsNoTracking()
+                .Where(s => s.EmployeeId == employeeId && s.IsActive && s.DayOfWeek == dow)
+                .Select(s => new { s.StartTime, s.EndTime })
+                .ToList();
+            if (!sched.Any()) return null;
+            var start = sched.Min(s => s.StartTime);
+            var end = sched.Max(s => s.EndTime);
+            return (start, end);
+        }
+
         private bool IsWithinBusinessHours(DateTime startTime, DateTime endTime)
         {
             var businessHours = GetBusinessHours();
@@ -494,6 +524,36 @@ namespace BookingPro.API.Services
             return startTimeOfDay >= businessHours.start &&
                    endTimeOfDay <= businessHours.end &&
                    startTime.Date == endTime.Date; // Misma fecha
+        }
+
+        private async Task<ServiceResult> ValidateWithinEmployeeSchedule(Guid employeeId, DateTime startTime, DateTime endTime)
+        {
+            var ctx = _bookingRepository.GetContext();
+            var dow = (int)startTime.DayOfWeek;
+            var schedules = await ctx.Set<Schedule>()
+                .Where(s => s.EmployeeId == employeeId && s.IsActive && s.DayOfWeek == dow)
+                .ToListAsync();
+            if (!schedules.Any())
+            {
+                return ServiceResult.Fail("El profesional no atiende en ese día");
+            }
+            var startTod = startTime.TimeOfDay;
+            var endTod = endTime.TimeOfDay;
+            var ok = schedules.Any(s => startTod >= s.StartTime && endTod <= s.EndTime);
+            if (!ok) return ServiceResult.Fail("El profesional no atiende en ese horario");
+            return ServiceResult.Ok();
+        }
+
+        private async Task<ServiceResult> ValidateEmployeeNotBlocked(Guid employeeId, DateTime startTime, DateTime endTime)
+        {
+            var ctx = _bookingRepository.GetContext();
+            var hasBlock = await ctx.Set<EmployeeTimeBlock>()
+                .AnyAsync(b => b.EmployeeId == employeeId && b.StartTime < endTime && b.EndTime > startTime);
+            if (hasBlock)
+            {
+                return ServiceResult.Fail("El profesional tiene un bloqueo en ese horario");
+            }
+            return ServiceResult.Ok();
         }
 
         public async Task<ServiceResult<bool>> HasSuccessfulPaymentAsync(Guid bookingId)

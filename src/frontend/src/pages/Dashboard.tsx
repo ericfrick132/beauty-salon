@@ -203,7 +203,7 @@ const Dashboard: React.FC = () => {
   };
 
   const getServiceDistribution = () => {
-    const serviceMap = new Map();
+    const serviceMap = new Map<string, number>();
     bookings
       .filter(b => b.status !== 'cancelled')
       .forEach(booking => {
@@ -218,13 +218,19 @@ const Dashboard: React.FC = () => {
       ];
     }
 
-    return Array.from(serviceMap.entries())
+    const arr = Array.from(serviceMap.entries())
       .map(([name, count]) => ({
         name,
-        value: Math.round((count / total) * 100),
-        color: '#8884d8'
+        value: Math.round((count / total) * 100)
       }))
       .sort((a, b) => b.value - a.value);
+
+    if (arr.length <= 3) return arr;
+
+    const top3 = arr.slice(0, 3);
+    const otrosValue = arr.slice(3).reduce((sum, it) => sum + it.value, 0);
+    if (otrosValue > 0) top3.push({ name: 'Otros', value: otrosValue });
+    return top3;
   };
 
   const weeklyRevenue = getWeeklyRevenue();
@@ -287,7 +293,7 @@ const Dashboard: React.FC = () => {
     const occupiedSlots = todayBookings.filter(b => b.status !== 'cancelled').length;
     const occupancyRate = totalSlots > 0 ? Math.round((occupiedSlots / totalSlots) * 100) : 0;
 
-    return [
+    const arr = [
       {
         title: `${getTerm('booking')}s Hoy`,
         value: todayCount,
@@ -316,17 +322,9 @@ const Dashboard: React.FC = () => {
         change: `+${newCustomers}`,
         changeType: 'positive',
       },
-      {
-        title: 'Tasa de Ocupación',
-        value: `${occupancyRate}%`,
-        icon: <TrendingUp />,
-        color: primaryColor,
-        bgColor: `${primaryColor}10`,
-        borderColor: accentColor,
-        change: `${occupancyRate}%`,
-        changeType: occupancyRate >= 60 ? 'positive' : 'negative',
-      },
     ];
+    // Rule of 3: mostrar solo 3 KPIs principales
+    return arr.slice(0, 3);
   };
 
   const stats = calculateStats();
@@ -668,7 +666,7 @@ const Dashboard: React.FC = () => {
         ))}
       </Grid>
 
-      {/* Quick Actions */}
+      {/* Quick Actions - Regla de 3 */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={4}>
           <motion.div
@@ -704,6 +702,84 @@ const Dashboard: React.FC = () => {
                 </Box>
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
                   Conecta tu cuenta para recibir señas y pagos anticipados
+                </Typography>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.5 }}
+          >
+            <Card
+              sx={{
+                height: '100%',
+                background: 'linear-gradient(135deg, #43a047 0%, #2e7d32 100%)',
+                color: 'white',
+                cursor: 'pointer',
+                transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-5px)',
+                  boxShadow: '0 10px 30px rgba(67, 160, 71, 0.3)',
+                }
+              }}
+              onClick={() => navigate('/calendar')}
+            >
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Schedule sx={{ fontSize: 40, mr: 2 }} />
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                      Agendar turno
+                    </Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      Abrir calendario y crear reserva
+                    </Typography>
+                  </Box>
+                </Box>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  Crea un turno en segundos desde el calendario
+                </Typography>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.6 }}
+          >
+            <Card
+              sx={{
+                height: '100%',
+                background: 'linear-gradient(135deg, #8e24aa 0%, #6a1b9a 100%)',
+                color: 'white',
+                cursor: 'pointer',
+                transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-5px)',
+                  boxShadow: '0 10px 30px rgba(142, 36, 170, 0.3)',
+                }
+              }}
+              onClick={() => navigate('/customers/new')}
+            >
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <People sx={{ fontSize: 40, mr: 2 }} />
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                      Agregar cliente
+                    </Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      Cargar nuevo cliente a tu base
+                    </Typography>
+                  </Box>
+                </Box>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  Guarda datos para próximas reservas y recordatorios
                 </Typography>
               </CardContent>
             </Card>

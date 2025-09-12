@@ -198,6 +198,14 @@ export const employeeApi = {
 
   deleteEmployee: (id: string) =>
     api.delete(`/employees/${id}`).then(res => res.data),
+
+  // Employee time blocks
+  getBlocks: (employeeId: string, params?: { from?: string; to?: string }) =>
+    api.get(`/employees/${employeeId}/blocks`, { params }).then(res => res.data),
+  createBlock: (employeeId: string, data: { startTime: string; endTime: string; reason?: string }) =>
+    api.post(`/employees/${employeeId}/blocks`, data).then(res => res.data),
+  deleteBlock: (employeeId: string, blockId: string) =>
+    api.delete(`/employees/${employeeId}/blocks/${blockId}`).then(res => res.data),
 };
 
 // Services API

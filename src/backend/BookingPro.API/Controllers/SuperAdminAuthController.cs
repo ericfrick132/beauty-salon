@@ -45,9 +45,21 @@ namespace BookingPro.API.Controllers
                         u.Role == Roles.SuperAdmin &&
                         u.Tenant.Subdomain == "system");
 
-                if (user == null || !VerifyPassword(loginDto.Password, user.PasswordHash))
+                if (user == null)
                 {
                     return Unauthorized(new { message = "Credenciales inválidas" });
+                }
+
+                var (valid, legacy) = BookingPro.API.Services.Security.PasswordHasher.Verify(loginDto.Password, user.PasswordHash);
+                if (!valid)
+                {
+                    return Unauthorized(new { message = "Credenciales inválidas" });
+                }
+
+                if (legacy)
+                {
+                    user.PasswordHash = BookingPro.API.Services.Security.PasswordHasher.Hash(loginDto.Password);
+                    await _context.SaveChangesAsync();
                 }
 
                 if (!user.IsActive)
@@ -102,12 +114,18 @@ namespace BookingPro.API.Controllers
                         u.Email == dto.Email && 
                         u.Role == Roles.SuperAdmin);
 
-                if (user == null || !VerifyPassword(dto.CurrentPassword, user.PasswordHash))
+                if (user == null)
                 {
                     return Unauthorized(new { message = "Contraseña actual incorrecta" });
                 }
 
-                user.PasswordHash = HashPassword(dto.NewPassword);
+                var (ok, _) = BookingPro.API.Services.Security.PasswordHasher.Verify(dto.CurrentPassword, user.PasswordHash);
+                if (!ok)
+                {
+                    return Unauthorized(new { message = "Contraseña actual incorrecta" });
+                }
+
+                user.PasswordHash = BookingPro.API.Services.Security.PasswordHasher.Hash(dto.NewPassword);
                 await _context.SaveChangesAsync();
 
                 return Ok(new { message = "Contraseña cambiada exitosamente" });
@@ -147,18 +165,7 @@ namespace BookingPro.API.Controllers
             return tokenHandler.WriteToken(token);
         }
 
-        private string HashPassword(string password)
-        {
-            using var sha256 = SHA256.Create();
-            var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password + "BookingProSalt2024"));
-            return Convert.ToBase64String(hashedBytes);
-        }
-
-        private bool VerifyPassword(string password, string hash)
-        {
-            var hashOfInput = HashPassword(password);
-            return hashOfInput == hash;
-        }
+        // Password hashing centralized in Services.Security.PasswordHasher
     }
 
     public class SuperAdminLoginDto

@@ -86,7 +86,7 @@ namespace BookingPro.API.Controllers.Admin
                     Id = Guid.NewGuid(),
                     TenantId = tenant.Id,
                     Email = dto.OwnerEmail,
-                    PasswordHash = HashPassword(tempPassword),
+                    PasswordHash = BookingPro.API.Services.Security.PasswordHasher.Hash(tempPassword),
                     FirstName = dto.AdminFirstName ?? "Admin",
                     LastName = dto.AdminLastName ?? tenant.BusinessName,
                     Role = "admin",
@@ -187,12 +187,7 @@ namespace BookingPro.API.Controllers.Admin
             return password;
         }
 
-        private string HashPassword(string password)
-        {
-            using var sha256 = System.Security.Cryptography.SHA256.Create();
-            var hashedBytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password + "BookingProSalt2024"));
-            return Convert.ToBase64String(hashedBytes);
-        }
+        // Password hashing centralized in Services.Security.PasswordHasher
     }
 
     public class ProvisionTenantDto

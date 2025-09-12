@@ -27,6 +27,61 @@ namespace BookingPro.API.Controllers
             _tenantService = tenantService;
         }
 
+        public class DayScheduleDto
+        {
+            public int DayOfWeek { get; set; } // 0..6
+            public string? Start { get; set; } // HH:mm or null => off
+            public string? End { get; set; }
+        }
+
+        [HttpGet("{id}/schedule")]
+        public async Task<IActionResult> GetEmployeeSchedule(Guid id)
+        {
+            var schedules = await _context.Schedules
+                .Where(s => s.EmployeeId == id && s.IsActive)
+                .ToListAsync();
+            var result = schedules
+                .GroupBy(s => s.DayOfWeek)
+                .Select(g => new DayScheduleDto
+                {
+                    DayOfWeek = g.Key,
+                    Start = g.Min(x => x.StartTime).ToString(),
+                    End = g.Max(x => x.EndTime).ToString()
+                })
+                .ToList();
+            return Ok(result);
+        }
+
+        [HttpPut("{id}/schedule")]
+        public async Task<IActionResult> UpdateEmployeeSchedule(Guid id, [FromBody] List<DayScheduleDto> dto)
+        {
+            var employee = await _context.Employees.FindAsync(id);
+            if (employee == null) return NotFound(new { message = "Empleado no encontrado" });
+
+            // Remove existing active schedules
+            var existing = await _context.Schedules.Where(s => s.EmployeeId == id).ToListAsync();
+            if (existing.Any()) _context.Schedules.RemoveRange(existing);
+
+            foreach (var d in dto)
+            {
+                if (d.Start == null || d.End == null) continue; // off day
+                if (!TimeSpan.TryParse(d.Start, out var start) || !TimeSpan.TryParse(d.End, out var end)) continue;
+                if (end <= start) continue;
+                _context.Schedules.Add(new Schedule
+                {
+                    TenantId = employee.TenantId,
+                    EmployeeId = id,
+                    DayOfWeek = d.DayOfWeek,
+                    StartTime = start,
+                    EndTime = end,
+                    IsActive = true
+                });
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Horarios actualizados" });
+        }
+
         [HttpGet]
         public async Task<IActionResult> GetEmployees()
         {

@@ -23,6 +23,8 @@ import {
   InputAdornment,
   ToggleButton,
   ToggleButtonGroup,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import {
   ChevronLeft,
@@ -89,6 +91,11 @@ const CalendarView: React.FC = () => {
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [filterMenuAnchor, setFilterMenuAnchor] = useState<null | HTMLElement>(null);
+  const [newMenuAnchor, setNewMenuAnchor] = useState<null | HTMLElement>(null);
+  const [blockDialog, setBlockDialog] = useState<{ open: boolean; start?: string; end?: string; employeeId?: string }>(
+    { open: false }
+  );
+  const [blockForm, setBlockForm] = useState({ reason: '', repeat: false, daysOfWeek: [] as number[], until: '' });
   
   // Event dialogs
   const [eventDialog, setEventDialog] = useState<{
@@ -111,6 +118,8 @@ const CalendarView: React.FC = () => {
   }>({ open: false, booking: null });
   
   const [employees, setEmployees] = useState<any[]>([]);
+  const [blocks, setBlocks] = useState<Array<{ id: string; start: string; end: string; employeeId: string }>>([]);
+  const [viewRange, setViewRange] = useState<{ start: string; end: string } | null>(null);
   const [paymentForm, setPaymentForm] = useState({
     bookingId: '',
     employeeId: '',
@@ -193,6 +202,17 @@ const CalendarView: React.FC = () => {
       }
     }));
 
+  const blockEvents = blocks.map(b => ({
+    id: `block-${b.id}`,
+    title: 'Bloqueado',
+    start: b.start,
+    end: b.end,
+    display: 'background' as const,
+    backgroundColor: '#9e9e9e',
+    borderColor: '#9e9e9e',
+    extendedProps: { isBlock: true, employeeId: b.employeeId }
+  }));
+
   const handleViewChange = (view: string) => {
     setCurrentView(view);
     const calendarApi = calendarRef.current?.getApi();
@@ -200,6 +220,28 @@ const CalendarView: React.FC = () => {
       calendarApi.changeView(view);
     }
   };
+
+  // Fetch blocks for selected employee within current view range
+  useEffect(() => {
+    const loadBlocks = async () => {
+      if (!viewRange) return;
+      if (!selectedEmployee || selectedEmployee === 'all') {
+        setBlocks([]);
+        return;
+      }
+      try {
+        const res = await api.get(`/employees/${selectedEmployee}/blocks`, {
+          params: { from: viewRange.start, to: viewRange.end }
+        });
+        const items = Array.isArray(res.data) ? res.data : [];
+        setBlocks(items.map((i: any) => ({ id: i.id, start: i.startTime, end: i.endTime, employeeId: i.employeeId })));
+      } catch (e) {
+        console.error('Error fetching blocks', e);
+        setBlocks([]);
+      }
+    };
+    loadBlocks();
+  }, [selectedEmployee, viewRange]);
 
   const handleEventClick = (info: EventClickArg) => {
     const event = info.event;
@@ -270,8 +312,11 @@ const CalendarView: React.FC = () => {
   };
 
   const handleDateSelect = (selectInfo: DateSelectArg) => {
-    // TODO: Abrir dialog para crear nueva cita
-    console.log('Date selected:', selectInfo);
+    const start = selectInfo.startStr;
+    const end = selectInfo.endStr;
+    // default to currently filtered employee, else all
+    const defEmp = selectedEmployee && selectedEmployee !== 'all' ? selectedEmployee : 'all';
+    setBlockDialog({ open: true, start, end, employeeId: defEmp });
   };
 
   const handleStatusChange = async (bookingId: string, newStatus: string, reason?: string) => {
@@ -453,11 +498,23 @@ const CalendarView: React.FC = () => {
 
       {/* Calendar */}
       <Paper sx={{ flex: 1, p: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+          <Button variant="contained" startIcon={<Add />} onClick={(e)=> setNewMenuAnchor(e.currentTarget)}>Nuevo</Button>
+          <Menu anchorEl={newMenuAnchor} open={Boolean(newMenuAnchor)} onClose={()=> setNewMenuAnchor(null)}>
+            <MenuItem onClick={()=> { setNewMenuAnchor(null); window.location.href = '/new-booking'; }}>Nueva Reserva</MenuItem>
+            <MenuItem onClick={()=> { 
+              setNewMenuAnchor(null);
+              const now = new Date();
+              const end = new Date(now.getTime() + 30*60*1000);
+              setBlockDialog({ open: true, start: now.toISOString(), end: end.toISOString() });
+            }}>Bloquear horario</MenuItem>
+          </Menu>
+        </Box>
         <FullCalendar
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
           initialView={currentView}
-          events={calendarEvents}
+          events={[...calendarEvents, ...blockEvents]}
           locale="es"
           height="100%"
           headerToolbar={false}
@@ -476,6 +533,15 @@ const CalendarView: React.FC = () => {
           eventDrop={handleEventDrop}
           eventResize={handleEventResize}
           select={handleDateSelect}
+          datesSet={(arg) => {
+            setViewRange({ start: arg.start.toISOString(), end: arg.end.toISOString() });
+          }}
+          eventOverlap={(still, moving) => {
+            const a: any = still;
+            const b: any = moving;
+            if (a.extendedProps?.isBlock || b.extendedProps?.isBlock) return false;
+            return true;
+          }}
           allDaySlot={false}
           slotDuration="00:30:00"
           eventTimeFormat={{
@@ -486,7 +552,111 @@ const CalendarView: React.FC = () => {
           dayHeaderFormat={{ weekday: 'short', day: 'numeric' }}
           eventDisplay="block"
         />
-      </Paper>
+     </Paper>
+
+      {/* Block dialog */}
+      <Dialog open={blockDialog.open} onClose={() => setBlockDialog({ open: false })}>
+        <DialogTitle>Bloquear horario</DialogTitle>
+        <DialogContent sx={{ minWidth: 400 }}>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>Empleado</InputLabel>
+                <Select
+                  label="Empleado"
+                  value={blockDialog.employeeId || 'all'}
+                  onChange={(e)=> setBlockDialog({ ...blockDialog, employeeId: e.target.value as string })}
+                >
+                  <MenuItem value="all">Todos</MenuItem>
+                  {employees.map((emp) => (
+                    <MenuItem key={emp.id} value={emp.id}>{emp.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField fullWidth label="Inicio" value={blockDialog.start || ''} InputLabelProps={{ shrink: true }} disabled />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField fullWidth label="Fin" value={blockDialog.end || ''} InputLabelProps={{ shrink: true }} disabled />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField fullWidth label="Motivo (opcional)" value={blockForm.reason} onChange={(e)=>setBlockForm({...blockForm, reason: e.target.value})} />
+            </Grid>
+            <Grid item xs={12}>
+              <FormControlLabel control={<Switch checked={blockForm.repeat} onChange={(e)=> setBlockForm({...blockForm, repeat: e.target.checked})} />} label="Repetir" />
+            </Grid>
+            {blockForm.repeat && (
+              <>
+                <Grid item xs={12}>
+                  <Typography variant="body2">Días de semana</Typography>
+                  <Box>
+                    {[0,1,2,3,4,5,6].map(d => (
+                      <FormControlLabel key={d} control={<Switch size="small" checked={blockForm.daysOfWeek.includes(d)} onChange={(e)=>{
+                        const set = new Set(blockForm.daysOfWeek);
+                        if (e.target.checked) set.add(d); else set.delete(d);
+                        setBlockForm({...blockForm, daysOfWeek: Array.from(set)});
+                      }} />} label={['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d]} />
+                    ))}
+                  </Box>
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField fullWidth type="date" label="Repetir hasta" InputLabelProps={{ shrink: true }} value={blockForm.until} onChange={(e)=> setBlockForm({...blockForm, until: e.target.value})} />
+                </Grid>
+              </>
+            )}
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={()=> setBlockDialog({ open: false })}>Cancelar</Button>
+          <Button variant="contained" onClick={async ()=>{
+            try {
+              const target = blockDialog.employeeId || 'all';
+              const targetIds = target === 'all' ? employees.map(e => e.id) : [target];
+              if (blockForm.repeat) {
+                const startDate = (blockDialog.start||'').split('T')[0];
+                const endDate = blockForm.until || startDate;
+                const startTimeOfDay = (blockDialog.start||'').split('T')[1]?.substring(0,5) || '09:00';
+                const endTimeOfDay = (blockDialog.end||'').split('T')[1]?.substring(0,5) || '10:00';
+                for (const id of targetIds) {
+                  await api.post(`/employees/${id}/blocks/recurring`, {
+                    startDate,
+                    endDate,
+                    startTimeOfDay,
+                    endTimeOfDay,
+                    daysOfWeek: blockForm.daysOfWeek,
+                    reason: blockForm.reason,
+                  });
+                }
+              } else {
+                for (const id of targetIds) {
+                  await api.post(`/employees/${id}/blocks`, {
+                    startTime: blockDialog.start,
+                    endTime: blockDialog.end,
+                    reason: blockForm.reason,
+                  });
+                }
+              }
+              setBlockDialog({ open: false });
+              setBlockForm({ reason: '', repeat: false, daysOfWeek: [], until: '' });
+              // refresh
+              if (viewRange) {
+                // if a specific employee is selected in filter, refresh his blocks; else clear (we don't render all at once)
+                if (selectedEmployee && selectedEmployee !== 'all') {
+                  const res = await api.get(`/employees/${selectedEmployee}/blocks`, { params: { from: viewRange.start, to: viewRange.end } });
+                  const items = Array.isArray(res.data) ? res.data : [];
+                  setBlocks(items.map((i: any) => ({ id: i.id, start: i.startTime, end: i.endTime, employeeId: i.employeeId })));
+                } else {
+                  setBlocks([]);
+                }
+              }
+            } catch (e: any) {
+              console.error('Error creating block', e);
+              alert(e?.response?.data?.message || 'Error creando bloqueo');
+            }
+          }}>Guardar</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Filter Menu */}
       <Menu
@@ -503,7 +673,9 @@ const CalendarView: React.FC = () => {
               label="Empleado"
             >
               <MenuItem value="all">Todos</MenuItem>
-              {/* TODO: Cargar empleados dinámicamente */}
+              {employees.map((emp) => (
+                <MenuItem key={emp.id} value={emp.id}>{emp.name}</MenuItem>
+              ))}
             </Select>
           </FormControl>
         </MenuItem>

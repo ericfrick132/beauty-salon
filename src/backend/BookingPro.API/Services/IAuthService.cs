@@ -10,5 +10,7 @@ namespace BookingPro.API.Services
         Task<bool> ValidateTokenAsync(string token);
         string GenerateJwtToken(User user);
         Task<User?> GetUserByEmailAsync(string email, Guid tenantId);
+        Task<BookingPro.API.Models.Common.ServiceResult<string>> GeneratePasswordResetTokenAsync(string email);
+        Task<BookingPro.API.Models.Common.ServiceResult<bool>> ResetPasswordAsync(string token, string newPassword);
     }
 }

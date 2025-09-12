@@ -129,7 +129,7 @@ namespace BookingPro.API.Services
                 await _context.SaveChangesAsync();
 
                 // 3. Crear el usuario admin
-                var hashedPassword = HashPassword(dto.AdminPassword);
+                var hashedPassword = Services.Security.PasswordHasher.Hash(dto.AdminPassword);
                 var adminUser = new User
                 {
                     Id = Guid.NewGuid(),
@@ -182,12 +182,7 @@ namespace BookingPro.API.Services
             }
         }
 
-        private string HashPassword(string password)
-        {
-            using var sha256 = SHA256.Create();
-            var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password + "BookingProSalt2024"));
-            return Convert.ToBase64String(hashedBytes);
-        }
+        // Password hashing centralized in Services.Security.PasswordHasher
 
         private List<ServiceCategory> GetBarbershopCategories(Guid tenantId)
         {

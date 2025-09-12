@@ -9,6 +9,7 @@ using BookingPro.API.DTOs;
 using BookingPro.API.Models.Entities;
 using BookingPro.API.Services.Interfaces;
 using BookingPro.API.Models.Enums;
+using BookingPro.API.Models.Common;
 
 namespace BookingPro.API.Services
 {
@@ -38,13 +39,31 @@ namespace BookingPro.API.Services
                 var tenantId = Guid.Parse(_tenantService.GetCurrentTenantId());
                 var user = await GetUserByEmailAsync(loginDto.Email, tenantId);
 
-                if (user == null || !VerifyPassword(loginDto.Password, user.PasswordHash))
+                if (user == null)
                 {
                     return new AuthResponseDto
                     {
                         Success = false,
                         Message = "Credenciales inválidas"
                     };
+                }
+
+                // Verify with BCrypt, fallback to legacy SHA256; migrate on success
+                var (valid, legacy) = Services.Security.PasswordHasher.Verify(loginDto.Password, user.PasswordHash);
+                if (!valid)
+                {
+                    return new AuthResponseDto
+                    {
+                        Success = false,
+                        Message = "Credenciales inválidas"
+                    };
+                }
+
+                // If legacy, rehash with BCrypt and persist
+                if (legacy)
+                {
+                    user.PasswordHash = Services.Security.PasswordHasher.Hash(loginDto.Password);
+                    await _context.SaveChangesAsync();
                 }
 
                 if (!user.IsActive)
@@ -104,7 +123,7 @@ namespace BookingPro.API.Services
                 {
                     TenantId = tenantId,
                     Email = registerDto.Email,
-                    PasswordHash = HashPassword(registerDto.Password),
+                    PasswordHash = Services.Security.PasswordHasher.Hash(registerDto.Password),
                     FirstName = registerDto.FirstName,
                     LastName = registerDto.LastName,
                     Role = registerDto.Role,
@@ -209,18 +228,105 @@ namespace BookingPro.API.Services
                 .FirstOrDefaultAsync(u => u.Email == email && u.TenantId == tenantId);
         }
 
-        private string HashPassword(string password)
+        public async Task<ServiceResult<string>> GeneratePasswordResetTokenAsync(string email)
         {
-            using var sha256 = SHA256.Create();
-            var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password + "BookingProSalt2024"));
-            return Convert.ToBase64String(hashedBytes);
+            try
+            {
+                // Resolve tenant from context
+                var tenantId = Guid.Parse(_tenantService.GetCurrentTenantId());
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email && u.TenantId == tenantId);
+
+                // Do not reveal existence; but if not found, still return Ok message (no token)
+                if (user == null)
+                {
+                    return ServiceResult<string>.Ok(string.Empty, "If the email exists, a reset link was sent");
+                }
+
+                // Create a short-lived JWT token with purpose claim
+                var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured"));
+                var tokenHandler = new JwtSecurityTokenHandler();
+
+                var claims = new List<Claim>
+                {
+                    new("uid", user.Id.ToString()),
+                    new("tenant_id", user.TenantId.ToString()),
+                    new("prp", "pwd_reset")
+                };
+
+                var tokenDescriptor = new SecurityTokenDescriptor
+                {
+                    Subject = new ClaimsIdentity(claims),
+                    Expires = DateTime.UtcNow.AddMinutes(60),
+                    SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature),
+                    Issuer = _configuration["Jwt:Issuer"],
+                    Audience = _configuration["Jwt:Audience"]
+                };
+
+                var token = tokenHandler.CreateToken(tokenDescriptor);
+                var resetToken = tokenHandler.WriteToken(token);
+
+                // TODO: send email with link containing token. For now, return token.
+                return ServiceResult<string>.Ok(resetToken, "Reset token generated");
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<string>.Fail($"Error generating reset token: {ex.Message}");
+            }
         }
 
-        private bool VerifyPassword(string password, string hash)
+        public async Task<ServiceResult<bool>> ResetPasswordAsync(string token, string newPassword)
         {
-            var hashOfInput = HashPassword(password);
-            return hashOfInput == hash;
+            try
+            {
+                var tokenHandler = new JwtSecurityTokenHandler();
+                var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured"));
+
+                tokenHandler.ValidateToken(token, new TokenValidationParameters
+                {
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(key),
+                    ValidateIssuer = false,
+                    ValidateAudience = false,
+                    ClockSkew = TimeSpan.Zero
+                }, out SecurityToken validatedToken);
+
+                var jwt = (JwtSecurityToken)validatedToken;
+                var purpose = jwt.Claims.FirstOrDefault(c => c.Type == "prp")?.Value;
+                if (purpose != "pwd_reset")
+                {
+                    return ServiceResult<bool>.Fail("Token inválido");
+                }
+
+                var userIdStr = jwt.Claims.First(c => c.Type == "uid").Value;
+                var tenantIdStr = jwt.Claims.First(c => c.Type == "tenant_id").Value;
+
+                if (!Guid.TryParse(userIdStr, out var userId) || !Guid.TryParse(tenantIdStr, out var tenantId))
+                {
+                    return ServiceResult<bool>.Fail("Token inválido");
+                }
+
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId && u.TenantId == tenantId);
+                if (user == null)
+                {
+                    return ServiceResult<bool>.Fail("Usuario no encontrado");
+                }
+
+                user.PasswordHash = Services.Security.PasswordHasher.Hash(newPassword);
+                await _context.SaveChangesAsync();
+
+                return ServiceResult<bool>.Ok(true, "Password updated");
+            }
+            catch (SecurityTokenExpiredException)
+            {
+                return ServiceResult<bool>.Fail("Token expirado");
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<bool>.Fail($"Error resetting password: {ex.Message}");
+            }
         }
+
+        // Password hashing now centralized in Services.Security.PasswordHasher
 
         private UserDto MapToUserDto(User user)
         {

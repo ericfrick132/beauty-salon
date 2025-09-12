@@ -67,6 +67,7 @@ namespace BookingPro.API.Data
         public DbSet<StockMovement> StockMovements { get; set; }
         public DbSet<PriceHistory> PriceHistories { get; set; }
         public DbSet<InventoryReport> InventoryReports { get; set; }
+        public DbSet<EmployeeTimeBlock> EmployeeTimeBlocks { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -209,6 +210,18 @@ namespace BookingPro.API.Data
 
                 // Combinar filtros: tenant + soft delete
                 entity.HasQueryFilter(s => s.TenantId == GetCurrentTenantId() && s.IsActive);
+            });
+
+            modelBuilder.Entity<EmployeeTimeBlock>(entity =>
+            {
+                entity.ToTable("employee_time_blocks");
+                entity.HasIndex(b => b.TenantId);
+                entity.HasIndex(b => b.EmployeeId);
+                entity.HasIndex(b => new { b.EmployeeId, b.StartTime, b.EndTime });
+                entity.HasOne(b => b.Employee)
+                    .WithMany(e => e.TimeBlocks)
+                    .HasForeignKey(b => b.EmployeeId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
 

@@ -9,6 +9,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using Microsoft.AspNetCore.Authorization;
 
 namespace BookingPro.API.Controllers
 {
@@ -34,6 +35,50 @@ namespace BookingPro.API.Controllers
             _mercadoPagoService = mercadoPagoService;
             _bookingService = bookingService;
             _logger = logger;
+        }
+
+        /// <summary>
+        /// Resolve tenant subdomain by admin email. Public endpoint for landing login redirect.
+        /// </summary>
+        [HttpGet("tenant-by-email")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetTenantByEmail([FromQuery] string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return BadRequest(new { error = "Email requerido" });
+            }
+
+            try
+            {
+                // Buscar usuario admin con ese email
+                var user = await _context.Users
+                    .Include(u => u.Tenant)
+                    .ThenInclude(t => t.Vertical)
+                    .Where(u => u.Email == email && u.IsActive)
+                    .OrderByDescending(u => u.CreatedAt)
+                    .FirstOrDefaultAsync();
+
+                if (user == null || user.Tenant == null || user.Tenant.Vertical == null)
+                {
+                    return NotFound(new { error = "No se encontró una cuenta para ese email" });
+                }
+
+                var subdomain = user.Tenant.Subdomain;
+                var domain = user.Tenant.Vertical.Domain;
+
+                return Ok(new
+                {
+                    subdomain,
+                    domain,
+                    loginUrl = $"https://{subdomain}.{domain}/login"
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error resolving tenant by email");
+                return StatusCode(500, new { error = "Error buscando el tenant" });
+            }
         }
 
         [HttpGet("services")]
@@ -100,10 +145,48 @@ namespace BookingPro.API.Controllers
             [FromQuery] Guid serviceId)
         {
             var result = await _bookingService.GetAvailableTimeSlotsAsync(professionalId, date, serviceId);
-            
             if (!result.Success)
                 return BadRequest(new { message = result.Message, errors = result.Errors });
-                
+
+            // Apply tenant-specific minimum advance minutes for public booking
+            var minAdvance = await GetMinAdvanceMinutesAsync();
+            if (minAdvance > 0)
+            {
+                // Compute local tenant now, compare with each slot (on provided date)
+                var tenantInfo = _tenantService.GetCurrentTenant();
+                int offsetHours = 0;
+                int.TryParse(tenantInfo?.TimeZone ?? "0", out offsetHours);
+                var localNow = DateTime.UtcNow.AddHours(offsetHours);
+
+                var filtered = new List<string>();
+                foreach (var slot in result.Data ?? Enumerable.Empty<string>())
+                {
+                    if (slot.StartsWith("PAST:"))
+                    {
+                        filtered.Add(slot);
+                        continue;
+                    }
+                    // Build local slot time on the given date
+                    if (TimeSpan.TryParse(slot, out var ts))
+                    {
+                        var localSlot = date.Date.Add(ts);
+                        if (localSlot < localNow.AddMinutes(minAdvance))
+                        {
+                            filtered.Add($"PAST:{slot}");
+                        }
+                        else
+                        {
+                            filtered.Add(slot);
+                        }
+                    }
+                    else
+                    {
+                        filtered.Add(slot);
+                    }
+                }
+                return Ok(filtered);
+            }
+
             return Ok(result.Data);
         }
 
@@ -157,14 +240,32 @@ namespace BookingPro.API.Controllers
         {
             try
             {
-                // Check if the slot is still available
+                // Enforce minimum advance for public bookings
+                var minAdvance = await GetMinAdvanceMinutesAsync();
+                if (minAdvance > 0)
+                {
+                    var currentTenantInfo = _tenantService.GetCurrentTenant();
+                    int offsetHours = 0;
+                    int.TryParse(currentTenantInfo?.TimeZone ?? "0", out offsetHours);
+                    var localNow = DateTime.UtcNow.AddHours(offsetHours);
+                    var localStart = dto.StartTime.AddHours(offsetHours);
+                    if (localStart < localNow.AddMinutes(minAdvance))
+                    {
+                        return BadRequest(new { message = $"Las reservas deben hacerse con al menos {minAdvance} minutos de anticipación" });
+                    }
+                }
+
+                // Check if the slot is still available (bookings or blocks)
                 var existingBooking = await _context.Bookings
                     .AnyAsync(b => b.EmployeeId == dto.EmployeeId &&
                                   b.StartTime < dto.EndTime &&
                                   b.EndTime > dto.StartTime &&
                                   b.Status != "cancelled");
 
-                if (existingBooking)
+                var hasBlock = await _context.EmployeeTimeBlocks
+                    .AnyAsync(bl => bl.EmployeeId == dto.EmployeeId && bl.StartTime < dto.EndTime && bl.EndTime > dto.StartTime);
+
+                if (existingBooking || hasBlock)
                 {
                     return BadRequest(new { message = "Este horario ya no está disponible" });
                 }
@@ -289,6 +390,31 @@ namespace BookingPro.API.Controllers
             catch (Exception ex)
             {
                 return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        private async Task<int> GetMinAdvanceMinutesAsync()
+        {
+            try
+            {
+                var tenantInfo = _tenantService.GetCurrentTenant();
+                var tenant = await _context.Tenants.FirstOrDefaultAsync(t => t.Id == tenantInfo!.Id);
+                if (tenant == null) return 0;
+                var settings = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(tenant.Settings ?? "{}")
+                    ?? new Dictionary<string, object>();
+                if (settings.TryGetValue("bookingMinAdvanceMinutes", out var value))
+                {
+                    if (value is int iv) return iv;
+                    if (value is System.Text.Json.JsonElement je && je.ValueKind == System.Text.Json.JsonValueKind.Number)
+                    {
+                        return je.GetInt32();
+                    }
+                }
+                return 0;
+            }
+            catch
+            {
+                return 0;
             }
         }
 

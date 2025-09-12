@@ -283,6 +283,21 @@ namespace BookingPro.API.Models.Entities
         public ICollection<Payment> Payments { get; set; } = new List<Payment>();
         public ICollection<Booking> Bookings { get; set; } = new List<Booking>(); // Bookings assigned to this employee
         public ICollection<Schedule> Schedules { get; set; } = new List<Schedule>(); // Working schedules
+        public ICollection<EmployeeTimeBlock> TimeBlocks { get; set; } = new List<EmployeeTimeBlock>(); // Manual blocks/time off
+    }
+
+    public class EmployeeTimeBlock : ITenantEntity
+    {
+        public Guid TenantId { get; set; }
+        public Guid Id { get; set; } = Guid.NewGuid();
+        public Guid EmployeeId { get; set; }
+        public DateTime StartTime { get; set; }
+        public DateTime EndTime { get; set; }
+        public string? Reason { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        // Navigation
+        public Employee Employee { get; set; } = null!;
     }
 
     public class Payment : ITenantEntity

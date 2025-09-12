@@ -47,12 +47,17 @@ import {
   Percent,
   CheckCircle,
   Cancel,
+  Block,
+  Schedule as ScheduleIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTenant } from '../contexts/TenantContext';
 import api from '../services/api';
 import { format } from 'date-fns';
+import FullCalendar from '@fullcalendar/react';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import interactionPlugin from '@fullcalendar/interaction';
 
 interface Employee {
   id: string;
@@ -115,6 +120,25 @@ const Employees: React.FC = () => {
   const [errors, setErrors] = useState<any>({});
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
+  const [blocksDialogOpen, setBlocksDialogOpen] = useState(false);
+  const [blocksEmployee, setBlocksEmployee] = useState<Employee | null>(null);
+  const [blocks, setBlocks] = useState<{ id: string; startTime: string; endTime: string; reason?: string }[]>([]);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [scheduleEmployee, setScheduleEmployee] = useState<Employee | null>(null);
+  const [scheduleForm, setScheduleForm] = useState<Array<{ day: number; start: string; end: string }>>([
+    { day: 1, start: '09:00', end: '18:00' },
+    { day: 2, start: '09:00', end: '18:00' },
+    { day: 3, start: '09:00', end: '18:00' },
+    { day: 4, start: '09:00', end: '18:00' },
+    { day: 5, start: '09:00', end: '18:00' },
+    { day: 6, start: '', end: '' },
+    { day: 0, start: '', end: '' },
+  ]);
+  const [breakForm, setBreakForm] = useState<{ start: string; end: string; daysOfWeek: number[]; from: string; until: string }>(() => {
+    const today = new Date();
+    const iso = today.toISOString().slice(0,10);
+    return { start: '13:00', end: '14:00', daysOfWeek: [1,2,3,4,5], from: iso, until: '' };
+  });
 
   const [stats, setStats] = useState({
     totalEmployees: 0,
@@ -331,6 +355,46 @@ const Employees: React.FC = () => {
     }
   };
 
+  // Blocks dialog helpers
+  const openBlocksDialog = async (employee: Employee) => {
+    setBlocksEmployee(employee);
+    setBlocksDialogOpen(true);
+    await loadBlocks(employee.id);
+  };
+
+  const openScheduleDialog = async (employee: Employee) => {
+    setScheduleEmployee(employee);
+    setScheduleDialogOpen(true);
+    try {
+      const res = await api.get(`/employees/${employee.id}/schedule`);
+      const list = Array.isArray(res.data) ? res.data : [];
+      const base = [1,2,3,4,5,6,0].map(d => ({ day: d, start: '', end: '' }));
+      list.forEach((item: any) => {
+        const idx = base.findIndex(x => x.day === item.dayOfWeek);
+        if (idx >= 0) {
+          base[idx].start = (item.start || item.startTime || '').toString().substring(0,5);
+          base[idx].end = (item.end || item.endTime || '').toString().substring(0,5);
+        }
+      });
+      setScheduleForm(base);
+    } catch (e) {
+      console.error('Error loading schedule', e);
+    }
+  };
+
+  const loadBlocks = async (employeeId: string) => {
+    try {
+      const from = new Date();
+      const to = new Date();
+      to.setDate(to.getDate() + 30);
+      const res = await api.get(`/employees/${employeeId}/blocks`, { params: { from: from.toISOString(), to: to.toISOString() } });
+      setBlocks(res.data || []);
+    } catch (e) {
+      console.error('Error loading blocks', e);
+      setBlocks([]);
+    }
+  };
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <motion.div
@@ -543,6 +607,23 @@ const Employees: React.FC = () => {
                             <TrendingUp />
                           </IconButton>
                         </Tooltip>
+                        <Tooltip title="Horarios">
+                          <IconButton
+                            size="small"
+                            onClick={() => openScheduleDialog(employee)}
+                          >
+                            <ScheduleIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Bloquear horarios">
+                          <IconButton
+                            size="small"
+                            onClick={() => openBlocksDialog(employee)}
+                            color="secondary"
+                          >
+                            <Block />
+                          </IconButton>
+                        </Tooltip>
                         <Tooltip title="Editar">
                           <IconButton
                             size="small"
@@ -693,6 +774,176 @@ const Employees: React.FC = () => {
           </DialogActions>
         </Dialog>
 
+        {/* Blocks Dialog */}
+        <Dialog open={blocksDialogOpen} onClose={() => setBlocksDialogOpen(false)} maxWidth="md" fullWidth>
+          <DialogTitle>
+            Bloquear horarios - {blocksEmployee?.name}
+          </DialogTitle>
+          <DialogContent>
+            <Box sx={{ my: 2 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Seleccione en el calendario un rango para bloquear. Rango mínimo 15 minutos.
+              </Typography>
+              {/* Simple calendar using FullCalendar-like selection is heavy here; use two datetime inputs for MVP */}
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    type="datetime-local"
+                    label="Inicio"
+                    InputLabelProps={{ shrink: true }}
+                    value={(new Date()).toISOString().slice(0,16)}
+                    onChange={() => {}}
+                    disabled
+                    helperText="Use los botones rápidos o ingrese abajo"
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+            {/* Quick creator */}
+            <QuickBlockCreator 
+              employeeId={blocksEmployee?.id || ''} 
+              onCreated={async () => { if (blocksEmployee) await loadBlocks(blocksEmployee.id); }} 
+            />
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="subtitle1" sx={{ mb: 1 }}>Bloqueos próximos</Typography>
+            {blocks.length === 0 ? (
+              <Alert severity="info">No hay bloqueos próximos</Alert>
+            ) : (
+              <TableContainer component={Paper}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Inicio</TableCell>
+                      <TableCell>Fin</TableCell>
+                      <TableCell>Motivo</TableCell>
+                      <TableCell align="right">Acciones</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {blocks.map(b => (
+                      <TableRow key={b.id}>
+                        <TableCell>{format(new Date(b.startTime), 'dd/MM/yyyy HH:mm')}</TableCell>
+                        <TableCell>{format(new Date(b.endTime), 'dd/MM/yyyy HH:mm')}</TableCell>
+                        <TableCell>{b.reason || '-'}</TableCell>
+                        <TableCell align="right">
+                          <Button size="small" color="error" onClick={async () => {
+                            try {
+                              if (!blocksEmployee) return;
+                              await api.delete(`/employees/${blocksEmployee.id}/blocks/${b.id}`);
+                              await loadBlocks(blocksEmployee.id);
+                            } catch (e) {
+                              console.error('Error deleting block', e);
+                            }
+                          }}>Eliminar</Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setBlocksDialogOpen(false)}>Cerrar</Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Schedule Dialog */}
+        <Dialog open={scheduleDialogOpen} onClose={() => setScheduleDialogOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Horarios de {scheduleEmployee?.name}</DialogTitle>
+          <DialogContent>
+            <Grid container spacing={2} sx={{ mt: 1 }}>
+              {scheduleForm.map((row, idx) => (
+                <React.Fragment key={row.day}>
+                  <Grid item xs={4}>
+                    <Typography sx={{ mt: 1 }}>{['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][row.day]}</Typography>
+                  </Grid>
+                  <Grid item xs={4}>
+                    <TextField fullWidth type="time" label="Entrada" value={row.start} onChange={(e)=>{
+                      const arr = [...scheduleForm];
+                      arr[idx] = { ...row, start: e.target.value };
+                      setScheduleForm(arr);
+                    }} InputLabelProps={{ shrink: true }} />
+                  </Grid>
+                  <Grid item xs={4}>
+                    <TextField fullWidth type="time" label="Salida" value={row.end} onChange={(e)=>{
+                      const arr = [...scheduleForm];
+                      arr[idx] = { ...row, end: e.target.value };
+                      setScheduleForm(arr);
+                    }} InputLabelProps={{ shrink: true }} />
+                  </Grid>
+                </React.Fragment>
+              ))}
+              <Grid item xs={12}>
+                <Divider sx={{ my: 1 }} />
+                <Typography variant="subtitle1">Descanso fijo (opcional)</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  Crea bloqueos recurrentes (p. ej. almuerzo) aplicados a los días seleccionados.
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <TextField fullWidth type="time" label="Desde" value={breakForm.start} onChange={(e)=> setBreakForm({ ...breakForm, start: e.target.value })} InputLabelProps={{ shrink: true }} />
+              </Grid>
+              <Grid item xs={6}>
+                <TextField fullWidth type="time" label="Hasta" value={breakForm.end} onChange={(e)=> setBreakForm({ ...breakForm, end: e.target.value })} InputLabelProps={{ shrink: true }} />
+              </Grid>
+              <Grid item xs={12}>
+                <Typography variant="body2">Días de semana</Typography>
+                <Box>
+                  {[1,2,3,4,5,6,0].map(d => (
+                    <FormControlLabel key={d} control={<Switch size="small" checked={breakForm.daysOfWeek.includes(d)} onChange={(e)=>{
+                      const set = new Set(breakForm.daysOfWeek);
+                      if (e.target.checked) set.add(d); else set.delete(d);
+                      setBreakForm({...breakForm, daysOfWeek: Array.from(set)});
+                    }} />} label={['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d]} />
+                  ))}
+                </Box>
+              </Grid>
+              <Grid item xs={6}>
+                <TextField fullWidth type="date" label="Aplicar desde" value={breakForm.from} onChange={(e)=> setBreakForm({ ...breakForm, from: e.target.value })} InputLabelProps={{ shrink: true }} />
+              </Grid>
+              <Grid item xs={6}>
+                <TextField fullWidth type="date" label="Hasta" value={breakForm.until} onChange={(e)=> setBreakForm({ ...breakForm, until: e.target.value })} InputLabelProps={{ shrink: true }} />
+              </Grid>
+              <Grid item xs={12}>
+                <Button variant="outlined" onClick={async ()=>{
+                  try {
+                    if (!scheduleEmployee) return;
+                    const startDate = breakForm.from || new Date().toISOString().slice(0,10);
+                    const endDate = breakForm.until || startDate;
+                    await api.post(`/employees/${scheduleEmployee.id}/blocks/recurring`, {
+                      startDate,
+                      endDate,
+                      startTimeOfDay: breakForm.start,
+                      endTimeOfDay: breakForm.end,
+                      daysOfWeek: breakForm.daysOfWeek,
+                      reason: 'Descanso fijo',
+                    });
+                    // Feedback simple
+                    alert('Descanso aplicado');
+                  } catch (e) {
+                    console.error('Error applying break', e);
+                  }
+                }}>Aplicar descanso</Button>
+              </Grid>
+            </Grid>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={()=> setScheduleDialogOpen(false)}>Cancelar</Button>
+            <Button variant="contained" onClick={async ()=>{
+              try {
+                if (!scheduleEmployee) return;
+                const payload = scheduleForm.map(r => ({ dayOfWeek: r.day, start: r.start || null, end: r.end || null }));
+                await api.put(`/employees/${scheduleEmployee.id}/schedule`, payload);
+                setScheduleDialogOpen(false);
+              } catch (e) {
+                console.error('Error saving schedule', e);
+              }
+            }}>Guardar</Button>
+          </DialogActions>
+        </Dialog>
+
         {/* Commissions Dialog */}
         <Dialog 
           open={openCommissionDialog} 
@@ -783,3 +1034,60 @@ const Employees: React.FC = () => {
 };
 
 export default Employees;
+
+// Quick creator component for blocks (inputs + quick buttons)
+const QuickBlockCreator: React.FC<{ employeeId: string; onCreated: () => void }> = ({ employeeId, onCreated }) => {
+  const [start, setStart] = useState<string>(() => new Date().toISOString().slice(0,16));
+  const [end, setEnd] = useState<string>(() => new Date(Date.now() + 60*60*1000).toISOString().slice(0,16));
+  const [reason, setReason] = useState<string>('Bloqueo');
+  const [saving, setSaving] = useState(false);
+
+  const create = async () => {
+    if (!employeeId) return;
+    setSaving(true);
+    try {
+      await api.post(`/employees/${employeeId}/blocks`, {
+        startTime: new Date(start).toISOString(),
+        endTime: new Date(end).toISOString(),
+        reason,
+      });
+      await onCreated();
+    } catch (e: any) {
+      console.error('Error creating block', e);
+      alert(e?.response?.data?.message || 'Error creando bloqueo');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Box sx={{ mb: 2 }}>
+      <Grid container spacing={2}>
+        <Grid item xs={12} sm={4}>
+          <TextField fullWidth type="datetime-local" label="Inicio" value={start} onChange={(e) => setStart(e.target.value)} InputLabelProps={{ shrink: true }} />
+        </Grid>
+        <Grid item xs={12} sm={4}>
+          <TextField fullWidth type="datetime-local" label="Fin" value={end} onChange={(e) => setEnd(e.target.value)} InputLabelProps={{ shrink: true }} />
+        </Grid>
+        <Grid item xs={12} sm={4}>
+          <TextField fullWidth label="Motivo (opcional)" value={reason} onChange={(e) => setReason(e.target.value)} />
+        </Grid>
+        <Grid item xs={12}>
+          <Button variant="contained" onClick={create} disabled={saving || !employeeId}>Bloquear</Button>
+          <Button sx={{ ml: 1 }} onClick={() => {
+            const now = new Date();
+            const later = new Date(now.getTime() + 30*60*1000);
+            setStart(now.toISOString().slice(0,16));
+            setEnd(later.toISOString().slice(0,16));
+          }}>+30 min</Button>
+          <Button sx={{ ml: 1 }} onClick={() => {
+            const now = new Date();
+            const later = new Date(now.getTime() + 60*60*1000);
+            setStart(now.toISOString().slice(0,16));
+            setEnd(later.toISOString().slice(0,16));
+          }}>+1 hora</Button>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+};

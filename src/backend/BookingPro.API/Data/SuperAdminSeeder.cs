@@ -53,7 +53,7 @@ namespace BookingPro.API.Data
                 Id = Guid.NewGuid(),
                 TenantId = systemTenant.Id,
                 Email = "admin@turnos-pro.com",
-                PasswordHash = HashPassword("TurnosPro2024!"), // Contraseña inicial
+                PasswordHash = BookingPro.API.Services.Security.PasswordHasher.Hash("TurnosPro2024!"), // Contraseña inicial
                 FirstName = "Super",
                 LastName = "Admin",
                 Role = Roles.SuperAdmin,
@@ -70,11 +70,6 @@ namespace BookingPro.API.Data
             Console.WriteLine("=== CAMBIAR PASSWORD DESPUÉS DEL PRIMER LOGIN ===");
         }
 
-        private static string HashPassword(string password)
-        {
-            using var sha256 = SHA256.Create();
-            var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password + "BookingProSalt2024"));
-            return Convert.ToBase64String(hashedBytes);
-        }
+        // Password hashing centralized in Services.Security.PasswordHasher
     }
 }

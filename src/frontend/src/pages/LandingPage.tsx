@@ -24,11 +24,21 @@ import {
   Avatar,
   useMediaQuery,
   Checkbox,
+  Drawer,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
+  Collapse,
+  InputAdornment,
+  
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import MenuIcon from '@mui/icons-material/Menu';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -43,9 +53,14 @@ import {
 import { selfRegistrationApi } from '../services/api';
 
 type BusinessType =
-  | 'barbershop' // Peluquería/Barbería
-  | 'peluqueria' // Centro de Estética / Peluquería
-  | 'aesthetics' // Spa/Masajes, Consultorio
+  | 'peluqueria'
+  | 'barberia'
+  | 'estetica'
+  | 'profesionales'
+  | 'salud'
+  // legacy mapping still supported
+  | 'barbershop'
+  | 'aesthetics'
   | 'other';
 
 type TeamSize = 'solo' | 'small' | 'large';
@@ -61,6 +76,15 @@ const COLORS = {
   white: '#ffffff',
   success: '#28a745',
 };
+
+// Estilos por categoría (vertical) para personalizar tonos
+const VERTICAL_STYLES = {
+  peluqueria: { primary: '#C2185B', accent: '#E91E63', bg1: '#FFF0F5', bg2: '#FFE4EC' },
+  barberia: { primary: '#3E2723', accent: '#A1887F', bg1: '#F4EEE9', bg2: '#EFE9E5' },
+  estetica: { primary: '#8E24AA', accent: '#F06292', bg1: '#FBF0FF', bg2: '#F6E6FF' },
+  profesionales: { primary: '#1E88E5', accent: '#42A5F5', bg1: '#EEF4FF', bg2: '#E3EEFF' },
+  salud: { primary: '#00897B', accent: '#26A69A', bg1: '#E9FBF7', bg2: '#D8F7F0' },
+} as const;
 
 const formatNumberAr = (n: number | string) => new Intl.NumberFormat('es-AR').format(Number(n));
 
@@ -140,10 +164,20 @@ const LandingPage: React.FC = () => {
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
   const [loadingOverlay, setLoadingOverlay] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const businessNameInputRef = useRef<HTMLInputElement | null>(null);
+  type VerticalPref = 'peluqueria' | 'barberia' | 'estetica' | 'profesionales' | 'salud';
+  const [verticalPref, setVerticalPref] = useState<VerticalPref | null>(null);
+  const [verticalDialogOpen, setVerticalDialogOpen] = useState(false);
+  const [loginDialogOpen, setLoginDialogOpen] = useState(false);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [loginError, setLoginError] = useState('');
 
   const [businessType, setBusinessType] = useState<BusinessType | null>(null);
   const [teamSize, setTeamSize] = useState<TeamSize | null>(null);
   const [problems, setProblems] = useState<MainProblem[]>([]);
+  const [businessOptionIndex, setBusinessOptionIndex] = useState<number | null>(null);
 
   const [businessName, setBusinessName] = useState('');
   const [subdomain, setSubdomain] = useState('');
@@ -164,6 +198,68 @@ const LandingPage: React.FC = () => {
     ],
     []
   );
+
+  useEffect(() => {
+    // Load user vertical preference from localStorage
+    const pref = (localStorage.getItem('tp_vertical_pref') as VerticalPref | null);
+    if (pref && ['peluqueria','barberia','estetica','profesionales','salud'].includes(pref)) {
+      setVerticalPref(pref);
+    } else {
+      setVerticalDialogOpen(true);
+    }
+  }, []);
+
+  const activeVertical = useMemo<VerticalPref>(() => {
+    // Prefer stored preference, else derive from selected business type
+    if (verticalPref) return verticalPref;
+    switch (businessType) {
+      case 'peluqueria': return 'peluqueria';
+      case 'barberia':
+      case 'barbershop': return 'barberia';
+      case 'estetica':
+      case 'aesthetics': return 'estetica';
+      case 'salud': return 'salud';
+      case 'profesionales': return 'profesionales';
+      default: return 'peluqueria';
+    }
+  }, [verticalPref, businessType]);
+
+  const themeStyle = VERTICAL_STYLES[activeVertical];
+
+  const verticalCopy = useMemo(() => {
+    const map: Record<VerticalPref, { title: string; subtitle: string }> = {
+      peluqueria: { title: 'Tu agenda siempre llena, sin WhatsApp', subtitle: 'Reservas online, recordatorios y señas para peluquerías.' },
+      barberia: { title: 'Más cortes, menos ausencias', subtitle: 'Agenda online, recordatorios y cobro de señas para barberías.' },
+      estetica: { title: 'Agenda relajada para estética', subtitle: 'Tus clientas reservan 24/7; vos te enfocás en atender.' },
+      profesionales: { title: 'Tu agenda profesional en orden', subtitle: 'Reservas, recordatorios y cobros simples en un solo lugar.' },
+      salud: { title: 'Turnos claros para tus pacientes', subtitle: 'Agenda online con recordatorios y seguimiento de pacientes.' },
+    };
+    return map[activeVertical];
+  }, [activeVertical]);
+
+  // Assets por vertical (landscape para hero, square para tarjetas)
+  const imageAssets = {
+    peluqueria: {
+      hero: '/assets/images-landing/vista-lateral-novia-feliz-con-telefono-inteligente.jpg',
+      square: '/assets/images-landing/cliente-de-angulo-bajo-en-peluqueria-mirando-el-telefono.jpg',
+    },
+    barberia: {
+      hero: '/assets/images-landing/vista-frontal-del-concepto-de-barberia.jpg',
+      square: '/assets/images-landing/vista-frontal-del-concepto-de-barberia.jpg',
+    },
+    estetica: {
+      hero: '/assets/images-landing/mujer-con-un-pincel-de-maquillaje-en-el-espejo.jpg',
+      square: '/assets/images-landing/mujer-con-un-pincel-de-maquillaje-en-el-espejo.jpg',
+    },
+    profesionales: {
+      hero: '/assets/images-landing/colegas-trabajando-juntos-en-el-proyecto.jpg',
+      square: '/assets/images-landing/colegas-felices-de-trabajar-juntos.jpg',
+    },
+    salud: {
+      hero: '/assets/images-landing/psicologo-de-sexo-masculino-confiado-que-se-sienta-en-silla-delante-de-su-paciente-femenino.jpg',
+      square: '/assets/images-landing/vista-lateral-del-paciente-haciendo-ejercicios-supervisados-por-el-medico.jpg',
+    },
+  } as const;
 
   useEffect(() => {
     // Load Inter font for this page per spec
@@ -206,6 +302,7 @@ const LandingPage: React.FC = () => {
     setStepperOpen(false);
     setActiveStep(0);
     setBusinessType(null);
+    setBusinessOptionIndex(null);
     setTeamSize(null);
     setProblems([]);
     setBusinessName('');
@@ -221,9 +318,22 @@ const LandingPage: React.FC = () => {
     setActiveStep((s) => Math.min(TOTAL_STEPS - 1, s + 1));
   };
 
-  const handleSelectBusiness = (bt: BusinessType) => {
+  const handleSelectBusiness = (bt: BusinessType, idx?: number) => {
     setBusinessType(bt);
+    if (typeof idx === 'number') setBusinessOptionIndex(idx);
     trackEvent('business_type_selected', { businessType: bt });
+    // En mobile, enfocar y hacer scroll al campo nombre al expandirse
+    if (isMobile) {
+      setTimeout(() => {
+        const input = businessNameInputRef.current;
+        if (input) {
+          try { input.focus({ preventScroll: true }); } catch {}
+          try { input.setSelectionRange(0, input.value.length); } catch {}
+          const container = input.closest('.MuiGrid-item') || input.parentElement || undefined as any;
+          try { container && (container as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
+        }
+      }, 350); // esperar a que termine el Collapse
+    }
   };
 
   const handleSelectTeam = (size: TeamSize) => {
@@ -278,28 +388,72 @@ const LandingPage: React.FC = () => {
   const mapBusinessToVertical = (bt: BusinessType | null): string => {
     switch (bt) {
       case 'barbershop':
+      case 'barberia':
         return 'barbershop';
       case 'peluqueria':
         return 'peluqueria';
       case 'aesthetics':
+      case 'estetica':
+      case 'salud':
         return 'aesthetics';
+      case 'profesionales':
+        return 'other';
       default:
         return 'barbershop';
     }
   };
 
   const passwordOk = useMemo(() => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/.test(password), [password]);
+  const emailOk = useMemo(() => /[^\s@]+@[^\s@]+\.[^\s@]+/.test(email), [email]);
+  const submitIssues = useMemo(() => {
+    const issues: string[] = [];
+    if (!businessType) issues.push('Elegí el tipo de negocio');
+    if (!emailOk) issues.push('Ingresá un email válido');
+    if (!passwordOk) issues.push('La contraseña no cumple los requisitos');
+    if (confirmPassword !== password) issues.push('La confirmación no coincide');
+    if (businessName.trim().length < 2) issues.push('Escribí el nombre de tu local');
+    if (subdomain.trim().length < 3) issues.push('El subdominio debe tener al menos 3 letras');
+    return issues;
+  }, [businessType, emailOk, passwordOk, confirmPassword, password, businessName, subdomain]);
 
   const canStep1Continue = () => {
     return !!businessType && businessName.trim().length >= 2 && subdomain.trim().length >= 3 && subAvailable !== false;
   };
 
   const canSubmit = () => {
-    const emailOk = /[^\s@]+@[^\s@]+\.[^\s@]+/.test(email);
-    return businessType !== null && emailOk && passwordOk && password === confirmPassword && subdomain.trim().length >= 3 && subAvailable !== false && businessName.trim().length >= 2;
+    // No bloqueamos por disponibilidad aquí; se validará en el backend
+    return (
+      businessType !== null &&
+      emailOk &&
+      passwordOk &&
+      password === confirmPassword &&
+      businessName.trim().length >= 2 &&
+      subdomain.trim().length >= 3
+    );
   };
 
   const API_BASE = (process.env.REACT_APP_API_URL as string) || '/api';
+  const [plans, setPlans] = useState<any[]>([]);
+  const [plansError, setPlansError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Fetch public plans (AllowAnonymous)
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/subscription-plans?isActive=true`);
+        if (!res.ok) throw new Error('HTTP');
+        const data = await res.json();
+        setPlans(Array.isArray(data) ? data.slice(0, 3) : []);
+      } catch (e) {
+        setPlansError('No se pudieron cargar los planes');
+      }
+    })();
+  }, [API_BASE]);
+
+  const rootDomain = useMemo(() => {
+    const host = window.location.hostname;
+    return host.includes('localhost') || host.includes('127.0.0.1') ? 'localhost:3001' : 'turnos-pro.com';
+  }, []);
 
   const buildAutoLoginUrl = (payload: any) => {
     // Prefer server-provided redirectUrl if present
@@ -418,35 +572,47 @@ const LandingPage: React.FC = () => {
     const bullets: string[] = [];
     switch (businessType) {
       case 'barbershop':
+      case 'barberia':
         bullets.push(
-          'Reducí 70% las inasistencias con recordatorios automáticos',
-          'Tus clientes reservan corte + barba online 24/7',
-          'Cobrá señas por Mercado Pago para asegurar turnos',
-          'Controlá cuánto facturás por servicio en tiempo real'
+          'Reducí 70% las inasistencias con recordatorios',
+          'Reservas corte + barba online 24/7',
+          'Cobrá señas por Mercado Pago'
         );
         break;
       case 'peluqueria':
         bullets.push(
-          'Organizá tratamientos largos sin problemas de coordinación',
+          'Coordiná tratamientos largos sin fricción',
           'Recordatorios automáticos reducen 70% las faltas',
-          'Fichas de cliente con historial de tratamientos',
-          'Reportes de servicios más rentables'
+          'Historial de clientes y servicios'
         );
         break;
       case 'aesthetics':
+      case 'estetica':
         bullets.push(
-          'Agenda relajada sin coordinar por WhatsApp',
-          'Clientes reservan cuando quieren; vos te enfocás en atender',
+          'Agenda sin WhatsApp: reservas 24/7',
           'Cobrá señas para terapias premium',
           'Seguimiento de clientes frecuentes'
+        );
+        break;
+      case 'salud':
+        bullets.push(
+          'Agenda online con recordatorios a pacientes',
+          'Historial y notas por paciente',
+          'Cobro de señas para primeras consultas'
+        );
+        break;
+      case 'profesionales':
+        bullets.push(
+          'Reservas 24/7 desde tu link',
+          'Recordatorios por WhatsApp y Email',
+          'Cobro de señas y reportes simples'
         );
         break;
       default:
         bullets.push(
           'Reservas 24/7 desde cualquier dispositivo',
-          'Recordatorios por WhatsApp y Email con 1 click',
-          'Cobro de señas por Mercado Pago',
-          'Reportes claros para decidir mejor'
+          'Recordatorios por WhatsApp y Email',
+          'Cobro de señas por Mercado Pago'
         );
     }
     return bullets;
@@ -462,55 +628,213 @@ const LandingPage: React.FC = () => {
 
   return (
     <Box sx={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif', color: COLORS.black }}>
+      {/* Vertical Selector Dialog */}
+      <Dialog open={verticalDialogOpen} onClose={() => setVerticalDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogContent>
+          <Typography variant="h6" sx={{ fontWeight: 800, mb: 1 }}>¿Qué tipo de negocio tenés?</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Esto nos ayuda a personalizar la experiencia.</Typography>
+          <Grid container spacing={1}>
+            {[
+              { key: 'peluqueria', title: 'Peluquería' },
+              { key: 'barberia', title: 'Barbería' },
+              { key: 'estetica', title: 'Estética' },
+              { key: 'profesionales', title: 'Profesionales' },
+              { key: 'salud', title: 'Salud' },
+            ].map((v) => (
+              <Grid item xs={12} key={v.key}>
+                <Button
+                  fullWidth
+                  variant={verticalPref === (v.key as VerticalPref) ? 'contained' : 'outlined'}
+                  onClick={() => {
+                    const k = v.key as VerticalPref;
+                    setVerticalPref(k);
+                    localStorage.setItem('tp_vertical_pref', k);
+                    setVerticalDialogOpen(false);
+                  }}
+                >
+                  {v.title}
+                </Button>
+              </Grid>
+            ))}
+          </Grid>
+        </DialogContent>
+      </Dialog>
+      {/* Login Redirect Dialog */}
+      <Dialog open={loginDialogOpen} onClose={() => setLoginDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogContent>
+          <Typography variant="h6" sx={{ fontWeight: 800, mb: 1 }}>Ingresar al panel</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Poné tu email de administrador y te llevamos a tu cuenta.</Typography>
+          {loginError && (
+            <Typography variant="body2" color="error" sx={{ mb: 1 }}>{loginError}</Typography>
+          )}
+          <TextField
+            autoFocus
+            fullWidth
+            type="email"
+            label="Tu email"
+            value={loginEmail}
+            onChange={(e) => { setLoginEmail(e.target.value); setLoginError(''); }}
+          />
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+            <Button onClick={() => setLoginDialogOpen(false)} sx={{ mr: 1 }} disabled={loginBusy}>Cancelar</Button>
+            <Button
+              variant="contained"
+              disabled={!/[^\s@]+@[^\s@]+\.[^\s@]+/.test(loginEmail) || loginBusy}
+              onClick={async () => {
+                try {
+                  setLoginBusy(true);
+                  setLoginError('');
+                  const res = await fetch(`${API_BASE}/public/tenant-by-email?email=${encodeURIComponent(loginEmail)}`);
+                  if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err?.error || 'No encontramos una cuenta con ese email');
+                  }
+                  const data = await res.json();
+                  const sub = data?.subdomain;
+                  const domain = data?.domain || (window.location.hostname.includes('localhost') ? 'localhost:3001' : 'turnos-pro.com');
+                  if (!sub) throw new Error('No se pudo resolver el subdominio');
+                  const protocol = window.location.hostname.includes('localhost') ? 'http:' : 'https:';
+                  window.location.href = `${protocol}//${sub}.${domain}/login`;
+                } catch (e) {
+                  const msg = (e as any)?.message || 'No pudimos redirigirte. Probá de nuevo.';
+                  setLoginError(msg);
+                } finally {
+                  setLoginBusy(false);
+                }
+              }}
+            >
+              {loginBusy ? <><CircularProgress size={18} sx={{ mr: 1 }} />Buscando…</> : 'Ingresar'}
+            </Button>
+          </Box>
+        </DialogContent>
+      </Dialog>
       {/* Header */}
-      <AppBar position="sticky" elevation={0} sx={{ backgroundColor: COLORS.white, borderBottom: '1px solid #eee' }}>
+      <AppBar position="sticky" color="default" elevation={0} sx={{ backgroundColor: COLORS.white, borderBottom: '1px solid #eee', color: '#1a1a1a' }}>
         <Toolbar sx={{ display: 'flex', justifyContent: 'space-between' }}>
-          <Typography variant="h6" sx={{ fontWeight: 800, color: COLORS.primaryGreen }}>
+          <Typography variant="h6" sx={{ fontWeight: 800, color: themeStyle.primary }}>
             Turnos Pro
           </Typography>
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button color="inherit" href="#features">Características</Button>
-            <Button color="inherit" href="#precios">Precios</Button>
-            <Button color="inherit" href="#faq">FAQ</Button>
-            <Button variant="contained" onClick={openStepper} sx={{
-              backgroundColor: COLORS.gold,
-              color: COLORS.white,
-              '&:hover': { backgroundColor: '#9c6d09', transform: 'translateY(-2px)' },
-              transition: 'all .3s'
-            }}>
+          {/* Desktop nav */}
+          <Box sx={{ display: { xs: 'none', sm: 'flex' }, gap: 2, alignItems: 'center' }}>
+            <Button color="inherit" sx={{ color: '#1a1a1a' }} href="#features">Características</Button>
+            <Button color="inherit" sx={{ color: '#1a1a1a' }} href="#precios">Precios</Button>
+            <Button color="inherit" sx={{ color: '#1a1a1a' }} href="#faq">FAQ</Button>
+            <Button color="inherit" sx={{ color: '#1a1a1a' }} onClick={() => setLoginDialogOpen(true)}>Ingresar</Button>
+            <Button
+              variant="contained"
+              onClick={openStepper}
+              sx={{
+                backgroundColor: themeStyle.accent,
+                color: COLORS.white,
+                '&:hover': { backgroundColor: '#9c6d09', transform: 'translateY(-2px)' },
+                transition: 'all .3s'
+              }}
+            >
               Probá GRATIS 30 días
             </Button>
           </Box>
+          {/* Mobile nav trigger */}
+          <Box sx={{ display: { xs: 'flex', sm: 'none' }, alignItems: 'center' }}>
+            <Button
+              size="small"
+              variant="contained"
+              onClick={openStepper}
+              sx={{
+                mr: 1.5,
+                backgroundColor: themeStyle.accent,
+                color: COLORS.white,
+                px: 1.5,
+                '&:hover': { backgroundColor: '#9c6d09' }
+              }}
+            >
+              Probar gratis
+            </Button>
+            <IconButton aria-label="menu" onClick={() => setMobileNavOpen(true)}>
+              <MenuIcon />
+            </IconButton>
+          </Box>
         </Toolbar>
       </AppBar>
+
+      {/* Mobile Drawer */}
+      <Drawer anchor="right" open={mobileNavOpen} onClose={() => setMobileNavOpen(false)}>
+        <Box role="presentation" sx={{ width: 260 }} onClick={() => setMobileNavOpen(false)}>
+          <List>
+            {[
+              { label: 'Características', href: '#features' },
+              { label: 'Precios', href: '#precios' },
+              { label: 'FAQ', href: '#faq' },
+            ].map((item) => (
+              <ListItem key={item.label} disablePadding>
+                <ListItemButton component="a" href={item.href}>
+                  <ListItemText primary={item.label} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+            <ListItem disablePadding>
+              <ListItemButton onClick={openStepper}>
+                <ListItemText primary="Probá GRATIS 30 días" />
+              </ListItemButton>
+            </ListItem>
+            <ListItem disablePadding>
+              <ListItemButton onClick={() => { setVerticalDialogOpen(true); }}>
+                <ListItemText primary="Cambiar sector" />
+              </ListItemButton>
+            </ListItem>
+            <ListItem disablePadding>
+              <ListItemButton onClick={() => setLoginDialogOpen(true)}>
+                <ListItemText primary="Ingresar" />
+              </ListItemButton>
+            </ListItem>
+          </List>
+        </Box>
+      </Drawer>
 
       {/* Hero */}
       <Box sx={{
         position: 'relative',
         overflow: 'hidden',
-        background: `linear-gradient(135deg, ${COLORS.cream} 0%, ${COLORS.lightGray} 50%, ${COLORS.white} 100%)`,
+        background: `linear-gradient(135deg, ${themeStyle.bg1} 0%, ${themeStyle.bg2} 50%, ${COLORS.white} 100%)`,
       }}>
         <Container maxWidth="lg" sx={{ py: { xs: 8, md: 14 } }}>
           <motion.div {...heroMotion}>
             <Chip label="✨ Sin datos de pago requeridos" sx={{ mb: 2, backgroundColor: COLORS.white }} />
-            <Typography variant="h1" sx={{ fontSize: { xs: 32, md: 44 }, fontWeight: 800, lineHeight: 1.2, color: COLORS.black }}>
-              Olvidate del dolor de agendar turnos
+            <Typography variant="h1" sx={{ fontSize: { xs: 30, md: 44 }, fontWeight: 800, lineHeight: 1.2, color: COLORS.black }}>
+              {verticalCopy.title}
             </Typography>
-            <Typography variant="h6" sx={{ mt: 2, maxWidth: 720, color: '#333' }}>
-              Ofrecé un mejor servicio, reducí el ausentismo y agilízá la administración de tu emprendimiento
+            <Typography variant="h6" sx={{ mt: 2, maxWidth: 720, color: '#333', fontSize: { xs: 16, md: undefined } }}>
+              {verticalCopy.subtitle}
             </Typography>
-            <Box sx={{ mt: 4, display: 'flex', gap: 2, alignItems: 'center' }}>
-              <Button size="large" variant="contained" onClick={openStepper} endIcon={<ArrowForwardIcon />} sx={{
-                backgroundColor: COLORS.gold,
+            <Box sx={{ mt: 4, display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'stretch', sm: 'center' } }}>
+              <Button size={isMobile ? 'medium' : 'large'} fullWidth={isMobile} variant="contained" onClick={openStepper} endIcon={<ArrowForwardIcon />} sx={{
+                backgroundColor: themeStyle.accent,
                 color: COLORS.white,
                 px: 3,
-                py: 1.2,
+                py: { xs: 1.1, sm: 1.2 },
                 '&:hover': { backgroundColor: '#9c6d09', transform: 'translateY(-2px)' },
                 transition: 'all .3s'
               }}>
                 Probá GRATIS 30 días
               </Button>
-              <Typography variant="body2" sx={{ color: '#666' }}>Tu tiempo, nuestra prioridad</Typography>
+              <Typography variant="body2" sx={{ color: '#666', textAlign: { xs: 'center', sm: 'left' } }}>Tu tiempo, nuestra prioridad</Typography>
+            </Box>
+            {/* Hero image personalized by vertical */}
+            <Box sx={{ mt: 4 }}>
+              {(() => {
+                const selected = verticalPref || 'peluqueria';
+                const heroSrc = (imageAssets as any)[selected].hero as string;
+                return (
+                  <img
+                    src={heroSrc}
+                    srcSet={`${heroSrc} 600w, ${heroSrc} 1200w, ${heroSrc} 1800w`}
+                    sizes="(max-width: 600px) 100vw, (max-width: 1200px) 90vw, 920px"
+                    alt="Imagen de referencia del negocio"
+                    style={{ width: '100%', maxWidth: 920, display: 'block', borderRadius: 16, objectFit: 'cover' }}
+                    loading="eager"
+                    decoding="async"
+                  />
+                );
+              })()}
             </Box>
           </motion.div>
 
@@ -524,7 +848,6 @@ const LandingPage: React.FC = () => {
           {[
             ['+12.000', 'negocios nos recomiendan'],
             ['82%', 'menos inasistencias'],
-            ['100M+', 'turnos procesados'],
             ['24/7', 'reservas online'],
           ].map(([k, v]) => (
             <Grid item xs={6} md={3} key={k}>
@@ -544,12 +867,9 @@ const LandingPage: React.FC = () => {
         <Typography variant="h3" sx={{ mb: 4, fontWeight: 700 }}>Todo lo que tu negocio necesita</Typography>
         <Grid container spacing={3}>
           {[
-            { icon: <CalendarMonth color="primary" />, title: 'Agenda Online', desc: 'Permití que tus clientes reserven turnos 24/7 desde cualquier dispositivo' },
-            { icon: <AccessTime color="primary" />, title: 'Recordatorios Automáticos', desc: 'Reducí las inasistencias con notificaciones por email y WhatsApp' },
-            { icon: <PeopleAlt color="primary" />, title: 'Gestión de Clientes', desc: 'Mantené un registro detallado de tus clientes y su historial' },
-            { icon: <BarChart color="primary" />, title: 'Reportes en Tiempo Real', desc: 'Analizá el rendimiento de tu negocio con datos al instante' },
-            { icon: <Payments color="primary" />, title: 'Cobro de Señas', desc: 'Reducí el ausentismo aceptando pagos por adelantado con Mercado Pago' },
-            { icon: <ReceiptLong color="primary" />, title: 'Facturación AFIP', desc: 'Emití facturas electrónicas con un solo click' },
+            { icon: <CalendarMonth color="primary" />, title: 'Agenda Online', desc: 'Reservas 24/7 desde cualquier dispositivo' },
+            { icon: <AccessTime color="primary" />, title: 'Recordatorios Automáticos', desc: 'Reducí inasistencias con WhatsApp y Email' },
+            { icon: <Payments color="primary" />, title: 'Cobro de Señas', desc: 'Asegurá turnos cobrando anticipos con Mercado Pago' },
           ].map((f) => (
             <Grid item xs={12} sm={6} md={4} key={f.title}>
               <Card sx={{ height: '100%' }}>
@@ -562,22 +882,62 @@ const LandingPage: React.FC = () => {
             </Grid>
           ))}
         </Grid>
+        <Accordion sx={{ mt: 2 }}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>Otras funciones</AccordionSummary>
+          <AccordionDetails>
+            <Grid container spacing={2}>
+              {[
+                { icon: <PeopleAlt color="primary" />, title: 'Gestión de Clientes', desc: 'Historial y fichas detalladas' },
+                { icon: <BarChart color="primary" />, title: 'Reportes en Tiempo Real', desc: 'Decisiones con datos claros' },
+                { icon: <ReceiptLong color="primary" />, title: 'Facturación AFIP', desc: 'Emití facturas con un click' },
+              ].map((f) => (
+                <Grid item xs={12} sm={6} md={4} key={f.title}>
+                  <Card>
+                    <CardContent>
+                      <Box sx={{ mb: 1 }}>{f.icon}</Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{f.title}</Typography>
+                      <Typography variant="body2" color="text.secondary">{f.desc}</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          </AccordionDetails>
+        </Accordion>
       </Section>
 
       {/* Para quién es */}
       <Section>
         <Typography variant="h3" sx={{ mb: 4, fontWeight: 700 }}>¿Para quién es?</Typography>
         <Grid container spacing={3}>
-          {[
-            ['💇‍♂️ Belleza y Bienestar', 'Peluquerías, barberías, estética, spa, uñas'],
-            ['🏥 Salud', 'Consultorios, kinesiología, terapias alternativas'],
-            ['📚 Profesionales', 'Asesorías, clases particulares, servicios independientes'],
-          ].map(([t, d]) => (
-            <Grid item xs={12} md={4} key={t}>
+          {[ 
+            { key: 'peluqueria', title: '💇‍♀️ Peluquería', desc: 'Color, corte, peinado y más' },
+            { key: 'barberia', title: '🧔 Barbería', desc: 'Cortes, barba y afeitado' },
+            { key: 'estetica', title: '💅 Estética', desc: 'Uñas, faciales, pestañas, spa' },
+            { key: 'salud', title: '🏥 Salud', desc: 'Consultorios, kinesiología, terapias' },
+            { key: 'profesionales', title: '📚 Profesionales', desc: 'Clases, asesorías y servicios' },
+          ].map((item) => (
+            <Grid item xs={12} sm={6} md={4} key={item.key}>
               <Card>
+                <Box sx={{ p: 1 }}>
+                  {(() => {
+                    const sq = (imageAssets as any)[item.key].square as string;
+                    return (
+                      <img
+                        src={sq}
+                        srcSet={`${sq} 300w, ${sq} 600w, ${sq} 900w`}
+                        sizes="(max-width: 600px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        alt={item.title}
+                        style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: 12 }}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    );
+                  })()}
+                </Box>
                 <CardContent>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{t}</Typography>
-                  <Typography variant="body2" color="text.secondary">{d}</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{item.title}</Typography>
+                  <Typography variant="body2" color="text.secondary">{item.desc}</Typography>
                 </CardContent>
               </Card>
             </Grid>
@@ -657,42 +1017,33 @@ const LandingPage: React.FC = () => {
       <Section id="precios">
         <Typography variant="h3" sx={{ mb: 4, fontWeight: 700 }}>Precios simples</Typography>
         <Grid container spacing={3}>
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent>
-                <Typography variant="overline">GRATIS 30 días</Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>0 ARS</Typography>
-                <Typography variant="body2" color="text.secondary">Sin datos de pago, todas las funciones, soporte WhatsApp</Typography>
-              </CardContent>
-              <CardActions>
-                <Button fullWidth variant="contained" onClick={openStepper}>Comenzar</Button>
-              </CardActions>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent>
-                <Typography variant="overline">Plan Profesional</Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>$XX.XXX/mes</Typography>
-                <Typography variant="body2" color="text.secondary">1 profesional, clientes ilimitados</Typography>
-              </CardContent>
-              <CardActions>
-                <Button fullWidth variant="outlined" onClick={openStepper}>Probar</Button>
-              </CardActions>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent>
-                <Typography variant="overline">Plan Empresa</Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800 }}>$XX.XXX/profesional</Typography>
-                <Typography variant="body2" color="text.secondary">Múltiples profesionales, reportes avanzados</Typography>
-              </CardContent>
-              <CardActions>
-                <Button fullWidth variant="outlined" onClick={openStepper}>Probar</Button>
-              </CardActions>
-            </Card>
-          </Grid>
+          {(plans.length > 0 ? plans : []).map((plan) => (
+            <Grid item xs={12} md={4} key={plan.code}>
+              <Card>
+                <CardContent>
+                  <Typography variant="overline">{plan.name}</Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                    {new Intl.NumberFormat('es-AR', { style: 'currency', currency: plan.currency || 'ARS', maximumFractionDigits: 0 }).format(plan.price || 0)} / mes
+                  </Typography>
+                  {plan.description && (
+                    <Typography variant="body2" color="text.secondary">{plan.description}</Typography>
+                  )}
+                </CardContent>
+                <CardActions>
+                  <Button fullWidth variant="outlined" onClick={openStepper}>Probar</Button>
+                </CardActions>
+              </Card>
+            </Grid>
+          ))}
+          {plans.length === 0 && (
+            <Grid item xs={12}>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary">{plansError || 'Cargando planes...'}</Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
         </Grid>
       </Section>
 
@@ -727,7 +1078,7 @@ const LandingPage: React.FC = () => {
           </Grid>
           <Grid item xs={12} md={4}>
             <Button fullWidth size="large" variant="contained" onClick={openStepper} sx={{
-              backgroundColor: COLORS.gold,
+              backgroundColor: themeStyle.accent,
               color: COLORS.white,
               '&:hover': { backgroundColor: '#9c6d09' }
             }}>
@@ -756,59 +1107,136 @@ const LandingPage: React.FC = () => {
                 <Typography variant="body2" sx={{ mb: 3, color: 'text.secondary' }}>Elegí tu sector y contanos cómo se llama tu local</Typography>
                 <Grid container spacing={2}>
                   {[
-                    { key: 'barbershop', title: '💇‍♂️ Peluquería/Barbería', sub: 'Cortes, barba, tratamientos' },
-                    { key: 'peluqueria', title: '💅 Centro de Estética', sub: 'Uñas, cejas, tratamientos' },
-                    { key: 'aesthetics', title: '💆‍♀️ Spa/Masajes', sub: 'Relajación y bienestar' },
-                    { key: 'aesthetics', title: '🏥 Consultorio', sub: 'Médico, kinesiología, etc.' },
-                    { key: 'aesthetics', title: '📚 Clases/Asesorías', sub: 'Particulares, tutorías' },
-                    { key: 'other', title: '🔧 Otro', sub: 'Servicios con turnos' },
-                  ].map((opt) => (
-                    <Grid item xs={12} sm={6} key={opt.title}>
-                      <Card onClick={() => handleSelectBusiness(opt.key as BusinessType)} sx={{ cursor: 'pointer', border: businessType === (opt.key as BusinessType) ? `2px solid ${COLORS.primaryGreen}` : '1px solid #eee' }}>
+                    { key: 'peluqueria', title: '💇‍♀️ Peluquería', sub: 'Color, corte, peinado' },
+                    { key: 'barberia', title: '🧔 Barbería', sub: 'Corte + barba' },
+                    { key: 'estetica', title: '💅 Estética', sub: 'Uñas, faciales, pestañas' },
+                    { key: 'salud', title: '🏥 Salud', sub: 'Consultorios y terapias' },
+                    { key: 'profesionales', title: '📚 Profesionales', sub: 'Clases, asesorías y servicios' },
+                  ].map((opt, idx) => (
+                    <Grid item xs={12} sm={6} key={`${opt.title}-${idx}`}>
+                      <Card onClick={() => { handleSelectBusiness(opt.key as BusinessType, idx); setVerticalPref(opt.key as VerticalPref); localStorage.setItem('tp_vertical_pref', opt.key as VerticalPref); }} sx={{ cursor: 'pointer', border: businessOptionIndex === idx ? `2px solid ${themeStyle.primary}` : '1px solid #eee' }}>
                         <CardContent>
                           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{opt.title}</Typography>
                           <Typography variant="body2" color="text.secondary">{opt.sub}</Typography>
                         </CardContent>
                       </Card>
+                      {/* Mobile: Campo y continuar debajo de la opción seleccionada */}
+                      {isMobile && (
+                        <Collapse in={businessOptionIndex === idx} timeout={300} unmountOnExit>
+                          <Box sx={{ mt: 1 }}>
+                            <TextField
+                              fullWidth
+                              label="Como se llama tu local?"
+                              value={businessName}
+                              onChange={(e) => setBusinessName(e.target.value)}
+                              inputRef={businessNameInputRef}
+                              error={subAvailable === false && businessName.trim().length > 0}
+                              helperText={
+                                checkingSub
+                                  ? 'Validando nombre…'
+                                  : businessName.trim().length < 2
+                                  ? 'Escribí al menos 2 caracteres'
+                                  : subdomain.trim().length < 3
+                                  ? 'El subdominio debe tener al menos 3 letras'
+                                  : subAvailable === false
+                                  ? 'Ese nombre ya está en uso. Probá con otra variante.'
+                                  : subdomain
+                                  ? `Tu URL será: https://${subdomain}.${rootDomain}`
+                                  : ' '
+                              }
+                              InputProps={{
+                                endAdornment: (
+                                  <InputAdornment position="end">
+                                    {checkingSub ? (
+                                      <CircularProgress size={16} />
+                                    ) : subAvailable === true ? (
+                                      <CheckCircleIcon color="success" fontSize="small" />
+                                    ) : subAvailable === false ? (
+                                      <WarningAmberIcon color="warning" fontSize="small" />
+                                    ) : null}
+                                  </InputAdornment>
+                                ),
+                              }}
+                            />
+                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                              <Button
+                                fullWidth
+                                variant="contained"
+                                disabled={!canStep1Continue()}
+                                onClick={() => {
+                                  trackEvent('step_completed', { step: 1 });
+                                  autoAdvance();
+                                }}
+                                sx={{ backgroundColor: themeStyle.accent, '&:hover': { backgroundColor: '#9c6d09' } }}
+                              >
+                                Continuar
+                              </Button>
+                            </Box>
+                          </Box>
+                        </Collapse>
+                      )}
                     </Grid>
                   ))}
                 </Grid>
-                {/* Nombre del local aparece luego de seleccionar el tipo */}
-                <AnimatePresence>
-                  {businessType && (
-                    <motion.div
-                      key="business-name"
-                      initial={{ opacity: 0, y: 16 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 16 }}
-                      transition={{ duration: 0.4 }}
-                    >
-                      <Grid container spacing={2} sx={{ mt: 1 }}>
-                        <Grid item xs={12}>
-                          <TextField
-                            fullWidth
-                            label="Como se llama tu local?"
-                            value={businessName}
-                            onChange={(e) => setBusinessName(e.target.value)}
-                            error={subAvailable === false && businessName.trim().length > 0}
-                            helperText={
-                              checkingSub
-                                ? 'Validando nombre…'
-                                : subAvailable === false && businessName.trim().length > 0
-                                ? 'Ese nombre ya está en uso. Probá con otra variante.'
-                                : ' '
-                            }
-                          />
+                {/* Desktop/Tablet: campo y continuar al final, no inline */}
+                {!isMobile && (
+                  <AnimatePresence>
+                    {businessType && (
+                      <motion.div
+                        key="business-name-desktop"
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 16 }}
+                        transition={{ duration: 0.4 }}
+                      >
+                        <Grid container spacing={2} sx={{ mt: 1 }}>
+                          <Grid item xs={12}>
+                            <TextField
+                              fullWidth
+                              label="Como se llama tu local?"
+                              value={businessName}
+                              onChange={(e) => setBusinessName(e.target.value)}
+                              error={subAvailable === false && businessName.trim().length > 0}
+                              helperText={
+                                checkingSub
+                                  ? 'Validando nombre…'
+                                  : businessName.trim().length < 2
+                                  ? 'Escribí al menos 2 caracteres'
+                                  : subdomain.trim().length < 3
+                                  ? 'El subdominio debe tener al menos 3 letras'
+                                  : subAvailable === false
+                                  ? 'Ese nombre ya está en uso. Probá con otra variante.'
+                                  : subdomain
+                                  ? `Tu URL será: https://${subdomain}.${rootDomain}`
+                                  : ' '
+                              }
+                              InputProps={{
+                                endAdornment: (
+                                  <InputAdornment position="end">
+                                    {checkingSub ? (
+                                      <CircularProgress size={16} />
+                                    ) : subAvailable === true ? (
+                                      <CheckCircleIcon color="success" fontSize="small" />
+                                    ) : subAvailable === false ? (
+                                      <WarningAmberIcon color="warning" fontSize="small" />
+                                    ) : null}
+                                  </InputAdornment>
+                                ),
+                              }}
+                            />
+                          </Grid>
                         </Grid>
-                      </Grid>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-                  <Button variant="contained" disabled={!canStep1Continue()} onClick={() => { trackEvent('step_completed', { step: 1 }); autoAdvance(); }}>
-                    Continuar
-                  </Button>
-                </Box>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                )}
+                {!isMobile && (
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                    <Button variant="contained" disabled={!canStep1Continue()} onClick={() => { trackEvent('step_completed', { step: 1 }); autoAdvance(); }}>
+                      Continuar
+                    </Button>
+                  </Box>
+                )}
               </motion.div>
             )}
 
@@ -845,7 +1273,6 @@ const LandingPage: React.FC = () => {
                     { key: 'noShows', title: '📱 Clientes que faltan sin avisar', sub: 'Pierdo tiempo y dinero por inasistencias' },
                     { key: 'whatsapp', title: '📞 Coordinar turnos por WhatsApp', sub: 'Paso horas respondiendo mensajes' },
                     { key: 'deposits', title: '💰 No poder cobrar señas fácilmente', sub: 'Necesito asegurar los turnos' },
-                    { key: 'reports', title: '📊 No tener control de ingresos', sub: 'Quiero ver reportes claros' },
                   ].map((opt) => {
                     const checked = problems.includes(opt.key as MainProblem);
                     return (
@@ -890,12 +1317,6 @@ const LandingPage: React.FC = () => {
             {activeStep === 3 && (
               <motion.div key="step4" initial={{ x: 40, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -40, opacity: 0 }} transition={{ duration: 0.6 }}>
                
-                <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>💰 Vas a ahorrar:</Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={4}><Card><CardContent><Typography variant="h6" sx={{ fontWeight: 800 }}>{formatNumberAr(savingsCalc.hours)} hs/sem</Typography><Typography variant="caption" color="text.secondary">en coordinación</Typography></CardContent></Card></Grid>
-                  <Grid item xs={12} md={4}><Card><CardContent><Typography variant="h6" sx={{ fontWeight: 800 }}>${formatNumberAr(savingsCalc.pesos)}/mes</Typography><Typography variant="caption" color="text.secondary">en inasistencias</Typography></CardContent></Card></Grid>
-                  <Grid item xs={12} md={4}><Card><CardContent><Typography variant="h6" sx={{ fontWeight: 800 }}>{savingsCalc.percent}%</Typography><Typography variant="caption" color="text.secondary">más turnos 24/7</Typography></CardContent></Card></Grid>
-                </Grid>
                 {/* Datos finales para crear la cuenta directamente en este paso */}
                 <Divider sx={{ my: 3 }} />
                 <Typography variant="h6" sx={{ fontWeight: 800, mb: 1 }}>Como es tu mail?</Typography>
@@ -918,13 +1339,33 @@ const LandingPage: React.FC = () => {
                 </Grid>
                 {formError && <Typography variant="body2" color="error" sx={{ mt: 1 }}>{formError}</Typography>}
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
-                  <Button variant="contained" disabled={!canSubmit() || busy} onClick={register} sx={{ backgroundColor: COLORS.gold, '&:hover': { backgroundColor: '#9c6d09' } }}>
-                    {busy ? <><CircularProgress size={18} sx={{ mr: 1 }} />Creando…</> : 'Llevame a la demo'}
-                  </Button>
+                    <Button variant="contained" disabled={!canSubmit() || busy} onClick={register} sx={{ backgroundColor: themeStyle.accent, '&:hover': { backgroundColor: '#9c6d09' } }}>
+                      {busy ? <><CircularProgress size={18} sx={{ mr: 1 }} />Creando…</> : 'Llevame a la demo'}
+                    </Button>
                 </Box>
+                {!canSubmit() && !busy && (
+                  <Box sx={{ mt: 1 }}>
+                    {submitIssues.map((txt) => (
+                      <Typography key={txt} variant="caption" color="error" display="block">
+                        • {txt}
+                      </Typography>
+                    ))}
+                    {subAvailable === false && (
+                      <Typography variant="caption" color="warning.main" display="block">
+                        • Ese subdominio ya está en uso. Podés intentar otra variante.
+                      </Typography>
+                    )}
+                  </Box>
+                )}
 
                 <Divider sx={{ my: 2 }} />
-
+                
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>💰 Vas a ahorrar:</Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={4}><Card><CardContent><Typography variant="h6" sx={{ fontWeight: 800 }}>{formatNumberAr(savingsCalc.hours)} hs/sem</Typography><Typography variant="caption" color="text.secondary">en coordinación</Typography></CardContent></Card></Grid>
+                  <Grid item xs={12} md={4}><Card><CardContent><Typography variant="h6" sx={{ fontWeight: 800 }}>${formatNumberAr(savingsCalc.pesos)}/mes</Typography><Typography variant="caption" color="text.secondary">en inasistencias</Typography></CardContent></Card></Grid>
+                  <Grid item xs={12} md={4}><Card><CardContent><Typography variant="h6" sx={{ fontWeight: 800 }}>{savingsCalc.percent}%</Typography><Typography variant="caption" color="text.secondary">más turnos 24/7</Typography></CardContent></Card></Grid>
+                </Grid>
                  <Typography variant="h5" sx={{ fontWeight: 800, mb: 1 }}>Tu solución personalizada</Typography>
                 <Typography variant="body2" sx={{ mb: 3, color: 'text.secondary' }}>
                   Esto es lo que Turnos Pro va a hacer por tu {businessType === 'barbershop' ? 'Peluquería/Barbería' : businessType === 'peluqueria' ? 'Centro de Estética' : 'negocio'}:
