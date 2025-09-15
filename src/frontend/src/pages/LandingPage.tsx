@@ -39,7 +39,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import MenuIcon from '@mui/icons-material/Menu';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
 import { useTheme } from '@mui/material/styles';
 import {
   CalendarMonth,
@@ -49,6 +49,8 @@ import {
   Payments,
   ReceiptLong,
   Star,
+  WhatsApp,
+  DesignServices,
 } from '@mui/icons-material';
 import { selfRegistrationApi } from '../services/api';
 
@@ -145,6 +147,48 @@ const heroMotion = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
   transition: { duration: 0.6 },
+};
+
+// Variants for scroll-reveal and staggered children
+const revealContainer = {
+  hidden: { opacity: 0, y: 20 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.5,
+      when: 'beforeChildren',
+      staggerChildren: 0.08,
+    },
+  },
+};
+
+const revealItem = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.45 } },
+};
+
+// Animated number for stats
+const AnimatedCounter: React.FC<{ value: number; prefix?: string; suffix?: string; duration?: number }> = ({ value, prefix = '', suffix = '', duration = 1.8 }) => {
+  const motionValue = useMotionValue(0);
+  const rounded = useTransform(motionValue, (latest) => Math.round(latest).toLocaleString('es-AR'));
+  const [display, setDisplay] = React.useState('0');
+
+  React.useEffect(() => {
+    const controls = animate(motionValue, value, { duration, ease: 'easeOut' });
+    const unsub = rounded.on('change', (v) => setDisplay(String(v)));
+    return () => { controls.stop(); unsub(); };
+  }, [value, duration, motionValue, rounded]);
+
+  return (
+    <motion.span
+      initial={{ opacity: 0 }}
+      whileInView={{ opacity: 1 }}
+      viewport={{ once: true, amount: 0.6 }}
+    >
+      {prefix}{display}{suffix}
+    </motion.span>
+  );
 };
 
 const Section: React.FC<{ id?: string; bg?: string; children: React.ReactNode }> = ({ id, bg, children }) => (
@@ -271,6 +315,20 @@ const LandingPage: React.FC = () => {
       link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap';
       document.head.appendChild(link);
     }
+  }, []);
+
+  useEffect(() => {
+    // Inject landing specific keyframes once
+    const id = 'tp-landing-animations';
+    if (document.getElementById(id)) return;
+    const style = document.createElement('style');
+    style.id = id;
+    style.innerHTML = `
+      @keyframes tpGradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+      @keyframes tpFloatSlow { 0% { transform: translateY(0px); } 50% { transform: translateY(-12px); } 100% { transform: translateY(0px); } }
+      @keyframes tpPulseGlow { 0% { box-shadow: 0 0 0 0 rgba(0,0,0,0.15); } 70% { box-shadow: 0 0 0 14px rgba(0,0,0,0); } 100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); } }
+    `;
+    document.head.appendChild(style);
   }, []);
 
   useEffect(() => {
@@ -794,8 +852,26 @@ const LandingPage: React.FC = () => {
       <Box sx={{
         position: 'relative',
         overflow: 'hidden',
-        background: `linear-gradient(135deg, ${themeStyle.bg1} 0%, ${themeStyle.bg2} 50%, ${COLORS.white} 100%)`,
+        background: `linear-gradient(135deg, ${themeStyle.bg1}, ${themeStyle.bg2}, ${COLORS.white})`,
+        backgroundSize: '200% 200%',
+        animation: 'tpGradientShift 12s ease infinite',
       }}>
+        <Box aria-hidden sx={{
+          position: 'absolute', top: { xs: '8%', md: '12%' }, left: { xs: '-40px', md: '2%' },
+          width: { xs: 160, md: 260 }, height: { xs: 160, md: 260 }, borderRadius: '50%',
+          filter: 'blur(40px)', opacity: 0.14, zIndex: 0,
+          background: themeStyle.accent,
+          transform: `translateY(${parallax * 0.4}px)`,
+          animation: 'tpFloatSlow 10s ease-in-out infinite',
+        }} />
+        <Box aria-hidden sx={{
+          position: 'absolute', bottom: { xs: '-40px', md: '0' }, right: { xs: '-40px', md: '4%' },
+          width: { xs: 200, md: 320 }, height: { xs: 200, md: 320 }, borderRadius: '50%',
+          filter: 'blur(50px)', opacity: 0.12, zIndex: 0,
+          background: themeStyle.primary,
+          transform: `translateY(${parallax * -0.2}px)`,
+          animation: 'tpFloatSlow 12s ease-in-out infinite',
+        }} />
         <Container maxWidth="lg" sx={{ py: { xs: 8, md: 14 } }}>
           <motion.div {...heroMotion}>
             <Chip label="✨ Sin datos de pago requeridos" sx={{ mb: 2, backgroundColor: COLORS.white }} />
@@ -812,7 +888,8 @@ const LandingPage: React.FC = () => {
                 px: 3,
                 py: { xs: 1.1, sm: 1.2 },
                 '&:hover': { backgroundColor: '#9c6d09', transform: 'translateY(-2px)' },
-                transition: 'all .3s'
+                transition: 'all .3s',
+                animation: 'tpPulseGlow 2.8s ease-out infinite'
               }}>
                 Probá GRATIS 30 días
               </Button>
@@ -824,7 +901,7 @@ const LandingPage: React.FC = () => {
                 const selected = verticalPref || 'peluqueria';
                 const heroSrc = (imageAssets as any)[selected].hero as string;
                 return (
-                  <img
+                  <motion.img
                     src={heroSrc}
                     srcSet={`${heroSrc} 600w, ${heroSrc} 1200w, ${heroSrc} 1800w`}
                     sizes="(max-width: 600px) 100vw, (max-width: 1200px) 90vw, 920px"
@@ -832,6 +909,10 @@ const LandingPage: React.FC = () => {
                     style={{ width: '100%', maxWidth: 920, display: 'block', borderRadius: 16, objectFit: 'cover' }}
                     loading="eager"
                     decoding="async"
+                    initial={{ opacity: 0, scale: 0.98, y: 12 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ duration: 0.6, ease: 'easeOut' }}
+                    whileHover={{ scale: 1.01 }}
                   />
                 );
               })()}
@@ -842,46 +923,59 @@ const LandingPage: React.FC = () => {
         </Container>
       </Box>
 
-      {/* Stats */}
+      {/* Stats with counters */}
       <Section>
-        <Grid container spacing={3}>
-          {[
-            ['+12.000', 'negocios nos recomiendan'],
-            ['82%', 'menos inasistencias'],
-            ['24/7', 'reservas online'],
-          ].map(([k, v]) => (
-            <Grid item xs={6} md={3} key={k}>
-              <Card sx={{ textAlign: 'center', p: 2 }}>
-                <CardContent>
-                  <Typography variant="h4" sx={{ fontWeight: 800, color: COLORS.primaryGreen }}>{k}</Typography>
-                  <Typography variant="body2" color="text.secondary">{v}</Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+        <motion.div variants={revealContainer} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }}>
+          <Grid container spacing={3}>
+            {[
+              { value: 12000, prefix: '+', suffix: '', label: 'negocios nos recomiendan' },
+              { value: 82, prefix: '', suffix: '%', label: 'menos inasistencias' },
+              { value: 24, prefix: '', suffix: '/7', label: 'reservas online' },
+            ].map((s) => (
+              <Grid item xs={6} md={3} key={s.label}>
+                <motion.div variants={revealItem}>
+                  <Card sx={{ textAlign: 'center', p: 2 }}>
+                    <CardContent>
+                      <Typography variant="h4" sx={{ fontWeight: 800, color: COLORS.primaryGreen }}>
+                        <AnimatedCounter value={s.value} prefix={s.prefix} suffix={s.suffix} />
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">{s.label}</Typography>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </Grid>
+            ))}
+          </Grid>
+        </motion.div>
       </Section>
 
       {/* Features */}
       <Section id="features" bg={COLORS.lightGray}>
-        <Typography variant="h3" sx={{ mb: 4, fontWeight: 700 }}>Todo lo que tu negocio necesita</Typography>
-        <Grid container spacing={3}>
-          {[
-            { icon: <CalendarMonth color="primary" />, title: 'Agenda Online', desc: 'Reservas 24/7 desde cualquier dispositivo' },
-            { icon: <AccessTime color="primary" />, title: 'Recordatorios Automáticos', desc: 'Reducí inasistencias con WhatsApp y Email' },
-            { icon: <Payments color="primary" />, title: 'Cobro de Señas', desc: 'Asegurá turnos cobrando anticipos con Mercado Pago' },
-          ].map((f) => (
-            <Grid item xs={12} sm={6} md={4} key={f.title}>
-              <Card sx={{ height: '100%' }}>
-                <CardContent>
-                  <Box sx={{ mb: 1 }}>{f.icon}</Box>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{f.title}</Typography>
-                  <Typography variant="body2" color="text.secondary">{f.desc}</Typography>
-                </CardContent>
-              </Card>
+        <motion.div variants={revealContainer} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }}>
+          <Typography variant="h3" sx={{ mb: 4, fontWeight: 700 }}>Todo lo que tu negocio necesita</Typography>
+          <Grid container spacing={3}>
+            {[
+              { icon: <CalendarMonth color="primary" />, title: 'Tu agenda', desc: 'Definí días y horarios; bloqueá almuerzos y días off.' },
+              { icon: <WhatsApp sx={{ color: '#25D366' }} />, title: 'WhatsApp', desc: 'Tus clientes reciben un recordatorio un día antes de su cita.' },
+              { icon: <Payments color="primary" />, title: 'Cobro de señas', desc: 'Para reservar, pagan la seña que vos definas.' },
+              { icon: <PeopleAlt color="primary" />, title: 'Staff', desc: 'Administrá todo el staff desde un mismo panel.' },
+              { icon: <DesignServices color="primary" />, title: 'Servicios personalizados', desc: 'Creá tus servicios para barbería, estética o lo que hagas.' },
+              { icon: <AccessTime color="primary" />, title: 'Recordatorios automáticos', desc: 'Reducí inasistencias con WhatsApp y Email.' },
+            ].map((f) => (
+              <Grid item xs={12} sm={6} md={4} key={f.title}>
+                <motion.div variants={revealItem} whileHover={{ y: -4, scale: 1.01 }} transition={{ type: 'spring', stiffness: 220, damping: 18 }}>
+                  <Card sx={{ height: '100%' }}>
+                    <CardContent>
+                      <Box sx={{ mb: 1 }}>{f.icon}</Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>{f.title}</Typography>
+                    <Typography variant="body2" color="text.secondary">{f.desc}</Typography>
+                  </CardContent>
+                </Card>
+              </motion.div>
             </Grid>
           ))}
-        </Grid>
+          </Grid>
+        </motion.div>
         <Accordion sx={{ mt: 2 }}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>Otras funciones</AccordionSummary>
           <AccordionDetails>
@@ -892,13 +986,15 @@ const LandingPage: React.FC = () => {
                 { icon: <ReceiptLong color="primary" />, title: 'Facturación AFIP', desc: 'Emití facturas con un click' },
               ].map((f) => (
                 <Grid item xs={12} sm={6} md={4} key={f.title}>
-                  <Card>
-                    <CardContent>
-                      <Box sx={{ mb: 1 }}>{f.icon}</Box>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{f.title}</Typography>
-                      <Typography variant="body2" color="text.secondary">{f.desc}</Typography>
-                    </CardContent>
-                  </Card>
+                  <motion.div whileHover={{ y: -3 }}>
+                    <Card>
+                      <CardContent>
+                        <Box sx={{ mb: 1 }}>{f.icon}</Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{f.title}</Typography>
+                        <Typography variant="body2" color="text.secondary">{f.desc}</Typography>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
                 </Grid>
               ))}
             </Grid>
@@ -908,8 +1004,9 @@ const LandingPage: React.FC = () => {
 
       {/* Para quién es */}
       <Section>
-        <Typography variant="h3" sx={{ mb: 4, fontWeight: 700 }}>¿Para quién es?</Typography>
-        <Grid container spacing={3}>
+        <motion.div variants={revealContainer} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }}>
+          <Typography variant="h3" sx={{ mb: 4, fontWeight: 700 }}>¿Para quién es?</Typography>
+          <Grid container spacing={3}>
           {[ 
             { key: 'peluqueria', title: '💇‍♀️ Peluquería', desc: 'Color, corte, peinado y más' },
             { key: 'barberia', title: '🧔 Barbería', desc: 'Cortes, barba y afeitado' },
@@ -918,6 +1015,7 @@ const LandingPage: React.FC = () => {
             { key: 'profesionales', title: '📚 Profesionales', desc: 'Clases, asesorías y servicios' },
           ].map((item) => (
             <Grid item xs={12} sm={6} md={4} key={item.key}>
+              <motion.div variants={revealItem} whileHover={{ scale: 1.01 }}>
               <Card>
                 <Box sx={{ p: 1 }}>
                   {(() => {
@@ -940,13 +1038,16 @@ const LandingPage: React.FC = () => {
                   <Typography variant="body2" color="text.secondary">{item.desc}</Typography>
                 </CardContent>
               </Card>
+              </motion.div>
             </Grid>
           ))}
-        </Grid>
+          </Grid>
+        </motion.div>
       </Section>
 
       {/* Beneficios */}
       <Section bg={COLORS.lightGray}>
+        <motion.div variants={revealContainer} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }}>
         <Grid container spacing={3}>
           {[
             ['🚀 Mayor Productividad', 'Automatizá la gestión de turnos y enfocate en lo importante'],
@@ -954,19 +1055,23 @@ const LandingPage: React.FC = () => {
             ['⏰ Ahorro de Tiempo', 'Menos coordinación manual, más ventas'],
           ].map(([t, d]) => (
             <Grid item xs={12} md={4} key={t}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{t}</Typography>
-                  <Typography variant="body2" color="text.secondary">{d}</Typography>
-                </CardContent>
-              </Card>
+              <motion.div variants={revealItem} whileHover={{ y: -4 }}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>{t}</Typography>
+                    <Typography variant="body2" color="text.secondary">{d}</Typography>
+                  </CardContent>
+                </Card>
+              </motion.div>
             </Grid>
           ))}
         </Grid>
+        </motion.div>
       </Section>
 
       {/* Trust */}
       <Section>
+        <motion.div variants={revealContainer} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }}>
         <Grid container spacing={3}>
           {[
             '600+ empresas confían en nosotros',
@@ -975,64 +1080,74 @@ const LandingPage: React.FC = () => {
             'Soporte en español',
           ].map((t) => (
             <Grid item xs={12} sm={6} md={3} key={t}>
-              <Card sx={{ textAlign: 'center' }}>
-                <CardContent>
-                  <Star sx={{ color: COLORS.gold }} />
-                  <Typography variant="body2" sx={{ mt: 1 }}>{t}</Typography>
-                </CardContent>
-              </Card>
+              <motion.div variants={revealItem}>
+                <Card sx={{ textAlign: 'center' }}>
+                  <CardContent>
+                    <Star sx={{ color: COLORS.gold }} />
+                    <Typography variant="body2" sx={{ mt: 1 }}>{t}</Typography>
+                  </CardContent>
+                </Card>
+              </motion.div>
             </Grid>
           ))}
         </Grid>
+        </motion.div>
       </Section>
 
       {/* Testimonios */}
       <Section bg={COLORS.lightGray}>
-        <Typography variant="h3" sx={{ mb: 4, fontWeight: 700 }}>Lo que dicen nuestros clientes</Typography>
-        <Grid container spacing={3}>
+        <motion.div variants={revealContainer} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }}>
+          <Typography variant="h3" sx={{ mb: 4, fontWeight: 700 }}>Lo que dicen nuestros clientes</Typography>
+          <Grid container spacing={3}>
           {[
             ['Gaby Conde', 'Esteticista', 'Me cambió totalmente el trabajo, te ahorra tiempo y problema con el tema de las señas'],
             ['Angie Aicardi', '', 'Mis turnos incrementaron, ya que los clientes sacan turnos las 24hs'],
             ['Erica Rodriguez', '', 'Es la solución a tu negocio, súper recomendable'],
           ].map(([name, role, quote]) => (
             <Grid item xs={12} md={4} key={name}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                    <Avatar>{String(name).charAt(0)}</Avatar>
-                    <Box>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{name}</Typography>
-                      {role ? <Typography variant="caption" color="text.secondary">{role}</Typography> : null}
+              <motion.div variants={revealItem} whileHover={{ y: -3 }}>
+                <Card>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                      <Avatar>{String(name).charAt(0)}</Avatar>
+                      <Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{name}</Typography>
+                        {role ? <Typography variant="caption" color="text.secondary">{role}</Typography> : null}
+                      </Box>
                     </Box>
-                  </Box>
-                  <Typography variant="body2">“{quote}”</Typography>
-                </CardContent>
-              </Card>
+                    <Typography variant="body2">“{quote}”</Typography>
+                  </CardContent>
+                </Card>
+              </motion.div>
             </Grid>
           ))}
-        </Grid>
+          </Grid>
+        </motion.div>
       </Section>
 
       {/* Precios */}
       <Section id="precios">
-        <Typography variant="h3" sx={{ mb: 4, fontWeight: 700 }}>Precios simples</Typography>
-        <Grid container spacing={3}>
+        <motion.div variants={revealContainer} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }}>
+          <Typography variant="h3" sx={{ mb: 4, fontWeight: 700 }}>Precios simples</Typography>
+          <Grid container spacing={3}>
           {(plans.length > 0 ? plans : []).map((plan) => (
             <Grid item xs={12} md={4} key={plan.code}>
-              <Card>
-                <CardContent>
-                  <Typography variant="overline">{plan.name}</Typography>
-                  <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                    {new Intl.NumberFormat('es-AR', { style: 'currency', currency: plan.currency || 'ARS', maximumFractionDigits: 0 }).format(plan.price || 0)} / mes
-                  </Typography>
-                  {plan.description && (
-                    <Typography variant="body2" color="text.secondary">{plan.description}</Typography>
-                  )}
-                </CardContent>
-                <CardActions>
-                  <Button fullWidth variant="outlined" onClick={openStepper}>Probar</Button>
-                </CardActions>
-              </Card>
+              <motion.div variants={revealItem} whileHover={{ y: -4 }}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="overline">{plan.name}</Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                      {new Intl.NumberFormat('es-AR', { style: 'currency', currency: plan.currency || 'ARS', maximumFractionDigits: 0 }).format(plan.price || 0)} / mes
+                    </Typography>
+                    {plan.description && (
+                      <Typography variant="body2" color="text.secondary">{plan.description}</Typography>
+                    )}
+                  </CardContent>
+                  <CardActions>
+                    <Button fullWidth variant="outlined" onClick={openStepper}>Probar</Button>
+                  </CardActions>
+                </Card>
+              </motion.div>
             </Grid>
           ))}
           {plans.length === 0 && (
@@ -1044,7 +1159,8 @@ const LandingPage: React.FC = () => {
               </Card>
             </Grid>
           )}
-        </Grid>
+          </Grid>
+        </motion.div>
       </Section>
 
       {/* FAQ */}
