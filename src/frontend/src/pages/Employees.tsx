@@ -1041,6 +1041,7 @@ const QuickBlockCreator: React.FC<{ employeeId: string; onCreated: () => void }>
   const [end, setEnd] = useState<string>(() => new Date(Date.now() + 60*60*1000).toISOString().slice(0,16));
   const [reason, setReason] = useState<string>('Bloqueo');
   const [saving, setSaving] = useState(false);
+  const [forceOverride, setForceOverride] = useState(false);
 
   const create = async () => {
     if (!employeeId) return;
@@ -1050,6 +1051,7 @@ const QuickBlockCreator: React.FC<{ employeeId: string; onCreated: () => void }>
         startTime: new Date(start).toISOString(),
         endTime: new Date(end).toISOString(),
         reason,
+        forceOverride,
       });
       await onCreated();
     } catch (e: any) {
@@ -1086,6 +1088,7 @@ const QuickBlockCreator: React.FC<{ employeeId: string; onCreated: () => void }>
             setStart(now.toISOString().slice(0,16));
             setEnd(later.toISOString().slice(0,16));
           }}>+1 hora</Button>
+          <FormControlLabel sx={{ ml: 2 }} control={<Switch checked={forceOverride} onChange={(e)=> setForceOverride(e.target.checked)} />} label="Forzar sobre reservas" />
         </Grid>
       </Grid>
     </Box>

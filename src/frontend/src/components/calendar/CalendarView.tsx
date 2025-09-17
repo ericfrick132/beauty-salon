@@ -107,6 +107,7 @@ const CalendarView: React.FC = () => {
     singleDate: '',
     singleStart: '09:00',
     singleEnd: '10:00',
+    forceOverride: false,
   });
 
   const pad2 = (n: number) => n.toString().padStart(2, '0');
@@ -725,6 +726,12 @@ const CalendarView: React.FC = () => {
               <TextField fullWidth label="Motivo (opcional)" value={blockForm.reason} onChange={(e)=>setBlockForm({...blockForm, reason: e.target.value})} />
             </Grid>
             <Grid item xs={12}>
+              <FormControlLabel 
+                control={<Switch checked={blockForm.forceOverride} onChange={(e)=> setBlockForm({...blockForm, forceOverride: e.target.checked})} />} 
+                label="Forzar sobre reservas (las cancela)" 
+              />
+            </Grid>
+            <Grid item xs={12}>
               <Typography variant="body2" sx={{ mb: 1 }}>Tipo de bloqueo</Typography>
               <ToggleButtonGroup
                 size="small"
@@ -781,6 +788,7 @@ const CalendarView: React.FC = () => {
                     endTimeOfDay,
                     daysOfWeek: blockForm.daysOfWeek,
                     reason: blockForm.reason,
+                    forceOverride: blockForm.forceOverride,
                   };
                   if (blockForm.until) payload.endDate = blockForm.until;
                   await api.post(`/employees/${id}/blocks/recurring`, payload);
@@ -801,6 +809,7 @@ const CalendarView: React.FC = () => {
                     startTime: startISO,
                     endTime: endISO,
                     reason: blockForm.reason,
+                    forceOverride: blockForm.forceOverride,
                   });
                 }
               }
@@ -815,6 +824,7 @@ const CalendarView: React.FC = () => {
                 singleDate: '',
                 singleStart: '09:00',
                 singleEnd: '10:00',
+                forceOverride: false,
               });
               // refresh
               if (viewRange) {

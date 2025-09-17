@@ -55,6 +55,7 @@ namespace BookingPro.API.Controllers
             public DateTime StartTime { get; set; }
             public DateTime EndTime { get; set; }
             public string? Reason { get; set; }
+            public bool ForceOverride { get; set; } = false; // Cancel overlapping bookings if true
         }
 
         [HttpPost]
@@ -73,13 +74,13 @@ namespace BookingPro.API.Controllers
                     return NotFound(new { message = "Empleado no encontrado" });
                 }
 
-                // Prevent overlap with existing bookings
-                var hasBooking = await _context.Bookings.AnyAsync(b =>
-                    b.EmployeeId == employeeId && b.Status != "cancelled" &&
-                    b.StartTime < dto.EndTime && b.EndTime > dto.StartTime);
-                if (hasBooking)
+                // Overlaps with bookings
+                var overlappingBookings = await _context.Bookings
+                    .Where(b => b.EmployeeId == employeeId && b.Status != "cancelled" && b.StartTime < dto.EndTime && b.EndTime > dto.StartTime)
+                    .ToListAsync();
+                if (overlappingBookings.Any() && !dto.ForceOverride)
                 {
-                    return BadRequest(new { message = "Existe una reserva en ese rango. No se puede bloquear." });
+                    return BadRequest(new { message = "Existe una reserva en ese rango. No se puede bloquear (quite las reservas o use forzar)." });
                 }
 
                 // Prevent overlap with existing blocks
@@ -88,6 +89,15 @@ namespace BookingPro.API.Controllers
                 if (hasBlock)
                 {
                     return BadRequest(new { message = "Ya existe un bloqueo en ese rango" });
+                }
+
+                // If force, cancel overlapping bookings
+                if (overlappingBookings.Any() && dto.ForceOverride)
+                {
+                    foreach (var b in overlappingBookings)
+                    {
+                        b.Status = "cancelled";
+                    }
                 }
 
                 var block = new EmployeeTimeBlock
@@ -118,6 +128,7 @@ namespace BookingPro.API.Controllers
             public string EndTimeOfDay { get; set; } = "10:00"; // HH:mm
             public List<int> DaysOfWeek { get; set; } = new(); // 0..6
             public string? Reason { get; set; }
+            public bool ForceOverride { get; set; } = false; // Cancel overlapping bookings if true
         }
 
         [HttpPost("recurring")]
@@ -151,6 +162,7 @@ namespace BookingPro.API.Controllers
                     offsetHours = -3; // default AR
                 }
 
+                var cancelledCount = 0;
                 while (current <= effectiveEndDate)
                 {
                     if (days.Count == 0 || days.Contains((int)current.DayOfWeek))
@@ -163,14 +175,31 @@ namespace BookingPro.API.Controllers
                         var start = DateTime.SpecifyKind(localStart.AddHours(-offsetHours), DateTimeKind.Utc);
                         var end = DateTime.SpecifyKind(localEnd.AddHours(-offsetHours), DateTimeKind.Utc);
 
-                        // skip if conflicts with bookings
-                        var hasBooking = await _context.Bookings.AnyAsync(b =>
-                            b.EmployeeId == employeeId && b.Status != "cancelled" && b.StartTime < end && b.EndTime > start);
+                        // check conflicts with bookings
+                        var overlappingBookings = await _context.Bookings
+                            .Where(b => b.EmployeeId == employeeId && b.Status != "cancelled" && b.StartTime < end && b.EndTime > start)
+                            .ToListAsync();
                         var hasBlock = await _context.EmployeeTimeBlocks.AnyAsync(b =>
                             b.EmployeeId == employeeId && b.StartTime < end && b.EndTime > start);
 
-                        if (!hasBooking && !hasBlock)
+                        if (!overlappingBookings.Any() && !hasBlock)
                         {
+                            blocksToAdd.Add(new EmployeeTimeBlock
+                            {
+                                TenantId = employee.TenantId,
+                                EmployeeId = employeeId,
+                                StartTime = start,
+                                EndTime = end,
+                                Reason = dto.Reason
+                            });
+                        }
+                        else if (overlappingBookings.Any() && dto.ForceOverride && !hasBlock)
+                        {
+                            foreach (var b in overlappingBookings)
+                            {
+                                b.Status = "cancelled";
+                                cancelledCount++;
+                            }
                             blocksToAdd.Add(new EmployeeTimeBlock
                             {
                                 TenantId = employee.TenantId,
@@ -190,7 +219,58 @@ namespace BookingPro.API.Controllers
                     await _context.SaveChangesAsync();
                 }
 
-                return Ok(new { created = blocksToAdd.Count });
+                return Ok(new { created = blocksToAdd.Count, cancelledBookings = cancelledCount });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        public class UpdateBlockDto
+        {
+            public DateTime StartTime { get; set; }
+            public DateTime EndTime { get; set; }
+            public string? Reason { get; set; }
+            public bool ForceOverride { get; set; } = false;
+        }
+
+        [HttpPut("{blockId:guid}")]
+        public async Task<IActionResult> UpdateBlock(Guid employeeId, Guid blockId, [FromBody] UpdateBlockDto dto)
+        {
+            try
+            {
+                if (dto.EndTime <= dto.StartTime)
+                    return BadRequest(new { message = "La hora de fin debe ser posterior a la de inicio" });
+
+                var block = await _context.EmployeeTimeBlocks.FirstOrDefaultAsync(b => b.Id == blockId && b.EmployeeId == employeeId);
+                if (block == null)
+                    return NotFound(new { message = "Bloqueo no encontrado" });
+
+                // Conflicts
+                var overlappingBookings = await _context.Bookings
+                    .Where(b => b.EmployeeId == employeeId && b.Status != "cancelled" && b.StartTime < dto.EndTime && b.EndTime > dto.StartTime)
+                    .ToListAsync();
+                if (overlappingBookings.Any() && !dto.ForceOverride)
+                    return BadRequest(new { message = "Existe una reserva en ese rango. No se puede actualizar (quite las reservas o use forzar)." });
+
+                var overlappingBlocks = await _context.EmployeeTimeBlocks
+                    .Where(b => b.EmployeeId == employeeId && b.Id != blockId && b.StartTime < dto.EndTime && b.EndTime > dto.StartTime)
+                    .AnyAsync();
+                if (overlappingBlocks)
+                    return BadRequest(new { message = "Ya existe otro bloqueo en ese rango" });
+
+                if (overlappingBookings.Any() && dto.ForceOverride)
+                {
+                    foreach (var b in overlappingBookings)
+                        b.Status = "cancelled";
+                }
+
+                block.StartTime = dto.StartTime;
+                block.EndTime = dto.EndTime;
+                block.Reason = dto.Reason;
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Bloqueo actualizado" });
             }
             catch (Exception ex)
             {
