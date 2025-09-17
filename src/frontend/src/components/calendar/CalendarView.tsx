@@ -95,7 +95,56 @@ const CalendarView: React.FC = () => {
   const [blockDialog, setBlockDialog] = useState<{ open: boolean; start?: string; end?: string; employeeId?: string }>(
     { open: false }
   );
-  const [blockForm, setBlockForm] = useState({ reason: '', repeat: false, daysOfWeek: [] as number[], until: '' });
+  const [blockForm, setBlockForm] = useState({ 
+    reason: '', 
+    repeat: true, 
+    daysOfWeek: [1,2,3,4,5] as number[], 
+    until: '',
+    // recurring
+    startTimeOfDay: '09:00',
+    endTimeOfDay: '10:00',
+    // single
+    singleDate: '',
+    singleStart: '09:00',
+    singleEnd: '10:00',
+  });
+
+  const pad2 = (n: number) => n.toString().padStart(2, '0');
+  const toHHMM = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const roundTo15min = (d: Date) => {
+    const ms = d.getTime();
+    const minutes = d.getMinutes();
+    const floored = minutes - (minutes % 15);
+    d.setMinutes(floored, 0, 0);
+    return d;
+  };
+  const roundHHMMTo15 = (hhmm: string) => {
+    if (!hhmm) return hhmm;
+    const [h, m] = hhmm.split(':').map(n => parseInt(n || '0', 10));
+    const floored = m - (m % 15);
+    return `${pad2(h)}:${pad2(floored)}`;
+  };
+
+  useEffect(() => {
+    if (!blockDialog.open) return;
+    const now = new Date();
+    const s = blockDialog.start ? new Date(blockDialog.start) : now;
+    const e = blockDialog.end ? new Date(blockDialog.end) : new Date(s.getTime() + 30*60*1000);
+    roundTo15min(s);
+    roundTo15min(e);
+    const yyyy = s.getFullYear();
+    const mm = pad2(s.getMonth() + 1);
+    const dd = pad2(s.getDate());
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+    setBlockForm(f => ({
+      ...f,
+      startTimeOfDay: toHHMM(s),
+      endTimeOfDay: toHHMM(e),
+      singleDate: dateStr,
+      singleStart: toHHMM(s),
+      singleEnd: toHHMM(e),
+    }));
+  }, [blockDialog.open]);
   
   // Event dialogs
   const [eventDialog, setEventDialog] = useState<{
@@ -221,27 +270,32 @@ const CalendarView: React.FC = () => {
     }
   };
 
-  // Fetch blocks for selected employee within current view range
+  // Fetch blocks for selected employee (or all) within current view range
   useEffect(() => {
     const loadBlocks = async () => {
       if (!viewRange) return;
-      if (!selectedEmployee || selectedEmployee === 'all') {
-        setBlocks([]);
-        return;
-      }
       try {
-        const res = await api.get(`/employees/${selectedEmployee}/blocks`, {
-          params: { from: viewRange.start, to: viewRange.end }
-        });
-        const items = Array.isArray(res.data) ? res.data : [];
-        setBlocks(items.map((i: any) => ({ id: i.id, start: i.startTime, end: i.endTime, employeeId: i.employeeId })));
+        if (!selectedEmployee || selectedEmployee === 'all') {
+          // Fetch for all employees in parallel
+          const promises = employees.map(emp => api.get(`/employees/${emp.id}/blocks`, { params: { from: viewRange.start, to: viewRange.end } }).then(r => r.data).catch(() => []));
+          const results = await Promise.all(promises);
+          const flattened = results.flat();
+          const items = Array.isArray(flattened) ? flattened : [];
+          setBlocks(items.map((i: any) => ({ id: i.id, start: i.startTime, end: i.endTime, employeeId: i.employeeId })));
+        } else {
+          const res = await api.get(`/employees/${selectedEmployee}/blocks`, {
+            params: { from: viewRange.start, to: viewRange.end }
+          });
+          const items = Array.isArray(res.data) ? res.data : [];
+          setBlocks(items.map((i: any) => ({ id: i.id, start: i.startTime, end: i.endTime, employeeId: i.employeeId })));
+        }
       } catch (e) {
         console.error('Error fetching blocks', e);
         setBlocks([]);
       }
     };
     loadBlocks();
-  }, [selectedEmployee, viewRange]);
+  }, [selectedEmployee, viewRange, employees]);
 
   const handleEventClick = (info: EventClickArg) => {
     const event = info.event;
@@ -574,17 +628,87 @@ const CalendarView: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12}>
-              <TextField fullWidth label="Inicio" value={blockDialog.start || ''} InputLabelProps={{ shrink: true }} disabled />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField fullWidth label="Fin" value={blockDialog.end || ''} InputLabelProps={{ shrink: true }} disabled />
-            </Grid>
+            {blockForm.repeat ? (
+              <>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    type="time"
+                    label="Hora inicio"
+                    value={blockForm.startTimeOfDay}
+                    InputLabelProps={{ shrink: true }}
+                    inputProps={{ step: 900 }}
+                    onChange={(e)=> setBlockForm({ ...blockForm, startTimeOfDay: roundHHMMTo15(e.target.value) })}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    type="time"
+                    label="Hora fin"
+                    value={blockForm.endTimeOfDay}
+                    InputLabelProps={{ shrink: true }}
+                    inputProps={{ step: 900 }}
+                    onChange={(e)=> setBlockForm({ ...blockForm, endTimeOfDay: roundHHMMTo15(e.target.value) })}
+                  />
+                </Grid>
+              </>
+            ) : (
+              <>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    type="date"
+                    label="Fecha"
+                    value={blockForm.singleDate}
+                    InputLabelProps={{ shrink: true }}
+                    onChange={(e)=> setBlockForm({ ...blockForm, singleDate: e.target.value })}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    type="time"
+                    label="Hora inicio"
+                    value={blockForm.singleStart}
+                    InputLabelProps={{ shrink: true }}
+                    inputProps={{ step: 900 }}
+                    onChange={(e)=> setBlockForm({ ...blockForm, singleStart: roundHHMMTo15(e.target.value) })}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    type="time"
+                    label="Hora fin"
+                    value={blockForm.singleEnd}
+                    InputLabelProps={{ shrink: true }}
+                    inputProps={{ step: 900 }}
+                    onChange={(e)=> setBlockForm({ ...blockForm, singleEnd: roundHHMMTo15(e.target.value) })}
+                  />
+                </Grid>
+              </>
+            )}
             <Grid item xs={12}>
               <TextField fullWidth label="Motivo (opcional)" value={blockForm.reason} onChange={(e)=>setBlockForm({...blockForm, reason: e.target.value})} />
             </Grid>
             <Grid item xs={12}>
-              <FormControlLabel control={<Switch checked={blockForm.repeat} onChange={(e)=> setBlockForm({...blockForm, repeat: e.target.checked})} />} label="Repetir" />
+              <Typography variant="body2" sx={{ mb: 1 }}>Tipo de bloqueo</Typography>
+              <ToggleButtonGroup
+                size="small"
+                exclusive
+                value={blockForm.repeat ? 'recurring' : 'single'}
+                onChange={(e, val) => {
+                  if (!val) return; // ignore deselect
+                  setBlockForm({
+                    ...blockForm,
+                    repeat: val === 'recurring'
+                  });
+                }}
+              >
+                <ToggleButton value="recurring">Repetición</ToggleButton>
+                <ToggleButton value="single">Puntual (vacaciones/salida)</ToggleButton>
+              </ToggleButtonGroup>
             </Grid>
             {blockForm.repeat && (
               <>
@@ -614,31 +738,52 @@ const CalendarView: React.FC = () => {
               const target = blockDialog.employeeId || 'all';
               const targetIds = target === 'all' ? employees.map(e => e.id) : [target];
               if (blockForm.repeat) {
-                const startDate = (blockDialog.start||'').split('T')[0];
-                const endDate = blockForm.until || startDate;
-                const startTimeOfDay = (blockDialog.start||'').split('T')[1]?.substring(0,5) || '09:00';
-                const endTimeOfDay = (blockDialog.end||'').split('T')[1]?.substring(0,5) || '10:00';
+                const todayIso = new Date().toISOString().split('T')[0];
+                const startDate = (blockDialog.start||'').split('T')[0] || blockForm.singleDate || todayIso;
+                const startTimeOfDay = blockForm.startTimeOfDay || '09:00';
+                const endTimeOfDay = blockForm.endTimeOfDay || '10:00';
                 for (const id of targetIds) {
-                  await api.post(`/employees/${id}/blocks/recurring`, {
+                  const payload: any = {
                     startDate,
-                    endDate,
                     startTimeOfDay,
                     endTimeOfDay,
                     daysOfWeek: blockForm.daysOfWeek,
                     reason: blockForm.reason,
-                  });
+                  };
+                  if (blockForm.until) payload.endDate = blockForm.until;
+                  await api.post(`/employees/${id}/blocks/recurring`, payload);
                 }
               } else {
+                if (!blockForm.singleDate || !blockForm.singleStart || !blockForm.singleEnd) {
+                  alert('Complete fecha y horarios');
+                  return;
+                }
+                const startISO = new Date(`${blockForm.singleDate}T${blockForm.singleStart}`).toISOString();
+                const endISO = new Date(`${blockForm.singleDate}T${blockForm.singleEnd}`).toISOString();
+                if (new Date(endISO) <= new Date(startISO)) {
+                  alert('La hora fin debe ser mayor a la hora inicio');
+                  return;
+                }
                 for (const id of targetIds) {
                   await api.post(`/employees/${id}/blocks`, {
-                    startTime: blockDialog.start,
-                    endTime: blockDialog.end,
+                    startTime: startISO,
+                    endTime: endISO,
                     reason: blockForm.reason,
                   });
                 }
               }
               setBlockDialog({ open: false });
-              setBlockForm({ reason: '', repeat: false, daysOfWeek: [], until: '' });
+              setBlockForm({ 
+                reason: '', 
+                repeat: true, 
+                daysOfWeek: [1,2,3,4,5], 
+                until: '',
+                startTimeOfDay: '09:00',
+                endTimeOfDay: '10:00',
+                singleDate: '',
+                singleStart: '09:00',
+                singleEnd: '10:00',
+              });
               // refresh
               if (viewRange) {
                 // if a specific employee is selected in filter, refresh his blocks; else clear (we don't render all at once)

@@ -29,7 +29,6 @@ namespace BookingPro.API.Utilities
                 path.StartsWith("/api/invitation") ||
                 path.StartsWith("/api/self-registration") ||
                 path.StartsWith("/api/subscription-plans") ||
-                path.StartsWith("/api/public") ||
                 path.StartsWith("/api/verticals") ||
                 path.StartsWith("/api/mercadopago/callback") ||
                 // Skip OAuth callback which can arrive on apex domain without subdomain
@@ -53,6 +52,19 @@ namespace BookingPro.API.Utilities
                 var subdomain = tenantSubdomain.ToString();
                 var cacheKey = $"tenant_header_{subdomain}";
                 
+                if (!_cache.TryGetValue(cacheKey, out tenant))
+                {
+                    tenant = await tenantService.GetTenantBySubdomainOnly(subdomain);
+                    if (tenant != null)
+                    {
+                        _cache.Set(cacheKey, tenant, TimeSpan.FromMinutes(5));
+                    }
+                }
+            }
+            else if (context.Request.Query.TryGetValue("subdomain", out var qsSub) || context.Request.Query.TryGetValue("tenant", out qsSub))
+            {
+                var subdomain = qsSub.ToString();
+                var cacheKey = $"tenant_qs_{subdomain}";
                 if (!_cache.TryGetValue(cacheKey, out tenant))
                 {
                     tenant = await tenantService.GetTenantBySubdomainOnly(subdomain);

@@ -113,7 +113,7 @@ namespace BookingPro.API.Controllers
         public class CreateRecurringBlockDto
         {
             public DateTime StartDate { get; set; } // date-only part used
-            public DateTime EndDate { get; set; }
+            public DateTime? EndDate { get; set; }
             public string StartTimeOfDay { get; set; } = "09:00"; // HH:mm
             public string EndTimeOfDay { get; set; } = "10:00"; // HH:mm
             public List<int> DaysOfWeek { get; set; } = new(); // 0..6
@@ -125,7 +125,8 @@ namespace BookingPro.API.Controllers
         {
             try
             {
-                if (dto.EndDate.Date < dto.StartDate.Date)
+                var effectiveEndDate = dto.EndDate?.Date ?? dto.StartDate.Date.AddYears(1); // open-ended defaults to +1 año
+                if (effectiveEndDate < dto.StartDate.Date)
                     return BadRequest(new { message = "Fecha fin debe ser posterior a fecha inicio" });
 
                 if (!TimeSpan.TryParse(dto.StartTimeOfDay, out var startTod) || !TimeSpan.TryParse(dto.EndTimeOfDay, out var endTod))
@@ -141,12 +142,26 @@ namespace BookingPro.API.Controllers
                 var current = dto.StartDate.Date;
                 var days = dto.DaysOfWeek?.Distinct().ToHashSet() ?? new HashSet<int>();
 
-                while (current <= dto.EndDate.Date)
+                // Determine tenant timezone offset (simple hour offset like "-3")
+                var tenant = _tenantService.GetCurrentTenant();
+                var tz = tenant?.TimeZone ?? "-3";
+                int offsetHours;
+                if (!int.TryParse(tz, out offsetHours))
+                {
+                    offsetHours = -3; // default AR
+                }
+
+                while (current <= effectiveEndDate)
                 {
                     if (days.Count == 0 || days.Contains((int)current.DayOfWeek))
                     {
-                        var start = current.Add(startTod);
-                        var end = current.Add(endTod);
+                        // Local times based on tenant offset
+                        var localStart = current.Add(startTod);
+                        var localEnd = current.Add(endTod);
+
+                        // Convert to UTC for storage and comparisons
+                        var start = DateTime.SpecifyKind(localStart.AddHours(-offsetHours), DateTimeKind.Utc);
+                        var end = DateTime.SpecifyKind(localEnd.AddHours(-offsetHours), DateTimeKind.Utc);
 
                         // skip if conflicts with bookings
                         var hasBooking = await _context.Bookings.AnyAsync(b =>
