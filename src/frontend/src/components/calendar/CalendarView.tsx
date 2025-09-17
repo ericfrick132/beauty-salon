@@ -299,6 +299,38 @@ const CalendarView: React.FC = () => {
 
   const handleEventClick = (info: EventClickArg) => {
     const event = info.event;
+    // If it's a time block, allow quick delete
+    if ((event.extendedProps as any)?.isBlock) {
+      const originalId = event.id.startsWith('block-') ? event.id.substring(6) : event.id;
+      const empId = (event.extendedProps as any)?.employeeId;
+      if (window.confirm('¿Desea eliminar este bloqueo?')) {
+        (async () => {
+          try {
+            if (empId && originalId) {
+              await api.delete(`/employees/${empId}/blocks/${originalId}`);
+              // Refresh blocks in current view
+              if (viewRange) {
+                if (selectedEmployee && selectedEmployee !== 'all') {
+                  const res = await api.get(`/employees/${selectedEmployee}/blocks`, { params: { from: viewRange.start, to: viewRange.end } });
+                  const items = Array.isArray(res.data) ? res.data : [];
+                  setBlocks(items.map((i: any) => ({ id: i.id, start: i.startTime, end: i.endTime, employeeId: i.employeeId })));
+                } else {
+                  // reload for all employees
+                  const promises = employees.map(emp => api.get(`/employees/${emp.id}/blocks`, { params: { from: viewRange.start, to: viewRange.end } }).then(r => r.data).catch(() => []));
+                  const results = await Promise.all(promises);
+                  const flattened = results.flat();
+                  const items = Array.isArray(flattened) ? flattened : [];
+                  setBlocks(items.map((i: any) => ({ id: i.id, start: i.startTime, end: i.endTime, employeeId: i.employeeId })));
+                }
+              }
+            }
+          } catch (e) {
+            console.error('Error deleting block from calendar', e);
+          }
+        })();
+      }
+      return;
+    }
     const bookingEvent: BookingEvent = {
       id: event.id,
       title: event.title,
