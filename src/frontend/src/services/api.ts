@@ -204,6 +204,10 @@ export const employeeApi = {
     api.get(`/employees/${employeeId}/blocks`, { params }).then(res => res.data),
   createBlock: (employeeId: string, data: { startTime: string; endTime: string; reason?: string }) =>
     api.post(`/employees/${employeeId}/blocks`, data).then(res => res.data),
+  createRecurringBlocks: (employeeId: string, data: { startDate: string; endDate?: string; startTimeOfDay: string; endTimeOfDay: string; daysOfWeek: number[]; reason?: string; forceOverride?: boolean }) =>
+    api.post(`/employees/${employeeId}/blocks/recurring`, data).then(res => res.data),
+  updateBlock: (employeeId: string, blockId: string, data: { startTime: string; endTime: string; reason?: string; forceOverride?: boolean }) =>
+    api.put(`/employees/${employeeId}/blocks/${blockId}`, data).then(res => res.data),
   deleteBlock: (employeeId: string, blockId: string) =>
     api.delete(`/employees/${employeeId}/blocks/${blockId}`).then(res => res.data),
 };

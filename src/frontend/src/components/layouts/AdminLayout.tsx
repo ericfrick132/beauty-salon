@@ -53,6 +53,7 @@ import {
   CreditCard,
   Star,
   Business,
+  Block as BlockIcon,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useAppDispatch, useAppSelector } from '../../store';
@@ -234,6 +235,7 @@ export const AdminLayout: React.FC = () => {
   const menuItems: MenuItemType[] = [
     { text: 'Panel General', icon: <Dashboard />, path: '/dashboard' },
     { text: 'Calendario', icon: <CalendarToday />, path: '/calendar' },
+    { text: 'Bloqueos', icon: <BlockIcon />, path: '/blocks' },
     { text: `${getTerm('professional')}s`, icon: <Group />, path: '/professionals' },
     {
       text: getTerm('booking') + 's',

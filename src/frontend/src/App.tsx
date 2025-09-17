@@ -43,6 +43,7 @@ import Products from './pages/Products';
 import MessagingCredits from './pages/MessagingCredits';
 import MessagingSettings from './pages/MessagingSettings';
 import TenantsManagement from './pages/TenantsManagement';
+import Blocks from './pages/Blocks';
 import { AdminLayout } from './components/layouts/AdminLayout';
 import SubscriptionVerification from './components/SubscriptionVerification';
 
@@ -273,6 +274,7 @@ function App() {
                 <Route element={<AdminLayout />}>
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/calendar" element={<Calendar />} />
+                  <Route path="/blocks" element={<Blocks />} />
                   <Route path="/bookings/new" element={<NewBooking />} />
                   <Route path="/new-booking" element={<NewBooking />} />
                   <Route path="/customers" element={<Customers />} />
