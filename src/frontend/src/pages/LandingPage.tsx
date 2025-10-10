@@ -892,11 +892,13 @@ const LandingPage: React.FC = () => {
       .to('.payment-icon', { scale: 1.2, color: MP_BLUE, duration: 0.4, ease: 'back.out(1.7)' }, '<0.1')
       .to('.checkmark', { scale: 1, opacity: 1, rotate: 360, duration: 0.6, ease: 'power4.out' })
       .to('.client-avatar', { boxShadow: '0 0 20px #4caf50', borderColor: '#4caf50', duration: 0.6 }, '<')
-      .add(async () => {
-        try {
-          const mod = await loadHeavy();
-          mod.launchConfetti?.({ particleCount: 80 });
-        } catch {}
+      .add(() => {
+        // Use promise chain to avoid async callback type mismatch
+        loadHeavy()
+          .then((mod) => {
+            mod.launchConfetti?.({ particleCount: 80 });
+          })
+          .catch(() => {});
       });
   };
 
@@ -937,7 +939,8 @@ const LandingPage: React.FC = () => {
         const el = document.querySelector('.glitch-text');
         if (el) {
           try {
-            gsap.to(el, { duration: 0.8, text: (el as HTMLElement).textContent });
+            const txt = (el as HTMLElement).textContent ?? '';
+            gsap.to(el, { duration: 0.8, text: txt });
           } catch {
             // fallback pulse
             gsap.fromTo(el, { opacity: 0.6 }, { opacity: 1, duration: 0.8 });

@@ -134,9 +134,14 @@ const SalesPOS: React.FC = () => {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <QrCodeScanner sx={{ mr: 1 }} />
-        <Typography variant="h5">Venta de artículos (POS)</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <QrCodeScanner sx={{ mr: 1 }} />
+          <Typography variant="h5">Venta de artículos (POS)</Typography>
+        </Box>
+        <Button variant="outlined" onClick={() => navigate('/products')}>
+          Gestionar productos
+        </Button>
       </Box>
 
       {message && (
@@ -281,4 +286,3 @@ const SalesPOS: React.FC = () => {
 };
 
 export default SalesPOS;
-

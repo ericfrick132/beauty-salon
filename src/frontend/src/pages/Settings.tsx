@@ -59,6 +59,8 @@ import {
   AttachMoney,
   AccountBalance,
   Settings as SettingsIcon,
+  CreditCard,
+  Chat,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import api, { authApi } from '../services/api';
@@ -437,6 +439,7 @@ const Settings: React.FC = () => {
             <Tab icon={<Notifications />} label="Notificaciones" />
             <Tab icon={<Security />} label="Avanzado" />
             <Tab icon={<Security />} label="Seguridad" />
+            <Tab icon={<SettingsIcon />} label="Integraciones" />
           </Tabs>
 
           {/* General Settings Tab */}
@@ -1448,6 +1451,119 @@ const Settings: React.FC = () => {
                     Guardar nueva contraseña
                   </Button>
                 </Box>
+              </Grid>
+            </Grid>
+          </TabPanel>
+
+          {/* Integrations Tab */}
+          <TabPanel value={tabValue} index={7}>
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <Typography variant="h6" gutterBottom>
+                  Integraciones y Comunicaciones
+                </Typography>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="subtitle1" gutterBottom>
+                      <Palette sx={{ mr: 1, verticalAlign: 'middle' }} />
+                      Personalizar Tema
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Colores y estilo de tu marca.
+                    </Typography>
+                    <Button variant="contained" onClick={() => window.location.assign('/theme-settings')}>
+                      Abrir Tema
+                    </Button>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="subtitle1" gutterBottom>
+                      <AccountBalance sx={{ mr: 1, verticalAlign: 'middle' }} />
+                      MercadoPago
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Conecta tus cobros online.
+                    </Typography>
+                    <Button variant="contained" onClick={() => window.location.assign('/mercadopago-settings')}>
+                      Configurar MercadoPago
+                    </Button>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="subtitle1" gutterBottom>
+                      <Chat sx={{ mr: 1, verticalAlign: 'middle' }} />
+                      Mensajería: Créditos
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Compra paquetes de mensajes.
+                    </Typography>
+                    <Button variant="contained" onClick={() => window.location.assign('/messaging')}>
+                      Abrir Mensajería
+                    </Button>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="subtitle1" gutterBottom>
+                      <Email sx={{ mr: 1, verticalAlign: 'middle' }} />
+                      Mensajería: Configuración
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Plantillas y recordatorios.
+                    </Typography>
+                    <Button variant="contained" onClick={() => window.location.assign('/messaging/settings')}>
+                      Configurar Mensajería
+                    </Button>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="subtitle1" gutterBottom>
+                      <CreditCard sx={{ mr: 1, verticalAlign: 'middle' }} />
+                      Ver Planes
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Planes y upgrades de suscripción.
+                    </Typography>
+                    <Button variant="contained" onClick={() => window.location.assign('/subscription/plans')}>
+                      Abrir Planes
+                    </Button>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="subtitle1" gutterBottom>
+                      <AccountBalance sx={{ mr: 1, verticalAlign: 'middle' }} />
+                      Estado de la Plataforma
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Información de suscripción de plataforma.
+                    </Typography>
+                    <Button variant="contained" onClick={() => window.location.assign('/platform-subscription')}>
+                      Ver Estado
+                    </Button>
+                  </CardContent>
+                </Card>
               </Grid>
             </Grid>
           </TabPanel>

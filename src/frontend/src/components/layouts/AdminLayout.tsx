@@ -232,67 +232,19 @@ export const AdminLayout: React.FC = () => {
   const headerTextColor = getHeaderTextColor(themeConfig);
   const isLightTheme = themeConfig.isLightBackground;
 
+  // Simplified, world-class IA: flat, clear, 3-click rule
   const menuItems: MenuItemType[] = [
-    { text: 'Panel General', icon: <Dashboard />, path: '/dashboard' },
-    { text: 'Calendario', icon: <CalendarToday />, path: '/calendar' },
+    { text: 'Inicio', icon: <Dashboard />, path: '/dashboard' },
+    { text: 'Agenda', icon: <CalendarToday />, path: '/calendar' },
     { text: 'Bloqueos', icon: <BlockIcon />, path: '/blocks' },
-    { text: `${getTerm('professional')}s`, icon: <Group />, path: '/professionals' },
-    {
-      text: getTerm('booking') + 's',
-      icon: <Book />,
-      children: [
-        { text: `Nuevo ${getTerm('booking')}`, icon: <AddCircle />, path: '/new-booking' },
-      ],
-    },
-    {
-      text: 'Clientes',
-      icon: <People />,
-      children: [
-        { text: `Ver ${getTerm('customer')}s`, icon: <Visibility />, path: '/customers' },
-        { text: `Nuevo ${getTerm('customer')}`, icon: <AddCircle />, path: '/customers/new' },
-      ],
-    },
-    
-    {
-      text: 'Facturación',
-      icon: <AttachMoney />,
-      children: [
-        { text: 'Registrar Pagos', icon: <Payment />, path: '/payments' },
-        { text: 'Gestión Empleados', icon: <Group />, path: '/employees' },
-        { text: 'Sueldos y Comisiones', icon: <AccountBalance />, path: '/payroll' },
-        { text: 'Reportes Financieros', icon: <BarChart />, path: '/financial-reports' },
-      ],
-    },
+    { text: 'Clientes', icon: <People />, path: '/customers' },
+    { text: 'Servicios', icon: <ManageAccounts />, path: '/services' },
+    { text: 'Empleados', icon: <Group />, path: '/employees' },
+    { text: 'Ventas', icon: <AttachMoney />, path: '/pos' },
+    { text: 'Pagos', icon: <Payment />, path: '/payments' },
     { text: 'Reportes', icon: <Assessment />, path: '/reports' },
-    {
-      text: 'Inventario',
-      icon: <Assessment />,
-      children: [
-        { text: 'Venta de artículos', icon: <AttachMoney />, path: '/pos' },
-        { text: 'Productos', icon: <ManageAccounts />, path: '/products' },
-      ],
-    },
-    { 
-      text: 'Suscripción',
-      icon: <Business />,
-      children: [
-        { text: 'Ver Planes', icon: <CreditCard />, path: '/subscription/plans' },
-        { text: 'Mi Suscripción', icon: <Star />, path: '/subscription' },
-        { text: 'Estado de la Plataforma', icon: <AccountBalance />, path: '/platform-subscription' },
-      ]
-    },
-    { 
-      text: 'Configuración', 
-      icon: <Settings />,
-      children: [
-        { text: 'Gestionar Servicios', icon: <ManageAccounts />, path: '/services' },
-        { text: 'Créditos de Mensajes', icon: <CreditCard />, path: '/messaging' },
-        { text: 'Mensajes (WhatsApp)', icon: <ManageAccounts />, path: '/messaging/settings' },
-        { text: 'Mi MercadoPago', icon: <AccountBalance />, path: '/mercadopago-settings' },
-        { text: 'Personalizar Tema', icon: <Palette />, path: '/theme-settings' },
-        { text: 'Configuración General', icon: <Settings />, path: '/settings' },
-      ]
-    },
+    { text: 'Configuración', icon: <Settings />, path: '/settings' },
+    { text: 'Suscripción', icon: <CreditCard />, path: '/subscription' },
   ];
 
   const handleDrawerToggle = () => {
@@ -516,10 +468,10 @@ export const AdminLayout: React.FC = () => {
                     },
                   }}
                   id={
-                    item.text === 'Calendario' ? 'tp-menu-calendar' :
-                    item.text === 'Clientes' ? 'tp-menu-customers' :
-                    item.text === 'Reportes' ? 'tp-menu-reports' :
-                    item.text === 'Configuración' ? 'tp-menu-settings' : undefined
+                    item.path === '/calendar' ? 'tp-menu-calendar' :
+                    item.path === '/customers' ? 'tp-menu-customers' :
+                    item.path === '/reports' ? 'tp-menu-reports' :
+                    item.path === '/settings' ? 'tp-menu-settings' : undefined
                   }
                 >
                   <ListItemIcon sx={{ minWidth: { xs: 35, sm: 40 } }}>
@@ -589,6 +541,18 @@ export const AdminLayout: React.FC = () => {
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {/* Quick actions to guarantee 1–2 click access */}
+            <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 1, mr: 2 }}>
+              <Button size="small" variant="contained" startIcon={<AddCircle />} onClick={() => navigate('/new-booking')}>
+                Nueva reserva
+              </Button>
+              <Button size="small" variant="outlined" onClick={() => navigate('/customers/new')}>
+                Nuevo cliente
+              </Button>
+              <Button size="small" variant="outlined" onClick={() => navigate('/payments')}>
+                Cobrar
+              </Button>
+            </Box>
             <Tooltip title="Notificaciones">
               <IconButton onClick={handleNotificationMenuOpen}>
                 <Badge 

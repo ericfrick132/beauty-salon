@@ -35,9 +35,8 @@ services:
       - api
     networks:
       - bookingpro-network
-    volumes:
-      - ./src/frontend:/app
-      - /app/node_modules
+    # Nota: sin volúmenes para evitar persistencia de node_modules.
+    # Si cambiás código, necesitás rebuild: `docker-compose up --build`
 
 
   # nginx:

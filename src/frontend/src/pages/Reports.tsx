@@ -228,6 +228,12 @@ const Reports: React.FC = () => {
             >
               Exportar CSV
             </Button>
+            <Button variant="outlined" onClick={() => navigate('/financial-reports')}>
+              Reportes financieros
+            </Button>
+            <Button variant="outlined" onClick={() => navigate('/payroll')}>
+              Sueldos y comisiones
+            </Button>
           </Box>
         </Box>
 
