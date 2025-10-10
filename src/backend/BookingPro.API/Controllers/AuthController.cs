@@ -113,9 +113,9 @@ namespace BookingPro.API.Controllers
         [HttpPost("change-password")]
         public async Task<IActionResult> ChangePassword([FromBody] ChangeOwnPasswordDto dto)
         {
-            if (dto == null || string.IsNullOrWhiteSpace(dto.CurrentPassword) || string.IsNullOrWhiteSpace(dto.NewPassword))
+            if (dto == null || string.IsNullOrWhiteSpace(dto.NewPassword))
             {
-                return BadRequest(new { message = "Contraseña actual y nueva son requeridas" });
+                return BadRequest(new { message = "La nueva contraseña es requerida" });
             }
 
             if (dto.NewPassword.Length < 6)
@@ -124,14 +124,9 @@ namespace BookingPro.API.Controllers
             }
 
             var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userIdClaim))
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
             {
                 return Unauthorized(new { message = "No autenticado" });
-            }
-
-            if (!Guid.TryParse(userIdClaim, out var userId))
-            {
-                return Unauthorized(new { message = "Token inválido" });
             }
 
             Guid tenantId;
@@ -150,15 +145,10 @@ namespace BookingPro.API.Controllers
                 return Unauthorized(new { message = "Usuario no encontrado" });
             }
 
-            var (ok, _) = BookingPro.API.Services.Security.PasswordHasher.Verify(dto.CurrentPassword, user.PasswordHash);
-            if (!ok)
-            {
-                return Unauthorized(new { message = "Contraseña actual incorrecta" });
-            }
-
             user.PasswordHash = BookingPro.API.Services.Security.PasswordHasher.Hash(dto.NewPassword);
             await _context.SaveChangesAsync();
 
+            // Nota: No deslogueamos. El token actual sigue válido hasta expirar.
             return Ok(new { message = "Contraseña cambiada exitosamente" });
         }
     }
@@ -181,7 +171,6 @@ namespace BookingPro.API.Controllers
 
     public class ChangeOwnPasswordDto
     {
-        public string CurrentPassword { get; set; } = string.Empty;
         public string NewPassword { get; set; } = string.Empty;
     }
 }

@@ -126,7 +126,7 @@ const Settings: React.FC = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
   // Change Password State
-  const [pwdForm, setPwdForm] = useState({ current: '', next: '', confirm: '' });
+  const [pwdForm, setPwdForm] = useState({ next: '', confirm: '' });
 
   // General Settings State
   const [generalSettings, setGeneralSettings] = useState({
@@ -1392,16 +1392,6 @@ const Settings: React.FC = () => {
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
-                  label="Contraseña actual"
-                  type="password"
-                  value={pwdForm.current}
-                  onChange={(e) => setPwdForm(prev => ({ ...prev, current: e.target.value }))}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
                   label="Nueva contraseña"
                   type="password"
                   value={pwdForm.next}
@@ -1436,9 +1426,9 @@ const Settings: React.FC = () => {
                       }
                       setLoading(true);
                       try {
-                        const res = await authApi.changePassword(pwdForm.current, pwdForm.next);
+                        const res = await authApi.changePassword(pwdForm.next);
                         setSnackbar({ open: true, message: res?.message || 'Contraseña cambiada', severity: 'success' });
-                        setPwdForm({ current: '', next: '', confirm: '' });
+                        setPwdForm({ next: '', confirm: '' });
                       } catch (error: any) {
                         const msg = error?.response?.data?.message || 'Error al cambiar la contraseña';
                         setSnackbar({ open: true, message: msg, severity: 'error' });
