@@ -2,6 +2,10 @@ using Microsoft.AspNetCore.Mvc;
 using BookingPro.API.Services;
 using BookingPro.API.DTOs;
 using BookingPro.API.Models.Enums;
+using Microsoft.AspNetCore.Authorization;
+using BookingPro.API.Data;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace BookingPro.API.Controllers
 {
@@ -10,10 +14,14 @@ namespace BookingPro.API.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
+        private readonly ApplicationDbContext _context;
+        private readonly ITenantService _tenantService;
 
-        public AuthController(IAuthService authService)
+        public AuthController(IAuthService authService, ApplicationDbContext context, ITenantService tenantService)
         {
             _authService = authService;
+            _context = context;
+            _tenantService = tenantService;
         }
 
         [HttpPost("login")]
@@ -100,6 +108,59 @@ namespace BookingPro.API.Controllers
 
             return Ok(new { message = "Contraseña actualizada" });
         }
+
+        [Authorize]
+        [HttpPost("change-password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangeOwnPasswordDto dto)
+        {
+            if (dto == null || string.IsNullOrWhiteSpace(dto.CurrentPassword) || string.IsNullOrWhiteSpace(dto.NewPassword))
+            {
+                return BadRequest(new { message = "Contraseña actual y nueva son requeridas" });
+            }
+
+            if (dto.NewPassword.Length < 6)
+            {
+                return BadRequest(new { message = "La nueva contraseña debe tener al menos 6 caracteres" });
+            }
+
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim))
+            {
+                return Unauthorized(new { message = "No autenticado" });
+            }
+
+            if (!Guid.TryParse(userIdClaim, out var userId))
+            {
+                return Unauthorized(new { message = "Token inválido" });
+            }
+
+            Guid tenantId;
+            try
+            {
+                tenantId = Guid.Parse(_tenantService.GetCurrentTenantId());
+            }
+            catch
+            {
+                return Unauthorized(new { message = "Tenant inválido" });
+            }
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId && u.TenantId == tenantId);
+            if (user == null)
+            {
+                return Unauthorized(new { message = "Usuario no encontrado" });
+            }
+
+            var (ok, _) = BookingPro.API.Services.Security.PasswordHasher.Verify(dto.CurrentPassword, user.PasswordHash);
+            if (!ok)
+            {
+                return Unauthorized(new { message = "Contraseña actual incorrecta" });
+            }
+
+            user.PasswordHash = BookingPro.API.Services.Security.PasswordHasher.Hash(dto.NewPassword);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Contraseña cambiada exitosamente" });
+        }
     }
 
     public class ValidateTokenDto
@@ -115,6 +176,12 @@ namespace BookingPro.API.Controllers
     public class ResetPasswordDto
     {
         public string Token { get; set; } = string.Empty;
+        public string NewPassword { get; set; } = string.Empty;
+    }
+
+    public class ChangeOwnPasswordDto
+    {
+        public string CurrentPassword { get; set; } = string.Empty;
         public string NewPassword { get; set; } = string.Empty;
     }
 }

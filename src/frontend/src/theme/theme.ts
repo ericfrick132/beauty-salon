@@ -3,7 +3,6 @@ import { TenantConfig } from '../types';
 
 // Function to create dynamic theme based on tenant config
 export const createTurnosProTheme = (config?: TenantConfig) => {
-  const vertical = config?.vertical || 'barbershop';
   const theme = config?.theme;
   
   // Use theme configuration if available, otherwise use defaults

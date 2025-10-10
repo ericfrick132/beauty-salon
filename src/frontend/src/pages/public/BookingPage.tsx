@@ -287,7 +287,7 @@ const BookingPage: React.FC = () => {
       } else {
         // Sin pago requerido, ir al paso final
         setBookingConfirmed(true);
-        const finalIndex = 4; // Confirmación es el último paso cuando no hay pago
+        const finalIndex = requiresDeposit ? 5 : 4; // Confirmación depende de si existe paso de Pago
         setActiveStep(finalIndex);
       }
     } catch (error: any) {
@@ -720,105 +720,140 @@ const BookingPage: React.FC = () => {
         return (
           <Fade in timeout={500}>
             <Box>
-              <Typography variant="h5" gutterBottom align="center">
-                Confirma tu reserva
-              </Typography>
-              <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
-                Revisa los detalles de tu reserva antes de continuar al pago
-              </Typography>
-              <Paper sx={{ p: 3, maxWidth: 600, margin: '0 auto', bgcolor: 'background.default' }}>
-                <Grid container spacing={2}>
-                  <Grid item xs={12}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <Schedule sx={{ mr: 1, color: 'primary.main' }} />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Servicio:
+              {bookingConfirmed ? (
+                // Mostrar confirmación final cuando no se requiere pago
+                <Container maxWidth="sm" sx={{ py: 2 }}>
+                  <Paper sx={{ p: 4, textAlign: 'center' }}>
+                    <Zoom in timeout={300}>
+                      <Avatar sx={{ width: 80, height: 80, bgcolor: 'success.main', margin: '0 auto 24px' }}>
+                        <Check sx={{ fontSize: 48 }} />
+                      </Avatar>
+                    </Zoom>
+                    <Typography variant="h4" gutterBottom color="success.main">
+                      ¡Reserva Confirmada!
+                    </Typography>
+                    <Paper sx={{ p: 2, bgcolor: 'grey.100', mb: 3 }}>
+                      <Typography variant="h6" gutterBottom>
+                        Código de confirmación:
                       </Typography>
-                    </Box>
-                    <Typography variant="body1" sx={{ ml: 4 }}>
-                      {selectedService?.name}
-                    </Typography>
-                  </Grid>
-                  
-                  <Grid item xs={12}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <Person sx={{ mr: 1, color: 'primary.main' }} />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Profesional:
+                      <Typography variant="h4" color="primary" sx={{ fontFamily: 'monospace' }}>
+                        {confirmationCode}
                       </Typography>
-                    </Box>
-                    <Typography variant="body1" sx={{ ml: 4 }}>
-                      {selectedProfessional?.name}
+                    </Paper>
+                    <Alert severity="info" sx={{ mb: 3 }}>
+                      Hemos enviado los detalles de tu reserva a {bookingData.customerEmail}
+                    </Alert>
+                    <Typography variant="body2" color="text.secondary" paragraph>
+                      Te esperamos el {format(bookingData.date, "EEEE d 'de' MMMM", { locale: es })} a las {bookingData.time}
                     </Typography>
-                  </Grid>
-                  
-                  <Grid item xs={12}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <CalendarToday sx={{ mr: 1, color: 'primary.main' }} />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Fecha y hora:
-                      </Typography>
-                    </Box>
-                    <Typography variant="body1" sx={{ ml: 4 }}>
-                      {format(bookingData.date, "EEEE d 'de' MMMM 'de' yyyy", { locale: es })} a las {bookingData.time}
-                    </Typography>
-                  </Grid>
-                  
-                  <Grid item xs={12}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <AccessTime sx={{ mr: 1, color: 'primary.main' }} />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Duración:
-                      </Typography>
-                    </Box>
-                    <Typography variant="body1" sx={{ ml: 4 }}>
-                      {selectedService?.durationMinutes} minutos
-                    </Typography>
-                  </Grid>
-                  
-                  <Grid item xs={12}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <AttachMoney sx={{ mr: 1, color: 'primary.main' }} />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Precio:
-                      </Typography>
-                    </Box>
-                    <Typography variant="h6" color="primary" sx={{ ml: 4 }}>
-                      ${selectedService?.price}
-                    </Typography>
-                  </Grid>
-                  
-                  <Grid item xs={12}>
-                    <Divider sx={{ my: 2 }} />
-                  </Grid>
-                  
-                  <Grid item xs={12}>
-                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                      Tus datos:
-                    </Typography>
-                    <Typography variant="body2">
-                      {bookingData.customerName}
-                    </Typography>
-                    <Typography variant="body2">
-                      {bookingData.customerEmail}
-                    </Typography>
-                    <Typography variant="body2">
-                      {bookingData.customerPhone}
-                    </Typography>
-                    {bookingData.notes && (
-                      <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
-                        Notas: {bookingData.notes}
-                      </Typography>
+                    <Button variant="outlined" size="large" onClick={() => window.location.reload()}>
+                      Hacer otra reserva
+                    </Button>
+                  </Paper>
+                </Container>
+              ) : (
+                <>
+                  <Typography variant="h5" gutterBottom align="center">
+                    Confirma tu reserva
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
+                    Revisa los detalles de tu reserva antes de continuar al pago
+                  </Typography>
+                  <Paper sx={{ p: 3, maxWidth: 600, margin: '0 auto', bgcolor: 'background.default' }}>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <Schedule sx={{ mr: 1, color: 'primary.main' }} />
+                          <Typography variant="subtitle2" color="text.secondary">
+                            Servicio:
+                          </Typography>
+                        </Box>
+                        <Typography variant="body1" sx={{ ml: 4 }}>
+                          {selectedService?.name}
+                        </Typography>
+                      </Grid>
+                      
+                      <Grid item xs={12}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <Person sx={{ mr: 1, color: 'primary.main' }} />
+                          <Typography variant="subtitle2" color="text.secondary">
+                            Profesional:
+                          </Typography>
+                        </Box>
+                        <Typography variant="body1" sx={{ ml: 4 }}>
+                          {selectedProfessional?.name}
+                        </Typography>
+                      </Grid>
+                      
+                      <Grid item xs={12}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <CalendarToday sx={{ mr: 1, color: 'primary.main' }} />
+                          <Typography variant="subtitle2" color="text.secondary">
+                            Fecha y hora:
+                          </Typography>
+                        </Box>
+                        <Typography variant="body1" sx={{ ml: 4 }}>
+                          {format(bookingData.date, "EEEE d 'de' MMMM 'de' yyyy", { locale: es })} a las {bookingData.time}
+                        </Typography>
+                      </Grid>
+                      
+                      <Grid item xs={12}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <AccessTime sx={{ mr: 1, color: 'primary.main' }} />
+                          <Typography variant="subtitle2" color="text.secondary">
+                            Duración:
+                          </Typography>
+                        </Box>
+                        <Typography variant="body1" sx={{ ml: 4 }}>
+                          {selectedService?.durationMinutes} minutos
+                        </Typography>
+                      </Grid>
+                      
+                      <Grid item xs={12}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <AttachMoney sx={{ mr: 1, color: 'primary.main' }} />
+                          <Typography variant="subtitle2" color="text.secondary">
+                            Precio:
+                          </Typography>
+                        </Box>
+                        <Typography variant="h6" color="primary" sx={{ ml: 4 }}>
+                          ${selectedService?.price}
+                        </Typography>
+                      </Grid>
+                      
+                      <Grid item xs={12}>
+                        <Divider sx={{ my: 2 }} />
+                      </Grid>
+                      
+                      <Grid item xs={12}>
+                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                          Tus datos:
+                        </Typography>
+                        <Typography variant="body2">
+                          {bookingData.customerName}
+                        </Typography>
+                        <Typography variant="body2">
+                          {bookingData.customerEmail}
+                        </Typography>
+                        <Typography variant="body2">
+                          {bookingData.customerPhone}
+                        </Typography>
+                        {bookingData.notes && (
+                          <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
+                            Notas: {bookingData.notes}
+                          </Typography>
+                        )}
+                      </Grid>
+                    </Grid>
+                    
+                    {errors.submit && (
+                      <Alert severity="error" sx={{ mt: 2 }}>
+                        {errors.submit}
+                      </Alert>
                     )}
-                  </Grid>
-                </Grid>
-                
-                {errors.submit && (
-                  <Alert severity="error" sx={{ mt: 2 }}>
-                    {errors.submit}
-                  </Alert>
-                )}
-              </Paper>
+                  </Paper>
+                </>
+              )}
             </Box>
           </Fade>
         );

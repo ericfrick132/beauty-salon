@@ -61,7 +61,7 @@ import {
   Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import api from '../services/api';
+import api, { authApi } from '../services/api';
 import { useTenant } from '../contexts/TenantContext';
 
 interface TabPanelProps {
@@ -122,6 +122,9 @@ const Settings: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+
+  // Change Password State
+  const [pwdForm, setPwdForm] = useState({ current: '', next: '', confirm: '' });
 
   // General Settings State
   const [generalSettings, setGeneralSettings] = useState({
@@ -433,6 +436,7 @@ const Settings: React.FC = () => {
             <Tab icon={<Group />} label="Personal" />
             <Tab icon={<Notifications />} label="Notificaciones" />
             <Tab icon={<Security />} label="Avanzado" />
+            <Tab icon={<Security />} label="Seguridad" />
           </Tabs>
 
           {/* General Settings Tab */}
@@ -1366,6 +1370,82 @@ const Settings: React.FC = () => {
                     disabled={loading}
                   >
                     Guardar Configuración Avanzada
+                  </Button>
+                </Box>
+              </Grid>
+            </Grid>
+          </TabPanel>
+
+          {/* Security: Change Password Tab */}
+          <TabPanel value={tabValue} index={6}>
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <Typography variant="h6" gutterBottom>
+                  <Security sx={{ mr: 1, verticalAlign: 'middle' }} />
+                  Cambiar Contraseña
+                </Typography>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Contraseña actual"
+                  type="password"
+                  value={pwdForm.current}
+                  onChange={(e) => setPwdForm(prev => ({ ...prev, current: e.target.value }))}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Nueva contraseña"
+                  type="password"
+                  value={pwdForm.next}
+                  onChange={(e) => setPwdForm(prev => ({ ...prev, next: e.target.value }))}
+                  helperText="Mínimo 6 caracteres"
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Confirmar nueva contraseña"
+                  type="password"
+                  value={pwdForm.confirm}
+                  onChange={(e) => setPwdForm(prev => ({ ...prev, confirm: e.target.value }))}
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                  <Button
+                    variant="contained"
+                    startIcon={<Save />}
+                    onClick={async () => {
+                      if (pwdForm.next.length < 6) {
+                        setSnackbar({ open: true, message: 'La nueva contraseña debe tener al menos 6 caracteres', severity: 'error' });
+                        return;
+                      }
+                      if (pwdForm.next !== pwdForm.confirm) {
+                        setSnackbar({ open: true, message: 'La confirmación no coincide', severity: 'error' });
+                        return;
+                      }
+                      setLoading(true);
+                      try {
+                        const res = await authApi.changePassword(pwdForm.current, pwdForm.next);
+                        setSnackbar({ open: true, message: res?.message || 'Contraseña cambiada', severity: 'success' });
+                        setPwdForm({ current: '', next: '', confirm: '' });
+                      } catch (error: any) {
+                        const msg = error?.response?.data?.message || 'Error al cambiar la contraseña';
+                        setSnackbar({ open: true, message: msg, severity: 'error' });
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    disabled={loading}
+                  >
+                    Guardar nueva contraseña
                   </Button>
                 </Box>
               </Grid>

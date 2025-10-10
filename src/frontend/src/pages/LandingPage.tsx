@@ -13,6 +13,7 @@ import {
   CardActions,
   Dialog,
   DialogContent,
+  Snackbar,
   IconButton,
   LinearProgress,
   TextField,
@@ -41,6 +42,13 @@ import MenuIcon from '@mui/icons-material/Menu';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
 import { useTheme } from '@mui/material/styles';
+// GSAP core + plugins
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { TextPlugin } from 'gsap/TextPlugin';
+// React integration for GSAP hook
+// @ts-ignore
+import { useGSAP } from '@gsap/react';
 import {
   CalendarMonth,
   AccessTime,
@@ -53,6 +61,13 @@ import {
   DesignServices,
 } from '@mui/icons-material';
 import { selfRegistrationApi } from '../services/api';
+
+// SplitText (premium) no se importa para evitar fallos de build.
+// Se usa un fallback que simula el revelado por palabra.
+let SplitTextRef: any = null; // reservado si el usuario lo injerta globalmente
+
+// Registrar plugins GSAP (después de imports para cumplir import/first)
+gsap.registerPlugin(ScrollTrigger, TextPlugin, useGSAP as any);
 
 type BusinessType =
   | 'peluqueria'
@@ -78,6 +93,9 @@ const COLORS = {
   white: '#ffffff',
   success: '#28a745',
 };
+
+// MercadoPago brand color
+const MP_BLUE = '#00b1ea';
 
 // Estilos por categoría (vertical) para personalizar tonos
 const VERTICAL_STYLES = {
@@ -128,6 +146,9 @@ const useParallax = () => {
   }, []);
   return offset;
 };
+
+// Lazy import heavy animations (confetti, particles) only when needed
+const loadHeavy = () => import('./landing/HeavyAnimations');
 
 const trackEvent = (name: string, params: Record<string, any> = {}) => {
   try {
@@ -191,6 +212,15 @@ const AnimatedCounter: React.FC<{ value: number; prefix?: string; suffix?: strin
   );
 };
 
+// Basic text splitter fallback when SplitText plugin is unavailable
+const splitTextWords = (el: HTMLElement) => {
+  const words = el.textContent?.split(/\s+/) || [];
+  el.innerHTML = words
+    .map((w) => `<span class="split-word" style="display:inline-block; white-space:pre">${w} </span>`)
+    .join('');
+  return Array.from(el.querySelectorAll('.split-word')) as HTMLElement[];
+};
+
 const Section: React.FC<{ id?: string; bg?: string; children: React.ReactNode }> = ({ id, bg, children }) => (
   <Box id={id} sx={{ py: { xs: 6, md: 10 }, background: bg || 'transparent' }}>
     <Container maxWidth="lg">{children}</Container>
@@ -201,6 +231,11 @@ const LandingPage: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const parallax = useParallax();
+  const navbarRef = useRef<HTMLDivElement | null>(null);
+  const heroTitleRef = useRef<HTMLHeadingElement | null>(null);
+  const heroBadgeRef = useRef<HTMLDivElement | null>(null);
+  const heroImgRef = useRef<HTMLImageElement | null>(null);
+  const heroStatsRef = useRef<HTMLDivElement | null>(null);
 
   const [stepperOpen, setStepperOpen] = useState(false);
   const TOTAL_STEPS = 4; // 0..3
@@ -231,6 +266,10 @@ const LandingPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [formError, setFormError] = useState('');
+  const [videoOpen, setVideoOpen] = useState(false);
+  const [toastOpen, setToastOpen] = useState(false);
+  const [toastMsg, setToastMsg] = useState('');
+  const [scrollProgress, setScrollProgress] = useState(0);
 
   const [checklistIdx, setChecklistIdx] = useState(0);
   const checklist = useMemo(
@@ -251,6 +290,26 @@ const LandingPage: React.FC = () => {
     } else {
       setVerticalDialogOpen(true);
     }
+  }, []);
+
+  // Floating toast and scroll progress
+  useEffect(() => {
+    const onScroll = () => {
+      const doc = document.documentElement;
+      const scrollTop = doc.scrollTop || document.body.scrollTop;
+      const scrollHeight = doc.scrollHeight - doc.clientHeight;
+      const p = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
+      setScrollProgress(p);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    const names = ['Barbería Los Amigos', 'Peluquería Glam', 'Estética Mía', 'Kine Jorge'];
+    const timer = window.setInterval(() => {
+      const msg = `${names[Math.floor(Math.random() * names.length)]} se registró hace 1 min`;
+      setToastMsg(msg);
+      setToastOpen(true);
+    }, 35000);
+    return () => { window.removeEventListener('scroll', onScroll); window.clearInterval(timer); };
   }, []);
 
   const activeVertical = useMemo<VerticalPref>(() => {
@@ -281,27 +340,66 @@ const LandingPage: React.FC = () => {
     return map[activeVertical];
   }, [activeVertical]);
 
-  // Assets por vertical (landscape para hero, square para tarjetas)
+  type StatSpec = { value: number; label: string; prefix?: string; suffix?: string };
+  // Copy por vertical para el HERO (enfatiza MercadoPago)
+  const heroCopy = useMemo<{ badge: string; h1: string; subtitle: string; stat: StatSpec }>(() => {
+    const c: Record<VerticalPref, { badge: string; h1: string; subtitle: string; stat: StatSpec }> = {
+      peluqueria: {
+        badge: '🎯 82% menos inasistencias con señas',
+        h1: 'Cobrá señas. Eliminá faltas.',
+        subtitle: 'MercadoPago integrado. Tus clientas pagan la seña online y quedan confirmadas automáticamente.',
+        stat: { value: 3500000, prefix: '$', label: 'En señas cobradas/mes' },
+      },
+      barberia: {
+        badge: '💈 +600 barberías cobrando automático',
+        h1: 'Tu barbería cobrando señas 24/7',
+        subtitle: 'Los clientes reservan y pagan la seña por MercadoPago. Sin WhatsApp, sin drama.',
+        stat: { value: 95, suffix: '%', label: 'Reducción en no-shows' },
+      },
+      estetica: {
+        badge: '💅 80% menos cancelaciones',
+        h1: 'Reservas con seña, sin excusas',
+        subtitle: 'Confirmación automática con MercadoPago y recordatorios por WhatsApp.',
+        stat: { value: 10000, prefix: '+', label: 'Reservas confirmadas/mes' },
+      },
+      profesionales: {
+        badge: '📚 Agenda profesional bajo control',
+        h1: 'Cobrás anticipado. Atendés mejor.',
+        subtitle: 'Señas por MercadoPago + recordatorios + agenda inteligente.',
+        stat: { value: 24, suffix: '/7', label: 'Reservas online' },
+      },
+      salud: {
+        badge: '🏥 Consultas confirmadas al instante',
+        h1: 'Señas para reducir inasistencias',
+        subtitle: 'MercadoPago + recordatorios automáticos para pacientes.',
+        stat: { value: 82, suffix: '%', label: 'Menos no-shows' },
+      },
+    };
+    return c[activeVertical];
+  }, [activeVertical]);
+
+  // Assets por vertical (usa archivos reales en public/assets/images-landing)
+  // Si faltan imágenes específicas para alguna vertical, se reusa una genérica.
   const imageAssets = {
     peluqueria: {
-      hero: '/assets/images-landing/vista-lateral-novia-feliz-con-telefono-inteligente.jpg',
-      square: '/assets/images-landing/cliente-de-angulo-bajo-en-peluqueria-mirando-el-telefono.jpg',
+      hero: '/assets/images-landing/peluqueria.jpg',
+      square: '/assets/images-landing/peluqueria1.jpg',
     },
     barberia: {
-      hero: '/assets/images-landing/vista-frontal-del-concepto-de-barberia.jpg',
-      square: '/assets/images-landing/vista-frontal-del-concepto-de-barberia.jpg',
+      hero: '/assets/images-landing/barberia.jpg',
+      square: '/assets/images-landing/barberia2.jpg',
     },
     estetica: {
-      hero: '/assets/images-landing/mujer-con-un-pincel-de-maquillaje-en-el-espejo.jpg',
-      square: '/assets/images-landing/mujer-con-un-pincel-de-maquillaje-en-el-espejo.jpg',
+      hero: '/assets/images-landing/estetica.jpg',
+      square: '/assets/images-landing/estetica.jpg',
     },
     profesionales: {
-      hero: '/assets/images-landing/colegas-trabajando-juntos-en-el-proyecto.jpg',
-      square: '/assets/images-landing/colegas-felices-de-trabajar-juntos.jpg',
+      hero: '/assets/images-landing/estetica.jpg',
+      square: '/assets/images-landing/estetica.jpg',
     },
     salud: {
-      hero: '/assets/images-landing/psicologo-de-sexo-masculino-confiado-que-se-sienta-en-silla-delante-de-su-paciente-femenino.jpg',
-      square: '/assets/images-landing/vista-lateral-del-paciente-haciendo-ejercicios-supervisados-por-el-medico.jpg',
+      hero: '/assets/images-landing/estetica.jpg',
+      square: '/assets/images-landing/estetica.jpg',
     },
   } as const;
 
@@ -317,6 +415,18 @@ const LandingPage: React.FC = () => {
     }
   }, []);
 
+  // Si el usuario injerta SplitText global (window.SplitText), lo registramos.
+  useEffect(() => {
+    try {
+      // @ts-ignore
+      const maybe = (window as any)?.SplitText;
+      if (maybe) {
+        SplitTextRef = maybe;
+        gsap.registerPlugin(maybe);
+      }
+    } catch {}
+  }, []);
+
   useEffect(() => {
     // Inject landing specific keyframes once
     const id = 'tp-landing-animations';
@@ -327,6 +437,17 @@ const LandingPage: React.FC = () => {
       @keyframes tpGradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
       @keyframes tpFloatSlow { 0% { transform: translateY(0px); } 50% { transform: translateY(-12px); } 100% { transform: translateY(0px); } }
       @keyframes tpPulseGlow { 0% { box-shadow: 0 0 0 0 rgba(0,0,0,0.15); } 70% { box-shadow: 0 0 0 14px rgba(0,0,0,0); } 100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); } }
+      .animated-element { will-change: transform, opacity; }
+      .price-card { perspective: 1000px; }
+      .price-card-inner { position: relative; transform-style: preserve-3d; transition: transform .6s; }
+      .price-card:hover .price-card-inner { transform: rotateY(180deg); }
+      .price-face { position:absolute; inset:0; backface-visibility:hidden; }
+      .price-back { transform: rotateY(180deg); }
+      .magnetic { position: relative; overflow: hidden; }
+      .magnetic .magnet { position: absolute; inset: 0; pointer-events: none; transform: translate(0,0); }
+      .link-underline { background-image: linear-gradient(currentColor, currentColor); background-position: 0% 100%; background-repeat: no-repeat; background-size: 0% 2px; transition: background-size .3s; }
+      .link-underline:hover { background-size: 100% 2px; }
+      .tilt { transform: perspective(800px) rotateX(0) rotateY(0); transition: transform .2s ease; }
     `;
     document.head.appendChild(style);
   }, []);
@@ -334,6 +455,140 @@ const LandingPage: React.FC = () => {
   useEffect(() => {
     setProgress(((activeStep + 1) / TOTAL_STEPS) * 100);
   }, [activeStep]);
+
+  // NAVBAR animations: logo, items stagger, CTA pulse + background on scroll
+  useGSAP(() => {
+    // Stagger menu items on mount
+    gsap.from('.nav-item', { y: -20, opacity: 0, stagger: 0.08, duration: 0.5, ease: 'power2.out' });
+    gsap.from('.nav-logo', { x: -30, opacity: 0, duration: 0.6, ease: 'power2.out' });
+    gsap.from('.nav-cta', { scale: 0.8, opacity: 0, duration: 0.5, ease: 'back.out(1.7)' });
+
+    // Background opacity change on scroll
+    if (navbarRef.current) {
+      const el = navbarRef.current;
+      gsap.to(el, {
+        backgroundColor: 'rgba(255,255,255,0.85)',
+        backdropFilter: 'saturate(180%) blur(8px)',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+        scrollTrigger: {
+          trigger: document.body,
+          start: 'top -10',
+          end: '+=1',
+          scrub: true,
+        },
+      });
+    }
+  }, []);
+
+  // HERO: Split text reveal, floating badge, parallax/zoom image, counters
+  useGSAP(() => {
+    // Text reveal
+    if (heroTitleRef.current) {
+      const el = heroTitleRef.current;
+      let targets: HTMLElement[] = [];
+      if (SplitTextRef) {
+        // @ts-ignore
+        const split = new SplitTextRef(el, { type: 'words' });
+        targets = split.words as HTMLElement[];
+      } else {
+        targets = splitTextWords(el);
+      }
+      gsap.fromTo(
+        targets,
+        { y: 24, opacity: 0, rotateX: -30 },
+        { y: 0, opacity: 1, rotateX: 0, duration: 0.7, ease: 'power3.out', stagger: 0.06, delay: 0.1 }
+      );
+    }
+
+    // Floating badge motion
+    if (heroBadgeRef.current) {
+      gsap.to(heroBadgeRef.current, { y: -10, repeat: -1, yoyo: true, ease: 'sine.inOut', duration: 1.6 });
+      gsap.to(heroBadgeRef.current, { x: 6, rotate: 1.5, repeat: -1, yoyo: true, ease: 'sine.inOut', duration: 2.2 });
+    }
+
+    // Parallax + zoom on hero image
+    if (heroImgRef.current) {
+      gsap.fromTo(
+        heroImgRef.current,
+        { scale: 0.98, y: 12, opacity: 0 },
+        {
+          scale: 1.03,
+          y: 0,
+          opacity: 1,
+          duration: 1.2,
+          ease: 'power2.out',
+          scrollTrigger: { trigger: heroImgRef.current, start: 'top 80%' },
+        }
+      );
+    }
+
+    // Counter animation for hero stats (if present)
+    if (heroStatsRef.current) {
+      const nodes = Array.from(heroStatsRef.current.querySelectorAll('.counter')) as HTMLElement[];
+      nodes.forEach((n) => {
+        const target = Number(n.dataset.target || '0');
+        gsap.fromTo(
+          n,
+          { textContent: 0 },
+          {
+            textContent: target,
+            duration: 2,
+            ease: 'power2.inOut',
+            snap: { textContent: target > 1000 ? 100 : 1 },
+            scrollTrigger: { trigger: n, start: 'top 90%', once: true },
+            onUpdate() {
+              const v = Math.ceil(Number((this as any).targets()[0].textContent));
+              const pfx = n.dataset.prefix || '';
+              const sfx = n.dataset.suffix || '';
+              if (pfx === '$') {
+                n.innerHTML = pfx + v.toLocaleString('es-AR') + sfx;
+              } else {
+                n.innerHTML = pfx + v.toLocaleString('es-AR') + sfx;
+              }
+            },
+          }
+        );
+      });
+    }
+  }, []);
+
+  // Micro-interactions: magnetic buttons and tilt cards
+  useEffect(() => {
+    const cleanups: Array<() => void> = [];
+    // Tilt effect on cards
+    const tilts = Array.from(document.querySelectorAll('.tilt')) as HTMLElement[];
+    tilts.forEach((el) => {
+      const onMove = (e: MouseEvent) => {
+        const rect = el.getBoundingClientRect();
+        const px = (e.clientX - rect.left) / rect.width;
+        const py = (e.clientY - rect.top) / rect.height;
+        const rx = (py - 0.5) * -8; // rotateX
+        const ry = (px - 0.5) * 8; // rotateY
+        el.style.transform = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg)`;
+      };
+      const onLeave = () => { el.style.transform = 'perspective(800px) rotateX(0) rotateY(0)'; };
+      el.addEventListener('mousemove', onMove);
+      el.addEventListener('mouseleave', onLeave);
+      cleanups.push(() => { el.removeEventListener('mousemove', onMove); el.removeEventListener('mouseleave', onLeave); });
+    });
+    // Magnetic hover
+    const mags = Array.from(document.querySelectorAll('.magnetic')) as HTMLElement[];
+    mags.forEach((btn) => {
+      const magnet = btn.querySelector('.magnet') as HTMLElement | null;
+      const onMove = (e: MouseEvent) => {
+        const rect = btn.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width - 0.5) * 12;
+        const y = ((e.clientY - rect.top) / rect.height - 0.5) * 12;
+        btn.style.transform = `translate(${x}px, ${y}px)`;
+        if (magnet) magnet.style.transform = `translate(${x * 2}px, ${y * 2}px)`;
+      };
+      const onLeave = () => { btn.style.transform = 'translate(0,0)'; if (magnet) magnet.style.transform = 'translate(0,0)'; };
+      btn.addEventListener('mousemove', onMove);
+      btn.addEventListener('mouseleave', onLeave);
+      cleanups.push(() => { btn.removeEventListener('mousemove', onMove); btn.removeEventListener('mouseleave', onLeave); });
+    });
+    return () => { cleanups.forEach((fn) => fn()); };
+  }, []);
 
   useEffect(() => {
     if (!stepperOpen) return;
@@ -626,6 +881,103 @@ const LandingPage: React.FC = () => {
     }
   };
 
+  // MercadoPago payment flow timeline (plays in its section)
+  const paymentFlowTl = useRef<gsap.core.Timeline | null>(null);
+  const initPaymentFlow = () => {
+    if (paymentFlowTl.current) return;
+    paymentFlowTl.current = gsap
+      .timeline({ repeat: -1, repeatDelay: 2 })
+      .set('.phone-mockup', { x: -40, opacity: 0 })
+      .to('.phone-mockup', { x: 0, opacity: 1, duration: 0.6, ease: 'power3.out' })
+      .to('.payment-icon', { scale: 1.2, color: MP_BLUE, duration: 0.4, ease: 'back.out(1.7)' }, '<0.1')
+      .to('.checkmark', { scale: 1, opacity: 1, rotate: 360, duration: 0.6, ease: 'power4.out' })
+      .to('.client-avatar', { boxShadow: '0 0 20px #4caf50', borderColor: '#4caf50', duration: 0.6 }, '<')
+      .add(async () => {
+        try {
+          const mod = await loadHeavy();
+          mod.launchConfetti?.({ particleCount: 80 });
+        } catch {}
+      });
+  };
+
+  // Start MercadoPago flow timeline when section enters viewport
+  useEffect(() => {
+    const st = ScrollTrigger.create({
+      trigger: '#mercadopago',
+      start: 'top 70%',
+      once: true,
+      onEnter: () => initPaymentFlow(),
+    });
+    return () => { try { st.kill(); } catch {} };
+  }, []);
+
+  // ScrollTrigger batch for feature cards
+  useEffect(() => {
+    ScrollTrigger.batch('.feature-card', {
+      onEnter: (els: Element[]) => {
+        gsap.fromTo(
+          els as any,
+          { y: 100, opacity: 0, rotateX: -90 },
+          { y: 0, opacity: 1, rotateX: 0, duration: 1.2, stagger: 0.15, ease: 'power3.out' }
+        );
+      },
+      once: true,
+    });
+    // No cleanup global para no afectar otros triggers
+    return () => {};
+  }, []);
+
+  // Final CTA: confetti on enter + countdown + glitch/scramble effect
+  useEffect(() => {
+    const trigger = ScrollTrigger.create({
+      trigger: '#final-cta',
+      onEnter: async () => {
+        try { const mod = await loadHeavy(); mod.launchConfetti?.({ particleCount: 120 }); } catch {}
+        // Text reveal effect
+        const el = document.querySelector('.glitch-text');
+        if (el) {
+          try {
+            gsap.to(el, { duration: 0.8, text: (el as HTMLElement).textContent });
+          } catch {
+            // fallback pulse
+            gsap.fromTo(el, { opacity: 0.6 }, { opacity: 1, duration: 0.8 });
+          }
+        }
+      },
+      once: true,
+      start: 'top 80%',
+    });
+
+    // Countdown 24h rolling
+    const countdownEl = document.getElementById('cta-countdown');
+    let stop = false;
+    const end = Date.now() + 24 * 60 * 60 * 1000;
+    const tick = () => {
+      if (stop) return;
+      const rem = Math.max(0, end - Date.now());
+      const hh = String(Math.floor(rem / 3600000)).padStart(2, '0');
+      const mm = String(Math.floor((rem % 3600000) / 60000)).padStart(2, '0');
+      const ss = String(Math.floor((rem % 60000) / 1000)).padStart(2, '0');
+      if (countdownEl) countdownEl.textContent = `${hh}:${mm}:${ss}`;
+      requestAnimationFrame(tick);
+    };
+    tick();
+    return () => { stop = true; try { trigger.kill(); } catch {} };
+  }, []);
+
+  // Animate testimonial star ratings on scroll
+  useEffect(() => {
+    const els = Array.from(document.querySelectorAll('.stars-fill')) as HTMLElement[];
+    els.forEach((el) => {
+      gsap.fromTo(
+        el,
+        { width: 0 },
+        { width: '100%', duration: 1.2, ease: 'power2.out', scrollTrigger: { trigger: el, start: 'top 90%', once: true } }
+      );
+    });
+    return () => {};
+  }, []);
+
   const personalizedBenefits = () => {
     const bullets: string[] = [];
     switch (businessType) {
@@ -767,18 +1119,33 @@ const LandingPage: React.FC = () => {
         </DialogContent>
       </Dialog>
       {/* Header */}
-      <AppBar position="sticky" color="default" elevation={0} sx={{ backgroundColor: COLORS.white, borderBottom: '1px solid #eee', color: '#1a1a1a' }}>
+      <AppBar ref={navbarRef as any} position="sticky" color="default" elevation={0} sx={{ backgroundColor: COLORS.white, borderBottom: '1px solid #eee', color: '#1a1a1a', transition: 'background .3s, box-shadow .3s, backdrop-filter .3s' }}>
         <Toolbar sx={{ display: 'flex', justifyContent: 'space-between' }}>
-          <Typography variant="h6" sx={{ fontWeight: 800, color: themeStyle.primary }}>
+          <Typography className="nav-logo" variant="h6" sx={{ fontWeight: 800, color: themeStyle.primary }}>
             Turnos Pro
           </Typography>
           {/* Desktop nav */}
           <Box sx={{ display: { xs: 'none', sm: 'flex' }, gap: 2, alignItems: 'center' }}>
-            <Button color="inherit" sx={{ color: '#1a1a1a' }} href="#features">Características</Button>
-            <Button color="inherit" sx={{ color: '#1a1a1a' }} href="#precios">Precios</Button>
-            <Button color="inherit" sx={{ color: '#1a1a1a' }} href="#faq">FAQ</Button>
-            <Button color="inherit" sx={{ color: '#1a1a1a' }} onClick={() => setLoginDialogOpen(true)}>Ingresar</Button>
+            <Button className="nav-item" color="inherit" sx={{ color: '#1a1a1a' }} href="#features">Características</Button>
+            <Button className="nav-item" color="inherit" sx={{ color: '#1a1a1a' }} href="#precios">Precios</Button>
+            <Button className="nav-item" color="inherit" sx={{ color: '#1a1a1a' }} href="#faq">FAQ</Button>
+            <Button className="nav-item" color="inherit" sx={{ color: '#1a1a1a' }} onClick={() => setLoginDialogOpen(true)}>Ingresar</Button>
+            {/* Vertical selector */}
+            <TextField
+              className="nav-item"
+              select
+              size="small"
+              value={activeVertical}
+              onChange={(e) => { const v = e.target.value as any; setVerticalPref(v); localStorage.setItem('tp_vertical_pref', v); }}
+              SelectProps={{ native: true }}
+              sx={{ minWidth: 160 }}
+            >
+              {['peluqueria','barberia','estetica','salud','profesionales'].map((v) => (
+                <option key={v} value={v}>{v.charAt(0).toUpperCase()+v.slice(1)}</option>
+              ))}
+            </TextField>
             <Button
+              className="nav-cta magnetic"
               variant="contained"
               onClick={openStepper}
               sx={{
@@ -789,6 +1156,7 @@ const LandingPage: React.FC = () => {
               }}
             >
               Probá GRATIS 30 días
+              <span className="magnet" />
             </Button>
           </Box>
           {/* Mobile nav trigger */}
@@ -874,12 +1242,12 @@ const LandingPage: React.FC = () => {
         }} />
         <Container maxWidth="lg" sx={{ py: { xs: 8, md: 14 } }}>
           <motion.div {...heroMotion}>
-            <Chip label="✨ Sin datos de pago requeridos" sx={{ mb: 2, backgroundColor: COLORS.white }} />
-            <Typography variant="h1" sx={{ fontSize: { xs: 30, md: 44 }, fontWeight: 800, lineHeight: 1.2, color: COLORS.black }}>
-              {verticalCopy.title}
+            <Chip ref={heroBadgeRef as any} label={heroCopy.badge} sx={{ mb: 2, backgroundColor: COLORS.white }} />
+            <Typography ref={heroTitleRef as any} variant="h1" sx={{ fontSize: { xs: 30, md: 44 }, fontWeight: 800, lineHeight: 1.2, color: COLORS.black }}>
+              {heroCopy.h1}
             </Typography>
             <Typography variant="h6" sx={{ mt: 2, maxWidth: 720, color: '#333', fontSize: { xs: 16, md: undefined } }}>
-              {verticalCopy.subtitle}
+              {heroCopy.subtitle}
             </Typography>
             <Box sx={{ mt: 4, display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'stretch', sm: 'center' } }}>
               <Button size={isMobile ? 'medium' : 'large'} fullWidth={isMobile} variant="contained" onClick={openStepper} endIcon={<ArrowForwardIcon />} sx={{
@@ -902,6 +1270,7 @@ const LandingPage: React.FC = () => {
                 const heroSrc = (imageAssets as any)[selected].hero as string;
                 return (
                   <motion.img
+                    ref={heroImgRef as any}
                     src={heroSrc}
                     srcSet={`${heroSrc} 600w, ${heroSrc} 1200w, ${heroSrc} 1800w`}
                     sizes="(max-width: 600px) 100vw, (max-width: 1200px) 90vw, 920px"
@@ -916,6 +1285,19 @@ const LandingPage: React.FC = () => {
                   />
                 );
               })()}
+            </Box>
+            {/* Hero stats with GSAP counters */}
+            <Box ref={heroStatsRef as any} className="hero-stats" sx={{ mt: 4, display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+              <Box>
+                <Typography className="counter" data-prefix={heroCopy.stat.prefix || ''} data-suffix={heroCopy.stat.suffix || ''} data-target={heroCopy.stat.value} variant="h5" sx={{ fontWeight: 800 }}>
+                  0
+                </Typography>
+                <Typography variant="caption" color="text.secondary">{heroCopy.stat.label}</Typography>
+              </Box>
+              <Box>
+                <Typography className="counter" data-target={12000} data-prefix="+" variant="h5" sx={{ fontWeight: 800 }}>0</Typography>
+                <Typography variant="caption" color="text.secondary">Negocios activos</Typography>
+              </Box>
             </Box>
           </motion.div>
 
@@ -949,6 +1331,139 @@ const LandingPage: React.FC = () => {
         </motion.div>
       </Section>
 
+      {/* Métricas animadas */}
+      <Section>
+        <motion.div variants={revealContainer} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }}>
+          <Typography variant="h3" sx={{ mb: 3, fontWeight: 700 }}>Números que cuentan</Typography>
+          <Grid container spacing={3}>
+            {[
+              { value: 12000, label: 'Negocios activos', prefix: '+' },
+              { value: 3500000, label: 'En señas cobradas/mes', prefix: '$' },
+              { value: 82, label: 'Menos no-shows', suffix: '%' },
+              { value: 24, label: 'Reservas online', suffix: '/7' },
+            ].map((m) => (
+              <Grid item xs={6} md={3} key={m.label}>
+                <Card sx={{ textAlign: 'center', p: 2 }}>
+                  <CardContent>
+                    <Typography className="counter" data-target={m.value} data-prefix={m.prefix || ''} data-suffix={m.suffix || ''} variant="h4" sx={{ fontWeight: 800 }}>
+                      0
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">{m.label}</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </motion.div>
+      </Section>
+
+      {/* Cómo funciona */}
+      <Section>
+        <motion.div variants={revealContainer} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }}>
+          <Typography variant="h3" sx={{ mb: 4, fontWeight: 700 }}>Cómo funciona</Typography>
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+              <List>
+                {[
+                  { key: 'step-crear', title: 'Creá tu cuenta', desc: 'Ingresá el nombre de tu negocio y subdominio' },
+                  { key: 'step-mp', title: 'Conectá MercadoPago', desc: 'Un click para vincular tu cuenta y cobrar señas' },
+                  { key: 'step-compartir', title: 'Compartí tu link', desc: 'Tus clientes reservan y pagan la seña 24/7' },
+                ].map((s, i) => (
+                  <ListItemButton key={s.key} onClick={() => {
+                    if (i === 0) gsap.from('.form-demo', { scale: 0, duration: 0.5, ease: 'back.out(2)' });
+                    if (i === 1) gsap.to('.mp-logo', { rotation: 360, scale: 1.2, duration: 0.6, ease: 'back.out(2)' });
+                    if (i === 2) gsap.from('.share-icons > *', { x: -100, opacity: 0, stagger: 0.1, duration: 0.4, ease: 'power2.out' });
+                  }}>
+                    <ListItemText primary={s.title} secondary={s.desc} />
+                  </ListItemButton>
+                ))}
+              </List>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Box sx={{ p: 2 }}>
+                <Card className="form-demo" sx={{ mb: 2 }}>
+                  <CardContent>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Tu negocio</Typography>
+                    <TextField fullWidth size="small" placeholder="Como se llama tu local?" sx={{ mt: 1 }} />
+                  </CardContent>
+                </Card>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, my: 2 }}>
+                  <img className="mp-logo" alt="MercadoPago" src="https://http2.mlstatic.com/frontend-assets/ui-navigation/5.23.1/mercadopago/logo__large.png" style={{ height: 28 }} />
+                  <Typography variant="body2">Conectado</Typography>
+                </Box>
+                <Box className="share-icons" sx={{ display: 'flex', gap: 1 }}>
+                  <Chip label="WhatsApp" />
+                  <Chip label="Instagram" />
+                  <Chip label="Link directo" />
+                </Box>
+              </Box>
+            </Grid>
+          </Grid>
+        </motion.div>
+      </Section>
+
+      {/* MercadoPago destacado */}
+      <Section id="mercadopago">
+        <motion.div variants={revealContainer} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }}>
+          <Grid container spacing={4} alignItems="center">
+            <Grid item xs={12} md={6}>
+              <Typography variant="overline" sx={{ color: MP_BLUE }}>MercadoPago</Typography>
+              <Typography variant="h3" sx={{ fontWeight: 800, mb: 2 }}>
+                Cobrá señas automáticamente con MercadoPago
+              </Typography>
+              <Typography variant="body1" sx={{ mb: 3 }}>
+                Configurá el monto de seña y confirmá turnos al instante. Sin comisiones extra por turno.
+              </Typography>
+              <Grid container spacing={1}>
+                {[
+                  'QR en recepción para pagar',
+                  'Links de pago por WhatsApp',
+                  'Cobro recurrente mensual',
+                  'Sin comisiones extras',
+                  'Cliente habilitado al instante',
+                  'Reportes de cobros',
+                ].map((t) => (
+                  <Grid item xs={12} sm={6} key={t}>
+                    <Box className="tilt" sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1 }}>
+                      <CheckCircleIcon sx={{ color: COLORS.success }} />
+                      <Typography variant="body2">{t}</Typography>
+                    </Box>
+                  </Grid>
+                ))}
+              </Grid>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                <Box sx={{ width: 280, height: 560, borderRadius: 36, border: '2px solid #eee', p: 1, boxShadow: '0 8px 30px rgba(0,0,0,0.12)', position: 'relative' }}>
+                  <Box className="phone-mockup" sx={{ width: '100%', height: '100%', borderRadius: 30, overflow: 'hidden', background: '#fafafa', position: 'relative' }}>
+                    <Box sx={{ p: 2 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                        <Avatar className="client-avatar" sx={{ width: 32, height: 32, border: '2px solid transparent' }}>A</Avatar>
+                        <Typography variant="body2">Agos reservó Corte + Color</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <Payments className="payment-icon" sx={{ color: '#555' }} />
+                        <Typography variant="body2">Seña solicitada: $2.000</Typography>
+                      </Box>
+                      <Card sx={{ mt: 2 }}>
+                        <CardContent>
+                          <Typography variant="subtitle2">Checkout MercadoPago</Typography>
+                          <LinearProgress variant="determinate" value={70} sx={{ my: 1 }} />
+                          <Box className="checkmark" sx={{ width: 36, height: 36, borderRadius: '50%', background: '#e8f5e9', color: '#4caf50', display: 'flex', alignItems: 'center', justifyContent: 'center', transform: 'scale(0)', opacity: 0 }}>
+                            ✓
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Box>
+                  </Box>
+                  {/* floating confetti area handled by HeavyAnimations */}
+                </Box>
+              </Box>
+            </Grid>
+          </Grid>
+        </motion.div>
+      </Section>
+
       {/* Features */}
       <Section id="features" bg={COLORS.lightGray}>
         <motion.div variants={revealContainer} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }}>
@@ -964,7 +1479,7 @@ const LandingPage: React.FC = () => {
             ].map((f) => (
               <Grid item xs={12} sm={6} md={4} key={f.title}>
                 <motion.div variants={revealItem} whileHover={{ y: -4, scale: 1.01 }} transition={{ type: 'spring', stiffness: 220, damping: 18 }}>
-                  <Card sx={{ height: '100%' }}>
+                  <Card className="feature-card tilt" sx={{ height: '100%' }}>
                     <CardContent>
                       <Box sx={{ mb: 1 }}>{f.icon}</Box>
                     <Typography variant="h6" sx={{ fontWeight: 700 }}>{f.title}</Typography>
@@ -1116,6 +1631,14 @@ const LandingPage: React.FC = () => {
                       </Box>
                     </Box>
                     <Typography variant="body2">“{quote}”</Typography>
+                    <Box className="stars" sx={{ mt: 1, position: 'relative', width: 120, height: 20 }}>
+                      <Box sx={{ position: 'absolute', inset: 0, color: '#ddd' }}>
+                        {Array.from({ length: 5 }).map((_, i) => (<Star key={i} fontSize="small" />))}
+                      </Box>
+                      <Box className="stars-fill" sx={{ position: 'absolute', inset: 0, width: 0, overflow: 'hidden', color: '#FFD700' }}>
+                        {Array.from({ length: 5 }).map((_, i) => (<Star key={i} fontSize="small" />))}
+                      </Box>
+                    </Box>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -1130,35 +1653,43 @@ const LandingPage: React.FC = () => {
         <motion.div variants={revealContainer} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }}>
           <Typography variant="h3" sx={{ mb: 4, fontWeight: 700 }}>Precios simples</Typography>
           <Grid container spacing={3}>
-          {(plans.length > 0 ? plans : []).map((plan) => (
+          {(plans.length > 0 ? plans.slice(0,3) : [
+            { code: 'trial', name: 'PRUEBA', price: 0, currency: 'ARS', description: 'Gratis 30 días' },
+            { code: 'pro', name: 'PROFESIONAL', price: 0, currency: 'ARS', description: 'Plan recomendado' },
+            { code: 'premium', name: 'PREMIUM', price: 0, currency: 'ARS', description: 'Para equipos grandes' },
+          ]).map((plan, idx) => (
             <Grid item xs={12} md={4} key={plan.code}>
               <motion.div variants={revealItem} whileHover={{ y: -4 }}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="overline">{plan.name}</Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                      {new Intl.NumberFormat('es-AR', { style: 'currency', currency: plan.currency || 'ARS', maximumFractionDigits: 0 }).format(plan.price || 0)} / mes
-                    </Typography>
-                    {plan.description && (
-                      <Typography variant="body2" color="text.secondary">{plan.description}</Typography>
-                    )}
-                  </CardContent>
-                  <CardActions>
-                    <Button fullWidth variant="outlined" onClick={openStepper}>Probar</Button>
-                  </CardActions>
-                </Card>
+                <Box className="price-card">
+                  <Card className="price-card-inner" sx={{ borderRadius: 2, position: 'relative' }}>
+                    {/* Front */}
+                    <Box className="price-face" sx={{ p: 2 }}>
+                      <Typography variant="overline">{plan.name}</Typography>
+                      <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                        {idx === 0 ? 'Gratis 30 días' : new Intl.NumberFormat('es-AR', { style: 'currency', currency: plan.currency || 'ARS', maximumFractionDigits: 0 }).format(plan.price || 0) + ' / mes'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>✨ MercadoPago incluido sin costo extra</Typography>
+                      <Box sx={{ mt: 2 }}>
+                        <Button className="magnetic" fullWidth variant="contained" onClick={openStepper}>Empezar</Button>
+                      </Box>
+                      {idx === 1 && (
+                        <Chip label="POPULAR" color="warning" size="small" sx={{ position: 'absolute', top: 8, right: 8, boxShadow: '0 0 16px rgba(255,215,0,0.6)' }} />
+                      )}
+                    </Box>
+                    {/* Back */}
+                    <Box className="price-face price-back" sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      {['Reservas 24/7','WhatsApp automático','Señas por MercadoPago','Reportes en vivo','Sin comisiones por turno'].map((f) => (
+                        <Box key={f} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <CheckCircleIcon color="success" fontSize="small" />
+                          <Typography variant="body2">{f}</Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  </Card>
+                </Box>
               </motion.div>
             </Grid>
           ))}
-          {plans.length === 0 && (
-            <Grid item xs={12}>
-              <Card>
-                <CardContent>
-                  <Typography variant="body2" color="text.secondary">{plansError || 'Cargando planes...'}</Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          )}
           </Grid>
         </motion.div>
       </Section>
@@ -1181,15 +1712,15 @@ const LandingPage: React.FC = () => {
         ))}
       </Section>
 
-      {/* Footer CTA */}
-      <Section bg={COLORS.primaryGreen}>
+      {/* Final CTA */}
+      <Section id="final-cta" bg={COLORS.primaryGreen}>
         <Grid container spacing={2} alignItems="center">
           <Grid item xs={12} md={8}>
-            <Typography variant="h4" sx={{ color: COLORS.white, fontWeight: 800 }}>
-              Comenzá a optimizar tu negocio hoy
+            <Typography variant="h4" className="glitch-text" sx={{ color: COLORS.white, fontWeight: 800 }}>
+              Tu competencia ya cobra señas automáticamente
             </Typography>
             <Typography variant="body1" sx={{ color: COLORS.white }}>
-              Unite a todas las empresas que ya confían en Turnos Pro
+              Oferta termina en: <span id="cta-countdown">23:59:47</span>
             </Typography>
           </Grid>
           <Grid item xs={12} md={4}>
@@ -1532,6 +2063,50 @@ const LandingPage: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Floating elements */}
+      <Box sx={{ position: 'fixed', bottom: 24, right: 24, display: 'flex', flexDirection: 'column', gap: 1, zIndex: 2000 }}>
+        <Button
+          variant="contained"
+          startIcon={<WhatsApp />}
+          onClick={() => window.open('https://wa.me/5491123456789?text=Quiero%20probar%20Turnos%20Pro', '_blank')}
+          sx={{
+            background: '#25D366', color: '#fff',
+            animation: 'tpFloatSlow 6s ease-in-out infinite',
+            '&:hover': { background: '#1EBE57' },
+          }}
+        >
+          WhatsApp
+        </Button>
+        <IconButton
+          aria-label="Volver arriba"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          sx={{ position: 'relative', background: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}
+        >
+          <svg width="36" height="36" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="16" stroke="#eee" strokeWidth="4" fill="none" />
+            <circle cx="18" cy="18" r="16" stroke={theme.palette.primary.main} strokeWidth="4" fill="none" strokeDasharray="100" strokeDashoffset={`${100 - Math.round(scrollProgress)}%`} />
+          </svg>
+        </IconButton>
+      </Box>
+
+      {/* Demo video modal */}
+      <Dialog open={videoOpen} onClose={() => setVideoOpen(false)} maxWidth="md" fullWidth>
+        <DialogContent>
+          <Box sx={{ position: 'relative', paddingTop: '56.25%' }}>
+            <iframe
+              title="Demo Turnos Pro"
+              src="https://www.youtube.com/embed/dQw4w9WgXcQ"
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </Box>
+        </DialogContent>
+      </Dialog>
+
+      {/* Social proof toast */}
+      <Snackbar open={toastOpen} onClose={() => setToastOpen(false)} autoHideDuration={5000} message={toastMsg} />
     </Box>
   );
 };
