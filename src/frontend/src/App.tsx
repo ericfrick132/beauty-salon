@@ -129,20 +129,21 @@ function App() {
       
       // Detectar el vertical basado en el hostname si la API falla
       let detectedVertical: 'barbershop' | 'beautysalon' | 'aesthetics' = 'barbershop';
+      // Accessible, neutral defaults for all verticals
       let defaultTheme: ThemeConfiguration = {
-        primaryColor: '#1976d2',
-        secondaryColor: '#ffffff',
-        accentColor: '#ffc107',
-        backgroundColor: '#ffffff',
-        surfaceColor: '#f5f5f5',
-        errorColor: '#f44336',
-        warningColor: '#ff9800',
-        infoColor: '#2196f3',
-        successColor: '#4caf50',
-        textPrimaryColor: '#000000',
-        textSecondaryColor: '#666666',
-        borderColor: '#e0e0e0',
-        fontFamily: 'Inter, Arial, sans-serif',
+        primaryColor: '#2563EB',        // blue-600
+        secondaryColor: '#0EA5E9',      // sky-500
+        accentColor: '#10B981',         // emerald-500
+        backgroundColor: '#F8FAFC',     // slate-50
+        surfaceColor: '#FFFFFF',
+        errorColor: '#DC2626',          // red-600
+        warningColor: '#F59E0B',        // amber-500
+        infoColor: '#2563EB',           // match primary
+        successColor: '#16A34A',        // green-600
+        textPrimaryColor: '#0F172A',    // slate-900
+        textSecondaryColor: '#475569',  // slate-600
+        borderColor: '#E5E7EB',         // gray-200
+        fontFamily: 'Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"',
         borderRadius: 8,
         useShadows: true,
         autoContrastText: true
@@ -152,17 +153,9 @@ function App() {
           window.location.hostname.includes('beauty') ||
           window.location.hostname.includes('salon')) {
         detectedVertical = 'beautysalon';
-        defaultTheme.primaryColor = '#C8A2C8';       // Rosa malva
-        defaultTheme.secondaryColor = '#FFF8F0';     // Blanco crema  
-        defaultTheme.accentColor = '#E6C9A8';        // Dorado champagne
-        defaultTheme.fontFamily = 'Playfair Display, serif';
       } else if (window.location.hostname.includes('aesthetics') || 
                  window.location.hostname.includes('spa')) {
         detectedVertical = 'aesthetics';
-        defaultTheme.primaryColor = '#9370DB';
-        defaultTheme.secondaryColor = '#F5F5DC';
-        defaultTheme.accentColor = '#40E0D0';
-        defaultTheme.fontFamily = 'Lora, serif';
       }
 
       setTenantConfig({

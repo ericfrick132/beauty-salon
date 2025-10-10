@@ -84,14 +84,19 @@ type TeamSize = 'solo' | 'small' | 'large';
 type MainProblem = 'noShows' | 'whatsapp' | 'deposits' | 'reports';
 
 const COLORS = {
-  primaryGreen: '#2D5A47',
-  gold: '#B8860B',
-  leatherBrown: '#8B4513',
-  black: '#1a1a1a',
-  cream: '#F5F5DC',
-  lightGray: '#f8f8f8',
-  white: '#ffffff',
-  success: '#28a745',
+  primary: '#2563EB',      // blue-600
+  accent: '#10B981',       // emerald-500
+  text: '#0F172A',         // slate-900
+  subtext: '#475569',      // slate-600
+  surface: '#FFFFFF',
+  background: '#F8FAFC',
+  success: '#16A34A',
+  // Backwards-compat aliases used in this file
+  black: '#0F172A',
+  white: '#FFFFFF',
+  primaryGreen: '#10B981',
+  lightGray: '#F1F5F9',    // slate-100
+  gold: '#F59E0B',         // amber-500
 };
 
 // MercadoPago brand color
@@ -99,11 +104,11 @@ const MP_BLUE = '#00b1ea';
 
 // Estilos por categoría (vertical) para personalizar tonos
 const VERTICAL_STYLES = {
-  peluqueria: { primary: '#C2185B', accent: '#E91E63', bg1: '#FFF0F5', bg2: '#FFE4EC' },
-  barberia: { primary: '#3E2723', accent: '#A1887F', bg1: '#F4EEE9', bg2: '#EFE9E5' },
-  estetica: { primary: '#8E24AA', accent: '#F06292', bg1: '#FBF0FF', bg2: '#F6E6FF' },
-  profesionales: { primary: '#1E88E5', accent: '#42A5F5', bg1: '#EEF4FF', bg2: '#E3EEFF' },
-  salud: { primary: '#00897B', accent: '#26A69A', bg1: '#E9FBF7', bg2: '#D8F7F0' },
+  peluqueria: { primary: COLORS.primary, accent: COLORS.accent, bg1: COLORS.background, bg2: COLORS.surface },
+  barberia: { primary: COLORS.primary, accent: COLORS.accent, bg1: COLORS.background, bg2: COLORS.surface },
+  estetica: { primary: COLORS.primary, accent: COLORS.accent, bg1: COLORS.background, bg2: COLORS.surface },
+  profesionales: { primary: COLORS.primary, accent: COLORS.accent, bg1: COLORS.background, bg2: COLORS.surface },
+  salud: { primary: COLORS.primary, accent: COLORS.accent, bg1: COLORS.background, bg2: COLORS.surface },
 } as const;
 
 const formatNumberAr = (n: number | string) => new Intl.NumberFormat('es-AR').format(Number(n));

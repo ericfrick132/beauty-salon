@@ -18,58 +18,38 @@ export const verticalThemes: Record<string, ThemeConfig> = {
   barbershop: {
     isLightBackground: true,
     usesSoftColors: false,
-    headerStyle: 'solid',
-    shadowIntensity: 'none',
-    borderStyle: 'subtle',
-    secondaryColors: {
-      deep: '#000000',      // Negro puro
-      light: '#333333',     // Gris oscuro
-      accent2: '#666666',   // Gris medio
-    },
-  },
-  beautysalon: {
-    isLightBackground: true,
-    usesSoftColors: true,
     headerStyle: 'subtle',
     shadowIntensity: 'soft',
     borderStyle: 'subtle',
-    secondaryColors: {
-      deep: '#E6E6FA',      // Lavanda suave
-      light: '#F5DEB3',     // Beige cálido
-      accent2: '#98AFB8',   // Azul polvoso
-    },
+  },
+  beautysalon: {
+    isLightBackground: true,
+    usesSoftColors: false,
+    headerStyle: 'subtle',
+    shadowIntensity: 'soft',
+    borderStyle: 'subtle',
   },
   aesthetics: {
     isLightBackground: true,
     usesSoftColors: false,
-    headerStyle: 'gradient',
+    headerStyle: 'subtle',
     shadowIntensity: 'soft',
-    borderStyle: 'normal',
-    secondaryColors: {
-      deep: '#001F3F',      // Azul marino profundo
-      light: '#F5F5DC',     // Beige arena
-      accent2: '#40E0D0',   // Turquesa claro
-    },
+    borderStyle: 'subtle',
   },
   nailsalon: {
     isLightBackground: true,
     usesSoftColors: false,
-    headerStyle: 'gradient',
-    shadowIntensity: 'medium',
-    borderStyle: 'accent',
-    secondaryColors: {
-      deep: '#9370DB',      // Lavanda intenso
-      light: '#FFD700',     // Dorado brillante
-      accent2: '#40E0D0',   // Turquesa eléctrico
-    },
+    headerStyle: 'subtle',
+    shadowIntensity: 'soft',
+    borderStyle: 'subtle',
   },
   // Default configuration
   default: {
-    isLightBackground: false,
+    isLightBackground: true,
     usesSoftColors: false,
-    headerStyle: 'gradient',
-    shadowIntensity: 'medium',
-    borderStyle: 'normal',
+    headerStyle: 'subtle',
+    shadowIntensity: 'soft',
+    borderStyle: 'subtle',
   },
 };
 
@@ -109,34 +89,17 @@ export const getBorderStyle = (config: ThemeConfig, primaryColor: string, accent
 };
 
 export const getHeaderGradient = (
-  config: ThemeConfig,
-  primaryColor: string,
-  accentColor: string
+  _config: ThemeConfig,
+  _primaryColor: string,
+  _accentColor: string
 ): string => {
-  switch (config.headerStyle) {
-    case 'solid':
-      return accentColor;
-    case 'subtle':
-      return `linear-gradient(135deg, ${primaryColor}40 0%, ${accentColor}30 100%)`;
-    case 'gradient':
-      // Usar colores secundarios si están disponibles para gradientes más ricos
-      if (config.secondaryColors?.deep) {
-        return `linear-gradient(135deg, ${primaryColor} 0%, ${config.secondaryColors.deep}80 50%, ${accentColor}90 100%)`;
-      }
-      return `linear-gradient(135deg, ${primaryColor}90 0%, ${accentColor}80 100%)`;
-    default:
-      return `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`;
-  }
+  // Neutral subtle gradient to ensure readability across verticals
+  return 'linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 100%)';
 };
 
-export const getTextColor = (config: ThemeConfig, primaryColor: string): string => {
-  if (config.usesSoftColors) {
-    return '#6B5B73'; // Soft purple-gray for beauty salon
-  }
-  if (config.isLightBackground) {
-    return '#2C3E50'; // Dark gray for light backgrounds
-  }
-  return primaryColor;
+export const getTextColor = (_config: ThemeConfig, _primaryColor: string): string => {
+  // Always use high-contrast neutral text
+  return '#0F172A';
 };
 
 export const getStatusColor = (status: string, config: ThemeConfig): string => {
@@ -148,16 +111,11 @@ export const getStatusColor = (status: string, config: ThemeConfig): string => {
   return colors[status as keyof typeof colors] || '#6C757D';
 };
 
-export const getHeaderTextColor = (config: ThemeConfig): string => {
-  if (config.headerStyle === 'subtle') {
-    return '#6B5B73'; // Dark for subtle headers
-  }
-  return '#FFFFFF'; // White for gradient/solid headers
+export const getHeaderTextColor = (_config: ThemeConfig): string => {
+  // Dark neutral for subtle headers
+  return '#0F172A';
 };
 
-export const getCardBackground = (config: ThemeConfig, secondaryColor: string): string => {
-  if (config.isLightBackground) {
-    return '#FFFFFF';
-  }
-  return `${secondaryColor}95`;
+export const getCardBackground = (_config: ThemeConfig, _secondaryColor: string): string => {
+  return '#FFFFFF';
 };

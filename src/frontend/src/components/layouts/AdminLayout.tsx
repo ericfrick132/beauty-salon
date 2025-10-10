@@ -224,7 +224,7 @@ export const AdminLayout: React.FC = () => {
   const primaryColor = config?.theme?.primaryColor || '#1976d2';
   const secondaryColor = config?.theme?.secondaryColor || '#ffffff';
   const accentColor = config?.theme?.accentColor || '#ffc107';
-  const verticalGradient = `linear-gradient(135deg, ${primaryColor}20 0%, ${primaryColor}10 100%)`;
+  const verticalGradient = 'linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 100%)';
   
   // Obtener configuración del tema
   const themeConfig = getThemeConfig(config?.vertical);
