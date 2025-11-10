@@ -130,9 +130,16 @@ const Dashboard: React.FC = () => {
     try {
       const response = await fetch('/api/dashboard/financial-stats', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
         },
       });
+      if (response.status === 402) {
+        try {
+          const evt = new CustomEvent('subscription-required');
+          window.dispatchEvent(evt);
+        } catch {}
+        return;
+      }
       if (response.ok) {
         const data = await response.json();
         setFinancialStats(data);
@@ -149,9 +156,16 @@ const Dashboard: React.FC = () => {
     try {
       const response = await fetch('/api/bookings/unpaid', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
         },
       });
+      if (response.status === 402) {
+        try {
+          const evt = new CustomEvent('subscription-required');
+          window.dispatchEvent(evt);
+        } catch {}
+        return;
+      }
       if (response.ok) {
         const data = await response.json();
         setUnpaidBookings(data);

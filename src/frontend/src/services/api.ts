@@ -49,6 +49,15 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (error.response?.status === 402) {
+      // Emitir un evento global para que el frontend muestre un modal de suscripción
+      try {
+        const event = new CustomEvent('subscription-required', {
+          detail: error.response?.data || null,
+        });
+        window.dispatchEvent(event);
+      } catch {}
+    }
     if (error.response?.status === 401) {
       // Only redirect to login if we're not already on the login page or super admin pages
       const currentPath = window.location.pathname;

@@ -213,12 +213,8 @@ export const AdminLayout: React.FC = () => {
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
   const [notificationMenuAnchor, setNotificationMenuAnchor] = useState<null | HTMLElement>(null);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
-  const [notifications, setNotifications] = useState(3); // Mock notifications
-  const [notificationList] = useState([
-    { id: 1, title: 'Nueva reserva', message: 'Juan Pérez ha reservado para mañana', time: 'Hace 5 min', read: false },
-    { id: 2, title: 'Cancelación', message: 'María García canceló su turno', time: 'Hace 1 hora', read: false },
-    { id: 3, title: 'Recordatorio', message: 'Tienes 3 turnos pendientes hoy', time: 'Hace 2 horas', read: true },
-  ])
+  const [notifications, setNotifications] = useState(0);
+  const [notificationList] = useState<any[]>([]);
   
   // Colores específicos del vertical
   const primaryColor = config?.theme?.primaryColor || '#1976d2';

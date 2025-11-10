@@ -36,21 +36,36 @@ builder.Services.AddCors(options =>
             // Permitir cualquier subdominio de localhost en puertos 3000 y 3001
             if (origin.Contains("localhost:3000") || origin.Contains("localhost:3001"))
                 return true;
-            
-            // Permitir dominios específicos
+
+            // Permitir turnos-pro.com y cualquier subdominio HTTPS
+            try
+            {
+                if (Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                {
+                    var host = uri.Host;
+                    if (host.Equals("turnos-pro.com", StringComparison.OrdinalIgnoreCase) ||
+                        host.EndsWith(".turnos-pro.com", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch { }
+
+            // Permitir dominios específicos adicionales por lista blanca exacta
             var allowedOrigins = new[] {
                 "https://turnos-pro.com",
                 "https://www.turnos-pro.com"
             };
-            
+
             if (allowedOrigins.Contains(origin))
                 return true;
-            
+
             // Permitir FrontendUrl configurado
             var frontendUrl = builder.Configuration["FrontendUrl"];
             if (!string.IsNullOrEmpty(frontendUrl) && origin == frontendUrl)
                 return true;
-            
+
             // Permitir orígenes adicionales configurados
             var additionalOrigins = builder.Configuration["AdditionalCorsOrigins"];
             if (!string.IsNullOrEmpty(additionalOrigins))
@@ -59,7 +74,7 @@ builder.Services.AddCors(options =>
                 if (origins.Any(o => origin == o.Trim()))
                     return true;
             }
-            
+
             return false;
         })
         .AllowAnyMethod()

@@ -42,13 +42,27 @@ const SubscriptionVerification: React.FC = () => {
 
   useEffect(() => {
     // Only check subscription status if user is authenticated and not on exempt path
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('authToken');
     const isExemptPath = exemptPaths.some(path => location.pathname.startsWith(path));
     
     if (token && !isExemptPath) {
       checkSubscriptionStatus();
     }
   }, [location.pathname]);
+
+  // Escuchar eventos globales 402 emitidos por el interceptor
+  useEffect(() => {
+    const onSubscriptionRequired = () => {
+      const isExemptPath = exemptPaths.some(path => location.pathname.startsWith(path));
+      if (!isExemptPath) {
+        setShowBlockingModal(true);
+      }
+    };
+    window.addEventListener('subscription-required', onSubscriptionRequired as EventListener);
+    return () => {
+      window.removeEventListener('subscription-required', onSubscriptionRequired as EventListener);
+    };
+  }, []);
 
   const checkSubscriptionStatus = async () => {
     try {
@@ -103,7 +117,8 @@ const SubscriptionVerification: React.FC = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('superAdminToken');
     localStorage.removeItem('user');
     navigate('/login');
     setShowBlockingModal(false);
