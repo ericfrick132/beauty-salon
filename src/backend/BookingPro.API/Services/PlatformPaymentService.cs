@@ -540,6 +540,69 @@ namespace BookingPro.API.Services
             }
         }
 
+        public async Task<ServiceResult<TenantSubscriptionPaymentResponseDto>> RecordManualTenantPaymentAsync(RecordManualTenantPaymentDto dto)
+        {
+            try
+            {
+                var tenant = await _context.Tenants.FindAsync(dto.TenantId);
+                if (tenant == null)
+                {
+                    return ServiceResult<TenantSubscriptionPaymentResponseDto>.Fail("Tenant not found");
+                }
+
+                var months = dto.Period.ToLower() switch
+                {
+                    "monthly" => 1,
+                    "quarterly" => 3,
+                    "annual" or "yearly" => 12,
+                    _ => 1
+                };
+
+                var start = (dto.PeriodStart ?? DateTime.UtcNow).ToUniversalTime();
+                var end = start.AddMonths(months);
+
+                var payment = new TenantSubscriptionPayment
+                {
+                    TenantId = dto.TenantId,
+                    Amount = dto.Amount,
+                    Period = dto.Period.ToLower(),
+                    PeriodStart = start,
+                    PeriodEnd = end,
+                    Status = "approved",
+                    PayerEmail = dto.PayerEmail,
+                    PaidAt = (dto.PaidAt ?? DateTime.UtcNow).ToUniversalTime(),
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                _context.TenantSubscriptionPayments.Add(payment);
+
+                // Activar tenant hasta el fin del período
+                tenant.Status = "active";
+                tenant.TrialEndsAt = end; // reutilizado como fecha de expiración de acceso
+                tenant.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                return ServiceResult<TenantSubscriptionPaymentResponseDto>.Ok(new TenantSubscriptionPaymentResponseDto
+                {
+                    PaymentId = payment.Id,
+                    PaymentLink = string.Empty,
+                    PreferenceId = payment.PreferenceId ?? string.Empty,
+                    Amount = payment.Amount,
+                    ExpiresAt = payment.PeriodEnd,
+                    Period = payment.Period,
+                    PeriodStart = payment.PeriodStart,
+                    PeriodEnd = payment.PeriodEnd
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error recording manual tenant payment for {TenantId}", dto.TenantId);
+                return ServiceResult<TenantSubscriptionPaymentResponseDto>.Fail("Error recording manual payment");
+            }
+        }
+
         #region Private Methods
 
         private async Task<PlatformMercadoPagoConfiguration?> GetActivePlatformConfigAsync()

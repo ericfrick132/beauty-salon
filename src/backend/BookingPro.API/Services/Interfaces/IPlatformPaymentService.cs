@@ -50,5 +50,10 @@ namespace BookingPro.API.Services.Interfaces
 
         // Messaging packages
         Task<ServiceResult<PurchaseMessagePackageResponseDto>> CreateMessagePackagePurchaseAsync(Guid tenantId, Guid packageId);
+
+        /// <summary>
+        /// Records a manual subscription payment for a tenant and activates the period.
+        /// </summary>
+        Task<ServiceResult<TenantSubscriptionPaymentResponseDto>> RecordManualTenantPaymentAsync(RecordManualTenantPaymentDto dto);
     }
 }

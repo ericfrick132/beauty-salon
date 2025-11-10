@@ -164,6 +164,29 @@ namespace BookingPro.API.Models.DTOs
         public DateTime PeriodEnd { get; set; }
     }
 
+    // === B2B Manual Payment DTO ===
+    public class RecordManualTenantPaymentDto
+    {
+        [Required]
+        public Guid TenantId { get; set; }
+
+        [Required]
+        public decimal Amount { get; set; }
+
+        [Required, MaxLength(50)]
+        public string Period { get; set; } = "monthly"; // monthly | quarterly | annual
+
+        // Fecha de inicio del período (UTC). Si no se envía, usa DateTime.UtcNow
+        public DateTime? PeriodStart { get; set; }
+
+        // Fecha de pago efectiva (UTC). Si no se envía, usa DateTime.UtcNow
+        public DateTime? PaidAt { get; set; }
+
+        // Email del pagador (opcional, para registro)
+        [EmailAddress]
+        public string? PayerEmail { get; set; }
+    }
+
     // === Email Templates ===
     public class EmailTemplateDto
     {

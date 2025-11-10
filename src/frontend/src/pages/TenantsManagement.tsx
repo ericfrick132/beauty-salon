@@ -135,6 +135,13 @@ const TenantsManagement: React.FC = () => {
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [tenantDetailsOpen, setTenantDetailsOpen] = useState(false);
   const [configDialog, setConfigDialog] = useState(false);
+  const [manualPaymentDialog, setManualPaymentDialog] = useState(false);
+  const [manualPaymentForm, setManualPaymentForm] = useState({
+    amount: 0,
+    period: 'monthly',
+    periodStart: new Date().toISOString().split('T')[0],
+    payerEmail: ''
+  });
 
   useEffect(() => {
     fetchData();
@@ -233,6 +240,31 @@ const TenantsManagement: React.FC = () => {
         type: 'error', 
         text: error.response?.data?.message || 'Error creando link de pago' 
       });
+    }
+  };
+
+  const handleRecordManualPayment = async () => {
+    if (!selectedTenant) return;
+    try {
+      const payload = {
+        tenantId: selectedTenant.id,
+        amount: Number(manualPaymentForm.amount),
+        period: manualPaymentForm.period,
+        periodStart: new Date(manualPaymentForm.periodStart + 'T00:00:00Z').toISOString(),
+        payerEmail: manualPaymentForm.payerEmail || undefined
+      };
+      const response = await api.post('/platform/tenant/manual-payment', payload);
+      if (response.data?.success) {
+        setMessage({ type: 'success', text: 'Pago manual registrado y suscripción activada' });
+        setManualPaymentDialog(false);
+        setTenantDetailsOpen(false);
+        await fetchData();
+      } else {
+        setMessage({ type: 'error', text: response.data?.error || 'Error registrando pago' });
+      }
+    } catch (error: any) {
+      console.error('Error recording manual payment:', error);
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Error registrando pago' });
     }
   };
 
@@ -774,6 +806,73 @@ const TenantsManagement: React.FC = () => {
                 Crear Pago
               </Button>
             )}
+            {selectedTenant && (
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setManualPaymentDialog(true);
+                }}
+              >
+                Registrar pago manual
+              </Button>
+            )}
+          </DialogActions>
+        </Dialog>
+
+        {/* Manual Payment Dialog */}
+        <Dialog open={manualPaymentDialog} onClose={() => setManualPaymentDialog(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Registrar pago manual</DialogTitle>
+          <DialogContent>
+            <Grid container spacing={2} sx={{ mt: 1 }}>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Monto"
+                  type="number"
+                  value={manualPaymentForm.amount}
+                  onChange={(e) => setManualPaymentForm({ ...manualPaymentForm, amount: Number(e.target.value) })}
+                  InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  select
+                  label="Período"
+                  value={manualPaymentForm.period}
+                  onChange={(e) => setManualPaymentForm({ ...manualPaymentForm, period: e.target.value })}
+                >
+                  <MenuItem value="monthly">Mensual</MenuItem>
+                  <MenuItem value="quarterly">Trimestral</MenuItem>
+                  <MenuItem value="annual">Anual</MenuItem>
+                </TextField>
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Fecha inicio período"
+                  type="date"
+                  value={manualPaymentForm.periodStart}
+                  onChange={(e) => setManualPaymentForm({ ...manualPaymentForm, periodStart: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Email pagador (opcional)"
+                  type="email"
+                  value={manualPaymentForm.payerEmail}
+                  onChange={(e) => setManualPaymentForm({ ...manualPaymentForm, payerEmail: e.target.value })}
+                />
+              </Grid>
+            </Grid>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setManualPaymentDialog(false)}>Cancelar</Button>
+            <Button variant="contained" onClick={handleRecordManualPayment} disabled={!manualPaymentForm.amount || manualPaymentForm.amount <= 0}>
+              Guardar
+            </Button>
           </DialogActions>
         </Dialog>
 

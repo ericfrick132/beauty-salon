@@ -184,6 +184,28 @@ namespace BookingPro.API.Controllers
         }
 
         /// <summary>
+        /// Record a manual subscription payment for a tenant (activates immediately for the chosen period)
+        /// </summary>
+        [HttpPost("tenant/manual-payment")]
+        public async Task<IActionResult> RecordManualPayment([FromBody] RecordManualTenantPaymentDto dto)
+        {
+            try
+            {
+                var result = await _platformPaymentService.RecordManualTenantPaymentAsync(dto);
+                if (result.Success && result.Data != null)
+                {
+                    return Ok(new { success = true, data = result.Data });
+                }
+                return BadRequest(new { error = result.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error recording manual tenant payment");
+                return StatusCode(500, new { error = "Error recording manual payment" });
+            }
+        }
+
+        /// <summary>
         /// Webhook endpoint for platform payments (B2B)
         /// </summary>
         [HttpPost("/api/webhooks/platform/mercadopago")]
