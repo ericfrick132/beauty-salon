@@ -23,6 +23,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Menu,
   MenuItem,
   InputAdornment,
   Tab,
@@ -50,6 +51,7 @@ import {
   ExpandMore,
   Timeline,
   PersonAdd as PersonImpersonateIcon,
+  MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -73,6 +75,8 @@ interface Tenant {
   isActive: boolean;
   createdAt: string;
   lastLoginAt?: string;
+  totalRevenue?: number;
+  subscriptionExpiry?: string;
   currentSubscription?: TenantSubscription;
   subscriptionStatus: 'ACTIVE' | 'EXPIRED' | 'PENDING' | 'NEVER_SUBSCRIBED';
   daysUntilExpiry?: number;
@@ -142,6 +146,8 @@ const TenantsManagement: React.FC = () => {
     periodStart: new Date().toISOString().split('T')[0],
     payerEmail: ''
   });
+  const [actionMenuAnchor, setActionMenuAnchor] = useState<null | HTMLElement>(null);
+  const [actionMenuTenant, setActionMenuTenant] = useState<Tenant | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -325,6 +331,19 @@ const TenantsManagement: React.FC = () => {
     );
   };
 
+  const getTenantExpiry = (tenant: Tenant): string | null => {
+    const latestPayment = getTenantPayments(tenant.id)[0];
+    const expiry = tenant.subscriptionExpiry || tenant.currentSubscription?.periodEnd || latestPayment?.periodEnd;
+    return expiry || null;
+  };
+
+  const getTenantTotalRevenue = (tenant: Tenant): number => {
+    if (typeof tenant.totalRevenue === 'number') return tenant.totalRevenue;
+    return getTenantPayments(tenant.id)
+      .filter(p => p.status === 'APPROVED')
+      .reduce((sum, p) => sum + p.amount, 0);
+  };
+
   const openTenantDetails = (tenant: Tenant) => {
     setSelectedTenant(tenant);
     setTenantDetailsOpen(true);
@@ -497,8 +516,10 @@ const TenantsManagement: React.FC = () => {
                       <TableCell>Tenant</TableCell>
                       <TableCell>Vertical</TableCell>
                       <TableCell>Estado Suscripción</TableCell>
+                      <TableCell>Vencimiento</TableCell>
                       <TableCell>Registro</TableCell>
                       <TableCell>Último Acceso</TableCell>
+                      <TableCell>Facturación Total</TableCell>
                       <TableCell>Acciones</TableCell>
                     </TableRow>
                   </TableHead>
@@ -529,50 +550,32 @@ const TenantsManagement: React.FC = () => {
                               color={getSubscriptionStatusColor(tenant.subscriptionStatus) as any}
                               size="small"
                             />
-                            {tenant.daysUntilExpiry !== undefined && tenant.daysUntilExpiry >= 0 && (
-                              <Typography variant="caption" display="block" color="text.secondary">
-                                Vence en {tenant.daysUntilExpiry} días
-                              </Typography>
-                            )}
+                            {(() => {
+                              const days = tenant.daysUntilExpiry !== undefined 
+                                ? tenant.daysUntilExpiry 
+                                : (() => { const exp = getTenantExpiry(tenant); return exp ? Math.ceil((new Date(exp).getTime() - Date.now()) / (1000*60*60*24)) : undefined; })();
+                              return (typeof days === 'number' && days >= 0) ? (
+                                <Typography variant="caption" display="block" color="text.secondary">Vence en {days} días</Typography>
+                              ) : null;
+                            })()}
                           </Box>
+                        </TableCell>
+                        <TableCell>
+                          {(() => { const exp = getTenantExpiry(tenant); return exp ? new Date(exp).toLocaleString('es-ES') : '—'; })()}
                         </TableCell>
                         <TableCell>
                           {new Date(tenant.createdAt).toLocaleDateString('es-ES')}
                         </TableCell>
                         <TableCell>
-                          {tenant.lastLoginAt 
-                            ? new Date(tenant.lastLoginAt).toLocaleDateString('es-ES')
-                            : 'Nunca'
-                          }
+                          {tenant.lastLoginAt ? new Date(tenant.lastLoginAt).toLocaleString('es-ES') : 'Nunca'}
                         </TableCell>
                         <TableCell>
-                          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                            <Button
-                              size="small"
-                              onClick={() => openTenantDetails(tenant)}
-                            >
-                              Ver Detalles
-                            </Button>
-                            <Button
-                              size="small"
-                              variant="contained"
-                              color="secondary"
-                              startIcon={<PersonImpersonateIcon />}
-                              onClick={() => handleImpersonateTenant(tenant.id, tenant.subdomain)}
-                            >
-                              Impersonar
-                            </Button>
-                            {['EXPIRED', 'NEVER_SUBSCRIBED'].includes(tenant.subscriptionStatus) && (
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                startIcon={<PaymentIcon />}
-                                onClick={() => handleCreateTenantPayment(tenant.id)}
-                              >
-                                Crear Pago
-                              </Button>
-                            )}
-                          </Box>
+                          ${getTenantTotalRevenue(tenant).toLocaleString()} {platformConfig.currency}
+                        </TableCell>
+                        <TableCell>
+                          <IconButton onClick={(e) => { setActionMenuAnchor(e.currentTarget); setActionMenuTenant(tenant); }}>
+                            <MoreVertIcon />
+                          </IconButton>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -819,6 +822,25 @@ const TenantsManagement: React.FC = () => {
           </DialogActions>
         </Dialog>
 
+        {/* Row action menu */}
+        <Menu
+          anchorEl={actionMenuAnchor}
+          open={Boolean(actionMenuAnchor)}
+          onClose={() => { setActionMenuAnchor(null); setActionMenuTenant(null); }}
+        >
+          <MenuItem onClick={() => { if (actionMenuTenant) openTenantDetails(actionMenuTenant); setActionMenuAnchor(null); }}>
+            Ver detalles
+          </MenuItem>
+          <MenuItem onClick={() => { if (actionMenuTenant) handleImpersonateTenant(actionMenuTenant.id, actionMenuTenant.subdomain); setActionMenuAnchor(null); }}>
+            Impersonar
+          </MenuItem>
+          <MenuItem onClick={() => { if (actionMenuTenant) handleCreateTenantPayment(actionMenuTenant.id); setActionMenuAnchor(null); }}>
+            Crear link de pago
+          </MenuItem>
+          <MenuItem onClick={() => { if (actionMenuTenant) { setSelectedTenant(actionMenuTenant); setManualPaymentDialog(true); } setActionMenuAnchor(null); }}>
+            Registrar pago manual
+          </MenuItem>
+        </Menu>
         {/* Manual Payment Dialog */}
         <Dialog open={manualPaymentDialog} onClose={() => setManualPaymentDialog(false)} maxWidth="sm" fullWidth>
           <DialogTitle>Registrar pago manual</DialogTitle>

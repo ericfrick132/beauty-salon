@@ -39,7 +39,6 @@ namespace BookingPro.API.Controllers
                     .Include(t => t.Vertical)
                     .OrderByDescending(t => t.CreatedAt);
 
-                var totalItems = await query.CountAsync();
                 var tenants = await query
                     .Skip((page - 1) * pageSize)
                     .Take(pageSize)
@@ -48,7 +47,7 @@ namespace BookingPro.API.Controllers
                         id = t.Id,
                         subdomain = t.Subdomain,
                         businessName = t.BusinessName,
-                        ownerEmail = t.OwnerEmail, // Fix: Include owner email
+                        ownerEmail = t.OwnerEmail,
                         verticalId = t.VerticalId,
                         vertical = new
                         {
@@ -56,10 +55,32 @@ namespace BookingPro.API.Controllers
                             code = t.Vertical.Code
                         },
                         isActive = t.Status == "active",
-                        status = t.Status, // Fix: Include status field
+                        status = t.Status,
                         createdAt = t.CreatedAt,
-                        lastLoginAt = (DateTime?)null, // Will be populated from Users table if needed
-                        subscriptionStatus = "NEVER_SUBSCRIBED", // Default status
+                        lastLoginAt = _context.Users
+                            .IgnoreQueryFilters()
+                            .Where(u => u.TenantId == t.Id && u.LastLogin.HasValue)
+                            .OrderByDescending(u => u.LastLogin)
+                            .Select(u => u.LastLogin)
+                            .FirstOrDefault(),
+                        // Facturación total aprobada
+                        totalRevenue = _context.TenantSubscriptionPayments
+                            .Where(p => p.TenantId == t.Id && p.Status == "approved")
+                            .Select(p => (decimal?)p.Amount)
+                            .Sum() ?? 0,
+                        // Último vencimiento de suscripción (por pagos aprobados)
+                        subscriptionExpiry = _context.TenantSubscriptionPayments
+                            .Where(p => p.TenantId == t.Id && p.Status == "approved")
+                            .OrderByDescending(p => p.PeriodEnd)
+                            .Select(p => (DateTime?)p.PeriodEnd)
+                            .FirstOrDefault(),
+                        // Estado de suscripción derivado
+                        subscriptionStatus = _context.TenantSubscriptionPayments
+                            .Any(p => p.TenantId == t.Id && p.Status == "approved" && p.PeriodEnd > DateTime.UtcNow)
+                                ? "ACTIVE"
+                                : (_context.TenantSubscriptionPayments.Any(p => p.TenantId == t.Id)
+                                    ? "EXPIRED"
+                                    : "NEVER_SUBSCRIBED"),
                         daysUntilExpiry = (int?)null
                     })
                     .ToListAsync();
