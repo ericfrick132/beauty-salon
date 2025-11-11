@@ -97,6 +97,15 @@ namespace BookingPro.API.Middleware
 
                     if (!isActive)
                     {
+                        // Extra: permitir acceso si el tenant tiene TrialEndsAt en el futuro
+                        // (se reutiliza como fecha de expiración por pagos manuales/plataforma)
+                        var tenant = await db.Tenants.FindAsync(tenantId);
+                        if (tenant?.TrialEndsAt.HasValue == true && tenant.TrialEndsAt > DateTime.UtcNow)
+                        {
+                            await _next(context);
+                            return;
+                        }
+
                         // Check if it's a read-only operation (GET requests to certain endpoints)
                         if (context.Request.Method == "GET" && IsReadOnlyPath(path))
                         {

@@ -582,6 +582,48 @@ namespace BookingPro.API.Services
                 tenant.TrialEndsAt = end; // reutilizado como fecha de expiración de acceso
                 tenant.UpdatedAt = DateTime.UtcNow;
 
+                // Sincronizar registro de Subscription para que el middleware lo reconozca como activo
+                var subscription = await _context.Subscriptions
+                    .OrderByDescending(s => s.CreatedAt)
+                    .FirstOrDefaultAsync(s => s.TenantId == dto.TenantId);
+
+                if (subscription == null)
+                {
+                    // Crear una suscripción activa si no existe
+                    subscription = new Subscription
+                    {
+                        TenantId = dto.TenantId,
+                        PlanType = "pro",
+                        MonthlyAmount = dto.Period.ToLower() switch
+                        {
+                            "monthly" => dto.Amount,
+                            "quarterly" => Math.Round(dto.Amount / 3m, 2),
+                            "annual" or "yearly" => Math.Round(dto.Amount / 12m, 2),
+                            _ => dto.Amount
+                        },
+                        PayerEmail = dto.PayerEmail ?? tenant.OwnerEmail,
+                        Status = "active",
+                        IsTrialPeriod = false,
+                        ActivatedAt = DateTime.UtcNow,
+                        NextPaymentDate = end,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    _context.Subscriptions.Add(subscription);
+                }
+                else
+                {
+                    // Actualizar suscripción existente como activa y no en trial
+                    subscription.Status = "active";
+                    subscription.IsTrialPeriod = false;
+                    subscription.TrialEndsAt = null;
+                    subscription.ActivatedAt = subscription.ActivatedAt ?? DateTime.UtcNow;
+                    subscription.NextPaymentDate = end;
+                    subscription.PayerEmail = dto.PayerEmail ?? subscription.PayerEmail ?? tenant.OwnerEmail;
+                    subscription.MonthlyAmount = subscription.MonthlyAmount > 0 ? subscription.MonthlyAmount : dto.Amount;
+                    subscription.UpdatedAt = DateTime.UtcNow;
+                }
+
                 await _context.SaveChangesAsync();
 
                 return ServiceResult<TenantSubscriptionPaymentResponseDto>.Ok(new TenantSubscriptionPaymentResponseDto
