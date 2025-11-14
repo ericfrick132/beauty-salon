@@ -351,7 +351,10 @@ namespace BookingPro.API.Controllers
                         if (!paymentResult.Success)
                         {
                             _logger.LogWarning("Failed to create deposit payment preference: {Error}", paymentResult.Message);
-                            return BadRequest(new { message = "No se pudo iniciar el pago de la seña. Intenta nuevamente o contacta al comercio." });
+                            var errorMessage = string.IsNullOrWhiteSpace(paymentResult.Message)
+                                ? "No se pudo iniciar el pago de la seña. Intenta nuevamente o contacta al comercio."
+                                : paymentResult.Message;
+                            return BadRequest(new { message = errorMessage });
                         }
 
                         return Ok(new 

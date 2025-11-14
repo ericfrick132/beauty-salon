@@ -107,13 +107,41 @@ const MercadoPagoSettings: React.FC = () => {
   const fetchConfiguration = async () => {
     try {
       setLoading(true);
-      const [statusResponse] = await Promise.allSettled([
-        api.get('/mercadopago/oauth/status')
-      ]);
-      
+      const statusPromise = api.get('/mercadopago/oauth/status');
+      const [statusResponse] = await Promise.allSettled([statusPromise]);
+
       if (statusResponse.status === 'fulfilled') {
-        const status = statusResponse.value.data;
-        setConnectionStatus(status);
+        const status = statusResponse.value.data as MercadoPagoConnectionStatus;
+
+        // If connected, try to fetch fresh account info to avoid N/A placeholders
+        if (status.isConnected) {
+          try {
+            const accountRes = await api.get('/mercadopago/oauth/account-info');
+            if (accountRes.data?.success && accountRes.data?.account) {
+              const acc = accountRes.data.account as {
+                email?: string;
+                nickname?: string;
+                countryId?: string;
+                currencyId?: string;
+              };
+              setConnectionStatus({
+                ...status,
+                accountEmail: acc.email || status.accountEmail,
+                accountNickname: acc.nickname || status.accountNickname,
+                countryId: acc.countryId || status.countryId,
+                currencyId: acc.currencyId || status.currencyId,
+              });
+            } else {
+              setConnectionStatus(status);
+            }
+          } catch (e) {
+            // Fallback to existing status if account-info fails
+            setConnectionStatus(status);
+          }
+        } else {
+          setConnectionStatus(status);
+        }
+
         setConfig({
           isActive: status.isConnected,
           connectedAt: status.connectedAt,

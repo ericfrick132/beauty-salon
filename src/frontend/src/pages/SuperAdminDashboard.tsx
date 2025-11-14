@@ -58,6 +58,7 @@ import {
   PersonAdd as PersonImpersonateIcon,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
+import TenantsManagement from './TenantsManagement';
 import { useNavigate } from 'react-router-dom';
 import { superAdminApi } from '../services/api';
 import { superAdminService } from '../services/superAdminService';
@@ -812,9 +813,8 @@ const SuperAdminDashboard: React.FC = () => {
           
           <div role="tabpanel" hidden={currentTab !== 4}>
             {currentTab === 4 && (
-              <Box sx={{ p: 3 }}>
-                <Typography variant="h5">Suscripciones</Typography>
-                <Typography color="text.secondary">Próximamente...</Typography>
+              <Box sx={{ p: 0 }}>
+                <TenantsManagement embedded />
               </Box>
             )}
           </div>

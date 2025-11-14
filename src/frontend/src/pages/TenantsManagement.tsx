@@ -113,7 +113,11 @@ interface PlatformConfig {
   isActive: boolean;
 }
 
-const TenantsManagement: React.FC = () => {
+type TenantsManagementProps = {
+  embedded?: boolean;
+};
+
+const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false }) => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -365,9 +369,11 @@ const TenantsManagement: React.FC = () => {
         transition={{ duration: 0.5 }}
       >
         <Box sx={{ mb: 4, display: 'flex', alignItems: 'center' }}>
-          <IconButton onClick={() => navigate('/super-admin/dashboard')} sx={{ mr: 2 }}>
-            <ArrowBack />
-          </IconButton>
+          {!embedded && (
+            <IconButton onClick={() => navigate('/super-admin/dashboard')} sx={{ mr: 2 }}>
+              <ArrowBack />
+            </IconButton>
+          )}
           <BusinessIcon sx={{ mr: 2, fontSize: 32, color: 'primary.main' }} />
           <Typography variant="h4" component="h1" sx={{ fontWeight: 600, flexGrow: 1 }}>
             Gestión de Tenants (B2B)
