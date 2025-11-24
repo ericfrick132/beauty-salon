@@ -66,6 +66,8 @@ interface Employee {
   phone?: string;
   employeeType: string;
   commissionPercentage: number;
+  serviceCommissionPercentage?: number;
+  productCommissionPercentage?: number;
   fixedSalary: number;
   paymentMethod: string;
   specialties?: string;
