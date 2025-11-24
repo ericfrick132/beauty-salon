@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using BookingPro.API.Data;
 using BookingPro.API.Models.Entities;
 using BookingPro.API.Services;
+using BookingPro.API.Models.DTOs;
 
 namespace BookingPro.API.Controllers
 {
@@ -32,6 +33,7 @@ namespace BookingPro.API.Controllers
                 .Select(s => new
                 {
                     s.Id,
+                    s.CategoryId,
                     s.Name,
                     s.Description,
                     s.DurationMinutes,
@@ -66,6 +68,7 @@ namespace BookingPro.API.Controllers
                 .Select(s => new
                 {
                     s.Id,
+                    s.CategoryId,
                     s.Name,
                     s.Description,
                     s.DurationMinutes,
@@ -104,6 +107,15 @@ namespace BookingPro.API.Controllers
         {
             var tenantId = _tenantProvider.GetCurrentTenantId();
 
+            if (dto.CategoryId.HasValue)
+            {
+                var categoryExists = await _context.ServiceCategories.AnyAsync(c => c.Id == dto.CategoryId.Value);
+                if (!categoryExists)
+                {
+                    return BadRequest(new { message = "La categoría seleccionada no existe" });
+                }
+            }
+
             var service = new Service
             {
                 Id = Guid.NewGuid(),
@@ -139,6 +151,15 @@ namespace BookingPro.API.Controllers
 
             if (service == null)
                 return NotFound();
+
+            if (dto.CategoryId.HasValue)
+            {
+                var categoryExists = await _context.ServiceCategories.AnyAsync(c => c.Id == dto.CategoryId.Value);
+                if (!categoryExists)
+                {
+                    return BadRequest(new { message = "La categoría seleccionada no existe" });
+                }
+            }
 
             service.Name = dto.Name;
             service.Description = dto.Description;
@@ -178,18 +199,96 @@ namespace BookingPro.API.Controllers
         [HttpGet("categories")]
         public async Task<IActionResult> GetCategories()
         {
-            // Los filtros globales en ApplicationDbContext ya filtran por TenantId automáticamente
+            var tenantId = _tenantProvider.GetCurrentTenantId();
+
             var categories = await _context.ServiceCategories
-                .Select(c => new
+                .IgnoreQueryFilters()
+                .Where(c => c.TenantId == tenantId)
+                .Select(c => new ServiceCategoryDto
                 {
-                    c.Id,
-                    c.Name,
-                    c.Description,
-                    serviceCount = c.Services.Count(s => s.IsActive)
+                    Id = c.Id,
+                    Name = c.Name,
+                    Description = c.Description,
+                    IsActive = c.IsActive,
+                    ServiceCount = c.Services.Count(s => s.IsActive)
                 })
+                .OrderBy(c => c.Name)
                 .ToListAsync();
 
             return Ok(categories);
+        }
+
+        [HttpPost("categories")]
+        public async Task<IActionResult> CreateCategory([FromBody] CreateServiceCategoryDto dto)
+        {
+            var category = new ServiceCategory
+            {
+                Name = dto.Name,
+                Description = dto.Description,
+                IsActive = dto.IsActive
+            };
+
+            _context.ServiceCategories.Add(category);
+            await _context.SaveChangesAsync();
+
+            return CreatedAtAction(nameof(GetCategories), new { id = category.Id }, new ServiceCategoryDto
+            {
+                Id = category.Id,
+                Name = category.Name,
+                Description = category.Description,
+                IsActive = category.IsActive,
+                ServiceCount = 0
+            });
+        }
+
+        [HttpPut("categories/{id}")]
+        public async Task<IActionResult> UpdateCategory(Guid id, [FromBody] UpdateServiceCategoryDto dto)
+        {
+            var tenantId = _tenantProvider.GetCurrentTenantId();
+
+            var category = await _context.ServiceCategories
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(c => c.Id == id && c.TenantId == tenantId);
+
+            if (category == null)
+            {
+                return NotFound();
+            }
+
+            category.Name = dto.Name;
+            category.Description = dto.Description;
+            category.IsActive = dto.IsActive;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new ServiceCategoryDto
+            {
+                Id = category.Id,
+                Name = category.Name,
+                Description = category.Description,
+                IsActive = category.IsActive,
+                ServiceCount = await _context.Services.CountAsync(s => s.CategoryId == category.Id && s.IsActive)
+            });
+        }
+
+        [HttpDelete("categories/{id}")]
+        public async Task<IActionResult> DeleteCategory(Guid id)
+        {
+            var tenantId = _tenantProvider.GetCurrentTenantId();
+
+            var category = await _context.ServiceCategories
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(c => c.Id == id && c.TenantId == tenantId);
+
+            if (category == null)
+            {
+                return NotFound();
+            }
+
+            category.IsActive = false;
+            await _context.SaveChangesAsync();
+
+            return NoContent();
         }
     }
 

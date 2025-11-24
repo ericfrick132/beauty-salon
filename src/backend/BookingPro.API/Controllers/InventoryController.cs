@@ -78,6 +78,26 @@ namespace BookingPro.API.Controllers
             return ok ? Ok(new { success = true }) : NotFound(new { error = "Producto no encontrado" });
         }
 
+        [HttpPatch("products/{id}/price")]
+        public async Task<IActionResult> UpdateProductPrice([FromRoute] Guid id, [FromBody] UpdateProductPriceDto dto)
+        {
+            try
+            {
+                var user = User.Identity?.Name;
+                var product = await _inventoryService.UpdatePricesAsync(id, dto.CostPrice, dto.SalePrice, dto.Reason, user);
+                return Ok(product);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating product price");
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
         // Stock
         [HttpPost("stock/{productId}")]
         public async Task<IActionResult> UpdateStock([FromRoute] Guid productId, [FromBody] UpdateStockDto dto)
@@ -111,4 +131,3 @@ namespace BookingPro.API.Controllers
         }
     }
 }
-

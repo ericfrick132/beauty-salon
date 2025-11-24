@@ -109,6 +109,8 @@ const Employees: React.FC = () => {
     phone: '',
     employeeType: 'employee',
     commissionPercentage: 0,
+    serviceCommissionPercentage: 0,
+    productCommissionPercentage: 0,
     fixedSalary: 0,
     paymentMethod: 'percentage',
     specialties: '',
@@ -203,6 +205,8 @@ const Employees: React.FC = () => {
         phone: employee.phone || '',
         employeeType: employee.employeeType,
         commissionPercentage: employee.commissionPercentage,
+        serviceCommissionPercentage: employee.serviceCommissionPercentage ?? employee.commissionPercentage,
+        productCommissionPercentage: employee.productCommissionPercentage ?? employee.commissionPercentage,
         fixedSalary: employee.fixedSalary,
         paymentMethod: employee.paymentMethod,
         specialties: employee.specialties || '',
@@ -218,12 +222,14 @@ const Employees: React.FC = () => {
         phone: '',
         employeeType: 'employee',
         commissionPercentage: 0,
+        serviceCommissionPercentage: 0,
+        productCommissionPercentage: 0,
         fixedSalary: 0,
         paymentMethod: 'percentage',
         specialties: '',
         workingHours: '',
         canPerformServices: true,
-            isActive: true,
+        isActive: true,
       });
     }
     setErrors({});
@@ -239,12 +245,14 @@ const Employees: React.FC = () => {
       phone: '',
       employeeType: 'employee',
       commissionPercentage: 0,
+      serviceCommissionPercentage: 0,
+      productCommissionPercentage: 0,
       fixedSalary: 0,
       paymentMethod: 'percentage',
       specialties: '',
       workingHours: '',
       canPerformServices: true,
-        isActive: true,
+      isActive: true,
     });
     setErrors({});
   };
@@ -261,9 +269,15 @@ const Employees: React.FC = () => {
     }
     
     if (formData.paymentMethod === 'percentage' || formData.paymentMethod === 'mixed') {
-      if (formData.commissionPercentage < 0 || formData.commissionPercentage > 100) {
-        newErrors.commissionPercentage = 'La comisión debe estar entre 0 y 100';
-      }
+      [
+        { key: 'commissionPercentage', value: formData.commissionPercentage },
+        { key: 'serviceCommissionPercentage', value: formData.serviceCommissionPercentage },
+        { key: 'productCommissionPercentage', value: formData.productCommissionPercentage },
+      ].forEach(field => {
+        if (field.value < 0 || field.value > 100) {
+          newErrors[field.key] = 'La comisión debe estar entre 0 y 100';
+        }
+      });
     }
     
     if (formData.paymentMethod === 'fixed' || formData.paymentMethod === 'mixed') {
@@ -285,6 +299,8 @@ const Employees: React.FC = () => {
         ...formData,
         // Ensure correct data types
         commissionPercentage: Number(formData.commissionPercentage),
+        serviceCommissionPercentage: Number(formData.serviceCommissionPercentage),
+        productCommissionPercentage: Number(formData.productCommissionPercentage),
         fixedSalary: Number(formData.fixedSalary),
         // Convert empty specialties and workingHours to null if needed
         specialties: formData.specialties || null,
@@ -717,20 +733,50 @@ const Employees: React.FC = () => {
                 </FormControl>
               </Grid>
               {(formData.paymentMethod === 'percentage' || formData.paymentMethod === 'mixed') && (
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Porcentaje de Comisión"
-                    type="number"
-                    value={formData.commissionPercentage}
-                    onChange={(e) => setFormData({ ...formData, commissionPercentage: parseFloat(e.target.value) || 0 })}
-                    error={!!errors.commissionPercentage}
-                    helperText={errors.commissionPercentage}
-                    InputProps={{
-                      endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                    }}
-                  />
-                </Grid>
+                <>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      label="Comisión base"
+                      type="number"
+                      value={formData.commissionPercentage}
+                      onChange={(e) => setFormData({ ...formData, commissionPercentage: parseFloat(e.target.value) || 0 })}
+                      error={!!errors.commissionPercentage}
+                      helperText={errors.commissionPercentage || 'Por defecto para reportes'}
+                      InputProps={{
+                        endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      label="Comisión servicios"
+                      type="number"
+                      value={formData.serviceCommissionPercentage}
+                      onChange={(e) => setFormData({ ...formData, serviceCommissionPercentage: parseFloat(e.target.value) || 0 })}
+                      error={!!errors.serviceCommissionPercentage}
+                      helperText={errors.serviceCommissionPercentage}
+                      InputProps={{
+                        endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      label="Comisión productos"
+                      type="number"
+                      value={formData.productCommissionPercentage}
+                      onChange={(e) => setFormData({ ...formData, productCommissionPercentage: parseFloat(e.target.value) || 0 })}
+                      error={!!errors.productCommissionPercentage}
+                      helperText={errors.productCommissionPercentage}
+                      InputProps={{
+                        endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                      }}
+                    />
+                  </Grid>
+                </>
               )}
               {(formData.paymentMethod === 'fixed' || formData.paymentMethod === 'mixed') && (
                 <Grid item xs={12} sm={6}>

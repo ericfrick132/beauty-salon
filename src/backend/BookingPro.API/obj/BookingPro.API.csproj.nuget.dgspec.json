@@ -1,27 +1,25 @@
 {
   "format": 1,
   "restore": {
-    "D:\\code\\efcloud\\projects\\TurnosPro\\src\\backend\\bookingpro.api\\BookingPro.API.csproj": {}
+    "/mnt/d/code/efcloud/projects/TurnosPro/src/backend/BookingPro.API/BookingPro.API.csproj": {}
   },
   "projects": {
-    "D:\\code\\efcloud\\projects\\TurnosPro\\src\\backend\\bookingpro.api\\BookingPro.API.csproj": {
+    "/mnt/d/code/efcloud/projects/TurnosPro/src/backend/BookingPro.API/BookingPro.API.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\code\\efcloud\\projects\\TurnosPro\\src\\backend\\bookingpro.api\\BookingPro.API.csproj",
+        "projectUniqueName": "/mnt/d/code/efcloud/projects/TurnosPro/src/backend/BookingPro.API/BookingPro.API.csproj",
         "projectName": "BookingPro.API",
-        "projectPath": "D:\\code\\efcloud\\projects\\TurnosPro\\src\\backend\\bookingpro.api\\BookingPro.API.csproj",
-        "packagesPath": "C:\\Users\\EricFrick\\.nuget\\packages\\",
-        "outputPath": "D:\\code\\efcloud\\projects\\TurnosPro\\src\\backend\\bookingpro.api\\obj\\",
+        "projectPath": "/mnt/d/code/efcloud/projects/TurnosPro/src/backend/BookingPro.API/BookingPro.API.csproj",
+        "packagesPath": "/home/eric/.nuget/packages/",
+        "outputPath": "/mnt/d/code/efcloud/projects/TurnosPro/src/backend/BookingPro.API/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\EricFrick\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+          "/home/eric/.nuget/NuGet/NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net8.0"
         ],
         "sources": {
-          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -121,7 +119,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.204/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/home/eric/.dotnet/sdk/8.0.412/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

@@ -18,6 +18,10 @@ import {
   TableBody,
   TableRow,
   TableCell,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import { Add, Delete, Remove, QrCodeScanner } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -50,12 +54,15 @@ const SalesPOS: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [receivedAmount, setReceivedAmount] = useState<number | ''>('');
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [employees, setEmployees] = useState<Array<{ id: string; name: string }>>([]);
+  const [employeeId, setEmployeeId] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
     const handler = () => inputRef.current?.focus();
     window.addEventListener('click', handler);
+    loadEmployees();
     return () => window.removeEventListener('click', handler);
   }, []);
 
@@ -106,6 +113,15 @@ const SalesPOS: React.FC = () => {
     }
   };
 
+  const loadEmployees = async () => {
+    try {
+      const resp = await api.get('/employees');
+      setEmployees(resp.data || []);
+    } catch (err) {
+      console.error('Error fetching employees', err);
+    }
+  };
+
   const updateQty = (id: string, delta: number) => {
     setItems(prev => prev.map(i => i.productId === id ? { ...i, quantity: Math.max(1, i.quantity + delta) } : i));
   };
@@ -117,6 +133,7 @@ const SalesPOS: React.FC = () => {
     try {
       const payload = {
         paymentMethod,
+        employeeId: employeeId || undefined,
         receivedAmount: paymentMethod === 'cash' ? (receivedAmount || 0) : undefined,
         items: items.map(i => ({ productId: i.productId, quantity: i.quantity, discountPercentage: i.discountPct }))
       };
@@ -151,7 +168,7 @@ const SalesPOS: React.FC = () => {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Grid container spacing={2}>
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12} md={5}>
               <TextField
                 inputRef={inputRef}
                 value={barcode}
@@ -162,13 +179,31 @@ const SalesPOS: React.FC = () => {
                 autoFocus
               />
             </Grid>
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth>
+                <InputLabel>Empleado</InputLabel>
+                <Select
+                  value={employeeId}
+                  label="Empleado"
+                  onChange={(e) => setEmployeeId(e.target.value)}
+                >
+                  <MenuItem value="">Sin asignar</MenuItem>
+                  {employees.map((emp) => (
+                    <MenuItem key={emp.id} value={emp.id}>{emp.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
             <Grid item xs={12} md={3}>
-              <Select fullWidth value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-                <MenuItem value="cash">Efectivo</MenuItem>
-                <MenuItem value="card">Tarjeta</MenuItem>
-                <MenuItem value="transfer">Transferencia</MenuItem>
-                <MenuItem value="mercadopago">MercadoPago</MenuItem>
-              </Select>
+              <FormControl fullWidth>
+                <InputLabel>Método de pago</InputLabel>
+                <Select fullWidth value={paymentMethod} label="Método de pago" onChange={(e) => setPaymentMethod(e.target.value)}>
+                  <MenuItem value="cash">Efectivo</MenuItem>
+                  <MenuItem value="card">Tarjeta</MenuItem>
+                  <MenuItem value="transfer">Transferencia</MenuItem>
+                  <MenuItem value="mercadopago">MercadoPago</MenuItem>
+                </Select>
+              </FormControl>
             </Grid>
             {paymentMethod === 'cash' && (
               <Grid item xs={12} md={3}>

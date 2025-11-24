@@ -33,6 +33,7 @@ namespace BookingPro.API.Data
         public DbSet<Schedule> Schedules { get; set; }
         public DbSet<Employee> Employees { get; set; }
         public DbSet<Payment> Payments { get; set; }
+        public DbSet<PayrollPayment> PayrollPayments { get; set; }
         public DbSet<DailyReport> DailyReports { get; set; }
         public DbSet<BookingStatusHistory> BookingStatusHistory { get; set; }
         public DbSet<PaymentConfiguration> PaymentConfigurations { get; set; }
@@ -296,6 +297,19 @@ namespace BookingPro.API.Data
                     .HasForeignKey(p => p.EmployeeId)
                     .OnDelete(DeleteBehavior.SetNull);
             });
+
+            modelBuilder.Entity<PayrollPayment>(entity =>
+            {
+                entity.ToTable("payroll_payments");
+                entity.HasIndex(p => p.EmployeeId);
+                entity.HasIndex(p => p.PeriodKey);
+                entity.HasIndex(p => p.TenantId);
+
+                entity.HasOne(p => p.Employee)
+                    .WithMany()
+                    .HasForeignKey(p => p.EmployeeId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
             
             modelBuilder.Entity<MercadoPagoConfiguration>(entity =>
             {
@@ -553,7 +567,7 @@ namespace BookingPro.API.Data
             // Aplicar filtros globales a todas las entidades que implementan ITenantEntity
             // Esto filtrará automáticamente los datos por tenant en todas las consultas
             
-            modelBuilder.Entity<Models.Entities.ServiceCategory>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<Models.Entities.ServiceCategory>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId() && e.IsActive);
             modelBuilder.Entity<Customer>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<Booking>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<BookingStatusHistory>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
@@ -563,6 +577,7 @@ namespace BookingPro.API.Data
             modelBuilder.Entity<Schedule>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<MercadoPagoConfiguration>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<PaymentTransaction>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<PayrollPayment>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             
             // New End User entities filters
             modelBuilder.Entity<EndUser>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());

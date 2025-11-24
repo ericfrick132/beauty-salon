@@ -49,9 +49,14 @@ namespace BookingPro.API.Services
                 throw new ArgumentException("Booking not found");
 
             decimal commissionAmount = 0;
-            if (booking.Employee?.PaymentMethod == "percentage" && booking.Employee.CommissionPercentage > 0)
+            var commissionPercentage = booking.Employee?.ServiceCommissionPercentage > 0 
+                ? booking.Employee.ServiceCommissionPercentage 
+                : booking.Employee?.CommissionPercentage ?? 0;
+
+            if ((booking.Employee?.PaymentMethod == "percentage" || booking.Employee?.PaymentMethod == "mixed") 
+                && commissionPercentage > 0)
             {
-                commissionAmount = dto.Amount * (booking.Employee.CommissionPercentage / 100);
+                commissionAmount = dto.Amount * (commissionPercentage / 100);
             }
 
             var payment = new Payment

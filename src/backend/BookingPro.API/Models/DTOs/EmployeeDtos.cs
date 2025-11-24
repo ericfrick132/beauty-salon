@@ -17,6 +17,8 @@ namespace BookingPro.API.Models.DTOs
         public string? EmployeeType { get; set; }
         
         public decimal? CommissionPercentage { get; set; }
+        public decimal? ServiceCommissionPercentage { get; set; }
+        public decimal? ProductCommissionPercentage { get; set; }
         public decimal? FixedSalary { get; set; }
         
         [MaxLength(50)]
@@ -25,6 +27,7 @@ namespace BookingPro.API.Models.DTOs
         public string? Specialties { get; set; }
         public string? WorkingHours { get; set; }
         public bool? CanPerformServices { get; set; }
+        public bool? IsActive { get; set; }
     }
 
     public class UpdateEmployeeDto
@@ -42,6 +45,8 @@ namespace BookingPro.API.Models.DTOs
         public string? EmployeeType { get; set; }
         
         public decimal? CommissionPercentage { get; set; }
+        public decimal? ServiceCommissionPercentage { get; set; }
+        public decimal? ProductCommissionPercentage { get; set; }
         public decimal? FixedSalary { get; set; }
         
         [MaxLength(50)]

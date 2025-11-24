@@ -51,6 +51,7 @@ export interface User {
 export interface Service {
   id: string;
   categoryId?: string;
+  category?: { id: string; name: string } | null;
   name: string;
   description?: string;
   durationMinutes: number;
@@ -69,6 +70,8 @@ export interface Employee {
   specialties?: string;
   workingHours?: string;
   commissionPercentage: number;
+  serviceCommissionPercentage?: number;
+  productCommissionPercentage?: number;
   fixedSalary: number;
   paymentMethod: string;
   canPerformServices: boolean;

@@ -41,10 +41,11 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTenant } from '../contexts/TenantContext';
-import api from '../services/api';
+import api, { serviceCategoryApi } from '../services/api';
 
 interface Service {
   id: string;
+  categoryId?: string | null;
   name: string;
   description: string;
   price: number;
@@ -59,11 +60,20 @@ interface Service {
   depositAdvanceDays?: number;
 }
 
+interface ServiceCategory {
+  id: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  serviceCount?: number;
+}
+
 const Services: React.FC = () => {
   const navigate = useNavigate();
   const { config } = useTenant();
   
   const [services, setServices] = useState<Service[]>([]);
+  const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -74,7 +84,7 @@ const Services: React.FC = () => {
     description: '',
     price: '',
     duration: '',
-    category: '',
+    categoryId: '',
     isActive: true,
     requiresDeposit: false,
     depositType: 'percentage',
@@ -86,11 +96,15 @@ const Services: React.FC = () => {
   const [errors, setErrors] = useState<any>({});
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [serviceToDelete, setServiceToDelete] = useState<Service | null>(null);
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [newCategory, setNewCategory] = useState({ name: '', description: '' });
+  const [categoryError, setCategoryError] = useState<string | null>(null);
 
   // Categories are dynamically extracted from services below
 
   useEffect(() => {
     fetchServices();
+    fetchCategories();
   }, []);
 
   const fetchServices = async () => {
@@ -105,6 +119,15 @@ const Services: React.FC = () => {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const response = await serviceCategoryApi.list();
+      setCategories(response);
+    } catch (error) {
+      console.error('Error fetching service categories:', error);
+    }
+  };
+
   const handleOpenDialog = (service?: Service) => {
     if (service) {
       setEditingService(service);
@@ -113,7 +136,7 @@ const Services: React.FC = () => {
         description: service.description,
         price: service.price.toString(),
         duration: service.durationMinutes.toString(),
-        category: service.category?.name || '',
+        categoryId: service.category?.id || service.categoryId || '',
         isActive: service.isActive,
         requiresDeposit: service.requiresDeposit || false,
         depositType: service.depositPercentage ? 'percentage' : 'fixed',
@@ -129,7 +152,7 @@ const Services: React.FC = () => {
         description: '',
         price: '',
         duration: '',
-        category: '',
+        categoryId: '',
         isActive: true,
         requiresDeposit: false,
         depositType: 'percentage',
@@ -151,7 +174,7 @@ const Services: React.FC = () => {
       description: '',
       price: '',
       duration: '',
-      category: '',
+      categoryId: '',
       isActive: true,
       requiresDeposit: false,
       depositType: 'percentage',
@@ -195,6 +218,7 @@ const Services: React.FC = () => {
         description: formData.description,
         price: parseFloat(formData.price),
         durationMinutes: parseInt(formData.duration),
+        categoryId: formData.categoryId || null,
         isActive: formData.isActive,
         // Deposit/Seña configuration
         requiresDeposit: formData.requiresDeposit,
@@ -223,6 +247,36 @@ const Services: React.FC = () => {
     }
   };
 
+  const handleSaveCategory = async () => {
+    if (!newCategory.name.trim()) {
+      setCategoryError('El nombre es requerido');
+      return;
+    }
+
+    try {
+      const created = await serviceCategoryApi.create({
+        name: newCategory.name.trim(),
+        description: newCategory.description || undefined,
+        isActive: true,
+      });
+      await fetchCategories();
+      setFormData(prev => ({ ...prev, categoryId: created.id }));
+      setCategoryDialogOpen(false);
+      setNewCategory({ name: '', description: '' });
+      setCategoryError(null);
+    } catch (error: any) {
+      console.error('Error creating category:', error);
+      const message = error?.response?.data?.message || 'No se pudo crear la categoría';
+      setCategoryError(message);
+    }
+  };
+
+  const handleCloseCategoryDialog = () => {
+    setCategoryDialogOpen(false);
+    setCategoryError(null);
+    setNewCategory({ name: '', description: '' });
+  };
+
   const handleDeleteService = async () => {
     if (!serviceToDelete) return;
 
@@ -239,11 +293,11 @@ const Services: React.FC = () => {
   const filteredServices = services.filter(service => {
     const matchesSearch = service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           service.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = categoryFilter === 'all' || service.category?.name === categoryFilter;
+    const matchesCategory = categoryFilter === 'all' || service.category?.id === categoryFilter || service.categoryId === categoryFilter;
     return matchesSearch && matchesCategory;
   });
 
-  const uniqueCategories = Array.from(new Set(services.map(s => s.category?.name).filter(Boolean)));
+  const activeCategories = categories.filter(c => c.isActive);
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -296,9 +350,9 @@ const Services: React.FC = () => {
                   label="Categoría"
                 >
                   <MenuItem value="all">Todas las categorías</MenuItem>
-                  {uniqueCategories.map((category) => (
-                    <MenuItem key={category} value={category}>
-                      {category}
+                  {activeCategories.map((category) => (
+                    <MenuItem key={category.id} value={category.id}>
+                      {category.name}
                     </MenuItem>
                   ))}
                 </Select>
@@ -483,16 +537,24 @@ const Services: React.FC = () => {
                 <FormControl fullWidth>
                   <InputLabel>Categoría</InputLabel>
                   <Select
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    value={formData.categoryId}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === '__new__') {
+                        setCategoryDialogOpen(true);
+                        return;
+                      }
+                      setFormData({ ...formData, categoryId: value });
+                    }}
                     label="Categoría"
                   >
                     <MenuItem value="">Sin categoría</MenuItem>
-                    {uniqueCategories.map((category) => (
-                      <MenuItem key={category} value={category}>
-                        {category}
+                    {activeCategories.map((category) => (
+                      <MenuItem key={category.id} value={category.id}>
+                        {category.name}
                       </MenuItem>
                     ))}
+                    <MenuItem value="__new__">+ Nueva categoría</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
@@ -614,6 +676,42 @@ const Services: React.FC = () => {
             <Button onClick={handleCloseDialog}>Cancelar</Button>
             <Button onClick={handleSaveService} variant="contained">
               {editingService ? 'Guardar' : 'Crear'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Dialog para crear categoría */}
+        <Dialog open={categoryDialogOpen} onClose={handleCloseCategoryDialog} maxWidth="xs" fullWidth>
+          <DialogTitle>Nueva categoría</DialogTitle>
+          <DialogContent>
+            <TextField
+              fullWidth
+              label="Nombre de la categoría"
+              value={newCategory.name}
+              onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
+              sx={{ mt: 1 }}
+              error={!!categoryError && !newCategory.name.trim()}
+              helperText={!newCategory.name.trim() && categoryError ? categoryError : ''}
+            />
+            <TextField
+              fullWidth
+              multiline
+              rows={2}
+              label="Descripción (opcional)"
+              value={newCategory.description}
+              onChange={(e) => setNewCategory({ ...newCategory, description: e.target.value })}
+              sx={{ mt: 2 }}
+            />
+            {categoryError && newCategory.name.trim() && (
+              <Alert severity="error" sx={{ mt: 2 }}>
+                {categoryError}
+              </Alert>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseCategoryDialog}>Cancelar</Button>
+            <Button variant="contained" onClick={handleSaveCategory}>
+              Crear
             </Button>
           </DialogActions>
         </Dialog>

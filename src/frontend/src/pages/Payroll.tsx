@@ -52,10 +52,18 @@ interface PayrollItem {
   employeeType: string;
   paymentMethod: string;
   servicesCount: number;
+  serviceRevenue?: number;
+  productRevenue?: number;
   fixedSalary: number;
   commissionPercentage: number;
+  serviceCommissionPercentage?: number;
+  productCommissionPercentage?: number;
+  serviceCommission?: number;
+  productCommission?: number;
   commissions: number;
   totalToPay: number;
+  paidAmount?: number;
+  remainingAmount?: number;
   isPaid: boolean;
   paymentStatus: 'pending' | 'partial' | 'paid';
 }
@@ -64,6 +72,7 @@ interface PayrollData {
   period: string;
   periodStart: string;
   periodEnd: string;
+  periodKey?: string;
   employees: PayrollItem[];
   summary: {
     totalEmployees: number;
@@ -101,6 +110,10 @@ const Payroll: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<PayrollItem | null>(null);
+  const [amountToPay, setAmountToPay] = useState('');
+  const [paymentNotes, setPaymentNotes] = useState('');
+  const [paymentMethodValue, setPaymentMethodValue] = useState('transfer');
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const primaryColor = config?.theme?.primaryColor || '#1976d2';
   const accentColor = config?.theme?.accentColor || '#ffc107';
@@ -152,21 +165,40 @@ const Payroll: React.FC = () => {
     }
   };
 
-  const handleMarkPaid = async (employee: PayrollItem) => {
+  const handleMarkPaid = async () => {
+    if (!selectedEmployee) return;
+    const parsedAmount = amountToPay !== '' ? Number(amountToPay) : (selectedEmployee.remainingAmount ?? selectedEmployee.totalToPay);
+
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      setPaymentError('Ingrese un monto válido');
+      return;
+    }
+
     try {
       await api.post('/dashboard/payroll/mark-paid', {
-        employeeId: employee.employeeId,
-        amount: employee.totalToPay,
-        period: `${period}_${selectedDate.toISOString()}`,
-        paymentMethod: 'transfer',
+        employeeId: selectedEmployee.employeeId,
+        amount: parsedAmount,
+        period,
+        date: selectedDate.toISOString(),
+        paymentMethod: paymentMethodValue,
+        notes: paymentNotes || undefined,
       });
       
       fetchPayrollData();
-      setPaymentDialog(false);
-      setSelectedEmployee(null);
+      closePaymentDialog();
     } catch (error) {
       console.error('Error marking as paid:', error);
+      setPaymentError('No se pudo registrar el pago');
     }
+  };
+
+  const closePaymentDialog = () => {
+    setPaymentDialog(false);
+    setPaymentError(null);
+    setSelectedEmployee(null);
+    setAmountToPay('');
+    setPaymentNotes('');
+    setPaymentMethodValue('transfer');
   };
 
   const getPaymentMethodLabel = (method: string) => {
@@ -376,7 +408,10 @@ const Payroll: React.FC = () => {
                         <>
                           {formatCurrency(employee.commissions)}
                           <Typography variant="caption" display="block" color="textSecondary">
-                            ({employee.commissionPercentage}%)
+                            Servicios ({employee.serviceCommissionPercentage ?? employee.commissionPercentage}%): {formatCurrency(employee.serviceCommission || 0)}
+                          </Typography>
+                          <Typography variant="caption" display="block" color="textSecondary">
+                            Productos ({employee.productCommissionPercentage ?? employee.commissionPercentage}%): {formatCurrency(employee.productCommission || 0)}
                           </Typography>
                         </>
                       ) : (
@@ -387,6 +422,11 @@ const Payroll: React.FC = () => {
                       <Typography variant="body2" fontWeight="bold" color={primaryColor}>
                         {formatCurrency(employee.totalToPay)}
                       </Typography>
+                      {(employee.paidAmount ?? 0) > 0 && (
+                        <Typography variant="caption" display="block" color="textSecondary">
+                          Pagado: {formatCurrency(employee.paidAmount || 0)}{typeof employee.remainingAmount === 'number' ? ` • Restan ${formatCurrency(employee.remainingAmount)}` : ''}
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell align="center">
                       <Chip
@@ -414,6 +454,11 @@ const Payroll: React.FC = () => {
                         variant="contained"
                         onClick={() => {
                           setSelectedEmployee(employee);
+                          const remaining = employee.remainingAmount ?? employee.totalToPay;
+                          setAmountToPay(remaining.toString());
+                          setPaymentMethodValue('transfer');
+                          setPaymentNotes('');
+                          setPaymentError(null);
                           setPaymentDialog(true);
                         }}
                         disabled={employee.paymentStatus === 'paid'}
@@ -553,7 +598,7 @@ const Payroll: React.FC = () => {
       )}
 
       {/* Payment Dialog */}
-      <Dialog open={paymentDialog} onClose={() => setPaymentDialog(false)}>
+      <Dialog open={paymentDialog} onClose={closePaymentDialog}>
         <DialogTitle>Registrar Pago</DialogTitle>
         <DialogContent>
           {selectedEmployee && (
@@ -564,16 +609,42 @@ const Payroll: React.FC = () => {
               <Typography variant="body2" gutterBottom>
                 Período: <strong>{period === 'monthly' ? 'Mensual' : 'Semanal'}</strong>
               </Typography>
+              <Box sx={{ my: 2 }}>
+                <Typography variant="body2" color="textSecondary">
+                  Servicios: {formatCurrency(selectedEmployee.serviceRevenue || 0)} • Comisión {selectedEmployee.serviceCommissionPercentage ?? selectedEmployee.commissionPercentage}% = {formatCurrency(selectedEmployee.serviceCommission || 0)}
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                  Productos: {formatCurrency(selectedEmployee.productRevenue || 0)} • Comisión {selectedEmployee.productCommissionPercentage ?? selectedEmployee.commissionPercentage}% = {formatCurrency(selectedEmployee.productCommission || 0)}
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                  Sueldo fijo: {formatCurrency(selectedEmployee.fixedSalary)}
+                </Typography>
+              </Box>
               <Typography variant="body2" gutterBottom>
-                Monto a pagar:{' '}
+                Total calculado:{' '}
                 <strong>{formatCurrency(selectedEmployee.totalToPay)}</strong>
               </Typography>
-              
+              {typeof selectedEmployee.remainingAmount === 'number' && (
+                <Typography variant="body2" gutterBottom color="textSecondary">
+                  Pendiente: <strong>{formatCurrency(selectedEmployee.remainingAmount)}</strong>
+                </Typography>
+              )}
+
+              <TextField
+                fullWidth
+                label="Monto a pagar"
+                type="number"
+                value={amountToPay}
+                onChange={(e) => setAmountToPay(e.target.value)}
+                sx={{ mt: 2 }}
+              />
+
               <TextField
                 fullWidth
                 select
                 label="Método de Pago"
-                defaultValue="transfer"
+                value={paymentMethodValue}
+                onChange={(e) => setPaymentMethodValue(e.target.value)}
                 sx={{ mt: 3 }}
               >
                 <MenuItem value="transfer">Transferencia</MenuItem>
@@ -586,16 +657,24 @@ const Payroll: React.FC = () => {
                 multiline
                 rows={3}
                 label="Notas (opcional)"
+                value={paymentNotes}
+                onChange={(e) => setPaymentNotes(e.target.value)}
                 sx={{ mt: 2 }}
               />
+
+              {paymentError && (
+                <Alert severity="error" sx={{ mt: 2 }}>
+                  {paymentError}
+                </Alert>
+              )}
             </Box>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setPaymentDialog(false)}>Cancelar</Button>
+          <Button onClick={closePaymentDialog}>Cancelar</Button>
           <Button
             variant="contained"
-            onClick={() => selectedEmployee && handleMarkPaid(selectedEmployee)}
+            onClick={handleMarkPaid}
             sx={{ bgcolor: primaryColor }}
           >
             Confirmar Pago

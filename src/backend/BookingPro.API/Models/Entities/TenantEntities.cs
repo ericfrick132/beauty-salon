@@ -265,6 +265,8 @@ namespace BookingPro.API.Models.Entities
         
         // Payment & Commission fields
         public decimal CommissionPercentage { get; set; } = 0; // 0-100
+        public decimal ServiceCommissionPercentage { get; set; } = 0; // Specific commission for services
+        public decimal ProductCommissionPercentage { get; set; } = 0; // Commission for product sales
         public decimal FixedSalary { get; set; } = 0;
         
         [MaxLength(50)]
@@ -346,6 +348,31 @@ namespace BookingPro.API.Models.Entities
         public Booking Booking { get; set; } = null!;
         public Employee? Employee { get; set; }
         public Customer? Customer { get; set; }
+    }
+
+    public class PayrollPayment : ITenantEntity
+    {
+        public Guid TenantId { get; set; }
+        public Guid Id { get; set; } = Guid.NewGuid();
+
+        public Guid EmployeeId { get; set; }
+
+        [Required, MaxLength(50)]
+        public string PeriodKey { get; set; } = string.Empty; // monthly:2024-05
+
+        [Required]
+        public decimal Amount { get; set; }
+
+        [Required, MaxLength(50)]
+        public string PaymentMethod { get; set; } = "transfer";
+
+        [MaxLength(500)]
+        public string? Notes { get; set; }
+
+        public DateTime PaidAt { get; set; } = DateTime.UtcNow;
+
+        // Navigation
+        public Employee Employee { get; set; } = null!;
     }
 
     public class DailyReport : ITenantEntity

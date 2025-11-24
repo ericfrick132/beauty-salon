@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using BookingPro.API.Data;
 using BookingPro.API.Models.Entities;
+using BookingPro.API.Models.DTOs;
 using BookingPro.API.Services;
 using System;
 using System.Linq;
@@ -97,6 +98,8 @@ namespace BookingPro.API.Controllers
                         phone = e.Phone,
                         employeeType = e.EmployeeType,
                         commissionPercentage = e.CommissionPercentage,
+                        serviceCommissionPercentage = e.ServiceCommissionPercentage,
+                        productCommissionPercentage = e.ProductCommissionPercentage,
                         fixedSalary = e.FixedSalary,
                         paymentMethod = e.PaymentMethod,
                         specialties = e.Specialties,
@@ -145,20 +148,27 @@ namespace BookingPro.API.Controllers
         {
             try
             {
+                var serviceCommission = dto.ServiceCommissionPercentage ?? dto.CommissionPercentage ?? 0m;
+                var productCommission = dto.ProductCommissionPercentage 
+                    ?? dto.CommissionPercentage 
+                    ?? serviceCommission;
+
                 var employee = new Employee
                 {
                     Id = Guid.NewGuid(),
                     Name = dto.Name,
                     Email = dto.Email,
                     Phone = dto.Phone,
-                    EmployeeType = dto.EmployeeType,
-                    CommissionPercentage = dto.CommissionPercentage,
-                    FixedSalary = dto.FixedSalary,
-                    PaymentMethod = dto.PaymentMethod,
+                    EmployeeType = dto.EmployeeType ?? "employee",
+                    CommissionPercentage = serviceCommission,
+                    ServiceCommissionPercentage = serviceCommission,
+                    ProductCommissionPercentage = productCommission,
+                    FixedSalary = dto.FixedSalary ?? 0,
+                    PaymentMethod = dto.PaymentMethod ?? "percentage",
                     Specialties = dto.Specialties,
                     WorkingHours = dto.WorkingHours,
-                    CanPerformServices = dto.CanPerformServices,
-                    IsActive = dto.IsActive,
+                    CanPerformServices = dto.CanPerformServices ?? true,
+                    IsActive = dto.IsActive ?? true,
                     CreatedAt = DateTime.UtcNow
                 };
 
@@ -185,25 +195,44 @@ namespace BookingPro.API.Controllers
                     return NotFound(new { message = "Employee not found" });
                 }
 
-                employee.Name = dto.Name;
-                employee.Email = dto.Email;
-                employee.Phone = dto.Phone;
-                employee.EmployeeType = dto.EmployeeType;
-                employee.CommissionPercentage = dto.CommissionPercentage;
-                employee.FixedSalary = dto.FixedSalary;
-                employee.PaymentMethod = dto.PaymentMethod;
-                employee.Specialties = dto.Specialties;
-                employee.WorkingHours = dto.WorkingHours;
-                employee.CanPerformServices = dto.CanPerformServices;
-                employee.IsActive = dto.IsActive;
+                var wasActive = employee.IsActive;
 
-                if (!dto.IsActive && employee.IsActive)
+                if (dto.Name != null) employee.Name = dto.Name;
+                if (dto.Email != null) employee.Email = dto.Email;
+                if (dto.Phone != null) employee.Phone = dto.Phone;
+                if (dto.EmployeeType != null) employee.EmployeeType = dto.EmployeeType;
+
+                decimal? serviceCommission = dto.ServiceCommissionPercentage ?? dto.CommissionPercentage ?? (decimal?)employee.ServiceCommissionPercentage;
+                decimal? productCommission = dto.ProductCommissionPercentage ?? dto.CommissionPercentage ?? (decimal?)employee.ProductCommissionPercentage;
+
+                if (serviceCommission.HasValue)
                 {
-                    employee.DeactivatedAt = DateTime.UtcNow;
+                    employee.ServiceCommissionPercentage = serviceCommission.Value;
+                    employee.CommissionPercentage = serviceCommission.Value;
                 }
-                else if (dto.IsActive && !employee.IsActive)
+
+                if (productCommission.HasValue)
                 {
-                    employee.DeactivatedAt = null;
+                    employee.ProductCommissionPercentage = productCommission.Value;
+                }
+
+                if (dto.FixedSalary.HasValue) employee.FixedSalary = dto.FixedSalary.Value;
+                if (dto.PaymentMethod != null) employee.PaymentMethod = dto.PaymentMethod;
+                if (dto.Specialties != null) employee.Specialties = dto.Specialties;
+                if (dto.WorkingHours != null) employee.WorkingHours = dto.WorkingHours;
+                if (dto.CanPerformServices.HasValue) employee.CanPerformServices = dto.CanPerformServices.Value;
+                if (dto.IsActive.HasValue) employee.IsActive = dto.IsActive.Value;
+
+                if (dto.IsActive.HasValue)
+                {
+                    if (!employee.IsActive && wasActive)
+                    {
+                        employee.DeactivatedAt = DateTime.UtcNow;
+                    }
+                    else if (employee.IsActive && !wasActive)
+                    {
+                        employee.DeactivatedAt = null;
+                    }
                 }
 
                 await _context.SaveChangesAsync();
@@ -354,34 +383,5 @@ namespace BookingPro.API.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
-    }
-
-    public class CreateEmployeeDto
-    {
-        public string Name { get; set; } = string.Empty;
-        public string? Email { get; set; }
-        public string? Phone { get; set; }
-        public string EmployeeType { get; set; } = "employee";
-        public decimal CommissionPercentage { get; set; }
-        public decimal FixedSalary { get; set; }
-        public string PaymentMethod { get; set; } = "percentage";
-        
-        // Service & Operational fields
-        public string? Specialties { get; set; } // JSON array de service_ids
-        public string? WorkingHours { get; set; } // JSON horarios por día
-        public bool CanPerformServices { get; set; } = true;
-        
-        public bool IsActive { get; set; } = true;
-    }
-
-    public class UpdateEmployeeDto : CreateEmployeeDto
-    {
-    }
-
-    public class PayCommissionDto
-    {
-        public decimal Amount { get; set; }
-        public string PaymentMethod { get; set; } = "transfer";
-        public string? Notes { get; set; }
     }
 }

@@ -172,6 +172,18 @@ namespace BookingPro.API.Models.DTOs
         
         public bool TrackInventory { get; set; }
     }
+
+    public class UpdateProductPriceDto
+    {
+        [Required, Range(0, double.MaxValue)]
+        public decimal CostPrice { get; set; }
+
+        [Required, Range(0, double.MaxValue)]
+        public decimal SalePrice { get; set; }
+
+        [MaxLength(500)]
+        public string? Reason { get; set; }
+    }
     
     public class UpdateStockDto
     {

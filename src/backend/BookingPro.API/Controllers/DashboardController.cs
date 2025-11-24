@@ -1,12 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
-using BookingPro.API.Data;
-using BookingPro.API.Services;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using BookingPro.API.Data;
+using BookingPro.API.Services;
+using BookingPro.API.Models.Entities;
 
 namespace BookingPro.API.Controllers
 {
@@ -130,24 +131,23 @@ namespace BookingPro.API.Controllers
         {
             try
             {
-                var referenceDate = date ?? DateTime.UtcNow;
-                DateTime startDate, endDate;
-
-                if (period == "weekly")
-                {
-                    // Calcular semana (lunes a domingo)
-                    int daysToMonday = ((int)referenceDate.DayOfWeek - 1 + 7) % 7;
-                    startDate = referenceDate.AddDays(-daysToMonday).Date;
-                    endDate = startDate.AddDays(6).AddHours(23).AddMinutes(59).AddSeconds(59);
-                }
-                else // monthly
-                {
-                    startDate = new DateTime(referenceDate.Year, referenceDate.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-                    endDate = startDate.AddMonths(1).AddDays(-1).AddHours(23).AddMinutes(59).AddSeconds(59);
-                }
+                var (startDate, endDate, periodKey) = CalculatePeriod(period, date ?? DateTime.UtcNow);
 
                 var employees = await _context.Employees
                     .Where(e => e.IsActive)
+                    .ToListAsync();
+
+                var payments = await _context.Payments
+                    .Where(p => p.PaymentDate >= startDate && p.PaymentDate <= endDate && p.Status != "cancelled")
+                    .ToListAsync();
+
+                var sales = await _context.Sales
+                    .Where(s => s.SaleDate >= startDate && s.SaleDate <= endDate && s.Status != "cancelled")
+                    .Select(s => new { s.EmployeeId, s.TotalAmount })
+                    .ToListAsync();
+
+                var payrollPayments = await _context.PayrollPayments
+                    .Where(p => p.PeriodKey == periodKey)
                     .ToListAsync();
 
                 var payrollItems = new List<object>();
@@ -156,7 +156,11 @@ namespace BookingPro.API.Controllers
                 {
                     decimal fixedSalary = 0;
                     decimal commissions = 0;
+                    decimal serviceCommission = 0;
+                    decimal productCommission = 0;
                     int servicesCount = 0;
+                    decimal serviceRevenue = 0;
+                    decimal productRevenue = 0;
 
                     // Calcular sueldo fijo
                     if (employee.PaymentMethod == "fixed" || employee.PaymentMethod == "mixed")
@@ -172,23 +176,40 @@ namespace BookingPro.API.Controllers
                         }
                     }
 
-                    // Calcular comisiones
+                    // Calcular comisiones separadas para servicios y productos
                     if (employee.PaymentMethod == "percentage" || employee.PaymentMethod == "mixed")
                     {
-                        var payments = await _context.Payments
-                            .Include(p => p.Booking)
-                                .ThenInclude(b => b.Service)
-                            .Where(p => p.EmployeeId == employee.Id &&
-                                       p.PaymentDate >= startDate &&
-                                       p.PaymentDate <= endDate)
-                            .ToListAsync();
+                        var employeePayments = payments.Where(p => p.EmployeeId == employee.Id);
+                        servicesCount = employeePayments.Count();
+                        serviceRevenue = employeePayments.Sum(p => p.Amount);
 
-                        servicesCount = payments.Count;
-                        var revenue = payments.Sum(p => p.Amount);
-                        commissions = revenue * (employee.CommissionPercentage / 100);
+                        var employeeSales = sales.Where(s => s.EmployeeId == employee.Id);
+                        productRevenue = employeeSales.Sum(s => s.TotalAmount);
+
+                        var serviceCommissionPct = employee.ServiceCommissionPercentage > 0 
+                            ? employee.ServiceCommissionPercentage 
+                            : employee.CommissionPercentage;
+                        var productCommissionPct = employee.ProductCommissionPercentage > 0 
+                            ? employee.ProductCommissionPercentage 
+                            : (employee.CommissionPercentage > 0 ? employee.CommissionPercentage : serviceCommissionPct);
+
+                        serviceCommission = serviceRevenue * (serviceCommissionPct / 100);
+                        productCommission = productRevenue * (productCommissionPct / 100);
+                        commissions = serviceCommission + productCommission;
                     }
 
                     var totalToPay = fixedSalary + commissions;
+                    var paidAmount = payrollPayments.Where(p => p.EmployeeId == employee.Id).Sum(p => p.Amount);
+
+                    var paymentStatus = "pending";
+                    if (paidAmount >= totalToPay && totalToPay > 0)
+                    {
+                        paymentStatus = "paid";
+                    }
+                    else if (paidAmount > 0 && paidAmount < totalToPay)
+                    {
+                        paymentStatus = "partial";
+                    }
 
                     payrollItems.Add(new
                     {
@@ -197,12 +218,20 @@ namespace BookingPro.API.Controllers
                         employeeType = employee.EmployeeType,
                         paymentMethod = employee.PaymentMethod,
                         servicesCount,
+                        serviceRevenue = Math.Round(serviceRevenue, 2),
+                        productRevenue = Math.Round(productRevenue, 2),
                         fixedSalary = Math.Round(fixedSalary, 2),
-                        commissionPercentage = employee.CommissionPercentage,
+                        commissionPercentage = employee.ServiceCommissionPercentage > 0 ? employee.ServiceCommissionPercentage : employee.CommissionPercentage,
+                        serviceCommissionPercentage = employee.ServiceCommissionPercentage > 0 ? employee.ServiceCommissionPercentage : employee.CommissionPercentage,
+                        productCommissionPercentage = employee.ProductCommissionPercentage > 0 ? employee.ProductCommissionPercentage : employee.CommissionPercentage,
+                        serviceCommission = Math.Round(serviceCommission, 2),
+                        productCommission = Math.Round(productCommission, 2),
                         commissions = Math.Round(commissions, 2),
                         totalToPay = Math.Round(totalToPay, 2),
-                        isPaid = false, // TODO: Implement payment tracking
-                        paymentStatus = "pending" // pending, partial, paid
+                        paidAmount = Math.Round(paidAmount, 2),
+                        remainingAmount = Math.Max(0, Math.Round(totalToPay - paidAmount, 2)),
+                        isPaid = paymentStatus == "paid",
+                        paymentStatus // pending, partial, paid
                     });
                 }
 
@@ -213,6 +242,7 @@ namespace BookingPro.API.Controllers
                     period,
                     periodStart = startDate,
                     periodEnd = endDate,
+                    periodKey,
                     employees = payrollItems.OrderByDescending(p => ((dynamic)p).totalToPay),
                     summary = new
                     {
@@ -237,21 +267,72 @@ namespace BookingPro.API.Controllers
         {
             try
             {
-                // TODO: Implementar registro de pagos de nómina
-                // Esto debería crear registros en una tabla de PayrollPayments
-                // para trackear qué sueldos/comisiones han sido pagados
+                if (dto.Amount <= 0)
+                {
+                    return BadRequest(new { message = "Amount must be greater than zero" });
+                }
+
+                var (startDate, _, periodKey) = CalculatePeriod(dto.Period, dto.Date ?? DateTime.UtcNow);
+
+                var employeeExists = await _context.Employees.AnyAsync(e => e.Id == dto.EmployeeId);
+                if (!employeeExists)
+                {
+                    return NotFound(new { message = "Employee not found" });
+                }
+
+                var payment = new PayrollPayment
+                {
+                    EmployeeId = dto.EmployeeId,
+                    PeriodKey = periodKey,
+                    Amount = dto.Amount,
+                    PaymentMethod = dto.PaymentMethod ?? "transfer",
+                    Notes = dto.Notes,
+                    PaidAt = DateTime.UtcNow
+                };
+
+                _context.PayrollPayments.Add(payment);
+                await _context.SaveChangesAsync();
+
+                var paidAmount = await _context.PayrollPayments
+                    .Where(p => p.EmployeeId == dto.EmployeeId && p.PeriodKey == periodKey)
+                    .SumAsync(p => p.Amount);
 
                 return Ok(new { 
                     message = "Payroll marked as paid", 
                     employeeId = dto.EmployeeId,
                     amount = dto.Amount,
-                    period = dto.Period
+                    period = dto.Period,
+                    periodKey,
+                    totalPaid = paidAmount,
+                    periodStart = startDate
                 });
             }
             catch (Exception ex)
             {
                 return BadRequest(new { message = ex.Message });
             }
+        }
+
+        private (DateTime startDate, DateTime endDate, string periodKey) CalculatePeriod(string period, DateTime referenceDate)
+        {
+            var normalizedDate = referenceDate.Kind == DateTimeKind.Utc ? referenceDate : referenceDate.ToUniversalTime();
+            DateTime startDate;
+            DateTime endDate;
+
+            if (period == "weekly")
+            {
+                int daysToMonday = ((int)normalizedDate.DayOfWeek - 1 + 7) % 7;
+                startDate = DateTime.SpecifyKind(normalizedDate.AddDays(-daysToMonday).Date, DateTimeKind.Utc);
+                endDate = startDate.AddDays(6).AddHours(23).AddMinutes(59).AddSeconds(59);
+            }
+            else
+            {
+                startDate = new DateTime(normalizedDate.Year, normalizedDate.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+                endDate = startDate.AddMonths(1).AddDays(-1).AddHours(23).AddMinutes(59).AddSeconds(59);
+            }
+
+            var periodKey = $"{period}:{startDate:yyyyMMdd}";
+            return (startDate, endDate, periodKey);
         }
 
         [HttpGet("revenue-by-employee")]
@@ -293,7 +374,8 @@ namespace BookingPro.API.Controllers
     {
         public Guid EmployeeId { get; set; }
         public decimal Amount { get; set; }
-        public string Period { get; set; } = string.Empty;
+        public string Period { get; set; } = "monthly";
+        public DateTime? Date { get; set; }
         public string PaymentMethod { get; set; } = "transfer";
         public string? Notes { get; set; }
     }

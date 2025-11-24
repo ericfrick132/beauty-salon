@@ -74,6 +74,7 @@ const Customers: React.FC = () => {
   const [errors, setErrors] = useState<any>({});
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
     fetchCustomers();
@@ -84,6 +85,7 @@ const Customers: React.FC = () => {
     try {
       const response = await api.get('/customers');
       setCustomers(response.data);
+      setFeedback(null);
     } catch (error) {
       console.error('Error fetching customers:', error);
     } finally {
@@ -174,10 +176,16 @@ const Customers: React.FC = () => {
       fetchCustomers();
       setDeleteConfirmOpen(false);
       setCustomerToDelete(null);
-    } catch (error) {
+      setFeedback({ type: 'success', message: 'Cliente eliminado correctamente' });
+    } catch (error: any) {
       console.error('Error deleting customer:', error);
+      const message = error?.response?.data?.message || 'No se pudo eliminar el cliente. Revise si tiene turnos futuros.';
+      setFeedback({ type: 'error', message });
     }
   };
+
+  const getCustomerName = (customer?: Customer | null) =>
+    `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim() || customer?.email || 'cliente';
 
   const filteredCustomers = customers.filter(customer => {
     const fullName = `${customer.firstName || ''} ${customer.lastName || ''}`.trim();
@@ -221,6 +229,16 @@ const Customers: React.FC = () => {
             Nuevo {getTerm('customer')}
           </Button>
         </Box>
+
+        {feedback && (
+          <Alert
+            severity={feedback.type}
+            onClose={() => setFeedback(null)}
+            sx={{ mb: 2 }}
+          >
+            {feedback.message}
+          </Alert>
+        )}
 
         <Paper sx={{ p: 3 }}>
           <Box sx={{ mb: 3 }}>
@@ -428,7 +446,7 @@ const Customers: React.FC = () => {
           <DialogTitle>Confirmar eliminación</DialogTitle>
           <DialogContent>
             <Typography>
-              ¿Está seguro que desea eliminar a {customerToDelete?.name}?
+              ¿Está seguro que desea eliminar a {getCustomerName(customerToDelete)}?
               Esta acción no se puede deshacer.
             </Typography>
           </DialogContent>

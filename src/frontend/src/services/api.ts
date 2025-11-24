@@ -242,6 +242,16 @@ export const serviceApi = {
     api.delete(`/services/${id}`).then(res => res.data),
 };
 
+export const serviceCategoryApi = {
+  list: () => api.get('/services/categories').then(res => res.data),
+  create: (data: { name: string; description?: string; isActive?: boolean }) =>
+    api.post('/services/categories', data).then(res => res.data),
+  update: (id: string, data: { name: string; description?: string; isActive?: boolean }) =>
+    api.put(`/services/categories/${id}`, data).then(res => res.data),
+  remove: (id: string) =>
+    api.delete(`/services/categories/${id}`).then(res => res.data),
+};
+
 // Invitation API (public endpoints)
 export const invitationApi = {
   getInvitation: (token: string) =>
@@ -264,6 +274,12 @@ export const selfRegistrationApi = {
 };
 
 export default api;
+
+export const inventoryApi = {
+  getProducts: () => api.get('/inventory/products').then(res => res.data),
+  updateProductPrice: (id: string, data: { costPrice: number; salePrice: number; reason?: string }) =>
+    api.patch(`/inventory/products/${id}/price`, data).then(res => res.data),
+};
 // Messaging API
 export const messagingApi = {
   getPackages: () => api.get('/messaging/packages').then(res => res.data),

@@ -25,6 +25,7 @@ namespace BookingPro.API.Services
             try
             {
                 var customers = await _customerRepository.Query(c => c.Bookings)
+                    .Where(c => c.Notes == null || !c.Notes.StartsWith("[DELETED"))
                     .Select(c => new CustomerListDto
                     {
                         Id = c.Id,
@@ -55,7 +56,7 @@ namespace BookingPro.API.Services
             try
             {
                 var customer = await _customerRepository.Query(c => c.Bookings)
-                    .Where(c => c.Id == id)
+                    .Where(c => c.Id == id && (c.Notes == null || !c.Notes.StartsWith("[DELETED")))
                     .Select(c => new CustomerDetailDto
                     {
                         Id = c.Id,
@@ -199,7 +200,12 @@ namespace BookingPro.API.Services
                 }
 
                 // Soft delete - marcar como eliminado en Notes
-                customer.Notes = $"[DELETED {DateTime.UtcNow:yyyy-MM-dd}] {customer.Notes}";
+                var deletionMarker = $"[DELETED {DateTime.UtcNow:yyyy-MM-dd}]";
+                customer.Notes = customer.Notes == null ? deletionMarker : $"{deletionMarker} {customer.Notes}";
+                // Liberar email/teléfono para permitir volver a registrar al cliente si es necesario
+                customer.Email = null;
+                customer.Phone = null;
+                customer.Dni = null;
                 await _customerRepository.UpdateAsync(customer);
 
                 return ServiceResult.Ok("Customer marked as deleted successfully");
@@ -219,11 +225,16 @@ namespace BookingPro.API.Services
                 if (!string.IsNullOrWhiteSpace(searchTerm))
                 {
                     query = query.Where(c => 
-                        c.FirstName.Contains(searchTerm) ||
+                        (c.Notes == null || !c.Notes.StartsWith("[DELETED")) &&
+                        (c.FirstName.Contains(searchTerm) ||
                         c.LastName != null && c.LastName.Contains(searchTerm) ||
                         c.Phone != null && c.Phone.Contains(searchTerm) ||
                         c.Email != null && c.Email.Contains(searchTerm) ||
-                        c.Dni != null && c.Dni.Contains(searchTerm));
+                        c.Dni != null && c.Dni.Contains(searchTerm)));
+                }
+                else
+                {
+                    query = query.Where(c => c.Notes == null || !c.Notes.StartsWith("[DELETED"));
                 }
 
                 var customers = await query
@@ -250,7 +261,8 @@ namespace BookingPro.API.Services
 
         private async Task<ServiceResult> ValidateCustomerUniqueness(string? email, string? phone, Guid? excludeCustomerId = null)
         {
-            var query = _customerRepository.Query();
+            var query = _customerRepository.Query()
+                .Where(c => c.Notes == null || !c.Notes.StartsWith("[DELETED"));
 
             if (excludeCustomerId.HasValue)
             {
