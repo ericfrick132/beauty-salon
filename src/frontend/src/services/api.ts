@@ -276,9 +276,14 @@ export const selfRegistrationApi = {
 export default api;
 
 export const inventoryApi = {
-  getProducts: () => api.get('/inventory/products').then(res => res.data),
+  getProducts: (includeInactive = false) => api.get('/inventory/products', { params: { includeInactive } }).then(res => res.data),
+  createProduct: (data: any) => api.post('/inventory/products', data).then(res => res.data),
+  updateProduct: (id: string, data: any) => api.put(`/inventory/products/${id}`, data).then(res => res.data),
+  deleteProduct: (id: string) => api.delete(`/inventory/products/${id}`).then(res => res.data),
   updateProductPrice: (id: string, data: { costPrice: number; salePrice: number; reason?: string }) =>
     api.patch(`/inventory/products/${id}/price`, data).then(res => res.data),
+  updateStock: (id: string, data: { quantity: number; movementType: string; reason?: string; notes?: string; unitCost?: number }) =>
+    api.post(`/inventory/stock/${id}`, data).then(res => res.data),
 };
 // Messaging API
 export const messagingApi = {

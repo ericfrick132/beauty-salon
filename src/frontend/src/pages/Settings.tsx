@@ -52,6 +52,7 @@ import {
   Edit,
   Delete,
   Add,
+  Category as CategoryIcon,
   Public,
   Phone,
   Email,
@@ -63,7 +64,7 @@ import {
   Chat,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import api, { authApi } from '../services/api';
+import api, { authApi, serviceCategoryApi } from '../services/api';
 import { useTenant } from '../contexts/TenantContext';
 
 interface TabPanelProps {
@@ -119,6 +120,14 @@ const LANGUAGES = [
   { value: 'pt', label: 'Português' },
 ];
 
+interface ServiceCategory {
+  id: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  serviceCount?: number;
+}
+
 const Settings: React.FC = () => {
   const { config, getTerm } = useTenant();
   const [tabValue, setTabValue] = useState(0);
@@ -159,6 +168,18 @@ const Settings: React.FC = () => {
     allowCustomerNotes: true,
     minAdvanceMinutes: 0,
   });
+  const [serviceCategories, setServiceCategories] = useState<ServiceCategory[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [categoryForm, setCategoryForm] = useState<{ id?: string; name: string; description: string; isActive: boolean }>({
+    id: undefined,
+    name: '',
+    description: '',
+    isActive: true,
+  });
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [categoryActionLoading, setCategoryActionLoading] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<ServiceCategory | null>(null);
 
   // Payment Settings State
   const [paymentSettings, setPaymentSettings] = useState({
@@ -206,6 +227,23 @@ const Settings: React.FC = () => {
     autoDeleteCancelledBookings: false,
     enableMultiLocation: false,
   });
+
+  const loadCategories = async () => {
+    setCategoriesLoading(true);
+    try {
+      const data = await serviceCategoryApi.list();
+      setServiceCategories(data);
+    } catch (error) {
+      console.error('Error loading service categories:', error);
+      setSnackbar({
+        open: true,
+        message: 'No se pudieron cargar las categorías',
+        severity: 'error'
+      });
+    } finally {
+      setCategoriesLoading(false);
+    }
+  };
 
   useEffect(() => {
     loadSettings();
@@ -257,6 +295,8 @@ const Settings: React.FC = () => {
         console.log('Services settings not available');
       }
 
+      await loadCategories();
+
     } catch (error) {
       console.error('Error loading settings:', error);
       setSnackbar({
@@ -266,6 +306,85 @@ const Settings: React.FC = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openCategoryDialog = (category?: ServiceCategory) => {
+    setCategoryForm({
+      id: category?.id,
+      name: category?.name || '',
+      description: category?.description || '',
+      isActive: category?.isActive ?? true,
+    });
+    setCategoryError(null);
+    setCategoryDialogOpen(true);
+  };
+
+  const closeCategoryDialog = () => {
+    setCategoryDialogOpen(false);
+    setCategoryForm({ id: undefined, name: '', description: '', isActive: true });
+    setCategoryError(null);
+  };
+
+  const saveCategory = async () => {
+    if (!categoryForm.name.trim()) {
+      setCategoryError('El nombre es requerido');
+      return;
+    }
+
+    setCategoryActionLoading(true);
+    try {
+      if (categoryForm.id) {
+        await serviceCategoryApi.update(categoryForm.id, {
+          name: categoryForm.name.trim(),
+          description: categoryForm.description?.trim() || undefined,
+          isActive: categoryForm.isActive,
+        });
+      } else {
+        await serviceCategoryApi.create({
+          name: categoryForm.name.trim(),
+          description: categoryForm.description?.trim() || undefined,
+          isActive: categoryForm.isActive,
+        });
+      }
+
+      await loadCategories();
+      setSnackbar({
+        open: true,
+        message: categoryForm.id ? 'Categoría actualizada' : 'Categoría creada',
+        severity: 'success'
+      });
+      closeCategoryDialog();
+    } catch (error: any) {
+      console.error('Error saving category:', error);
+      const message = error?.response?.data?.message || 'No se pudo guardar la categoría';
+      setCategoryError(message);
+    } finally {
+      setCategoryActionLoading(false);
+    }
+  };
+
+  const confirmDeleteCategory = async () => {
+    if (!categoryToDelete) return;
+    setCategoryActionLoading(true);
+    try {
+      await serviceCategoryApi.remove(categoryToDelete.id);
+      await loadCategories();
+      setSnackbar({
+        open: true,
+        message: 'Categoría eliminada',
+        severity: 'success'
+      });
+      setCategoryToDelete(null);
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      setSnackbar({
+        open: true,
+        message: 'No se pudo eliminar la categoría',
+        severity: 'error'
+      });
+    } finally {
+      setCategoryActionLoading(false);
     }
   };
 
@@ -644,6 +763,87 @@ const Settings: React.FC = () => {
                   <Schedule sx={{ mr: 1, verticalAlign: 'middle' }} />
                   Configuración de Servicios y Reservas
                 </Typography>
+              </Grid>
+
+              <Grid item xs={12}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 2, flexWrap: 'wrap' }}>
+                      <Box>
+                        <Typography variant="subtitle1" gutterBottom>
+                          <CategoryIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                          Categorías de servicios
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Administra las categorías que usarás para organizar tus servicios en este tenant.
+                        </Typography>
+                      </Box>
+                      <Button
+                        variant="contained"
+                        startIcon={<Add />}
+                        onClick={() => openCategoryDialog()}
+                      >
+                        Nueva categoría
+                      </Button>
+                    </Box>
+
+                    {categoriesLoading ? (
+                      <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                        <CircularProgress size={24} />
+                      </Box>
+                    ) : serviceCategories.length === 0 ? (
+                      <Alert severity="info">
+                        Aún no hay categorías. Crea la primera para ordenar tus servicios.
+                      </Alert>
+                    ) : (
+                      <List>
+                        {serviceCategories.map((category) => (
+                          <ListItem key={category.id} divider alignItems="flex-start">
+                            <ListItemIcon>
+                              <CategoryIcon fontSize="small" />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                  <Typography variant="subtitle1">{category.name}</Typography>
+                                  <Chip
+                                    label={category.isActive ? 'Activa' : 'Inactiva'}
+                                    size="small"
+                                    color={category.isActive ? 'success' : 'default'}
+                                  />
+                                  {typeof category.serviceCount === 'number' && (
+                                    <Chip
+                                      label={`${category.serviceCount} servicios`}
+                                      size="small"
+                                      variant="outlined"
+                                    />
+                                  )}
+                                </Box>
+                              }
+                              secondary={category.description || 'Sin descripción'}
+                            />
+                            <ListItemSecondaryAction>
+                              <Tooltip title="Editar">
+                                <IconButton edge="end" onClick={() => openCategoryDialog(category)}>
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Eliminar">
+                                <IconButton
+                                  edge="end"
+                                  color="error"
+                                  onClick={() => setCategoryToDelete(category)}
+                                >
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </ListItemSecondaryAction>
+                          </ListItem>
+                        ))}
+                      </List>
+                    )}
+                  </CardContent>
+                </Card>
               </Grid>
 
               <Grid item xs={12}>
@@ -1557,6 +1757,85 @@ const Settings: React.FC = () => {
               </Grid>
             </Grid>
           </TabPanel>
+
+          <Dialog
+            open={categoryDialogOpen}
+            onClose={() => {
+              if (!categoryActionLoading) closeCategoryDialog();
+            }}
+            maxWidth="sm"
+            fullWidth
+          >
+            <DialogTitle>{categoryForm.id ? 'Editar categoría' : 'Nueva categoría'}</DialogTitle>
+            <DialogContent>
+              <Box sx={{ display: 'grid', gap: 2, mt: 1 }}>
+                <TextField
+                  label="Nombre"
+                  value={categoryForm.name}
+                  onChange={(e) => setCategoryForm(prev => ({ ...prev, name: e.target.value }))}
+                  autoFocus
+                  disabled={categoryActionLoading}
+                />
+                <TextField
+                  label="Descripción (opcional)"
+                  multiline
+                  rows={2}
+                  value={categoryForm.description}
+                  onChange={(e) => setCategoryForm(prev => ({ ...prev, description: e.target.value }))}
+                  disabled={categoryActionLoading}
+                />
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={categoryForm.isActive}
+                      onChange={(e) => setCategoryForm(prev => ({ ...prev, isActive: e.target.checked }))}
+                      disabled={categoryActionLoading}
+                    />
+                  }
+                  label="Categoría activa"
+                />
+                {categoryError && (
+                  <Alert severity="error">{categoryError}</Alert>
+                )}
+              </Box>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={closeCategoryDialog} disabled={categoryActionLoading}>Cancelar</Button>
+              <Button
+                variant="contained"
+                onClick={saveCategory}
+                disabled={categoryActionLoading}
+              >
+                {categoryForm.id ? 'Guardar cambios' : 'Crear categoría'}
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          <Dialog
+            open={!!categoryToDelete}
+            onClose={() => {
+              if (!categoryActionLoading) setCategoryToDelete(null);
+            }}
+          >
+            <DialogTitle>Eliminar categoría</DialogTitle>
+            <DialogContent>
+              <Typography>
+                ¿Querés eliminar la categoría "{categoryToDelete?.name}"?
+                {categoryToDelete?.serviceCount ? ` Tiene ${categoryToDelete.serviceCount} servicios asociados.` : ''} Se desactivará pero los servicios no se eliminarán.
+              </Typography>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setCategoryToDelete(null)} disabled={categoryActionLoading}>Cancelar</Button>
+              <Button
+                color="error"
+                variant="contained"
+                onClick={confirmDeleteCategory}
+                disabled={categoryActionLoading}
+              >
+                Eliminar
+              </Button>
+            </DialogActions>
+          </Dialog>
 
         </Paper>
       </motion.div>
