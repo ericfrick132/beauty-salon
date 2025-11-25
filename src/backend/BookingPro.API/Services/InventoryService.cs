@@ -19,10 +19,18 @@ namespace BookingPro.API.Services
         }
 
         // Product Categories
-        public async Task<List<ProductCategoryDto>> GetCategoriesAsync()
+        public async Task<List<ProductCategoryDto>> GetCategoriesAsync(bool includeInactive = false)
         {
-            var categories = await _context.ProductCategories
+            var query = _context.ProductCategories
                 .Include(c => c.Products)
+                .AsQueryable();
+
+            if (!includeInactive)
+            {
+                query = query.Where(c => c.IsActive);
+            }
+
+            var categories = await query
                 .OrderBy(c => c.DisplayOrder)
                 .ThenBy(c => c.Name)
                 .Select(c => new ProductCategoryDto

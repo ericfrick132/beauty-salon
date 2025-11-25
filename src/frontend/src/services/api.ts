@@ -285,6 +285,15 @@ export const inventoryApi = {
   updateStock: (id: string, data: { quantity: number; movementType: string; reason?: string; notes?: string; unitCost?: number }) =>
     api.post(`/inventory/stock/${id}`, data).then(res => res.data),
 };
+
+export const productCategoryApi = {
+  list: (includeInactive = false) => api.get('/inventory/categories', { params: { includeInactive } }).then(res => res.data),
+  create: (data: { name: string; description?: string; displayOrder?: number; isActive?: boolean }) =>
+    api.post('/inventory/categories', data).then(res => res.data),
+  update: (id: string, data: { name: string; description?: string; displayOrder?: number; isActive?: boolean }) =>
+    api.put(`/inventory/categories/${id}`, data).then(res => res.data),
+  remove: (id: string) => api.delete(`/inventory/categories/${id}`).then(res => res.data),
+};
 // Messaging API
 export const messagingApi = {
   getPackages: () => api.get('/messaging/packages').then(res => res.data),

@@ -27,6 +27,55 @@ namespace BookingPro.API.Controllers
             return Ok(products);
         }
 
+        // Product Categories
+        [HttpGet("categories")]
+        public async Task<IActionResult> GetCategories([FromQuery] bool includeInactive = false)
+        {
+            var categories = await _inventoryService.GetCategoriesAsync(includeInactive);
+            return Ok(categories);
+        }
+
+        [HttpPost("categories")]
+        public async Task<IActionResult> CreateCategory([FromBody] CreateProductCategoryDto dto)
+        {
+            try
+            {
+                var category = await _inventoryService.CreateCategoryAsync(dto);
+                return Ok(category);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating product category");
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
+        [HttpPut("categories/{id}")]
+        public async Task<IActionResult> UpdateCategory([FromRoute] Guid id, [FromBody] UpdateProductCategoryDto dto)
+        {
+            try
+            {
+                var category = await _inventoryService.UpdateCategoryAsync(id, dto);
+                return Ok(category);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating product category");
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
+        [HttpDelete("categories/{id}")]
+        public async Task<IActionResult> DeleteCategory([FromRoute] Guid id)
+        {
+            var ok = await _inventoryService.DeleteCategoryAsync(id);
+            return ok ? Ok(new { success = true }) : NotFound(new { error = "Categoría no encontrada" });
+        }
+
         [HttpGet("products/by-barcode/{barcode}")]
         public async Task<IActionResult> GetProductByBarcode([FromRoute] long barcode)
         {

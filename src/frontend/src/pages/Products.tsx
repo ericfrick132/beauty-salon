@@ -28,9 +28,13 @@ import {
   InputAdornment,
   Tooltip,
   Stack,
+  FormControl,
+  InputLabel,
+  Select,
+  CircularProgress,
 } from '@mui/material';
-import { MoreVert, Add, Delete, Edit, Inventory, LocalOffer } from '@mui/icons-material';
-import { inventoryApi } from '../services/api';
+import { MoreVert, Add, Delete, Edit, Inventory, LocalOffer, Category } from '@mui/icons-material';
+import { inventoryApi, productCategoryApi } from '../services/api';
 
 interface ProductDto {
   id: string;
@@ -56,11 +60,21 @@ interface ProductDto {
   trackInventory: boolean;
 }
 
+interface ProductCategory {
+  id: string;
+  name: string;
+  description?: string;
+  displayOrder: number;
+  isActive: boolean;
+  productCount?: number;
+}
+
 type ProductForm = {
   id?: string;
   barcode: string;
   name: string;
   description: string;
+  categoryId: string;
   costPrice: string;
   salePrice: string;
   initialStock: string;
@@ -82,6 +96,7 @@ const emptyForm: ProductForm = {
   barcode: '',
   name: '',
   description: '',
+  categoryId: '',
   costPrice: '',
   salePrice: '',
   initialStock: '0',
@@ -104,6 +119,7 @@ const Products: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [filter, setFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [showInactive, setShowInactive] = useState(false);
   const [form, setForm] = useState<ProductForm>(emptyForm);
   const [menuAnchor, setMenuAnchor] = useState<{ id: string; anchor: HTMLElement } | null>(null);
@@ -115,6 +131,19 @@ const Products: React.FC = () => {
     reason: '',
     movement: 'In',
   });
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [categoryForm, setCategoryForm] = useState<{ id?: string; name: string; description: string; displayOrder: number; isActive: boolean }>({
+    id: undefined,
+    name: '',
+    description: '',
+    displayOrder: 0,
+    isActive: true,
+  });
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [categoryActionLoading, setCategoryActionLoading] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<ProductCategory | null>(null);
 
   const isEditing = Boolean(form.id);
 
@@ -130,8 +159,21 @@ const Products: React.FC = () => {
     }
   };
 
+  const loadCategories = async (includeInactive = true) => {
+    setCategoriesLoading(true);
+    try {
+      const data = await productCategoryApi.list(includeInactive);
+      setCategories(data);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.response?.data?.error || 'Error al cargar categorías' });
+    } finally {
+      setCategoriesLoading(false);
+    }
+  };
+
   useEffect(() => {
     load(showInactive);
+    loadCategories(true);
   }, [showInactive]);
 
   const filteredItems = useMemo(() => {
@@ -139,9 +181,10 @@ const Products: React.FC = () => {
     return items.filter(p => {
       const matches = p.name.toLowerCase().includes(term) || p.barcode.toString().includes(term) || (p.brand || '').toLowerCase().includes(term);
       const visible = showInactive ? true : p.isActive;
-      return matches && visible;
+      const matchesCategory = categoryFilter === 'all' || p.categoryId === categoryFilter;
+      return matches && visible && matchesCategory;
     });
-  }, [items, filter, showInactive]);
+  }, [items, filter, showInactive, categoryFilter]);
 
   const selectProduct = (product: ProductDto) => {
     setForm({
@@ -149,6 +192,7 @@ const Products: React.FC = () => {
       barcode: product.barcode.toString(),
       name: product.name,
       description: product.description || '',
+      categoryId: product.categoryId || '',
       costPrice: product.costPrice.toString(),
       salePrice: product.salePrice.toString(),
       initialStock: '0',
@@ -171,11 +215,88 @@ const Products: React.FC = () => {
     setForm(emptyForm);
   };
 
+  const openCategoryDialog = (category?: ProductCategory) => {
+    setCategoryForm({
+      id: category?.id,
+      name: category?.name || '',
+      description: category?.description || '',
+      displayOrder: category?.displayOrder || 0,
+      isActive: category?.isActive ?? true,
+    });
+    setCategoryError(null);
+    setCategoryDialogOpen(true);
+  };
+
+  const closeCategoryDialog = () => {
+    setCategoryDialogOpen(false);
+    setCategoryForm({ id: undefined, name: '', description: '', displayOrder: 0, isActive: true });
+    setCategoryError(null);
+  };
+
+  const saveCategory = async () => {
+    if (!categoryForm.name.trim()) {
+      setCategoryError('El nombre es requerido');
+      return;
+    }
+
+    setCategoryActionLoading(true);
+    try {
+      if (categoryForm.id) {
+        await productCategoryApi.update(categoryForm.id, {
+          name: categoryForm.name.trim(),
+          description: categoryForm.description?.trim() || undefined,
+          displayOrder: categoryForm.displayOrder,
+          isActive: categoryForm.isActive,
+        });
+        setMessage({ type: 'success', text: 'Categoría actualizada' });
+      } else {
+        const created = await productCategoryApi.create({
+          name: categoryForm.name.trim(),
+          description: categoryForm.description?.trim() || undefined,
+          displayOrder: categoryForm.displayOrder,
+          isActive: categoryForm.isActive,
+        });
+        setMessage({ type: 'success', text: 'Categoría creada' });
+        if (created?.id) {
+          setForm(prev => ({ ...prev, categoryId: created.id }));
+        }
+      }
+      await loadCategories(true);
+      closeCategoryDialog();
+    } catch (err: any) {
+      const text = err?.response?.data?.error || 'No se pudo guardar la categoría';
+      setCategoryError(text);
+    } finally {
+      setCategoryActionLoading(false);
+    }
+  };
+
+  const handleDeleteCategory = async () => {
+    if (!categoryToDelete) return;
+    setCategoryActionLoading(true);
+    try {
+      await productCategoryApi.remove(categoryToDelete.id);
+      setMessage({ type: 'success', text: 'Categoría eliminada' });
+      await loadCategories(true);
+      if (form.categoryId === categoryToDelete.id) {
+        setForm(prev => ({ ...prev, categoryId: '' }));
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.response?.data?.error || 'No se pudo eliminar la categoría' });
+    } finally {
+      setCategoryActionLoading(false);
+      setCategoryToDelete(null);
+    }
+  };
+
+  const activeCategories = useMemo(() => categories.filter(c => c.isActive), [categories]);
+
   const handleSubmit = async () => {
     const payload = {
       barcode: Number(form.barcode),
       name: form.name.trim(),
       description: form.description?.trim() || undefined,
+      categoryId: form.categoryId || null,
       costPrice: Number(form.costPrice),
       salePrice: Number(form.salePrice),
       minStock: Number(form.minStock || '0'),
@@ -280,7 +401,7 @@ const Products: React.FC = () => {
         <Grid item xs={12} md={5}>
           <Card variant="outlined">
             <CardContent>
-              <Box sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'center' }}>
+              <Box sx={{ display: 'flex', gap: 1.5, mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
                 <TextField
                   fullWidth
                   size="small"
@@ -288,6 +409,21 @@ const Products: React.FC = () => {
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
                 />
+                <FormControl size="small" sx={{ minWidth: 180 }}>
+                  <InputLabel>Categoría</InputLabel>
+                  <Select
+                    value={categoryFilter}
+                    label="Categoría"
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                  >
+                    <MenuItem value="all">Todas</MenuItem>
+                    {categories.map(c => (
+                      <MenuItem key={c.id} value={c.id}>
+                        {c.name} {c.isActive ? '' : '(inactiva)'}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
                 <FormControlLabel
                   control={<Switch checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />}
                   label="Ver inactivos"
@@ -307,13 +443,16 @@ const Products: React.FC = () => {
                     <TableRow key={p.id} hover selected={form.id === p.id}>
                       <TableCell>
                         <Stack spacing={0.5}>
-                          <Typography variant="subtitle2">{p.name}</Typography>
-                          <Typography variant="caption" color="text.secondary">#{p.barcode}</Typography>
-                          <Stack direction="row" spacing={0.5}>
-                            <Chip
-                              label={p.isActive ? 'Activo' : 'Inactivo'}
-                              size="small"
-                              color={p.isActive ? 'success' : 'default'}
+                      <Typography variant="subtitle2">{p.name}</Typography>
+                      <Typography variant="caption" color="text.secondary">#{p.barcode}</Typography>
+                      {p.categoryName && (
+                        <Chip label={p.categoryName} size="small" variant="outlined" />
+                      )}
+                      <Stack direction="row" spacing={0.5}>
+                        <Chip
+                          label={p.isActive ? 'Activo' : 'Inactivo'}
+                          size="small"
+                          color={p.isActive ? 'success' : 'default'}
                             />
                             {p.trackInventory && p.currentStock <= p.minStock ? (
                               <Chip label="Bajo stock" size="small" color="warning" />
@@ -373,6 +512,52 @@ const Products: React.FC = () => {
               </Table>
             </CardContent>
           </Card>
+
+          <Card variant="outlined" sx={{ mt: 2 }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Category fontSize="small" />
+                  <Typography variant="subtitle1">Categorías de productos</Typography>
+                </Box>
+                <Button variant="outlined" size="small" startIcon={<Add />} onClick={() => openCategoryDialog()}>
+                  Nueva categoría
+                </Button>
+              </Box>
+              {categoriesLoading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                  <CircularProgress size={20} />
+                </Box>
+              ) : categories.length === 0 ? (
+                <Alert severity="info">No hay categorías creadas.</Alert>
+              ) : (
+                <Stack spacing={1.5}>
+                  {categories.map((cat) => (
+                    <Box key={cat.id} sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, p: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                      <Box>
+                        <Typography variant="subtitle2">{cat.name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {cat.description || 'Sin descripción'}
+                        </Typography>
+                        <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                          <Chip size="small" label={cat.isActive ? 'Activa' : 'Inactiva'} color={cat.isActive ? 'success' : 'default'} />
+                          <Chip size="small" label={`${cat.productCount ?? 0} productos`} variant="outlined" />
+                        </Stack>
+                      </Box>
+                      <Stack direction="row" spacing={0.5}>
+                        <IconButton size="small" onClick={() => openCategoryDialog(cat)}>
+                          <Edit fontSize="small" />
+                        </IconButton>
+                        <IconButton size="small" color="error" onClick={() => setCategoryToDelete(cat)}>
+                          <Delete fontSize="small" />
+                        </IconButton>
+                      </Stack>
+                    </Box>
+                  ))}
+                </Stack>
+              )}
+            </CardContent>
+          </Card>
         </Grid>
 
         <Grid item xs={12} md={7}>
@@ -410,6 +595,31 @@ const Products: React.FC = () => {
                     value={form.description}
                     onChange={(e) => setForm({ ...form, description: e.target.value })}
                   />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>Categoría</InputLabel>
+                    <Select
+                      value={form.categoryId}
+                      label="Categoría"
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === '__new__') {
+                          openCategoryDialog();
+                          return;
+                        }
+                        setForm({ ...form, categoryId: value });
+                      }}
+                    >
+                      <MenuItem value="">Sin categoría</MenuItem>
+                      {activeCategories.map((c) => (
+                        <MenuItem key={c.id} value={c.id}>
+                          {c.name}
+                        </MenuItem>
+                      ))}
+                      <MenuItem value="__new__">+ Nueva categoría</MenuItem>
+                    </Select>
+                  </FormControl>
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <TextField
@@ -573,6 +783,82 @@ const Products: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+
+      <Dialog
+        open={categoryDialogOpen}
+        onClose={() => {
+          if (!categoryActionLoading) closeCategoryDialog();
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>{categoryForm.id ? 'Editar categoría' : 'Nueva categoría'}</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'grid', gap: 2, mt: 1 }}>
+            <TextField
+              label="Nombre"
+              value={categoryForm.name}
+              onChange={(e) => setCategoryForm(prev => ({ ...prev, name: e.target.value }))}
+              autoFocus
+              disabled={categoryActionLoading}
+            />
+            <TextField
+              label="Descripción (opcional)"
+              multiline
+              rows={2}
+              value={categoryForm.description}
+              onChange={(e) => setCategoryForm(prev => ({ ...prev, description: e.target.value }))}
+              disabled={categoryActionLoading}
+            />
+            <TextField
+              label="Orden"
+              type="number"
+              value={categoryForm.displayOrder}
+              onChange={(e) => setCategoryForm(prev => ({ ...prev, displayOrder: parseInt(e.target.value) || 0 }))}
+              disabled={categoryActionLoading}
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={categoryForm.isActive}
+                  onChange={(e) => setCategoryForm(prev => ({ ...prev, isActive: e.target.checked }))}
+                  disabled={categoryActionLoading}
+                />
+              }
+              label="Categoría activa"
+            />
+            {categoryError && <Alert severity="error">{categoryError}</Alert>}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeCategoryDialog} disabled={categoryActionLoading}>Cancelar</Button>
+          <Button variant="contained" onClick={saveCategory} disabled={categoryActionLoading}>
+            {categoryForm.id ? 'Guardar cambios' : 'Crear'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={!!categoryToDelete}
+        onClose={() => {
+          if (!categoryActionLoading) setCategoryToDelete(null);
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Eliminar categoría</DialogTitle>
+        <DialogContent>
+          <Typography>
+            ¿Seguro querés eliminar la categoría "{categoryToDelete?.name}"? Los productos no se borran, solo se quitará la categoría.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCategoryToDelete(null)} disabled={categoryActionLoading}>Cancelar</Button>
+          <Button color="error" variant="contained" onClick={handleDeleteCategory} disabled={categoryActionLoading}>
+            Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}>
         <DialogTitle>Eliminar producto</DialogTitle>

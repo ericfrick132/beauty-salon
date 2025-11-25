@@ -6,7 +6,7 @@ namespace BookingPro.API.Services.Interfaces
     public interface IInventoryService
     {
         // Product Categories
-        Task<List<ProductCategoryDto>> GetCategoriesAsync();
+        Task<List<ProductCategoryDto>> GetCategoriesAsync(bool includeInactive = false);
         Task<ProductCategoryDto?> GetCategoryByIdAsync(Guid id);
         Task<ProductCategoryDto> CreateCategoryAsync(CreateProductCategoryDto dto);
         Task<ProductCategoryDto> UpdateCategoryAsync(Guid id, UpdateProductCategoryDto dto);
