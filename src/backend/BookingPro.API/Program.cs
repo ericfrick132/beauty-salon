@@ -128,6 +128,7 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IMercadoPagoOAuthS
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IWhatsAppService, BookingPro.API.Services.WhatsAppService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ISubscriptionService, BookingPro.API.Services.SubscriptionService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IInventoryService, BookingPro.API.Services.InventoryService>();
+builder.Services.AddScoped<ISettingsService, SettingsService>();
 
 // New B2B/B2C services
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IPlatformPaymentService, BookingPro.API.Services.PlatformPaymentService>();

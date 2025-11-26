@@ -6,6 +6,7 @@ using BookingPro.API.Models.Enums;
 using BookingPro.API.Services.Interfaces;
 using BookingPro.API.Repositories;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace BookingPro.API.Services
 {
@@ -16,6 +17,10 @@ namespace BookingPro.API.Services
         private readonly IRepository<Employee> _employeeRepository;
         private readonly IRepository<Customer> _customerRepository;
         private readonly ITenantService _tenantService;
+
+        private record BusinessHoursConfig(TimeSpan Opening, TimeSpan Closing, HashSet<int> ClosedDays);
+        private static readonly TimeSpan DefaultOpening = new TimeSpan(9, 0, 0);
+        private static readonly TimeSpan DefaultClosing = new TimeSpan(22, 0, 0);
 
         public BookingService(
             IRepository<Booking> bookingRepository,
@@ -330,6 +335,8 @@ namespace BookingPro.API.Services
         {
             try
             {
+                var businessConfig = await GetBusinessHoursConfigAsync();
+
                 var service = await _serviceRepository.GetByIdAsync(serviceId);
                 if (service == null)
                     return ServiceResult<IEnumerable<string>>.Fail("Service not found");
@@ -348,6 +355,11 @@ namespace BookingPro.API.Services
                 var localDate = date.Kind == DateTimeKind.Utc 
                     ? date.AddHours(offsetHours)
                     : date;
+
+                if (businessConfig.ClosedDays.Contains((int)localDate.DayOfWeek))
+                {
+                    return ServiceResult<IEnumerable<string>>.Ok(new List<string>());
+                }
                 
                 var startOfDay = localDate.Date;
                 var endOfDay = startOfDay.AddDays(1);
@@ -369,11 +381,18 @@ namespace BookingPro.API.Services
                     .ToListAsync();
 
                 var availableSlots = new List<string>();
-                var businessHours = GetEmployeeBusinessHoursForDate(professionalId, localDate) ?? GetBusinessHours();
+                var employeeHours = GetEmployeeBusinessHoursForDate(professionalId, localDate);
+                var businessHours = employeeHours ?? (businessConfig.Opening, businessConfig.Closing);
+                var startWindow = businessHours.start < businessConfig.Opening ? businessConfig.Opening : businessHours.start;
+                var endWindow = businessHours.end > businessConfig.Closing ? businessConfig.Closing : businessHours.end;
+                if (startWindow >= endWindow)
+                {
+                    return ServiceResult<IEnumerable<string>>.Ok(availableSlots);
+                }
                 var slotDuration = TimeSpan.FromMinutes(service.DurationMinutes);
                 var minimumGap = TimeSpan.FromMinutes(15); // Tiempo mínimo entre citas
 
-                for (var time = businessHours.start; time <= businessHours.end.Subtract(slotDuration); time = time.Add(TimeSpan.FromMinutes(30)))
+                for (var time = startWindow; time <= endWindow.Subtract(slotDuration); time = time.Add(TimeSpan.FromMinutes(30)))
                 {
                     var localSlotStart = startOfDay.Add(time);
                     var localSlotEnd = localSlotStart.Add(slotDuration);
@@ -390,7 +409,7 @@ namespace BookingPro.API.Services
                         return utcSlotStart < bufferEnd && utcSlotEnd > bufferStart;
                     }) || blocks.Any(bl => utcSlotStart < bl.EndTime && utcSlotEnd > bl.StartTime);
 
-                    if (!hasConflict && IsWithinBusinessHours(localSlotStart, localSlotEnd))
+                    if (!hasConflict && IsWithinBusinessHours(localSlotStart, localSlotEnd, businessConfig))
                     {
                         // Compare with current time in tenant timezone
                         var currentTimeInTenantZone = DateTime.UtcNow.AddHours(offsetHours);
@@ -413,8 +432,13 @@ namespace BookingPro.API.Services
         // Validaciones críticas de negocio
         private async Task<ServiceResult> ValidateBookingBusinessRules(Guid employeeId, DateTime startTime, DateTime endTime, Service service, Guid? bookingIdToExclude = null)
         {
+            var businessConfig = await GetBusinessHoursConfigAsync();
+
+            if (businessConfig.ClosedDays.Contains((int)startTime.DayOfWeek))
+                return ServiceResult.Fail("El negocio está cerrado en ese día");
+
             // 1. Validar horario de negocio (general window)
-            if (!IsWithinBusinessHours(startTime, endTime))
+            if (!IsWithinBusinessHours(startTime, endTime, businessConfig))
                 return ServiceResult.Fail("La cita está fuera del horario de atención del negocio");
 
             // 1b. Validar horario del empleado (turno de trabajo)
@@ -494,12 +518,6 @@ namespace BookingPro.API.Services
             return ServiceResult.Ok();
         }
 
-        private (TimeSpan start, TimeSpan end) GetBusinessHours()
-        {
-            // TODO: Esto debería ser configurable por tenant/negocio
-            return (new TimeSpan(9, 0, 0), new TimeSpan(22, 0, 0));
-        }
-
         private (TimeSpan start, TimeSpan end)? GetEmployeeBusinessHoursForDate(Guid employeeId, DateTime localDate)
         {
             var ctx = _bookingRepository.GetContext();
@@ -515,15 +533,101 @@ namespace BookingPro.API.Services
             return (start, end);
         }
 
-        private bool IsWithinBusinessHours(DateTime startTime, DateTime endTime)
+        private bool IsWithinBusinessHours(DateTime startTime, DateTime endTime, BusinessHoursConfig businessConfig)
         {
-            var businessHours = GetBusinessHours();
+            if (businessConfig.ClosedDays.Contains((int)startTime.DayOfWeek) ||
+                businessConfig.ClosedDays.Contains((int)endTime.DayOfWeek))
+            {
+                return false;
+            }
+
             var startTimeOfDay = startTime.TimeOfDay;
             var endTimeOfDay = endTime.TimeOfDay;
 
-            return startTimeOfDay >= businessHours.start &&
-                   endTimeOfDay <= businessHours.end &&
+            return startTimeOfDay >= businessConfig.Opening &&
+                   endTimeOfDay <= businessConfig.Closing &&
                    startTime.Date == endTime.Date; // Misma fecha
+        }
+
+        private async Task<BusinessHoursConfig> GetBusinessHoursConfigAsync()
+        {
+            var defaultConfig = new BusinessHoursConfig(DefaultOpening, DefaultClosing, new HashSet<int>());
+            var tenantInfo = _tenantService.GetCurrentTenant();
+            if (tenantInfo == null) return defaultConfig;
+
+            var ctx = _bookingRepository.GetContext();
+            var tenant = await ctx.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.Id == tenantInfo.Id);
+            if (tenant == null) return defaultConfig;
+
+            try
+            {
+                var settings = JsonSerializer.Deserialize<Dictionary<string, object>>(tenant.Settings ?? "{}") ?? new();
+                var opening = ParseTimeSetting(settings, "businessOpeningTime") ?? DefaultOpening;
+                var closing = ParseTimeSetting(settings, "businessClosingTime") ?? DefaultClosing;
+                if (opening >= closing)
+                {
+                    opening = DefaultOpening;
+                    closing = DefaultClosing;
+                }
+
+                var closedDays = ParseClosedDays(settings);
+                return new BusinessHoursConfig(opening, closing, closedDays);
+            }
+            catch
+            {
+                return defaultConfig;
+            }
+        }
+
+        private static TimeSpan? ParseTimeSetting(Dictionary<string, object> settings, string key)
+        {
+            if (!settings.TryGetValue(key, out var value) || value == null) return null;
+
+            if (value is JsonElement je && je.ValueKind == JsonValueKind.String)
+            {
+                if (TimeSpan.TryParse(je.GetString(), out var parsed)) return parsed;
+            }
+            else if (value is string str && TimeSpan.TryParse(str, out var parsed))
+            {
+                return parsed;
+            }
+            else if (TimeSpan.TryParse(value.ToString(), out var parsedObj))
+            {
+                return parsedObj;
+            }
+
+            return null;
+        }
+
+        private static HashSet<int> ParseClosedDays(Dictionary<string, object> settings)
+        {
+            try
+            {
+                if (!settings.TryGetValue("businessClosedDays", out var value) || value == null)
+                {
+                    return new HashSet<int>();
+                }
+
+                if (value is JsonElement je && je.ValueKind == JsonValueKind.Array)
+                {
+                    var days = je.EnumerateArray()
+                        .Where(item => item.ValueKind == JsonValueKind.Number && item.TryGetInt32(out _))
+                        .Select(item => item.GetInt32());
+                    return new HashSet<int>(days);
+                }
+
+                if (value is IEnumerable<object> objList)
+                {
+                    return new HashSet<int>(objList.Select(o => Convert.ToInt32(o)));
+                }
+
+                var parsed = JsonSerializer.Deserialize<List<int>>(value.ToString() ?? "[]") ?? new List<int>();
+                return new HashSet<int>(parsed);
+            }
+            catch
+            {
+                return new HashSet<int>();
+            }
         }
 
         private async Task<ServiceResult> ValidateWithinEmployeeSchedule(Guid employeeId, DateTime startTime, DateTime endTime)

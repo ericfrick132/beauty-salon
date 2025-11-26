@@ -33,6 +33,7 @@ interface ProductDto {
   costPrice: number;
   currentStock: number;
   taxRate: number;
+  trackInventory: boolean;
 }
 
 interface CartItem {
@@ -43,6 +44,8 @@ interface CartItem {
   quantity: number;
   discountPct: number;
   taxRate: number;
+  currentStock: number;
+  trackInventory: boolean;
 }
 
 const SalesPOS: React.FC = () => {
@@ -88,7 +91,12 @@ const SalesPOS: React.FC = () => {
       setItems(prev => {
         const existing = prev.find(i => i.productId === p.id);
         if (existing) {
-          return prev.map(i => i.productId === p.id ? { ...i, quantity: i.quantity + 1 } : i);
+          const nextQty = existing.quantity + 1;
+          if (existing.trackInventory && nextQty > existing.currentStock) {
+            setMessage({ type: 'error', text: 'No hay stock suficiente para agregar más unidades' });
+            return prev;
+          }
+          return prev.map(i => i.productId === p.id ? { ...i, quantity: nextQty } : i);
         }
         return [
           ...prev,
@@ -100,6 +108,8 @@ const SalesPOS: React.FC = () => {
             quantity: 1,
             discountPct: 0,
             taxRate: p.taxRate || 0,
+            currentStock: p.currentStock,
+            trackInventory: p.trackInventory,
           }
         ];
       });
@@ -121,13 +131,30 @@ const SalesPOS: React.FC = () => {
   };
 
   const updateQty = (id: string, delta: number) => {
-    setItems(prev => prev.map(i => i.productId === id ? { ...i, quantity: Math.max(1, i.quantity + delta) } : i));
+    setItems(prev => prev.map(i => {
+      if (i.productId !== id) return i;
+      const next = Math.max(1, i.quantity + delta);
+      if (i.trackInventory && next > i.currentStock) {
+        setMessage({ type: 'error', text: 'No hay stock suficiente para esa cantidad' });
+        return i;
+      }
+      return { ...i, quantity: next };
+    }));
   };
 
   const removeItem = (id: string) => setItems(prev => prev.filter(i => i.productId !== id));
 
   const confirmSale = async () => {
     if (items.length === 0) return;
+    const insufficient = items.find(i => i.trackInventory && i.quantity > i.currentStock);
+    if (insufficient) {
+      setMessage({ type: 'error', text: `Stock insuficiente para ${insufficient.name}` });
+      return;
+    }
+    if (paymentMethod === 'cash' && (receivedAmount === '' || (receivedAmount as number) < totals.total)) {
+      setMessage({ type: 'error', text: 'El importe recibido no puede ser menor al total' });
+      return;
+    }
     try {
       const payload = {
         paymentMethod,
@@ -226,6 +253,7 @@ const SalesPOS: React.FC = () => {
                 <TableHead>
                   <TableRow>
                     <TableCell>Producto</TableCell>
+                    <TableCell align="center">Stock</TableCell>
                     <TableCell align="right">Precio</TableCell>
                     <TableCell align="center">Cantidad</TableCell>
                     <TableCell align="right">Desc. %</TableCell>
@@ -246,11 +274,18 @@ const SalesPOS: React.FC = () => {
                           <Typography variant="body2" fontWeight={600}>{item.name}</Typography>
                           <Typography variant="caption">{item.barcode}</Typography>
                         </TableCell>
+                        <TableCell align="center">
+                          {item.trackInventory ? item.currentStock : '—'}
+                        </TableCell>
                         <TableCell align="right">${item.unitPrice.toFixed(2)}</TableCell>
                         <TableCell align="center">
-                          <IconButton size="small" onClick={() => updateQty(item.productId, -1)}><Remove /></IconButton>
+                          <IconButton size="small" onClick={() => updateQty(item.productId, -1)} aria-label="Quitar unidad">
+                            <Remove />
+                          </IconButton>
                           <Typography component="span" sx={{ mx: 1 }}>{item.quantity}</Typography>
-                          <IconButton size="small" onClick={() => updateQty(item.productId, 1)}><Add /></IconButton>
+                          <IconButton size="small" onClick={() => updateQty(item.productId, 1)} aria-label="Agregar unidad">
+                            <Add />
+                          </IconButton>
                         </TableCell>
                         <TableCell align="right">
                           <TextField
@@ -263,14 +298,16 @@ const SalesPOS: React.FC = () => {
                         </TableCell>
                         <TableCell align="right">${lineTotal.toFixed(2)}</TableCell>
                         <TableCell align="center">
-                          <IconButton color="error" onClick={() => removeItem(item.productId)}><Delete /></IconButton>
+                          <IconButton color="error" onClick={() => removeItem(item.productId)} aria-label="Eliminar producto del carrito">
+                            <Delete />
+                          </IconButton>
                         </TableCell>
                       </TableRow>
                     );
                   })}
                   {items.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} align="center">
+                      <TableCell colSpan={7} align="center">
                         <Typography variant="body2" color="text.secondary">Escanea un producto para agregarlo</Typography>
                       </TableCell>
                     </TableRow>
@@ -307,7 +344,16 @@ const SalesPOS: React.FC = () => {
                   <Typography>${change.toFixed(2)}</Typography>
                 </Box>
               )}
-              <Button variant="contained" color="primary" fullWidth disabled={items.length === 0} onClick={confirmSale}>
+              <Button
+                variant="contained"
+                color="primary"
+                fullWidth
+                disabled={
+                  items.length === 0 ||
+                  (paymentMethod === 'cash' && (receivedAmount === '' || (receivedAmount as number) < totals.total))
+                }
+                onClick={confirmSale}
+              >
                 Confirmar venta
               </Button>
             </CardContent>

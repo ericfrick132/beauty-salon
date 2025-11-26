@@ -37,6 +37,8 @@ import {
   AccordionSummary,
   AccordionDetails,
   CircularProgress,
+  SelectChangeEvent,
+  Checkbox,
 } from '@mui/material';
 import {
   Save,
@@ -120,6 +122,16 @@ const LANGUAGES = [
   { value: 'pt', label: 'Português' },
 ];
 
+const WEEK_DAYS = [
+  { value: 0, label: 'Domingo' },
+  { value: 1, label: 'Lunes' },
+  { value: 2, label: 'Martes' },
+  { value: 3, label: 'Miércoles' },
+  { value: 4, label: 'Jueves' },
+  { value: 5, label: 'Viernes' },
+  { value: 6, label: 'Sábado' },
+];
+
 interface ServiceCategory {
   id: string;
   name: string;
@@ -154,6 +166,12 @@ const Settings: React.FC = () => {
       end: '18:00',
       workingDays: [1, 2, 3, 4, 5, 6], // Monday to Saturday
     }
+  });
+
+  const [businessHoursSettings, setBusinessHoursSettings] = useState({
+    openingTime: '09:00',
+    closingTime: '22:00',
+    closedDays: [] as number[],
   });
 
   // Services Settings State
@@ -249,6 +267,17 @@ const Settings: React.FC = () => {
     loadSettings();
   }, []);
 
+  const handleClosedDaysChange = (event: SelectChangeEvent<number[]>) => {
+    const value = event.target.value;
+    const parsed = typeof value === 'string'
+      ? value.split(',').map(Number)
+      : (value as number[]).map(Number);
+    setBusinessHoursSettings(prev => ({
+      ...prev,
+      closedDays: parsed,
+    }));
+  };
+
   const loadSettings = async () => {
     setLoading(true);
     try {
@@ -293,6 +322,20 @@ const Settings: React.FC = () => {
         }
       } catch (error) {
         console.log('Services settings not available');
+      }
+
+      // Load business hours
+      try {
+        const businessHoursRes = await api.get('/settings/business-hours');
+        if (businessHoursRes?.data) {
+          setBusinessHoursSettings({
+            openingTime: businessHoursRes.data.openingTime || '09:00',
+            closingTime: businessHoursRes.data.closingTime || '22:00',
+            closedDays: businessHoursRes.data.closedDays || [],
+          });
+        }
+      } catch (error) {
+        console.log('Business hours settings not available');
       }
 
       await loadCategories();
@@ -406,6 +449,27 @@ const Settings: React.FC = () => {
       setSnackbar({
         open: true,
         message: 'Error al guardar la configuración general',
+        severity: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveBusinessHoursSettings = async () => {
+    setLoading(true);
+    try {
+      await api.put('/settings/business-hours', businessHoursSettings);
+      setSnackbar({
+        open: true,
+        message: 'Horarios guardados exitosamente',
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('Error saving business hours settings:', error);
+      setSnackbar({
+        open: true,
+        message: 'Error al guardar los horarios',
         severity: 'error'
       });
     } finally {
@@ -842,6 +906,81 @@ const Settings: React.FC = () => {
                         ))}
                       </List>
                     )}
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="subtitle1" gutterBottom>Horarios del negocio</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Define la ventana general de apertura y cierre del sistema, incluyendo los días en que no se atiende.
+                    </Typography>
+                    <Grid container spacing={2} sx={{ mt: 1 }}>
+                      <Grid item xs={12} md={4}>
+                        <TextField
+                          fullWidth
+                          type="time"
+                          label="Hora de apertura"
+                          value={businessHoursSettings.openingTime}
+                          onChange={(e) => setBusinessHoursSettings(prev => ({
+                            ...prev,
+                            openingTime: e.target.value
+                          }))}
+                          InputLabelProps={{ shrink: true }}
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <TextField
+                          fullWidth
+                          type="time"
+                          label="Hora de cierre"
+                          value={businessHoursSettings.closingTime}
+                          onChange={(e) => setBusinessHoursSettings(prev => ({
+                            ...prev,
+                            closingTime: e.target.value
+                          }))}
+                          InputLabelProps={{ shrink: true }}
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <FormControl fullWidth>
+                          <InputLabel id="closed-days-label">Días cerrados</InputLabel>
+                          <Select
+                            labelId="closed-days-label"
+                            multiple
+                            value={businessHoursSettings.closedDays}
+                            label="Días cerrados"
+                            onChange={handleClosedDaysChange}
+                            renderValue={(selected) => {
+                              if (!selected.length) return 'Sin días cerrados';
+                              return WEEK_DAYS
+                                .filter(d => selected.includes(d.value))
+                                .map(d => d.label)
+                                .join(', ');
+                            }}
+                          >
+                            {WEEK_DAYS.map((day) => (
+                              <MenuItem key={day.value} value={day.value}>
+                                <Checkbox checked={businessHoursSettings.closedDays.includes(day.value)} />
+                                <ListItemText primary={day.label} />
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                    </Grid>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                      <Button
+                        variant="contained"
+                        startIcon={<Save />}
+                        onClick={saveBusinessHoursSettings}
+                        disabled={loading}
+                      >
+                        Guardar horarios
+                      </Button>
+                    </Box>
                   </CardContent>
                 </Card>
               </Grid>

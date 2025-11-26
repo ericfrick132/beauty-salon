@@ -124,12 +124,13 @@ const Products: React.FC = () => {
   const [form, setForm] = useState<ProductForm>(emptyForm);
   const [menuAnchor, setMenuAnchor] = useState<{ id: string; anchor: HTMLElement } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProductDto | null>(null);
-  const [stockDialog, setStockDialog] = useState<{ open: boolean; product: ProductDto | null; qty: string; reason: string; movement: 'In' | 'Out' | 'Adjustment' }>({
+  const [stockDialog, setStockDialog] = useState<{ open: boolean; product: ProductDto | null; qty: string; reason: string; movement: 'In' | 'Out' | 'Adjustment'; unitCost: string }>({
     open: false,
     product: null,
     qty: '',
     reason: '',
     movement: 'In',
+    unitCost: '',
   });
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
@@ -315,9 +316,31 @@ const Products: React.FC = () => {
       isActive: form.isActive,
     };
 
-    if (!payload.barcode || !payload.name || payload.costPrice < 0 || payload.salePrice <= 0) {
-      setMessage({ type: 'error', text: 'Completa nombre, código, costo y venta con valores válidos' });
+    if (!payload.barcode || Number.isNaN(payload.barcode)) {
+      setMessage({ type: 'error', text: 'El código de barras es obligatorio y debe ser numérico' });
       return;
+    }
+    if (!payload.name) {
+      setMessage({ type: 'error', text: 'El nombre es obligatorio' });
+      return;
+    }
+    if (payload.costPrice < 0 || Number.isNaN(payload.costPrice)) {
+      setMessage({ type: 'error', text: 'El costo debe ser un número mayor o igual a 0' });
+      return;
+    }
+    if (payload.salePrice <= 0 || Number.isNaN(payload.salePrice)) {
+      setMessage({ type: 'error', text: 'El precio de venta debe ser mayor a 0' });
+      return;
+    }
+    if (payload.trackInventory) {
+      if (payload.minStock < 0 || payload.maxStock < 0) {
+        setMessage({ type: 'error', text: 'Los stocks mínimo y máximo no pueden ser negativos' });
+        return;
+      }
+      if (payload.minStock > payload.maxStock) {
+        setMessage({ type: 'error', text: 'El stock mínimo no puede superar al máximo' });
+        return;
+      }
     }
 
     setLoading(true);
@@ -326,7 +349,13 @@ const Products: React.FC = () => {
         await inventoryApi.updateProduct(form.id, payload);
         setMessage({ type: 'success', text: 'Producto actualizado' });
       } else {
-        const createPayload = { ...payload, initialStock: Number(form.initialStock || '0') };
+        const initialStock = Number(form.initialStock || '0');
+        if (payload.trackInventory && (initialStock < 0 || Number.isNaN(initialStock))) {
+          setMessage({ type: 'error', text: 'El stock inicial debe ser 0 o mayor' });
+          setLoading(false);
+          return;
+        }
+        const createPayload = { ...payload, initialStock };
         await inventoryApi.createProduct(createPayload);
         setMessage({ type: 'success', text: 'Producto creado' });
       }
@@ -359,8 +388,13 @@ const Products: React.FC = () => {
   const saveStock = async () => {
     if (!stockDialog.product) return;
     const qty = Number(stockDialog.qty);
-    if (!qty || isNaN(qty)) {
+    if (!qty || isNaN(qty) || qty <= 0) {
       setMessage({ type: 'error', text: 'Cantidad inválida' });
+      return;
+    }
+    const unitCostNumber = stockDialog.unitCost ? Number(stockDialog.unitCost) : Number(stockDialog.product.costPrice ?? 0);
+    if (isNaN(unitCostNumber) || unitCostNumber < 0) {
+      setMessage({ type: 'error', text: 'El costo unitario debe ser 0 o mayor' });
       return;
     }
     setLoading(true);
@@ -369,6 +403,7 @@ const Products: React.FC = () => {
         quantity: qty,
         movementType: stockDialog.movement,
         reason: stockDialog.reason || undefined,
+        unitCost: unitCostNumber,
       });
       setMessage({ type: 'success', text: 'Stock actualizado' });
       await load(showInactive);
@@ -376,7 +411,7 @@ const Products: React.FC = () => {
       setMessage({ type: 'error', text: err?.response?.data?.error || 'No se pudo actualizar el stock' });
     } finally {
       setLoading(false);
-      setStockDialog({ open: false, product: null, qty: '', reason: '', movement: 'In' });
+      setStockDialog({ open: false, product: null, qty: '', reason: '', movement: 'In', unitCost: '' });
     }
   };
 
@@ -463,7 +498,11 @@ const Products: React.FC = () => {
                       <TableCell align="right">{p.trackInventory ? p.currentStock : '—'}</TableCell>
                       <TableCell align="right">${p.salePrice.toFixed(2)}</TableCell>
                       <TableCell align="center">
-                        <IconButton size="small" onClick={(e) => setMenuAnchor({ id: p.id, anchor: e.currentTarget })}>
+                        <IconButton
+                          size="small"
+                          onClick={(e) => setMenuAnchor({ id: p.id, anchor: e.currentTarget })}
+                          aria-label="Abrir acciones de producto"
+                        >
                           <MoreVert />
                         </IconButton>
                         <Menu
@@ -476,14 +515,24 @@ const Products: React.FC = () => {
                               selectProduct(p);
                               setMenuAnchor(null);
                             }}
+                            aria-label="Editar producto"
                           >
                             <Edit fontSize="small" style={{ marginRight: 8 }} /> Editar
                           </MenuItem>
                           <MenuItem
+                            disabled={!p.trackInventory}
                             onClick={() => {
-                              setStockDialog({ open: true, product: p, qty: '', reason: '', movement: 'In' });
+                              setStockDialog({
+                                open: true,
+                                product: p,
+                                qty: '',
+                                reason: '',
+                                movement: 'In',
+                                unitCost: p.costPrice?.toString() || '',
+                              });
                               setMenuAnchor(null);
                             }}
+                            aria-label="Ajustar stock"
                           >
                             <LocalOffer fontSize="small" style={{ marginRight: 8 }} /> Ajustar stock
                           </MenuItem>
@@ -492,6 +541,7 @@ const Products: React.FC = () => {
                               setDeleteTarget(p);
                               setMenuAnchor(null);
                             }}
+                            aria-label="Eliminar producto"
                           >
                             <Delete fontSize="small" style={{ marginRight: 8 }} /> Eliminar
                           </MenuItem>
@@ -545,10 +595,15 @@ const Products: React.FC = () => {
                         </Stack>
                       </Box>
                       <Stack direction="row" spacing={0.5}>
-                        <IconButton size="small" onClick={() => openCategoryDialog(cat)}>
+                        <IconButton size="small" onClick={() => openCategoryDialog(cat)} aria-label={`Editar categoría ${cat.name}`}>
                           <Edit fontSize="small" />
                         </IconButton>
-                        <IconButton size="small" color="error" onClick={() => setCategoryToDelete(cat)}>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => setCategoryToDelete(cat)}
+                          aria-label={`Eliminar categoría ${cat.name}`}
+                        >
                           <Delete fontSize="small" />
                         </IconButton>
                       </Stack>
@@ -893,6 +948,15 @@ const Products: React.FC = () => {
             value={stockDialog.reason}
             onChange={(e) => setStockDialog(prev => ({ ...prev, reason: e.target.value }))}
             sx={{ mt: 2 }}
+          />
+          <TextField
+            label="Costo unitario"
+            type="number"
+            fullWidth
+            value={stockDialog.unitCost}
+            onChange={(e) => setStockDialog(prev => ({ ...prev, unitCost: e.target.value }))}
+            sx={{ mt: 2 }}
+            helperText="Usaremos este costo para el movimiento de stock"
           />
           <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
             <Button

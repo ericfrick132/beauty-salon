@@ -269,7 +269,7 @@ namespace BookingPro.API.Services
                     NewCostPrice = dto.CostPrice,
                     OldSalePrice = product.SalePrice,
                     NewSalePrice = dto.SalePrice,
-                    ChangedBy = updatedBy ?? updatedBy
+                    ChangedBy = updatedBy
                 };
                 _context.PriceHistories.Add(priceHistory);
             }
@@ -330,10 +330,19 @@ namespace BookingPro.API.Services
                 throw new InvalidOperationException("This product does not track inventory");
             }
 
+            var movementType = dto.MovementType.ToLowerInvariant();
+            if (movementType != "adjustment" && dto.Quantity <= 0)
+            {
+                throw new ArgumentException("Quantity must be greater than zero");
+            }
+            if (movementType == "adjustment" && dto.Quantity < 0)
+            {
+                throw new ArgumentException("Quantity must be zero or greater for adjustment");
+            }
             int previousStock = product.CurrentStock;
             int newStock = previousStock;
 
-            switch (dto.MovementType.ToLower())
+            switch (movementType)
             {
                 case "in":
                     newStock += dto.Quantity;
@@ -356,17 +365,18 @@ namespace BookingPro.API.Services
             product.CurrentStock = newStock;
             product.UpdatedAt = DateTime.UtcNow;
 
+            var movementUnitCost = dto.UnitCost ?? product.CostPrice;
             // Create stock movement record
             var stockMovement = new StockMovement
             {
                 ProductId = productId,
-                MovementType = dto.MovementType,
-                Quantity = dto.MovementType.ToLower() == "adjustment" ? newStock - previousStock : dto.Quantity,
+                MovementType = movementType,
+                Quantity = movementType == "adjustment" ? newStock - previousStock : dto.Quantity,
                 PreviousStock = previousStock,
                 NewStock = newStock,
                 Reason = dto.Reason,
                 Notes = dto.Notes,
-                UnitCost = dto.UnitCost,
+                UnitCost = movementUnitCost,
                 PerformedBy = performedBy
             };
 
@@ -565,6 +575,7 @@ namespace BookingPro.API.Services
 
             foreach (var kvp in adjustments)
             {
+                if (kvp.Value == 0) continue;
                 var product = await _context.Products.FindAsync(kvp.Key);
                 if (product != null && product.TrackInventory)
                 {
@@ -584,6 +595,7 @@ namespace BookingPro.API.Services
                             PreviousStock = previousStock,
                             NewStock = newStock,
                             Reason = reason,
+                            UnitCost = product.CostPrice,
                             PerformedBy = performedBy
                         };
 
@@ -822,10 +834,9 @@ namespace BookingPro.API.Services
                         throw new InvalidOperationException($"Insufficient stock for {prod.Name}. Available: {prod.CurrentStock}");
                 }
 
-                // Generate sale number: POS-YYYYMMDD-####
-                var today = DateTime.UtcNow.Date;
-                var todayCount = await _context.Sales.CountAsync(s => s.SaleDate.Date == today);
-                var saleNumber = $"POS-{today:yyyyMMdd}-{(todayCount + 1).ToString("D4")}";
+                // Generate sale number with millisecond timestamp to avoid collisions
+                var now = DateTime.UtcNow;
+                var saleNumber = $"POS-{now:yyyyMMddHHmmssfff}";
 
                 var sale = new Sale
                 {
