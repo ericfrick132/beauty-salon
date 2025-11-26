@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
@@ -54,6 +54,8 @@ import {
   Star,
   Business,
   Block as BlockIcon,
+  Inventory2Outlined,
+  Storefront,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useAppDispatch, useAppSelector } from '../../store';
@@ -228,19 +230,44 @@ export const AdminLayout: React.FC = () => {
   const headerTextColor = getHeaderTextColor(themeConfig);
   const isLightTheme = themeConfig.isLightBackground;
 
-  // Simplified, world-class IA: flat, clear, 3-click rule
+  // IA agrupada con colapsables por tema
   const menuItems: MenuItemType[] = [
     { text: 'Inicio', icon: <Dashboard />, path: '/dashboard' },
-    { text: 'Agenda', icon: <CalendarToday />, path: '/calendar' },
-    { text: 'Bloqueos', icon: <BlockIcon />, path: '/blocks' },
-    { text: 'Clientes', icon: <People />, path: '/customers' },
-    { text: 'Servicios', icon: <ManageAccounts />, path: '/services' },
-    { text: 'Empleados', icon: <Group />, path: '/employees' },
-    { text: 'Ventas', icon: <AttachMoney />, path: '/pos' },
-    { text: 'Pagos', icon: <Payment />, path: '/payments' },
+    {
+      text: 'Agenda',
+      icon: <CalendarToday />,
+      children: [
+        { text: 'Agenda', path: '/calendar', icon: <Schedule fontSize="small" /> },
+        { text: 'Bloqueos', path: '/blocks', icon: <BlockIcon fontSize="small" /> },
+      ],
+    },
+    {
+      text: 'Clientes y Servicios',
+      icon: <People />,
+      children: [
+        { text: 'Clientes', path: '/customers', icon: <People fontSize="small" /> },
+        { text: 'Servicios', path: '/services', icon: <ManageAccounts fontSize="small" /> },
+        { text: 'Empleados', path: '/employees', icon: <Group fontSize="small" /> },
+      ],
+    },
+    {
+      text: 'Ventas e Inventario',
+      icon: <AttachMoney />,
+      children: [
+        { text: 'Punto de venta', path: '/pos', icon: <Storefront fontSize="small" /> },
+        { text: 'Productos', path: '/products', icon: <Inventory2Outlined fontSize="small" /> },
+        { text: 'Pagos', path: '/payments', icon: <Payment fontSize="small" /> },
+      ],
+    },
     { text: 'Reportes', icon: <Assessment />, path: '/reports' },
-    { text: 'Configuración', icon: <Settings />, path: '/settings' },
-    { text: 'Suscripción', icon: <CreditCard />, path: '/subscription' },
+    {
+      text: 'Configuración',
+      icon: <Settings />,
+      children: [
+        { text: 'General', path: '/settings', icon: <Settings fontSize="small" /> },
+        { text: 'Suscripción', path: '/subscription', icon: <CreditCard fontSize="small" /> },
+      ],
+    },
   ];
 
   const handleDrawerToggle = () => {
@@ -283,6 +310,24 @@ export const AdminLayout: React.FC = () => {
   const handleSubmenuToggle = (text: string) => {
     setOpenSubmenu(openSubmenu === text ? null : text);
   };
+
+  const findParentByPath = (items: MenuItemType[], path: string): string | null => {
+    for (const item of items) {
+      if (item.children) {
+        if (item.children.some(child => child.path === path)) return item.text;
+        const nested = findParentByPath(item.children, path);
+        if (nested) return nested;
+      }
+    }
+    return null;
+  };
+
+  useEffect(() => {
+    const parent = findParentByPath(menuItems, location.pathname);
+    if (parent) {
+      setOpenSubmenu(parent);
+    }
+  }, [location.pathname]);
 
   const getInitials = (name?: string) => {
     if (!name) return 'U';

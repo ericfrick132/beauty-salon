@@ -23,7 +23,7 @@ import {
 } from '@mui/material';
 import { Add, Delete, Remove, QrCodeScanner } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
+import api, { inventoryApi } from '../services/api';
 
 interface ProductDto {
   id: string;
@@ -50,7 +50,9 @@ interface CartItem {
 
 const SalesPOS: React.FC = () => {
   const navigate = useNavigate();
-  const [barcode, setBarcode] = useState('');
+  const [productInput, setProductInput] = useState('');
+  const [products, setProducts] = useState<ProductDto[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
   const [items, setItems] = useState<CartItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [receivedAmount, setReceivedAmount] = useState<number | ''>('');
@@ -64,6 +66,7 @@ const SalesPOS: React.FC = () => {
     const handler = () => inputRef.current?.focus();
     window.addEventListener('click', handler);
     loadEmployees();
+    loadProducts();
     return () => window.removeEventListener('click', handler);
   }, []);
 
@@ -82,25 +85,56 @@ const SalesPOS: React.FC = () => {
     return { sub, disc, tax, total };
   }, [items]);
 
-  const handleScan = async () => {
-    const code = barcode.trim();
-    if (!code) return;
+  const loadProducts = async () => {
+    setProductsLoading(true);
     try {
-      const resp = await api.get(`/inventory/products/by-barcode/${code}`);
-      const p: ProductDto = resp.data;
-      setItems(prev => {
-        const existing = prev.find(i => i.productId === p.id);
-        if (existing) {
-          const nextQty = existing.quantity + 1;
-          if (existing.trackInventory && nextQty > existing.currentStock) {
-            setMessage({ type: 'error', text: 'No hay stock suficiente para agregar más unidades' });
-            return prev;
-          }
-          return prev.map(i => i.productId === p.id ? { ...i, quantity: nextQty } : i);
+      const list = await inventoryApi.getProducts(false);
+      setProducts(list || []);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.response?.data?.error || 'No se pudieron cargar los productos' });
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+
+  const pickProduct = (term: string): ProductDto | null => {
+    if (!term) return null;
+    const lower = term.toLowerCase();
+    const numeric = /^\d+$/.test(term);
+    if (numeric) {
+      const code = Number(term);
+      const exact = products.find(p => p.barcode === code);
+      if (exact) return exact;
+    }
+    const byName = products.find(p => p.name.toLowerCase().includes(lower));
+    return byName || null;
+  };
+
+  const handleAddProduct = async () => {
+    const term = productInput.trim();
+    if (!term) return;
+    const localProduct = pickProduct(term);
+
+    if (!localProduct) {
+      setMessage({ type: 'error', text: 'Producto no encontrado' });
+      setProductInput('');
+      return;
+    }
+
+    const p = localProduct;
+    setItems(prev => {
+      const existing = prev.find(i => i.productId === p.id);
+      if (existing) {
+        const nextQty = existing.quantity + 1;
+        if (existing.trackInventory && nextQty > existing.currentStock) {
+          setMessage({ type: 'error', text: 'No hay stock suficiente para agregar más unidades' });
+          return prev;
         }
-        return [
-          ...prev,
-          {
+        return prev.map(i => i.productId === p.id ? { ...i, quantity: nextQty } : i);
+      }
+      return [
+        ...prev,
+        {
             productId: p.id,
             name: p.name,
             barcode: p.barcode,
@@ -113,12 +147,8 @@ const SalesPOS: React.FC = () => {
           }
         ];
       });
-      setBarcode('');
+      setProductInput('');
       inputRef.current?.focus();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: 'Producto no encontrado' });
-      setBarcode('');
-    }
   };
 
   const loadEmployees = async () => {
@@ -196,12 +226,14 @@ const SalesPOS: React.FC = () => {
             <Grid item xs={12} md={5}>
               <TextField
                 inputRef={inputRef}
-                value={barcode}
-                onChange={(e) => setBarcode(e.target.value.replace(/[^0-9]/g, ''))}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleScan(); }}
-                label="Escanea código de barras"
+                value={productInput}
+                onChange={(e) => setProductInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAddProduct(); }}
+                label="Código de barras o nombre"
+                placeholder="Escaneá o escribe el nombre"
                 fullWidth
                 autoFocus
+                helperText={productsLoading ? 'Cargando productos...' : 'Presiona Enter para agregar'}
               />
             </Grid>
             <Grid item xs={12} md={4}>
