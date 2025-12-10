@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import { brand } from '@/app/(lib)/brand';
 import ThemeRegistry from '@/app/(components)/ThemeRegistry';
 import { CssBaseline, ThemeProvider } from '@mui/material';
 import theme from '@/app/(lib)/theme';
+import { Space_Grotesk } from 'next/font/google';
 
-const inter = Inter({ subsets: ['latin'], display: 'swap' });
+const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], display: 'swap' });
 
 export const metadata: Metadata = {
   metadataBase: new URL(brand.brand_domain),
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang={brand.lang}>
-      <body className={inter.className}>
+      <body className={spaceGrotesk.className}>
         <ThemeRegistry>
           <ThemeProvider theme={theme}>
             <CssBaseline />

@@ -1,18 +1,20 @@
-# Build stage
-FROM node:18-alpine as build
+# Build static marketing (Next export)
+FROM node:18-alpine AS marketing-build
+WORKDIR /marketing
+ENV NEXT_TELEMETRY_DISABLED=1
 
+COPY src/marketing-next/package.json ./
+RUN npm install
+COPY src/marketing-next ./
+RUN npm run build
+
+# Build SPA (CRA)
+FROM node:18-alpine as build
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-
-# Install dependencies
+COPY src/frontend/package*.json ./
 RUN npm install
-
-# Copy source code
-COPY . .
-
-# Build the app for production
+COPY src/frontend ./
 RUN npm run build
 
 # Production stage with nginx
@@ -26,9 +28,10 @@ RUN rm -rf /etc/nginx/conf.d/*
 
 # Copy built app to nginx html directory
 COPY --from=build /app/build /usr/share/nginx/html
+COPY --from=marketing-build /marketing/out /usr/share/nginx/marketing
 
 # Copy production nginx config
-COPY nginx.prod.conf /etc/nginx/conf.d/default.conf
+COPY src/frontend/nginx.prod.conf /etc/nginx/conf.d/default.conf
 
 # CRITICAL: Health check for Digital Ocean App Platform
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

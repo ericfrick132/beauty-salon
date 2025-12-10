@@ -52,3 +52,22 @@ export function faqSchema(faqs: { q: string; a: string }[]) {
   } as const;
 }
 
+export function videoSchema({ url, name, description }: { url: string; name: string; description: string }) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'VideoObject',
+    name,
+    description,
+    thumbnailUrl: [`${brand.brand_domain}${brand.og_image}`],
+    uploadDate: new Date().toISOString(),
+    contentUrl: url,
+    publisher: {
+      '@type': 'Organization',
+      name: brand.brand_name,
+      logo: {
+        '@type': 'ImageObject',
+        url: `${brand.brand_domain}${brand.logo_url}`,
+      },
+    },
+  } as const;
+}

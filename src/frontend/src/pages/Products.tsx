@@ -928,7 +928,7 @@ const Products: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={stockDialog.open} onClose={() => setStockDialog({ open: false, product: null, qty: '', reason: '', movement: 'In' })} maxWidth="xs" fullWidth>
+      <Dialog open={stockDialog.open} onClose={() => setStockDialog({ open: false, product: null, qty: '', reason: '', movement: 'In', unitCost: '' })} maxWidth="xs" fullWidth>
         <DialogTitle>Ajustar stock</DialogTitle>
         <DialogContent>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>
@@ -982,7 +982,7 @@ const Products: React.FC = () => {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setStockDialog({ open: false, product: null, qty: '', reason: '', movement: 'In' })} disabled={loading}>Cancelar</Button>
+          <Button onClick={() => setStockDialog({ open: false, product: null, qty: '', reason: '', movement: 'In', unitCost: '' })} disabled={loading}>Cancelar</Button>
           <Button variant="contained" onClick={saveStock} disabled={loading}>Guardar</Button>
         </DialogActions>
       </Dialog>

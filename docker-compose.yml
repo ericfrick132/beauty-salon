@@ -5,58 +5,59 @@ services:
     build:
       context: ./src/backend/BookingPro.API
       dockerfile: Dockerfile
+    container_name: gymhero-api
     ports:
-      - "5001:8080"
+      - "5000:8080"
     environment:
-      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}
-      - ConnectionStrings__DefaultConnection=${DATABASE_URL:-Host=host.docker.internal;Port=5432;Database=bookingprodb;Username=postgres;Password=eric1234}
-      - Jwt__Key=${JWT_KEY:-your-secret-key-here-minimum-32-characters-long}
-      - FrontendUrl=http://localhost:3001
-      - SEED_DATA=true
-      - MercadoPago__ClientId=8910659199325958
-      - MercadoPago__ClientSecret=tXQ2jMYukAGjlLe4RwS6aC3XXdPzwqKv
-      - MercadoPago__AccessToken=APP_USR-8910659199325958-082907-f0d77b54c6f145eae906dccce69ed282-90448573
-      - MercadoPago__RedirectUri=${MERCADOPAGO_REDIRECT_URI:-http://localhost:5001/api/mercadopago/callback}
-      - MercadoPago__WebhookUrl=${MERCADOPAGO_WEBHOOK_URL:-http://localhost:5001/api/webhooks/mercadopago}
-    # Redis dependency removed
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=${DATABASE_URL:-Host=host.docker.internal;Database=gymherodb;Username=postgres;Password=eric1234}
+      - Jwt__Key=your-secret-key-here-minimum-32-characters-long-for-multi-tenant-system
+      - FrontendUrl=http://localhost:3000
+      - AdditionalCorsOrigins=http://demo.localhost:3000,http://mygym.localhost:3000,http://*.localhost:3000,http://localhost:3030
+      - SEED_DATA=false
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-}
+      - TWILIO_FROM_WHATSAPP=${TWILIO_FROM_WHATSAPP:-}
+      - WHATSAPP_ENABLED=true
+      - WHATSAPP_DEFAULT_INCLUDED=500
+      - WHATSAPP_OVERAGE_PRICE=20
+      - WHATSAPP_HARDCAP=false
+      - EVOLUTION_API_ENABLED=true
+      - EVOLUTION_API_BASE_URL=http://64.227.3.140:8080/
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
+      - EVOLUTION_API_INSTANCE=${EVOLUTION_API_INSTANCE}
     networks:
-      - bookingpro-network
+      - gymhero-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
-  client:
+  frontend:
     build:
-      context: ./src/frontend
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: src/frontend/Dockerfile
+    container_name: gymhero-frontend
     ports:
-      - "3001:3000"
+      - "3000:80"
     environment:
-      - REACT_APP_API_URL=http://localhost:5001/api
-      - REACT_APP_APP_NAME=BookingPro
+      - REACT_APP_API_URL=http://localhost:5000/api
+      - REACT_APP_APP_NAME=GymHero
+      - API_UPSTREAM_HOST=api
+      - API_UPSTREAM_PORT=8080
+      - API_UPSTREAM_SCHEME=http
     depends_on:
       - api
     networks:
-      - bookingpro-network
-    # Nota: sin volúmenes para evitar persistencia de node_modules.
-    # Si cambiás código, necesitás rebuild: `docker-compose up --build`
-
-
-  # nginx:
-  #   image: nginx:alpine
-  #   ports:
-  #     - "80:80"
-  #   volumes:
-  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-  #   depends_on:
-  #     - api
-  #     - client
-  #   networks:
-  #     - bookingpro-network
+      - gymhero-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 networks:
-  bookingpro-network:
+  gymhero-network:
     driver: bridge
-
-# Note: PostgreSQL debe estar instalado externamente
-# Para conectar con PostgreSQL externo, asegúrate de:
-# 1. Tener PostgreSQL corriendo en el host
-# 2. Configurar la variable DATABASE_URL con la conexión correcta
-# 3. Permitir conexiones desde Docker (host.docker.internal)

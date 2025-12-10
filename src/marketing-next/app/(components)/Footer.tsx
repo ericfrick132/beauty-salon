@@ -3,13 +3,23 @@ import Link from 'next/link';
 
 export default function Footer() {
   return (
-    <Box component="footer" sx={{ borderTop: '1px solid #eee', py: 4, mt: 8 }}>
-      <Container maxWidth="lg" sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', justifyContent: 'space-between' }}>
+    <Box component="footer" sx={{ borderTop: '1px solid #1f2a37', py: 4, mt: 8, bgcolor: '#0B0F14' }}>
+      <Container
+        maxWidth="lg"
+        sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 2,
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          color: 'text.secondary',
+        }}
+      >
         <Typography variant="body2">© {new Date().getFullYear()} GymHero</Typography>
         <Box sx={{ display: 'flex', gap: 2 }}>
-          <MuiLink component={Link} href="/terminos" underline="hover">Términos</MuiLink>
-          <MuiLink component={Link} href="/privacidad" underline="hover">Privacidad</MuiLink>
-          <MuiLink href="mailto:soporte@gymhero.com" underline="hover">Contacto</MuiLink>
+          <MuiLink component={Link} href="/terminos" underline="hover" color="inherit">Términos</MuiLink>
+          <MuiLink component={Link} href="/privacidad" underline="hover" color="inherit">Privacidad</MuiLink>
+          <MuiLink href="mailto:soporte@gymhero.com" underline="hover" color="inherit">Contacto</MuiLink>
         </Box>
       </Container>
     </Box>

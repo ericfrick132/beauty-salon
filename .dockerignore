@@ -1,0 +1,11 @@
+.git
+node_modules
+npm-debug.log
+docker-compose*
+*.md
+*.log
+**/node_modules
+**/.next
+**/build
+**/out
+.DS_Store

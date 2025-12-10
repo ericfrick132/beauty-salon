@@ -3,15 +3,14 @@ import { createTheme } from '@mui/material/styles';
 
 const theme = createTheme({
   palette: {
-    mode: 'light',
-    primary: { main: '#2D5A47' },
-    secondary: { main: '#B8860B' },
-    background: { default: '#ffffff' },
+    mode: 'dark',
+    primary: { main: '#0F766E' },
+    secondary: { main: '#F59E0B' },
+    background: { default: '#0E1117' },
   },
   typography: {
-    fontFamily: 'Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif',
+    fontFamily: '"Space Grotesk", Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif',
   },
 });
 
 export default theme;
-

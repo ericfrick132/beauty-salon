@@ -10,5 +10,6 @@ export const brand = {
   logo_url: '/logo.png',
   support_email: 'soporte@gymhero.com',
   support_phone: '+54 11 1234-5678',
+  demo_booking_url: 'mailto:soporte@gymhero.com?subject=Quiero%20una%20demo%20de%20GymHero',
+  demo_video_url: 'https://www.loom.com/embed/6c2b52a60e9d4c1d8fae6e60d5b3b111',
 } as const;
-
