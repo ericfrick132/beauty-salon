@@ -45,6 +45,9 @@ img { max-width: 100%; display: block; }
 .hero-grid { display: grid; grid-template-columns: 1fr; gap: 32px; align-items: center; }
 .hero-copy h1 { font-size: clamp(28px,5vw,44px); line-height: 1.1; margin: 0 0 12px; letter-spacing: -0.02em; }
 .subheadline { color: var(--muted); max-width: 56ch; margin: 0 0 16px; }
+.eyebrow { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; font-size: 12px; color: var(--muted); margin: 0 0 6px; display: inline-flex; gap: 6px; align-items: center; }
+.eyebrow::before { content: '•'; color: var(--accent); }
+.muted { color: var(--muted); }
 .cta-group { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
 .microcopy { color: var(--muted); font-size: 14px; }
 .badge { display: inline-block; font-size: 12px; padding: 4px 8px; border-radius: 999px; background: #f1f5f9; color: var(--muted); margin-left: 8px; }
@@ -78,6 +81,50 @@ img { max-width: 100%; display: block; }
 .card h3 { margin: 0 0 4px; font-size: 20px; }
 .card p { margin: 0; color: var(--muted); }
 
+.app-offer { background: linear-gradient(180deg,#ffffff,#f8fbff); }
+.app-grid { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: start; }
+.app-copy h2 { margin: 0 0 8px; font-size: clamp(24px,4.5vw,34px); }
+.value-list { list-style: none; padding: 0; margin: 14px 0; display: grid; gap: 8px; color: var(--muted); }
+.value-list li { position: relative; padding-left: 18px; }
+.value-list li::before { content: "✓"; position: absolute; left: 0; top: 2px; color: var(--accent); font-weight: 800; }
+.pillars { display: grid; grid-template-columns: 1fr; gap: 10px; }
+.pillar-card { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: #fff; box-shadow: 0 10px 26px var(--shadow); }
+.pillar-card h3 { margin: 0 0 6px; }
+.pillar-card p { margin: 0; color: var(--muted); }
+
+.feature-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.feature-card { border: 1px solid var(--line); border-radius: 12px; padding: 16px; background: #fff; box-shadow: 0 10px 28px var(--shadow); display: grid; gap: 6px; }
+.feature-icon { width: 42px; height: 42px; border-radius: 12px; background: #f1f5f9; display: inline-flex; align-items: center; justify-content: center; font-size: 22px; }
+.feature-card h3 { margin: 0; }
+.feature-card p { margin: 0; color: var(--muted); }
+
+.value-banner { background: #0f172a; color: #fff; border-radius: 18px; margin: 0 20px; }
+.value-grid { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: center; }
+.value-banner .eyebrow { color: rgba(255,255,255,.8); }
+.value-banner .muted { color: rgba(255,255,255,.85); }
+.value-points { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; color: rgba(255,255,255,.9); }
+.value-points li { position: relative; padding-left: 20px; }
+.value-points li::before { content: "•"; position: absolute; left: 2px; top: 2px; color: var(--accent); font-size: 18px; }
+
+.screens { background: #f8fafc; }
+.screens-head { display: grid; gap: 6px; margin-bottom: 14px; }
+.screen-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+.screen-card { border: 1px solid var(--line); border-radius: 12px; padding: 16px; background: #fff; box-shadow: 0 12px 30px var(--shadow); display: grid; gap: 8px; }
+.screen-card h3 { margin: 0; }
+.screen-card p { margin: 0; }
+.screen-visual { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: linear-gradient(135deg,#f8fbff,#eef2ff); position: relative; overflow: hidden; min-height: 140px; }
+.screen-visual.phone { aspect-ratio: 9/16; max-width: 260px; }
+.screen-visual.web { aspect-ratio: 16/9; }
+.screen-visual .bubble { width: 70%; height: 22%; border-radius: 10px; margin: 6px auto; background: #fff; box-shadow: 0 8px 20px rgba(37,99,235,.12); }
+.screen-visual .bubble.primary { background: linear-gradient(90deg,#2563eb,#22c55e); height: 24%; }
+.screen-visual .bubble.secondary { background: #fff; }
+.screen-visual .bubble.tertiary { background: #f8fafc; }
+.screen-visual .bar { height: 10px; width: 60%; border-radius: 8px; background: #cbd5e1; margin-bottom: 10px; }
+.screen-visual .row { height: 16px; width: 100%; border-radius: 8px; background: #e2e8f0; margin-bottom: 8px; }
+.screen-visual .row.wide { width: 90%; }
+.screen-visual .tag { width: 70%; height: 14px; border-radius: 999px; background: #e2e8f0; margin-bottom: 8px; }
+.screen-visual .tag.long { width: 90%; }
+
 .how { background: #f8fafc; }
 .steps { display: grid; grid-template-columns: 1fr; gap: 12px; counter-reset: step; list-style: none; padding: 0; margin: 0 0 8px; }
 .steps li { position: relative; padding: 12px 12px 12px 44px; border: 1px dashed var(--line); border-radius: 12px; background: #fff; }
@@ -97,6 +144,13 @@ img { max-width: 100%; display: block; }
 .plan-desc { margin: 0; color: var(--muted); font-size: 14px; min-height: 18px; }
 .plan-note { margin: 0; }
 .plan-cta { margin-top: 4px; }
+
+.plan-hints { padding-top: 32px; }
+.plan-hints-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.hint-card { border: 1px solid var(--line); border-radius: 14px; padding: 16px; background: #fff; box-shadow: 0 10px 28px var(--shadow); display: grid; gap: 10px; }
+.hint-card ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; color: var(--muted); }
+.hint-card ul li { position: relative; padding-left: 18px; }
+.hint-card ul li::before { content: "✓"; position: absolute; left: 0; color: var(--accent); font-weight: 700; }
 
 .modal-shell { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 200; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
 .modal-shell.open { opacity: 1; pointer-events: auto; }
@@ -172,8 +226,14 @@ details[open] { box-shadow: 0 8px 20px var(--shadow); }
   .nav { display: flex; }
   .nav-toggle { display: none; }
   .hero-grid { grid-template-columns: 1.1fr 1fr; }
+  .app-grid { grid-template-columns: 1.1fr 0.9fr; }
+  .pillars { grid-template-columns: repeat(3, 1fr); }
   .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .feature-grid { grid-template-columns: repeat(4, 1fr); }
+  .value-grid { grid-template-columns: 1.2fr 0.8fr; }
+  .screen-grid { grid-template-columns: repeat(3, 1fr); }
   .pricing-grid { grid-template-columns: repeat(3, 1fr); }
+  .plan-hints-grid { grid-template-columns: repeat(3, 1fr); }
   .testi-grid { grid-template-columns: repeat(3, 1fr); }
   .footer-grid { grid-template-columns: auto 1fr auto; }
 }
