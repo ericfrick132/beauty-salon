@@ -53,25 +53,25 @@
   <body>
     <a class="skip-link" href="#main">Saltar al contenido</a>
     <header id="top" class="site-header" data-heat="nav">
-      <div class="container nav-inner">
-        <a href="#top" class="brand" aria-label="TurnosPro — ir al inicio">
-          <img src="/landing/assets/img/logo.svg" alt="TurnosPro" width="28" height="28" />
-          <span>TurnosPro</span>
-        </a>
-        <nav class="nav" aria-label="Primaria">
-          <a href="#producto">Producto</a>
-          <a href="#como-funciona">Cómo funciona</a>
-          <a href="#precios">Precios</a>
-          <a href="#testimonios">Testimonios</a>
-        </nav>
-        <div class="nav-cta">
-          <a class="btn btn-link" href="/login" rel="nofollow">Ingresar</a>
-          <a class="btn btn-primary" href="#cta" data-ab="cta-nav">Comenzar gratis</a>
-        </div>
-        <button class="nav-toggle" aria-expanded="false" aria-controls="nav-menu" aria-label="Abrir menú">
-          <span></span><span></span><span></span>
-        </button>
-      </div>
+          <div class="container nav-inner">
+            <a href="#top" class="brand" aria-label="TurnosPro — ir al inicio">
+              <img src="/landing/assets/img/logo.svg" alt="TurnosPro" width="28" height="28" />
+              <span>TurnosPro</span>
+            </a>
+            <nav class="nav" aria-label="Primaria">
+              <a href="#producto">Producto</a>
+              <a href="#como-funciona">Cómo funciona</a>
+              <a href="#precios">Precios</a>
+              <a href="#testimonios">Testimonios</a>
+            </nav>
+            <div class="nav-cta">
+              <a class="btn btn-link" href="/login" rel="nofollow">Ingresar</a>
+              <a class="btn btn-primary" href="#cta" data-ab="cta-nav" data-open-signup>Comenzar gratis</a>
+            </div>
+            <button class="nav-toggle" aria-expanded="false" aria-controls="nav-menu" aria-label="Abrir menú">
+              <span></span><span></span><span></span>
+            </button>
+          </div>
     </header>
 
     <main id="main">
@@ -81,7 +81,7 @@
             <h1 data-ab="headline-1">Agenda más, pierde menos clientes</h1>
             <p class="subheadline">Automatiza recordatorios por WhatsApp y reduce ausencias hasta 35%. En menos de 15 minutos funcionando.</p>
             <div class="cta-group">
-              <a class="btn btn-primary btn-lg" href="#cta" data-ab="cta-hero">Comenzar gratis</a>
+              <a class="btn btn-primary btn-lg" href="#cta" data-ab="cta-hero" data-open-signup>Comenzar gratis</a>
               <a class="btn btn-outline btn-lg" href="#demo">Ver demo</a>
             </div>
             <p class="microcopy">Sin tarjeta. Cancela cuando quieras. <span class="badge">Garantía 30 días</span></p>
@@ -335,7 +335,7 @@
           <h2>Agenda más desde hoy</h2>
           <p>Configúralo en 15 min. Soporte humano para onboarding.</p>
           <div class="cta-group">
-            <a class="btn btn-primary btn-lg" href="#" data-ab="cta-final" data-open-business-modal>Crear cuenta gratuita</a>
+            <a class="btn btn-primary btn-lg" href="#" data-ab="cta-final" data-open-signup>Crear cuenta gratuita</a>
             <a class="btn btn-outline btn-lg" href="#demo">Ver demo en 2 minutos</a>
           </div>
           <div class="guarantees">
@@ -343,20 +343,67 @@
             <span class="badge">Pago seguro</span>
             <span class="badge">Soporte prioritario</span>
           </div>
-          <div class="modal-shell" id="business-modal" role="dialog" aria-modal="true" aria-labelledby="business-modal-title" aria-hidden="true">
-            <div class="modal-backdrop" data-close-business-modal></div>
-            <div class="modal-card" role="document" tabindex="-1">
-              <button class="modal-close" type="button" aria-label="Cerrar" data-close-business-modal>&times;</button>
-              <h3 id="business-modal-title">¿Qué tipo de negocio tenés?</h3>
-              <p class="modal-sub">Esto nos ayuda a personalizar la experiencia.</p>
-              <div class="option-list">
-                <button class="option-btn" type="button" data-business-value="peluqueria">Peluquería</button>
-                <button class="option-btn" type="button" data-business-value="barberia">Barbería</button>
-                <button class="option-btn" type="button" data-business-value="estetica">Estética</button>
-                <button class="option-btn" type="button" data-business-value="profesionales">Profesionales</button>
-                <button class="option-btn" type="button" data-business-value="salud">Salud</button>
+          <div class="modal-shell" id="signup-modal" role="dialog" aria-modal="true" aria-labelledby="signup-title" aria-hidden="true">
+            <div class="modal-backdrop" data-close-signup></div>
+            <div class="modal-card modal-wide" role="document" tabindex="-1">
+              <button class="modal-close" type="button" aria-label="Cerrar" data-close-signup>&times;</button>
+              <div class="stepper" aria-label="Progreso de registro">
+                <div class="step-pill active" data-step-indicator="1">1. Negocio</div>
+                <div class="step-pill" data-step-indicator="2">2. Acceso</div>
               </div>
-              <p class="modal-feedback" id="business-modal-feedback" aria-live="polite"></p>
+              <div class="modal-body">
+                <section class="signup-step" data-step="1">
+                  <h3 id="signup-title">¿Qué tipo de negocio tenés?</h3>
+                  <p class="modal-sub">Elegí tu sector y contanos cómo se llama tu local.</p>
+                  <div class="option-grid" id="signup-business-types">
+                    <button class="option-btn option-tile" type="button" data-business-type="peluqueria">Peluquería</button>
+                    <button class="option-btn option-tile" type="button" data-business-type="barberia">Barbería</button>
+                    <button class="option-btn option-tile" type="button" data-business-type="estetica">Estética</button>
+                    <button class="option-btn option-tile" type="button" data-business-type="profesionales">Profesionales</button>
+                    <button class="option-btn option-tile" type="button" data-business-type="salud">Salud</button>
+                  </div>
+                  <div class="field-group">
+                    <label class="field-label" for="signup-business-name">Nombre de tu local</label>
+                    <input id="signup-business-name" name="businessName" type="text" placeholder="Ej: Studio Ana" />
+                  </div>
+                  <div class="field-group">
+                    <label class="field-label" for="signup-subdomain">Subdominio para tu URL</label>
+                    <div class="input-with-addon">
+                      <input id="signup-subdomain" name="subdomain" type="text" placeholder="studio-ana" inputmode="text" autocomplete="off" />
+                      <span class="input-addon">.turnos-pro.com</span>
+                    </div>
+                    <p class="field-hint">Min 3 letras/números, sin espacios.</p>
+                  </div>
+                  <div class="step-actions">
+                    <button class="btn btn-primary btn-lg" type="button" data-next-step>Continuar</button>
+                  </div>
+                </section>
+                <section class="signup-step" data-step="2" hidden>
+                  <h3>Como es tu mail?</h3>
+                  <div class="field-group">
+                    <label class="field-label" for="signup-email">Tu email</label>
+                    <input id="signup-email" name="email" type="email" placeholder="tu@email.com" autocomplete="email" />
+                  </div>
+                  <h3 class="mt-1">QUE CONTRASEÑA LE PONEMOS?</h3>
+                  <p class="field-hint">Mínimo 8 caracteres, 1 mayúscula, 1 minúscula, 1 número y 1 símbolo.</p>
+                  <div class="field-group two-cols">
+                    <div>
+                      <label class="field-label" for="signup-password">Contraseña</label>
+                      <input id="signup-password" name="password" type="password" autocomplete="new-password" />
+                    </div>
+                    <div>
+                      <label class="field-label" for="signup-password-confirm">Confirmar contraseña</label>
+                      <input id="signup-password-confirm" name="confirmPassword" type="password" autocomplete="new-password" />
+                    </div>
+                  </div>
+                  <div id="signup-issues" class="issues" aria-live="polite"></div>
+                  <div class="step-actions">
+                    <button class="btn btn-outline btn-lg btn-secondary" type="button" data-prev-step>Volver</button>
+                    <button class="btn btn-primary btn-lg" type="button" data-submit-signup>Crear cuenta</button>
+                  </div>
+                </section>
+                <p class="modal-feedback" id="signup-feedback" aria-live="polite"></p>
+              </div>
             </div>
           </div>
         </div>
