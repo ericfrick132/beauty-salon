@@ -30,12 +30,12 @@ export function softwareAppSchema() {
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
     url: `${brand.brand_domain}${brand.marketing_path}`,
     featureList: [
-      'Reservas de turnos',
-      'Gestión de socios',
-      'Pagos y facturación',
-      'Control de acceso',
-      'Reportes y estadísticas',
-      'Herramientas para CrossFit',
+      'Reservas con seña',
+      'MercadoPago integrado',
+      'Recordatorios automáticos por WhatsApp',
+      'Agenda online 24/7',
+      'Reportes en vivo',
+      'Reducción de no-shows',
     ],
   } as const;
 }

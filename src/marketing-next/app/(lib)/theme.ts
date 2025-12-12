@@ -3,10 +3,11 @@ import { createTheme } from '@mui/material/styles';
 
 const theme = createTheme({
   palette: {
-    mode: 'dark',
-    primary: { main: '#0F766E' },
-    secondary: { main: '#F59E0B' },
-    background: { default: '#0E1117' },
+    mode: 'light',
+    primary: { main: '#2563EB' }, // blue-600
+    secondary: { main: '#10B981' }, // emerald-500
+    background: { default: '#F8FAFC' },
+    text: { primary: '#0F172A', secondary: '#475569' },
   },
   typography: {
     fontFamily: '"Space Grotesk", Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif',

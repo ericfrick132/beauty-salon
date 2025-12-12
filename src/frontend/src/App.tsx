@@ -26,7 +26,6 @@ import Services from './pages/Services';
 import Reports from './pages/Reports';
 import BookingPage from './pages/public/BookingPage';
 import InvitationPage from './pages/public/InvitationPage';
-import LandingPage from './pages/LandingPage';
 import SelfRegistration from './pages/SelfRegistration';
 import Payments from './pages/Payments';
 import Employees from './pages/Employees';
@@ -248,7 +247,6 @@ function App() {
                 {/* Main Domain Routes - Landing Page */}
                 {isMainDomain() ? (
                   <>
-                    <Route path="/" element={<LandingPage />} />
                     <Route path="/register" element={<SelfRegistration />} />
                     <Route path="/invitation/:token" element={<InvitationPage />} />
                   </>

@@ -92,6 +92,10 @@ coverage/
 .cache/
 public
 
+# Allow marketing landing assets
+!src/marketing-next/public/
+!src/marketing-next/public/**
+
 # Env files
 .env
 .env.local

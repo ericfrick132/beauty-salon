@@ -3,8 +3,8 @@
 Este proyecto entrega una landing indexable con SSR/SSG, metadatos completos y JSON-LD.
 
 Rutas clave
-- `/` redirige a `{{marketing_path}}` (software-gimnasios)
-- `/software-gimnasios` página principal SEO
+- `/` redirige a `{{marketing_path}}` (/turnos)
+- `/turnos` página principal SEO
 - `/sitemap.xml`, `/robots.txt`
 
 Variables de marca

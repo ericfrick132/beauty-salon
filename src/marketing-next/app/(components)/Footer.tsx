@@ -15,11 +15,11 @@ export default function Footer() {
           color: 'text.secondary',
         }}
       >
-        <Typography variant="body2">© {new Date().getFullYear()} GymHero</Typography>
+        <Typography variant="body2">© {new Date().getFullYear()} TurnosPro</Typography>
         <Box sx={{ display: 'flex', gap: 2 }}>
           <MuiLink component={Link} href="/terminos" underline="hover" color="inherit">Términos</MuiLink>
           <MuiLink component={Link} href="/privacidad" underline="hover" color="inherit">Privacidad</MuiLink>
-          <MuiLink href="mailto:soporte@gymhero.com" underline="hover" color="inherit">Contacto</MuiLink>
+          <MuiLink href="mailto:soporte@turnos-pro.com" underline="hover" color="inherit">Contacto</MuiLink>
         </Box>
       </Container>
     </Box>

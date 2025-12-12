@@ -46,7 +46,6 @@ import { useNavigate } from 'react-router-dom';
 import { useTenant } from '../contexts/TenantContext';
 import { useAppDispatch, useAppSelector } from '../store';
 import { fetchBookings, fetchEmployees, fetchServices } from '../store/slices/bookingSlice';
-import SubscriptionStatus from '../components/SubscriptionStatus';
 import {
   BarChart,
   Bar,
@@ -421,9 +420,6 @@ const Dashboard: React.FC = () => {
             </Card>
           </Grid>
         </Grid>
-
-        {/* Subscription Status Card */}
-        <SubscriptionStatus showActions={true} />
 
         {/* Financial Overview Card - Nueva sección */}
         {financialStats && (

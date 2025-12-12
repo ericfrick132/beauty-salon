@@ -5,12 +5,12 @@ services:
     build:
       context: ./src/backend/BookingPro.API
       dockerfile: Dockerfile
-    container_name: gymhero-api
+    container_name: turnospro-api
     ports:
       - "5000:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=${DATABASE_URL:-Host=host.docker.internal;Database=gymherodb;Username=postgres;Password=eric1234}
+      - ConnectionStrings__DefaultConnection=${DATABASE_URL:-Host=host.docker.internal;Database=bookingprodb;Username=postgres;Password=eric1234}
       - Jwt__Key=your-secret-key-here-minimum-32-characters-long-for-multi-tenant-system
       - FrontendUrl=http://localhost:3000
       - AdditionalCorsOrigins=http://demo.localhost:3000,http://mygym.localhost:3000,http://*.localhost:3000,http://localhost:3030
@@ -26,8 +26,6 @@ services:
       - EVOLUTION_API_BASE_URL=http://64.227.3.140:8080/
       - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
       - EVOLUTION_API_INSTANCE=${EVOLUTION_API_INSTANCE}
-    networks:
-      - gymhero-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/ping"]
       interval: 30s
@@ -39,25 +37,19 @@ services:
     build:
       context: .
       dockerfile: src/frontend/Dockerfile
-    container_name: gymhero-frontend
+    container_name: turnospro-frontend
     ports:
       - "3000:80"
     environment:
       - REACT_APP_API_URL=http://localhost:5000/api
-      - REACT_APP_APP_NAME=GymHero
+      - REACT_APP_APP_NAME=TurnosPro
       - API_UPSTREAM_HOST=api
       - API_UPSTREAM_PORT=8080
       - API_UPSTREAM_SCHEME=http
     depends_on:
       - api
-    networks:
-      - gymhero-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-
-networks:
-  gymhero-network:
-    driver: bridge
