@@ -1,3 +1,21 @@
+const normalizeBase = (value) => {
+  if (!value) return '';
+  const trimmed = value.trim();
+  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
+};
+
+const API_BASE = (() => {
+  const raw = document.querySelector('meta[name="api-base"]')?.content || window.__API_BASE || '';
+  const base = normalizeBase(raw);
+  return base.endsWith('/api') ? base.slice(0, -4) : base;
+})();
+
+const apiUrl = (path) => {
+  const cleaned = path.startsWith('/') ? path : `/${path}`;
+  if (cleaned.startsWith('/api')) return `${API_BASE}${cleaned}`;
+  return `${API_BASE}/api${cleaned}`;
+};
+
 // Sticky header shadow on scroll
 (function() {
   const header = document.querySelector('.site-header');
@@ -73,17 +91,7 @@
   if (!grid || !template) return;
 
   const status = document.getElementById('plans-status');
-  const normalizeBase = (value) => {
-    if (!value) return '';
-    return value.endsWith('/') ? value.slice(0, -1) : value;
-  };
-
-  const apiBase = normalizeBase(
-    document.querySelector('meta[name="api-base"]')?.content ||
-    window.__API_BASE ||
-    ''
-  );
-  const endpoint = `${apiBase}/api/subscription/plans`;
+  const endpoint = apiUrl('/subscription/plans');
   const numberFormatter = new Intl.NumberFormat('es-AR');
 
   const formatCurrency = (amount, currency) => {
@@ -230,29 +238,251 @@
   loadPlans();
 })();
 
-// Business type modal (Crear cuenta gratuita)
+// Signup modal (multi-step self registration)
 (function(){
-  const modal = document.getElementById('business-modal');
-  const feedback = document.getElementById('business-modal-feedback');
+  const modal = document.getElementById('signup-modal');
   if (!modal) return;
 
-  const closeEls = modal.querySelectorAll('[data-close-business-modal]');
-  const triggers = document.querySelectorAll('[data-open-business-modal]');
-  const optionButtons = modal.querySelectorAll('[data-business-value]');
   const htmlBody = document.body;
-  const focusTarget = modal.querySelector('.modal-card');
+  const triggers = document.querySelectorAll('[data-open-signup]');
+  const closeEls = modal.querySelectorAll('[data-close-signup]');
+  const stepIndicators = modal.querySelectorAll('[data-step-indicator]');
+  const steps = modal.querySelectorAll('.signup-step');
+  const feedback = modal.querySelector('#signup-feedback');
+  const issuesEl = modal.querySelector('#signup-issues');
+  const nextBtn = modal.querySelector('[data-next-step]');
+  const prevBtn = modal.querySelector('[data-prev-step]');
+  const submitBtn = modal.querySelector('[data-submit-signup]');
+  const typeButtons = modal.querySelectorAll('[data-business-type]');
+  const businessNameInput = modal.querySelector('#signup-business-name');
+  const subdomainInput = modal.querySelector('#signup-subdomain');
+  const emailInput = modal.querySelector('#signup-email');
+  const passwordInput = modal.querySelector('#signup-password');
+  const confirmInput = modal.querySelector('#signup-password-confirm');
+
+  const state = {
+    step: 1,
+    businessType: null,
+    businessName: '',
+    subdomain: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    busy: false
+  };
+
+  const sanitizeSubdomain = (value) => {
+    const normalized = value
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '');
+    return normalized
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 30);
+  };
+
+  const mapBusinessToVertical = (value) => {
+    switch (value) {
+      case 'barbershop':
+      case 'barberia':
+        return 'barbershop';
+      case 'peluqueria':
+        return 'peluqueria';
+      case 'estetica':
+      case 'aesthetics':
+      case 'salud':
+        return 'aesthetics';
+      case 'profesionales':
+        return 'other';
+      default:
+        return 'barbershop';
+    }
+  };
+
+  const passwordValid = (pwd) => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/.test(pwd);
+  const emailValid = (value) => /\S+@\S+\.\S+/.test(value);
+
+  const collectIssues = (scope) => {
+    const issues = [];
+    if (!state.businessType) issues.push('Elegí el tipo de negocio');
+    if (state.businessName.trim().length < 2) issues.push('Escribí el nombre de tu local');
+    if (state.subdomain.trim().length < 3) issues.push('El subdominio debe tener al menos 3 letras');
+    if (scope !== 'step1') {
+      if (!emailValid(state.email)) issues.push('Ingresá un email válido');
+      if (!passwordValid(state.password)) issues.push('La contraseña no cumple los requisitos');
+      if (state.password !== state.confirmPassword) issues.push('La confirmación no coincide');
+    }
+    return issues;
+  };
+
+  const showIssues = (scope) => {
+    const issues = collectIssues(scope);
+    if (!issuesEl) return;
+    if (!issues.length) {
+      issuesEl.innerHTML = '';
+      return;
+    }
+    issuesEl.innerHTML = `<ul>${issues.map((i) => `<li>${i}</li>`).join('')}</ul>`;
+  };
+
+  const setFeedback = (text, isError = false) => {
+    if (!feedback) return;
+    feedback.textContent = text || '';
+    feedback.style.color = isError ? '#b91c1c' : 'var(--muted)';
+  };
+
+  const showStep = (step) => {
+    state.step = step;
+    steps.forEach((el) => {
+      const s = Number(el.dataset.step);
+      if (s === step) {
+        el.removeAttribute('hidden');
+      } else {
+        el.setAttribute('hidden', 'true');
+      }
+    });
+    stepIndicators.forEach((el) => {
+      const s = Number(el.dataset.stepIndicator);
+      if (s === step) el.classList.add('active');
+      else el.classList.remove('active');
+    });
+  };
 
   const open = () => {
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
     htmlBody.classList.add('no-scroll');
-    (focusTarget || modal).focus?.();
+    showStep(1);
+    (businessNameInput || modal).focus?.();
   };
 
   const close = () => {
     modal.classList.remove('open');
     modal.setAttribute('aria-hidden', 'true');
     htmlBody.classList.remove('no-scroll');
+    setFeedback('');
+  };
+
+  const canStep1 = () => {
+    return !!state.businessType && state.businessName.trim().length >= 2 && state.subdomain.trim().length >= 3;
+  };
+
+  const canSubmit = () => {
+    return (
+      canStep1() &&
+      emailValid(state.email) &&
+      passwordValid(state.password) &&
+      state.password === state.confirmPassword
+    );
+  };
+
+  const buildAutoLoginUrl = (payload) => {
+    const token = payload?.token;
+    const tenantSubdomain = payload?.tenantSubdomain || payload?.subdomain;
+    const dashboardUrl = payload?.dashboardUrl || payload?.tenantUrl;
+    const isLocal = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1');
+    const domain = isLocal ? 'localhost:3001' : 'turnos-pro.com';
+    const protocol = isLocal ? 'http:' : 'https:';
+    if (token && tenantSubdomain) {
+      return `${protocol}//${tenantSubdomain}.${domain}/dashboard?impersonationToken=${encodeURIComponent(token)}&tour=onboarding&onboarding=1`;
+    }
+    if (tenantSubdomain && dashboardUrl) {
+      try {
+        const base = new URL(dashboardUrl);
+        return base.toString();
+      } catch {
+        return `${protocol}//${tenantSubdomain}.${domain}`;
+      }
+    }
+    return '';
+  };
+
+  const setBusy = (busy) => {
+    state.busy = busy;
+    if (submitBtn) submitBtn.disabled = busy;
+    if (nextBtn && state.step === 1) nextBtn.disabled = busy;
+    if (submitBtn) submitBtn.textContent = busy ? 'Creando cuenta...' : 'Crear cuenta';
+  };
+
+  const registerTenant = async () => {
+    showIssues();
+    if (!canSubmit()) {
+      setFeedback('Completá los datos para crear tu cuenta', true);
+      return;
+    }
+    setBusy(true);
+    setFeedback('');
+    try {
+      const primaryBody = {
+        gymName: state.businessName.trim(),
+        subdomain: state.subdomain.trim(),
+        adminEmail: state.email.trim(),
+        adminFirstName: 'Admin',
+        adminLastName: 'Turnos Pro',
+        password: state.password
+      };
+
+      let res = await fetch(apiUrl('/tenants/self-register'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(primaryBody)
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        const payload = data?.data || data;
+        const redirect = buildAutoLoginUrl(payload);
+        if (redirect) {
+          window.location.href = redirect;
+          return;
+        }
+      }
+
+      const fallbackBody = {
+        verticalCode: mapBusinessToVertical(state.businessType),
+        subdomain: state.subdomain.trim(),
+        businessName: state.businessName.trim(),
+        adminEmail: state.email.trim(),
+        adminFirstName: 'Admin',
+        adminLastName: 'Turnos Pro',
+        adminPassword: state.password,
+        confirmPassword: state.password,
+        timeZone: 'America/Argentina/Buenos_Aires',
+        currency: 'ARS',
+        language: 'es',
+        isDemo: true,
+        demoDays: 30
+      };
+
+      res = await fetch(apiUrl('/self-registration'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fallbackBody)
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.message || 'No pudimos crear tu cuenta. Probá de nuevo.');
+      }
+
+      const data = await res.json().catch(() => ({}));
+      const payload = data?.data || data;
+      const redirect = buildAutoLoginUrl(payload);
+      if (redirect) {
+        window.location.href = redirect;
+      } else if (payload?.tenantUrl) {
+        window.location.href = payload.tenantUrl;
+      } else {
+        setFeedback('Cuenta creada. Revisa tu email para acceder.');
+        close();
+      }
+    } catch (error) {
+      console.error('Error creando tenant', error);
+      setFeedback(error?.message || 'No pudimos crear tu cuenta. Probá de nuevo.', true);
+    } finally {
+      setBusy(false);
+    }
   };
 
   triggers.forEach((el) => {
@@ -269,24 +499,60 @@
     });
   });
 
-  optionButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const value = btn.dataset.businessValue;
-      if (value) {
-        try {
-          localStorage.setItem('tp_vertical_pref', value);
-        } catch {}
-      }
-      if (feedback) {
-        feedback.textContent = `Guardamos tu preferencia: ${btn.textContent || value || ''}.`;
-      }
-      close();
-    });
-  });
-
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && modal.classList.contains('open')) close();
   });
+
+  typeButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.businessType = btn.dataset.businessType || null;
+      try { localStorage.setItem('tp_vertical_pref', state.businessType || ''); } catch {}
+      typeButtons.forEach((b) => b.classList.toggle('active', b === btn));
+    });
+  });
+
+  const handleInput = () => {
+    state.businessName = businessNameInput?.value || '';
+    state.subdomain = sanitizeSubdomain(subdomainInput?.value || '');
+    if (subdomainInput) subdomainInput.value = state.subdomain;
+    state.email = emailInput?.value || '';
+    state.password = passwordInput?.value || '';
+    state.confirmPassword = confirmInput?.value || '';
+    showIssues();
+  };
+
+  [businessNameInput, subdomainInput, emailInput, passwordInput, confirmInput].forEach((input) => {
+    if (!input) return;
+    input.addEventListener('input', handleInput);
+  });
+
+  if (nextBtn) {
+    nextBtn.addEventListener('click', () => {
+      handleInput();
+      if (!canStep1()) {
+        showIssues('step1');
+        setFeedback('Completá el tipo de negocio, nombre y subdominio.', true);
+        return;
+      }
+      setFeedback('');
+      showStep(2);
+      emailInput?.focus();
+    });
+  }
+
+  if (prevBtn) {
+    prevBtn.addEventListener('click', () => {
+      setFeedback('');
+      showStep(1);
+    });
+  }
+
+  if (submitBtn) {
+    submitBtn.addEventListener('click', () => {
+      handleInput();
+      registerTenant();
+    });
+  }
 })();
 
 // A/B testing hooks (placeholder)

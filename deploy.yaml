@@ -37,8 +37,8 @@ services:
     value: "${APP_URL}"
 
 - name: frontend
-  dockerfile_path: src/frontend/Dockerfile.prod
-  source_dir: src/frontend
+  dockerfile_path: src/frontend/Dockerfile
+  source_dir: /
   http_port: 80
   instance_count: 1
   instance_size_slug: basic-xxs

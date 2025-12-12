@@ -102,16 +102,39 @@ img { max-width: 100%; display: block; }
 .modal-shell.open { opacity: 1; pointer-events: auto; }
 .modal-backdrop { position: absolute; inset: 0; background: rgba(15,23,42,.45); }
 .modal-card { position: relative; background: #fff; border-radius: 14px; padding: 20px; max-width: 420px; width: 90%; box-shadow: 0 20px 60px rgba(15,23,42,.25); display: grid; gap: 12px; }
+.modal-card.modal-wide { max-width: 680px; }
 .modal-card h3 { margin: 0; font-size: 20px; }
 .modal-sub { margin: 0; color: var(--muted); font-size: 14px; }
 .modal-feedback { margin: 0; color: var(--muted); font-size: 13px; min-height: 16px; }
 .option-list { display: grid; gap: 8px; }
 .option-btn { width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #fff; text-align: left; font-weight: 700; cursor: pointer; transition: border-color .15s ease, box-shadow .2s ease; }
 .option-btn:hover, .option-btn:focus { border-color: var(--primary); box-shadow: 0 8px 22px var(--shadow); outline: none; }
+.option-btn.active { border-color: var(--primary); background: #f1f5ff; }
 .modal-close { position: absolute; top: 10px; right: 10px; border: 0; background: transparent; font-size: 18px; cursor: pointer; color: var(--muted); }
 .no-scroll { overflow: hidden; }
 .recommended { border-color: rgba(37,99,235,.35); box-shadow: 0 16px 48px rgba(37,99,235,.18); position: relative; }
 .flag { position: absolute; top: -10px; right: 12px; background: var(--primary); color: #fff; font-size: 12px; padding: 4px 8px; border-radius: 999px; }
+
+.stepper { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 6px; }
+.step-pill { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); text-align: center; font-weight: 600; color: var(--muted); background: #f8fafc; }
+.step-pill.active { border-color: var(--primary); color: var(--text); box-shadow: 0 6px 18px var(--shadow); }
+.modal-body { display: grid; gap: 12px; }
+.signup-step[hidden] { display: none !important; }
+.field-group { display: grid; gap: 6px; margin-top: 12px; }
+.field-label { font-weight: 600; font-size: 14px; color: var(--text); }
+.field-group input { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 15px; }
+.field-group input:focus { outline: 3px solid rgba(37,99,235,.2); border-color: var(--primary); }
+.input-with-addon { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; }
+.input-addon { padding: 10px 12px; background: #f1f5f9; border: 1px solid var(--line); border-radius: 10px; font-size: 14px; color: var(--muted); }
+.field-hint { margin: 0; color: var(--muted); font-size: 13px; }
+.option-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-top: 10px; }
+.option-tile { text-align: left; }
+.two-cols { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.issues { color: #b91c1c; font-size: 13px; margin-top: 8px; }
+.issues ul { margin: 0; padding-left: 18px; }
+.step-actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.btn-secondary { color: var(--text); }
+.mt-1 { margin-top: 10px; }
 
 .section-title { margin: 0 0 16px; font-size: 26px; font-weight: 700; color: var(--text); }
 .testi-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
