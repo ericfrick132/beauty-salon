@@ -6,7 +6,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 COPY src/marketing-next/package.json ./
 RUN npm install
 COPY src/marketing-next ./
-RUN npm run build
+RUN npm run build && npm run export
 
 # Build SPA (CRA)
 FROM node:18-alpine as build
