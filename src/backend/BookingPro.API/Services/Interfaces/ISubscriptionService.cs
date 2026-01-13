@@ -17,5 +17,6 @@ namespace BookingPro.API.Services.Interfaces
         Task<ServiceResult<bool>> InitializePlansAsync();
         Task<ServiceResult<bool>> CheckAndUpdateTrialStatusAsync(Guid tenantId);
         Task<ServiceResult<string>> GeneratePaymentQRCodeAsync(Guid tenantId, string planCode);
+        Task<ServiceResult<PaymentQRResultDto>> GeneratePaymentQRWithUrlAsync(Guid tenantId, string planCode);
     }
 }

@@ -73,7 +73,9 @@ function App() {
 
   const isMainDomain = () => {
     const hostname = window.location.hostname;
-    return hostname === 'turnos-pro.com' || hostname === 'localhost' || hostname === '127.0.0.1';
+    // Solo el dominio principal exacto (sin subdominio) es considerado main domain
+    // Los subdominios (ej: cliente.turnos-pro.com) y localhost van directo a /login
+    return hostname === 'turnos-pro.com' || hostname === 'www.turnos-pro.com';
   };
 
   const loadTenantConfiguration = async () => {

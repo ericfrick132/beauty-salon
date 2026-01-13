@@ -66,4 +66,10 @@ namespace BookingPro.API.Models.DTOs
         public string? UserId { get; set; }
         public DateTime? DateCreated { get; set; }
     }
+
+    public class PaymentQRResultDto
+    {
+        public string? QrCode { get; set; }
+        public string? PaymentUrl { get; set; }
+    }
 }

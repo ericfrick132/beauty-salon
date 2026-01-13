@@ -476,15 +476,16 @@ namespace BookingPro.API.Services
                     status.ExpiresAt = subscription.NextPaymentDate;
                 }
 
-                // If trial expired and not active, generate payment QR
-                if (subscription.IsTrialPeriod && 
-                    subscription.TrialEndsAt <= DateTime.UtcNow && 
+                // If trial expired and not active, generate payment QR with URL
+                if (subscription.IsTrialPeriod &&
+                    subscription.TrialEndsAt <= DateTime.UtcNow &&
                     subscription.Status != "active")
                 {
-                    var qrResult = await GeneratePaymentQRCodeAsync(tenantId, subscription.PlanType);
-                    if (qrResult.Success)
+                    var qrResult = await GeneratePaymentQRWithUrlAsync(tenantId, subscription.PlanType);
+                    if (qrResult.Success && qrResult.Data != null)
                     {
-                        status.QrCodeData = qrResult.Data;
+                        status.QrCodeData = qrResult.Data.QrCode;
+                        status.PaymentUrl = qrResult.Data.PaymentUrl;
                     }
                 }
 
@@ -794,6 +795,103 @@ namespace BookingPro.API.Services
                 "pending" => "pending",
                 _ => "pending"
             };
+        }
+
+        public async Task<ServiceResult<PaymentQRResultDto>> GeneratePaymentQRWithUrlAsync(Guid tenantId, string planCode)
+        {
+            try
+            {
+                var plan = await _context.SubscriptionPlans
+                    .FirstOrDefaultAsync(p => p.Code == planCode);
+
+                if (plan == null)
+                    return ServiceResult<PaymentQRResultDto>.Fail("Plan no encontrado");
+
+                var tenant = await _context.Tenants.FindAsync(tenantId);
+                if (tenant == null)
+                    return ServiceResult<PaymentQRResultDto>.Fail("Tenant no encontrado");
+
+                // Create MercadoPago payment preference for QR
+                var accessToken = _configuration["MercadoPago:AccessToken"];
+                if (string.IsNullOrEmpty(accessToken))
+                    return ServiceResult<PaymentQRResultDto>.Fail("MercadoPago no configurado");
+
+                var preferenceRequest = new
+                {
+                    items = new[]
+                    {
+                        new
+                        {
+                            title = $"Suscripción {plan.Name}",
+                            description = plan.Description ?? $"Plan {plan.Name} - Turnos Pro",
+                            quantity = 1,
+                            currency_id = "ARS",
+                            unit_price = plan.Price
+                        }
+                    },
+                    payer = new
+                    {
+                        email = tenant.OwnerEmail
+                    },
+                    external_reference = $"SUB-{tenantId}-{planCode}-{DateTime.UtcNow:yyyyMMddHHmmss}",
+                    notification_url = $"{_configuration["MercadoPago:WebhookUrl"]}/subscription",
+                    back_urls = new
+                    {
+                        success = $"{_configuration["FrontendUrl"]}/subscription/success",
+                        failure = $"{_configuration["FrontendUrl"]}/subscription/failure",
+                        pending = $"{_configuration["FrontendUrl"]}/subscription/pending"
+                    },
+                    auto_return = "approved",
+                    expires = true,
+                    expiration_date_to = DateTime.UtcNow.AddHours(24).ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+                };
+
+                var json = JsonSerializer.Serialize(preferenceRequest);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                _httpClient.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+                var response = await _httpClient.PostAsync(
+                    "https://api.mercadopago.com/checkout/preferences",
+                    content);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseContent = await response.Content.ReadAsStringAsync();
+                    var responseData = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(responseContent);
+
+                    var initPoint = responseData?["init_point"].GetString();
+
+                    var result = new PaymentQRResultDto
+                    {
+                        PaymentUrl = initPoint
+                    };
+
+                    if (!string.IsNullOrEmpty(initPoint))
+                    {
+                        // Generate QR code
+                        using var qrGenerator = new QRCodeGenerator();
+                        var qrCodeData = qrGenerator.CreateQrCode(initPoint, QRCodeGenerator.ECCLevel.Q);
+                        using var qrCode = new PngByteQRCode(qrCodeData);
+                        var qrCodeImage = qrCode.GetGraphic(20);
+                        var base64 = Convert.ToBase64String(qrCodeImage);
+
+                        result.QrCode = $"data:image/png;base64,{base64}";
+                    }
+
+                    return ServiceResult<PaymentQRResultDto>.Ok(result);
+                }
+
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Error creating MercadoPago preference: {Error}", errorContent);
+                return ServiceResult<PaymentQRResultDto>.Fail("Error generando preferencia de pago");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating payment QR code with URL");
+                return ServiceResult<PaymentQRResultDto>.Fail("Error al generar código QR");
+            }
         }
     }
 }

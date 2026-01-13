@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: turnospro-api
     ports:
-      - "5000:8080"
+      - "5001:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=${DATABASE_URL:-Host=host.docker.internal;Database=bookingprodb;Username=postgres;Password=eric1234}
@@ -39,9 +39,9 @@ services:
       dockerfile: src/frontend/Dockerfile
     container_name: turnospro-frontend
     ports:
-      - "3000:80"
+      - "3001:80"
     environment:
-      - REACT_APP_API_URL=http://localhost:5000/api
+      - REACT_APP_API_URL=http://localhost:5001/api
       - REACT_APP_APP_NAME=TurnosPro
       - API_UPSTREAM_HOST=api
       - API_UPSTREAM_PORT=8080

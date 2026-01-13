@@ -9,8 +9,12 @@ interface AuthState {
   error: string | null;
 }
 
+// Restaurar usuario desde localStorage si existe
+const storedUser = localStorage.getItem('user');
+const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+
 const initialState: AuthState = {
-  user: null,
+  user: parsedUser,
   token: localStorage.getItem('authToken'),
   isAuthenticated: !!localStorage.getItem('authToken'),
   loading: false,
@@ -43,6 +47,7 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       state.error = null;
       localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
     },
     clearError: (state) => {
       state.error = null;

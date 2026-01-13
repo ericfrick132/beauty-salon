@@ -191,19 +191,22 @@ namespace BookingPro.API.Controllers
             try
             {
                 var tenantId = GetTenantId();
-                
+
                 if (!Guid.TryParse(tenantId, out var tenantGuid))
                 {
                     return BadRequest(new { error = "Invalid tenant ID" });
                 }
-                
-                var result = await _subscriptionService.GeneratePaymentQRCodeAsync(tenantGuid, planCode);
-                
+
+                var result = await _subscriptionService.GeneratePaymentQRWithUrlAsync(tenantGuid, planCode);
+
                 if (result.Success && result.Data != null)
                 {
-                    return Ok(new { qrCode = result.Data });
+                    return Ok(new {
+                        qrCode = result.Data.QrCode,
+                        paymentUrl = result.Data.PaymentUrl
+                    });
                 }
-                
+
                 return BadRequest(new { error = result.Message });
             }
             catch (Exception ex)

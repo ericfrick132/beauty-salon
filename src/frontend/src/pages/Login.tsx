@@ -36,6 +36,8 @@ import {
 
 import { useTenant } from '../contexts/TenantContext';
 import { authApi } from '../services/api';
+import { useAppDispatch } from '../store';
+import { loginSuccess } from '../store/slices/authSlice';
 
 // Styled components con tema adaptativo
 const LoginContainer = styled(Container)(({ theme }) => ({
@@ -244,6 +246,7 @@ const StyledButton = styled(Button)(({ theme }) => ({
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const theme = useTheme();
+  const dispatch = useAppDispatch();
   const { config } = useTenant();
   const [formData, setFormData] = useState({
     email: '',
@@ -327,11 +330,14 @@ const Login: React.FC = () => {
 
     try {
       const response = await authApi.login(formData.email, formData.password);
-      
-      // Guardar token
+
+      // Guardar token y usuario en localStorage
       localStorage.setItem('authToken', response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
-      
+
+      // Actualizar Redux store
+      dispatch(loginSuccess({ user: response.user, token: response.token }));
+
       // Redirigir al dashboard
       navigate('/dashboard');
     } catch (err: any) {
