@@ -6,6 +6,7 @@ using BookingPro.API.Models.Enums;
 using BookingPro.API.Services.Interfaces;
 using BookingPro.API.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
 namespace BookingPro.API.Services
@@ -17,6 +18,7 @@ namespace BookingPro.API.Services
         private readonly IRepository<Employee> _employeeRepository;
         private readonly IRepository<Customer> _customerRepository;
         private readonly ITenantService _tenantService;
+        private readonly ILogger<BookingService> _logger;
 
         private record BusinessHoursConfig(TimeSpan Opening, TimeSpan Closing, HashSet<int> ClosedDays);
         private static readonly TimeSpan DefaultOpening = new TimeSpan(9, 0, 0);
@@ -27,13 +29,15 @@ namespace BookingPro.API.Services
             IRepository<Service> serviceRepository,
             IRepository<Employee> employeeRepository,
             IRepository<Customer> customerRepository,
-            ITenantService tenantService)
+            ITenantService tenantService,
+            ILogger<BookingService> logger)
         {
             _bookingRepository = bookingRepository;
             _serviceRepository = serviceRepository;
             _employeeRepository = employeeRepository;
             _customerRepository = customerRepository;
             _tenantService = tenantService;
+            _logger = logger;
         }
 
         public async Task<ServiceResult<IEnumerable<BookingListDto>>> GetBookingsAsync(DateTime? date = null, Guid? employeeId = null, string? status = null)
@@ -432,40 +436,68 @@ namespace BookingPro.API.Services
         // Validaciones críticas de negocio
         private async Task<ServiceResult> ValidateBookingBusinessRules(Guid employeeId, DateTime startTime, DateTime endTime, Service service, Guid? bookingIdToExclude = null)
         {
+            _logger.LogInformation("ValidateBookingBusinessRules: employeeId={EmployeeId}, startTime={StartTime}, endTime={EndTime}, dayOfWeek={DayOfWeek}",
+                employeeId, startTime, endTime, (int)startTime.DayOfWeek);
+
             var businessConfig = await GetBusinessHoursConfigAsync();
+            _logger.LogInformation("BusinessConfig: Opening={Opening}, Closing={Closing}, ClosedDays={ClosedDays}",
+                businessConfig.Opening, businessConfig.Closing, string.Join(",", businessConfig.ClosedDays));
 
             if (businessConfig.ClosedDays.Contains((int)startTime.DayOfWeek))
+            {
+                _logger.LogWarning("Validation failed: Business closed on day {DayOfWeek}", (int)startTime.DayOfWeek);
                 return ServiceResult.Fail("El negocio está cerrado en ese día");
+            }
 
             // 1. Validar horario de negocio (general window)
             if (!IsWithinBusinessHours(startTime, endTime, businessConfig))
+            {
+                _logger.LogWarning("Validation failed: Outside business hours. Start={StartTime}, End={EndTime}, Opening={Opening}, Closing={Closing}",
+                    startTime.TimeOfDay, endTime.TimeOfDay, businessConfig.Opening, businessConfig.Closing);
                 return ServiceResult.Fail("La cita está fuera del horario de atención del negocio");
+            }
 
             // 1b. Validar horario del empleado (turno de trabajo)
             var withinSchedule = await ValidateWithinEmployeeSchedule(employeeId, startTime, endTime);
-            if (!withinSchedule.Success) return withinSchedule;
+            if (!withinSchedule.Success)
+            {
+                _logger.LogWarning("Validation failed: Employee schedule. Message={Message}", withinSchedule.Message);
+                return withinSchedule;
+            }
 
             // 2. Nota: Permitimos citas en el pasado (puede ser útil para registrar citas que ya ocurrieron)
             // No validamos si está en el pasado
 
             // 3. Validar duración mínima
             if (endTime <= startTime)
+            {
+                _logger.LogWarning("Validation failed: End time before start time");
                 return ServiceResult.Fail("La hora de fin debe ser posterior a la hora de inicio");
+            }
 
             // 4. Prevenir doble booking
             var doubleBookingResult = await ValidateNoDoubleBooking(employeeId, startTime, endTime, bookingIdToExclude);
             if (!doubleBookingResult.Success)
+            {
+                _logger.LogWarning("Validation failed: Double booking. Message={Message}", doubleBookingResult.Message);
                 return doubleBookingResult;
+            }
 
             // 5. Validar bloqueos del empleado
             var blockResult = await ValidateEmployeeNotBlocked(employeeId, startTime, endTime);
             if (!blockResult.Success)
+            {
+                _logger.LogWarning("Validation failed: Employee blocked. Message={Message}", blockResult.Message);
                 return blockResult;
+            }
 
             // 6. Validar tiempo mínimo entre citas
             var gapResult = await ValidateMinimumGapBetweenAppointments(employeeId, startTime, endTime, bookingIdToExclude);
             if (!gapResult.Success)
+            {
+                _logger.LogWarning("Validation failed: Minimum gap. Message={Message}", gapResult.Message);
                 return gapResult;
+            }
 
             return ServiceResult.Ok("Validation passed");
         }
@@ -637,13 +669,29 @@ namespace BookingPro.API.Services
             var schedules = await ctx.Set<Schedule>()
                 .Where(s => s.EmployeeId == employeeId && s.IsActive && s.DayOfWeek == dow)
                 .ToListAsync();
+
+            _logger.LogInformation("ValidateWithinEmployeeSchedule: employeeId={EmployeeId}, dayOfWeek={DayOfWeek}, schedulesFound={Count}",
+                employeeId, dow, schedules.Count);
+
             if (!schedules.Any())
             {
+                _logger.LogWarning("No schedules found for employee {EmployeeId} on day {DayOfWeek}", employeeId, dow);
                 return ServiceResult.Fail("El profesional no atiende en ese día");
             }
+
             var startTod = startTime.TimeOfDay;
             var endTod = endTime.TimeOfDay;
+
+            foreach (var s in schedules)
+            {
+                _logger.LogInformation("Schedule: DayOfWeek={DayOfWeek}, Start={Start}, End={End}, IsActive={IsActive}",
+                    s.DayOfWeek, s.StartTime, s.EndTime, s.IsActive);
+            }
+
             var ok = schedules.Any(s => startTod >= s.StartTime && endTod <= s.EndTime);
+            _logger.LogInformation("Time check: bookingStart={BookingStart}, bookingEnd={BookingEnd}, withinSchedule={Ok}",
+                startTod, endTod, ok);
+
             if (!ok) return ServiceResult.Fail("El profesional no atiende en ese horario");
             return ServiceResult.Ok();
         }
