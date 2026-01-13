@@ -218,7 +218,7 @@ const InvitationPage: React.FC = () => {
                     </Typography>
                   )}
                   <Typography variant="body2" color="text.secondary">
-                    Subdominio: {invitation.subdomain}.{invitation.verticalDomain}
+                    Subdominio: {invitation.subdomain}.turnos-pro.com
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Plan: {invitation.isDemo ? 'Demo' : invitation.planName || 'Básico'}
