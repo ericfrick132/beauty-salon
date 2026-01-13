@@ -450,38 +450,55 @@ namespace BookingPro.API.Services
                 var plan = await _context.SubscriptionPlans
                     .FirstOrDefaultAsync(p => p.Code == subscription.PlanType);
 
+                // Determinar si la suscripción está realmente activa
+                bool isActive = false;
+                DateTime? expirationDate = null;
+                int daysRemaining = 0;
+
+                if (subscription.IsTrialPeriod)
+                {
+                    // Para trial, verificar TrialEndsAt
+                    expirationDate = subscription.TrialEndsAt;
+                    if (expirationDate.HasValue)
+                    {
+                        isActive = expirationDate.Value > DateTime.UtcNow;
+                        daysRemaining = Math.Max(0, (int)(expirationDate.Value - DateTime.UtcNow).TotalDays);
+                    }
+                }
+                else
+                {
+                    // Para suscripciones pagas, verificar NextPaymentDate
+                    expirationDate = subscription.NextPaymentDate;
+                    if (expirationDate.HasValue)
+                    {
+                        // Solo está activa si el status es "active" Y la fecha no expiró
+                        isActive = subscription.Status == "active" && expirationDate.Value > DateTime.UtcNow;
+                        daysRemaining = Math.Max(0, (int)(expirationDate.Value - DateTime.UtcNow).TotalDays);
+                    }
+                    else
+                    {
+                        // Si no tiene fecha de próximo pago, verificar solo el status
+                        isActive = subscription.Status == "active";
+                    }
+                }
+
                 var status = new SubscriptionStatusDto
                 {
-                    IsActive = subscription.Status == "active" ||
-                               (subscription.IsTrialPeriod && (
-                                   (subscription.TrialEndsAt.HasValue && subscription.TrialEndsAt > DateTime.UtcNow) ||
-                                   (!subscription.TrialEndsAt.HasValue && subscription.NextPaymentDate.HasValue && subscription.NextPaymentDate > DateTime.UtcNow)
-                               )),
+                    IsActive = isActive,
                     PlanType = subscription.PlanType,
                     PlanName = plan?.Name ?? subscription.PlanType,
                     MonthlyAmount = subscription.MonthlyAmount,
                     IsTrialPeriod = subscription.IsTrialPeriod,
                     TrialEndsAt = subscription.TrialEndsAt,
-                    CreatedAt = subscription.CreatedAt
+                    CreatedAt = subscription.CreatedAt,
+                    ExpiresAt = expirationDate,
+                    DaysRemaining = daysRemaining
                 };
 
-                if (subscription.IsTrialPeriod && subscription.TrialEndsAt.HasValue)
+                // Si la suscripción no está activa (expirada), generar QR de pago
+                if (!isActive)
                 {
-                    status.DaysRemaining = Math.Max(0, (int)(subscription.TrialEndsAt.Value - DateTime.UtcNow).TotalDays);
-                    status.ExpiresAt = subscription.TrialEndsAt;
-                }
-                else if (subscription.NextPaymentDate.HasValue)
-                {
-                    status.DaysRemaining = Math.Max(0, (int)(subscription.NextPaymentDate.Value - DateTime.UtcNow).TotalDays);
-                    status.ExpiresAt = subscription.NextPaymentDate;
-                }
-
-                // If trial expired and not active, generate payment QR with URL
-                if (subscription.IsTrialPeriod &&
-                    subscription.TrialEndsAt <= DateTime.UtcNow &&
-                    subscription.Status != "active")
-                {
-                    var qrResult = await GeneratePaymentQRWithUrlAsync(tenantId, subscription.PlanType);
+                    var qrResult = await GeneratePaymentQRWithUrlAsync(tenantId, subscription.PlanType ?? "pro");
                     if (qrResult.Success && qrResult.Data != null)
                     {
                         status.QrCodeData = qrResult.Data.QrCode;
