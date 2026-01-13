@@ -106,6 +106,7 @@ namespace BookingPro.API.Models.DTOs
         
         public string VerticalName { get; set; } = string.Empty;
         public string VerticalCode { get; set; } = string.Empty;
+        public string VerticalDomain { get; set; } = string.Empty;
         public string? PlanName { get; set; }
         public decimal? PlanPrice { get; set; }
         public string? PlanFeatures { get; set; }

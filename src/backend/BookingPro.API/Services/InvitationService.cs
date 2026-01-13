@@ -182,6 +182,7 @@ namespace BookingPro.API.Services
                     ExpiresAt = invitation.ExpiresAt,
                     VerticalName = invitation.Vertical.Name,
                     VerticalCode = invitation.Vertical.Code,
+                    VerticalDomain = invitation.Vertical.Domain,
                     PlanName = invitation.Plan?.Name,
                     PlanPrice = invitation.Plan?.PriceMonthly,
                     PlanFeatures = invitation.Plan?.Features

@@ -20,6 +20,7 @@ body {
   background: var(--bg);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  padding-bottom: 76px;
 }
 a { color: var(--primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -38,8 +39,7 @@ img { max-width: 100%; display: block; }
 .nav a { color: var(--muted); font-weight: 500; }
 .nav a:hover { color: var(--text); }
 .nav-cta { margin-left: auto; display: flex; align-items: center; gap: 10px; }
-.nav-toggle { display: inline-flex; margin-left: auto; border: 0; background: transparent; cursor: pointer; }
-.nav-toggle span { width: 22px; height: 2px; background: var(--text); display: block; margin: 4px 0; border-radius: 2px; }
+.nav-toggle { display: none; }
 
 .hero { padding: 64px 0 24px; }
 .hero-grid { display: grid; grid-template-columns: 1fr; gap: 32px; align-items: center; }
@@ -216,6 +216,10 @@ details[open] { box-shadow: 0 8px 20px var(--shadow); }
 .final-cta p { color: var(--muted); margin: 0 0 12px; }
 .final-cta .guarantees { margin-top: 8px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 
+.mobile-tabbar { position: fixed; z-index: 60; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid rgba(15,23,42,.08); box-shadow: 0 -6px 18px var(--shadow); display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 8px 10px calc(12px + env(safe-area-inset-bottom, 0)); }
+.tab-link { text-align: center; font-weight: 700; color: var(--muted); padding: 6px 4px; border-radius: 10px; }
+.tab-link:hover, .tab-link:focus { color: var(--text); text-decoration: none; background: #f8fafc; }
+
 .site-footer { border-top: 1px solid rgba(15,23,42,.08); padding: 24px 0; background: #fff; }
 .footer-grid { display: grid; grid-template-columns: 1fr; gap: 10px; align-items: center; }
 .f-brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
@@ -236,6 +240,8 @@ details[open] { box-shadow: 0 8px 20px var(--shadow); }
   .plan-hints-grid { grid-template-columns: repeat(3, 1fr); }
   .testi-grid { grid-template-columns: repeat(3, 1fr); }
   .footer-grid { grid-template-columns: auto 1fr auto; }
+  .mobile-tabbar { display: none; }
+  body { padding-bottom: 0; }
 }
 
 a:focus, button:focus, input:focus { outline: 3px solid rgba(37,99,235,.35); outline-offset: 2px; }

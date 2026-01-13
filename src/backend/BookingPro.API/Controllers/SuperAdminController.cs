@@ -52,7 +52,8 @@ namespace BookingPro.API.Controllers
                         vertical = new
                         {
                             name = t.Vertical.Name,
-                            code = t.Vertical.Code
+                            code = t.Vertical.Code,
+                            domain = t.Vertical.Domain
                         },
                         isActive = t.Status == "active",
                         status = t.Status,

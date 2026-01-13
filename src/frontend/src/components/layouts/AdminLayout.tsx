@@ -23,6 +23,8 @@ import {
   Collapse,
   ListItemAvatar,
   Button,
+  BottomNavigation,
+  BottomNavigationAction,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import {
@@ -124,9 +126,10 @@ const DrawerHeader = styled(Box)(({ theme }) => ({
   },
 }));
 
-const MainContent = styled(Box)<{ open: boolean }>(({ theme, open }) => ({
+const MainContent = styled(Box)<{ open: boolean; hasMobileNav?: boolean }>(({ theme, open, hasMobileNav }) => ({
   flexGrow: 1,
   padding: theme.spacing(3),
+  paddingBottom: hasMobileNav ? theme.spacing(12) : theme.spacing(3),
   backgroundColor: theme.palette.background.default,
   minHeight: '100vh',
   marginLeft: open ? 0 : `-${drawerWidth}px`,
@@ -136,6 +139,7 @@ const MainContent = styled(Box)<{ open: boolean }>(({ theme, open }) => ({
   }),
   [theme.breakpoints.down('sm')]: {
     padding: theme.spacing(2),
+    paddingBottom: hasMobileNav ? theme.spacing(14) : theme.spacing(2),
     marginLeft: 0,
   },
   [theme.breakpoints.up('md')]: {
@@ -269,6 +273,16 @@ export const AdminLayout: React.FC = () => {
       ],
     },
   ];
+
+  const mobileNavItems = [
+    { key: 'dashboard', label: 'Inicio', icon: <Home fontSize="small" />, path: '/dashboard' },
+    { key: 'calendar', label: 'Agenda', icon: <CalendarToday fontSize="small" />, path: '/calendar' },
+    { key: 'customers', label: 'Clientes', icon: <People fontSize="small" />, path: '/customers' },
+    { key: 'services', label: 'Servicios', icon: <Storefront fontSize="small" />, path: '/services' },
+    { key: 'more', label: 'Más', icon: <MenuIcon fontSize="small" />, action: 'drawer' as const },
+  ];
+
+  const mobileNavValue = mobileNavItems.findIndex((item) => item.path && location.pathname.startsWith(item.path));
 
   const handleDrawerToggle = () => {
     setDrawerOpen(!drawerOpen);
@@ -559,6 +573,7 @@ export const AdminLayout: React.FC = () => {
             sx={{ 
               mr: 2,
               color: textColor,
+              display: { xs: 'none', md: 'inline-flex' },
               '&:hover': {
                 backgroundColor: isLightTheme ? `${primaryColor}08` : `${primaryColor}10`,
               }
@@ -657,7 +672,7 @@ export const AdminLayout: React.FC = () => {
         )}
       </Box>
 
-      <MainContent open={drawerOpen}>
+      <MainContent open={drawerOpen} hasMobileNav={isMobile}>
         <Toolbar />
         <Box sx={{ p: 2, pt: 1 }}>
           <ImpersonationBanner />
@@ -670,6 +685,44 @@ export const AdminLayout: React.FC = () => {
           <Outlet />
         </motion.div>
       </MainContent>
+
+      {isMobile && (
+        <BottomNavigation
+          value={mobileNavValue === -1 ? 0 : mobileNavValue}
+          onChange={(_, newValue) => {
+            const target = mobileNavItems[newValue];
+            if (!target) return;
+            if (target.action === 'drawer') {
+              setDrawerOpen(true);
+              return;
+            }
+            if (target.path) {
+              handleNavigation(target.path);
+            }
+          }}
+          showLabels
+          sx={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: theme.zIndex.drawer + 2,
+            borderTop: '1px solid',
+            borderColor: 'divider',
+            boxShadow: '0 -6px 18px rgba(0,0,0,0.08)',
+            backgroundColor: 'background.paper',
+          }}
+        >
+          {mobileNavItems.map((item) => (
+            <BottomNavigationAction
+              key={item.key}
+              label={item.label}
+              icon={item.icon}
+              sx={{ minWidth: 0, fontWeight: 700 }}
+            />
+          ))}
+        </BottomNavigation>
+      )}
 
       <Menu
         anchorEl={notificationMenuAnchor}

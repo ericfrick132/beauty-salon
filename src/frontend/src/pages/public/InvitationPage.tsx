@@ -48,6 +48,7 @@ interface InvitationDetails {
   expiresAt: string;
   verticalName: string;
   verticalCode: string;
+  verticalDomain: string;
   planName?: string;
   planPrice?: number;
   planFeatures?: string;
@@ -217,7 +218,7 @@ const InvitationPage: React.FC = () => {
                     </Typography>
                   )}
                   <Typography variant="body2" color="text.secondary">
-                    Subdominio: {invitation.subdomain}.{invitation.verticalCode}.com
+                    Subdominio: {invitation.subdomain}.{invitation.verticalDomain}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Plan: {invitation.isDemo ? 'Demo' : invitation.planName || 'Básico'}

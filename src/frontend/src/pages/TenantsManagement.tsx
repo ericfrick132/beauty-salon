@@ -66,6 +66,7 @@ interface Tenant {
   vertical: {
     name: string;
     code: string;
+    domain: string;
   };
   planId?: string;
   plan?: {
@@ -538,7 +539,7 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
                               {tenant.businessName}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                              {tenant.subdomain}.turnos.pro
+                              {tenant.subdomain}.{tenant.vertical?.domain || 'turnos-pro.com'}
                             </Typography>
                           </Box>
                         </TableCell>
@@ -703,7 +704,7 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
                     <Typography variant="subtitle2" gutterBottom>
                       Subdominio
                     </Typography>
-                    <Typography variant="body2">{selectedTenant.subdomain}.turnos.pro</Typography>
+                    <Typography variant="body2">{selectedTenant.subdomain}.{selectedTenant.vertical?.domain || 'turnos-pro.com'}</Typography>
                   </Grid>
                   <Grid item xs={12} md={6}>
                     <Typography variant="subtitle2" gutterBottom>
