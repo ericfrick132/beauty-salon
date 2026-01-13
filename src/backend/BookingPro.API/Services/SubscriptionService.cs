@@ -492,7 +492,23 @@ namespace BookingPro.API.Services
                     TrialEndsAt = subscription.TrialEndsAt,
                     CreatedAt = subscription.CreatedAt,
                     ExpiresAt = expirationDate,
-                    DaysRemaining = daysRemaining
+                    DaysRemaining = daysRemaining,
+                    Features = plan != null ? new PlanFeaturesDto
+                    {
+                        MaxBookingsPerMonth = plan.MaxBookingsPerMonth,
+                        MaxServices = plan.MaxServices,
+                        MaxStaff = plan.MaxStaff,
+                        MaxCustomers = plan.MaxCustomers,
+                        AllowOnlinePayments = plan.AllowOnlinePayments,
+                        AllowCustomBranding = plan.AllowCustomBranding,
+                        AllowSmsNotifications = plan.AllowSmsNotifications,
+                        AllowEmailMarketing = plan.AllowEmailMarketing,
+                        AllowReports = plan.AllowReports,
+                        AllowMultiLocation = plan.AllowMultiLocation,
+                        AllowWhatsApp = plan.AllowWhatsApp,
+                        WhatsAppMonthlyLimit = plan.WhatsAppMonthlyLimit,
+                        WhatsAppExtraMessageCost = plan.WhatsAppExtraMessageCost
+                    } : null
                 };
 
                 // Si la suscripción no está activa (expirada), generar QR de pago

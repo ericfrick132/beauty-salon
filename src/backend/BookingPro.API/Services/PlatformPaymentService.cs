@@ -550,6 +550,13 @@ namespace BookingPro.API.Services
                     return ServiceResult<TenantSubscriptionPaymentResponseDto>.Fail("Tenant not found");
                 }
 
+                // Validate plan exists
+                var plan = await _context.SubscriptionPlans.FindAsync(dto.PlanId);
+                if (plan == null)
+                {
+                    return ServiceResult<TenantSubscriptionPaymentResponseDto>.Fail("Plan not found");
+                }
+
                 var months = dto.Period.ToLower() switch
                 {
                     "monthly" => 1,
@@ -579,6 +586,7 @@ namespace BookingPro.API.Services
 
                 // Activar tenant hasta el fin del período
                 tenant.Status = "active";
+                tenant.PlanId = dto.PlanId; // Assign the selected plan
                 tenant.TrialEndsAt = end; // reutilizado como fecha de expiración de acceso
                 tenant.UpdatedAt = DateTime.UtcNow;
 
@@ -593,14 +601,8 @@ namespace BookingPro.API.Services
                     subscription = new Subscription
                     {
                         TenantId = dto.TenantId,
-                        PlanType = "pro",
-                        MonthlyAmount = dto.Period.ToLower() switch
-                        {
-                            "monthly" => dto.Amount,
-                            "quarterly" => Math.Round(dto.Amount / 3m, 2),
-                            "annual" or "yearly" => Math.Round(dto.Amount / 12m, 2),
-                            _ => dto.Amount
-                        },
+                        PlanType = plan.Code, // Use plan code from selected plan
+                        MonthlyAmount = plan.Price, // Use price from plan
                         PayerEmail = dto.PayerEmail ?? tenant.OwnerEmail,
                         Status = "active",
                         IsTrialPeriod = false,
@@ -614,13 +616,14 @@ namespace BookingPro.API.Services
                 else
                 {
                     // Actualizar suscripción existente como activa y no en trial
+                    subscription.PlanType = plan.Code; // Update to new plan code
+                    subscription.MonthlyAmount = plan.Price; // Update monthly amount from plan
                     subscription.Status = "active";
                     subscription.IsTrialPeriod = false;
                     subscription.TrialEndsAt = null;
                     subscription.ActivatedAt = subscription.ActivatedAt ?? DateTime.UtcNow;
                     subscription.NextPaymentDate = end;
                     subscription.PayerEmail = dto.PayerEmail ?? subscription.PayerEmail ?? tenant.OwnerEmail;
-                    subscription.MonthlyAmount = subscription.MonthlyAmount > 0 ? subscription.MonthlyAmount : dto.Amount;
                     subscription.UpdatedAt = DateTime.UtcNow;
                 }
 

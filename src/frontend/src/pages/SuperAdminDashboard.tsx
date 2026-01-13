@@ -520,6 +520,14 @@ const SuperAdminDashboard: React.FC = () => {
                 </Button>
                 <Button
                   variant="outlined"
+                  startIcon={<Subscriptions />}
+                  onClick={() => navigate('/super-admin/plans')}
+                  size="large"
+                >
+                  Gestionar Planes
+                </Button>
+                <Button
+                  variant="outlined"
                   startIcon={<People />}
                   onClick={() => setCurrentTab(3)}
                 >

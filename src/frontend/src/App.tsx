@@ -17,6 +17,7 @@ import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import SuperAdminLogin from './pages/SuperAdminLogin';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import SuperAdminPlans from './pages/SuperAdminPlans';
 import MessagePackagesAdmin from './pages/admin/MessagePackagesAdmin';
 import NewBooking from './pages/NewBooking';
 import Calendar from './pages/Calendar';
@@ -41,10 +42,12 @@ import SalesPOS from './pages/SalesPOS';
 import Products from './pages/Products';
 import MessagingCredits from './pages/MessagingCredits';
 import MessagingSettings from './pages/MessagingSettings';
+import RecurringSubscription from './pages/RecurringSubscription';
 import TenantsManagement from './pages/TenantsManagement';
 import Blocks from './pages/Blocks';
 import { AdminLayout } from './components/layouts/AdminLayout';
 import SubscriptionVerification from './components/SubscriptionVerification';
+import { SubscriptionProvider } from './contexts/SubscriptionContext';
 
 function App() {
   const [tenantConfig, setTenantConfig] = useState<TenantConfig | null>(null);
@@ -238,6 +241,7 @@ function App() {
           <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
             <CssBaseline />
             <Router>
+              <SubscriptionProvider>
               <SubscriptionVerification />
               <Routes>
                 {/* Rutas Super Admin */}
@@ -245,6 +249,7 @@ function App() {
                 <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />
                 <Route path="/super-admin/message-packages" element={<MessagePackagesAdmin />} />
                 <Route path="/super-admin/tenants" element={<TenantsManagement />} />
+                <Route path="/super-admin/plans" element={<SuperAdminPlans />} />
                 
                 {/* Main Domain Routes - Landing Page */}
                 {isMainDomain() ? (
@@ -285,11 +290,13 @@ function App() {
                   <Route path="/theme-settings" element={<ThemeSettings />} />
                   <Route path="/mercadopago-settings" element={<MercadoPagoSettings />} />
                   <Route path="/subscription" element={<SubscriptionManagement />} />
+                  <Route path="/subscription/recurring" element={<RecurringSubscription />} />
                   <Route path="/platform-subscription" element={<PlatformSubscriptionStatus />} />
                   <Route path="/messaging" element={<MessagingCredits />} />
                   <Route path="/messaging/settings" element={<MessagingSettings />} />
                 </Route>
               </Routes>
+              </SubscriptionProvider>
             </Router>
           </LocalizationProvider>
         </ThemeProvider>

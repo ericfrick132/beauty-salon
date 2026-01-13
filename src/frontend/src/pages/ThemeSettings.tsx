@@ -31,9 +31,12 @@ import {
   Visibility,
   ContentCopy,
   Schedule,
+  CheckCircle,
+  Info,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import api from '../services/api';
+import { useSubscription } from '../contexts/SubscriptionContext';
 import { ThemeConfiguration } from '../types';
 
 const TIMEZONES = [
@@ -80,6 +83,9 @@ const ThemeSettings: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+
+  const { subscription, hasFeature } = useSubscription();
+  const brandingIncluded = hasFeature('allowCustomBranding');
 
   useEffect(() => {
     loadThemeConfiguration();
@@ -272,6 +278,23 @@ const ThemeSettings: React.FC = () => {
             Tienes cambios sin guardar. Los cambios se aplicarán cuando guardes y la página se recargará.
           </Alert>
         )}
+
+        {/* Plan Info Alert */}
+        <Alert
+          severity={brandingIncluded ? "success" : "info"}
+          icon={brandingIncluded ? <CheckCircle /> : <Info />}
+          sx={{ mb: 3 }}
+        >
+          {brandingIncluded ? (
+            <Typography variant="body2">
+              <strong>Personalización incluida en tu plan {subscription?.planName}</strong> - Puedes personalizar todos los colores y la apariencia de tu negocio.
+            </Typography>
+          ) : (
+            <Typography variant="body2">
+              La personalización de marca no está incluida en tu plan actual. Puedes ver las opciones pero actualiza tu suscripción para aplicar cambios personalizados.
+            </Typography>
+          )}
+        </Alert>
 
         <Grid container spacing={3}>
           {/* Colores Principales */}

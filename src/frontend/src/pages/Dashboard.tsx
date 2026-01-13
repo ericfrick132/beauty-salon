@@ -44,6 +44,8 @@ import {
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useTenant } from '../contexts/TenantContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import { PlanSummary } from '../components/common/PlanFeatureBadge';
 import { useAppDispatch, useAppSelector } from '../store';
 import { fetchBookings, fetchEmployees, fetchServices } from '../store/slices/bookingSlice';
 import {
@@ -75,6 +77,7 @@ import { startOnboardingTour } from '../tours/onboarding';
 const Dashboard: React.FC = () => {
   const { config, getTerm } = useTenant();
   const navigate = useNavigate();
+  const { subscription } = useSubscription();
   const dispatch = useAppDispatch();
   const { bookings, employees, services, loading } = useAppSelector(state => state.booking);
   const [financialStats, setFinancialStats] = useState<any>(null);
@@ -420,6 +423,38 @@ const Dashboard: React.FC = () => {
             </Card>
           </Grid>
         </Grid>
+
+        {/* Plan Summary Card */}
+        {subscription && (
+          <Grid container spacing={3} sx={{ mb: 3 }}>
+            <Grid item xs={12} md={6}>
+              <Card
+                sx={{
+                  background: `linear-gradient(135deg, ${primaryColor}08, ${accentColor}05)`,
+                  boxShadow: shadowStyle,
+                  border: '1px solid',
+                  borderColor: `${primaryColor}20`,
+                }}
+              >
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <Box>
+                      <PlanSummary />
+                    </Box>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => navigate('/subscription')}
+                      sx={{ borderColor: primaryColor, color: primaryColor }}
+                    >
+                      Ver planes
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        )}
 
         {/* Financial Overview Card - Nueva sección */}
         {financialStats && (

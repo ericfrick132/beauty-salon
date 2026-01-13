@@ -25,7 +25,14 @@
       "Bash(dotnet ef migrations:*)",
       "Bash(git add:*)",
       "Bash(nslookup:*)",
-      "Bash(dig:*)"
+      "Bash(dig:*)",
+      "Bash(claude mcp add:*)",
+      "Bash(claude mcp list)",
+      "Bash(lsof:*)",
+      "Bash(netstat:*)",
+      "Bash(ss:*)",
+      "Bash(npx:*)",
+      "Bash(node test-playwright.js:*)"
     ],
     "deny": [],
     "ask": []

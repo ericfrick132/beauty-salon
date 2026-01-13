@@ -49,6 +49,10 @@ namespace BookingPro.API.Data
         // Platform entities (B2B)
         public DbSet<PlatformMercadoPagoConfiguration> PlatformMercadoPagoConfigurations { get; set; }
         public DbSet<TenantSubscriptionPayment> TenantSubscriptionPayments { get; set; }
+
+        // Preapproval entities (MercadoPago recurring subscriptions)
+        public DbSet<TenantPreapproval> TenantPreapprovals { get; set; }
+        public DbSet<PreapprovalPayment> PreapprovalPayments { get; set; }
         
         // End User entities (B2C)
         public DbSet<EndUser> EndUsers { get; set; }
@@ -175,6 +179,48 @@ namespace BookingPro.API.Data
                     .WithMany()
                     .HasForeignKey(p => p.TenantId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // === Preapproval Entities Configuration (MercadoPago recurring) ===
+            modelBuilder.Entity<TenantPreapproval>(entity =>
+            {
+                entity.HasIndex(p => p.TenantId);
+                entity.HasIndex(p => p.SubscriptionPlanId);
+                entity.HasIndex(p => p.MercadoPagoPreapprovalId).IsUnique();
+                entity.HasIndex(p => p.Status);
+                entity.HasIndex(p => p.ExternalReference);
+                entity.HasIndex(p => p.NextPaymentDate);
+                entity.HasIndex(p => p.PayerEmail);
+
+                entity.HasOne(p => p.Tenant)
+                    .WithMany()
+                    .HasForeignKey(p => p.TenantId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(p => p.SubscriptionPlan)
+                    .WithMany()
+                    .HasForeignKey(p => p.SubscriptionPlanId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasMany(p => p.Payments)
+                    .WithOne(pp => pp.TenantPreapproval)
+                    .HasForeignKey(pp => pp.TenantPreapprovalId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<PreapprovalPayment>(entity =>
+            {
+                entity.HasIndex(p => p.TenantId);
+                entity.HasIndex(p => p.TenantPreapprovalId);
+                entity.HasIndex(p => p.MercadoPagoPaymentId).IsUnique();
+                entity.HasIndex(p => p.Status);
+                entity.HasIndex(p => p.PaymentDate);
+                entity.HasIndex(p => p.ExternalReference);
+
+                entity.HasOne(p => p.Tenant)
+                    .WithMany()
+                    .HasForeignKey(p => p.TenantId)
+                    .OnDelete(DeleteBehavior.NoAction); // Avoid cascade cycle
             });
 
             // Messaging packages (platform level)

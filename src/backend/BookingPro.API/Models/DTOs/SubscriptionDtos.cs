@@ -32,6 +32,24 @@ namespace BookingPro.API.Models.DTOs
         public string? PaymentUrl { get; set; }
         public string? QrCodeData { get; set; }
         public DateTime CreatedAt { get; set; }
+        public PlanFeaturesDto? Features { get; set; }
+    }
+
+    public class PlanFeaturesDto
+    {
+        public int MaxBookingsPerMonth { get; set; }
+        public int MaxServices { get; set; }
+        public int MaxStaff { get; set; }
+        public int MaxCustomers { get; set; }
+        public bool AllowOnlinePayments { get; set; }
+        public bool AllowCustomBranding { get; set; }
+        public bool AllowSmsNotifications { get; set; }
+        public bool AllowEmailMarketing { get; set; }
+        public bool AllowReports { get; set; }
+        public bool AllowMultiLocation { get; set; }
+        public bool AllowWhatsApp { get; set; }
+        public int WhatsAppMonthlyLimit { get; set; }
+        public decimal WhatsAppExtraMessageCost { get; set; }
     }
 
     public class SubscriptionPlanDto

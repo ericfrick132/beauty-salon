@@ -135,6 +135,7 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IPlatformPaymentSe
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IEndUserService, BookingPro.API.Services.EndUserService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IEmailAutomationService, BookingPro.API.Services.EmailAutomationService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ISuperAdminService, BookingPro.API.Services.SuperAdminService>();
+builder.Services.AddScoped<BookingPro.API.Services.IPreapprovalService, BookingPro.API.Services.PreapprovalService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();

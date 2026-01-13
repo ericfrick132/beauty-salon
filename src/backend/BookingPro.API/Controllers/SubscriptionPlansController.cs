@@ -123,9 +123,62 @@ namespace BookingPro.API.Controllers
             }
         }
 
+        // GET: api/subscription-plans/admin - Para super admin con todos los campos
+        [HttpGet("admin")]
+        [Authorize(Roles = "super_admin")]
+        public async Task<IActionResult> GetPlansAdmin()
+        {
+            try
+            {
+                var plans = await _context.SubscriptionPlans
+                    .OrderBy(p => p.DisplayOrder)
+                    .ThenBy(p => p.Price)
+                    .Select(p => new
+                    {
+                        p.Id,
+                        p.Code,
+                        p.Name,
+                        p.Description,
+                        p.Price,
+                        p.Currency,
+                        p.MaxBookingsPerMonth,
+                        p.MaxServices,
+                        p.MaxStaff,
+                        p.MaxCustomers,
+                        p.AllowOnlinePayments,
+                        p.AllowCustomBranding,
+                        p.AllowSmsNotifications,
+                        p.AllowEmailMarketing,
+                        p.AllowReports,
+                        p.AllowMultiLocation,
+                        p.AllowWhatsApp,
+                        p.WhatsAppMonthlyLimit,
+                        p.WhatsAppExtraMessageCost,
+                        p.MercadoPagoPreapprovalPlanId,
+                        p.TrialDays,
+                        p.IsActive,
+                        p.IsPopular,
+                        p.DisplayOrder,
+                        p.CreatedAt,
+                        p.UpdatedAt,
+                        // Contar suscripciones activas
+                        ActiveSubscriptions = _context.Subscriptions
+                            .Count(s => s.PlanType == p.Code && s.Status == "active")
+                    })
+                    .ToListAsync();
+
+                return Ok(plans);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting subscription plans for admin");
+                return StatusCode(500, new { error = "Error al obtener planes" });
+            }
+        }
+
         // POST: api/subscription-plans
         [HttpPost]
-        [Authorize(Roles = "SuperAdmin")]
+        [Authorize(Roles = "super_admin")]
         public async Task<IActionResult> CreatePlan([FromBody] CreateSubscriptionPlanDto dto)
         {
             try
@@ -181,7 +234,7 @@ namespace BookingPro.API.Controllers
 
         // PUT: api/subscription-plans/{code}
         [HttpPut("{code}")]
-        [Authorize(Roles = "SuperAdmin")]
+        [Authorize(Roles = "super_admin")]
         public async Task<IActionResult> UpdatePlan(string code, [FromBody] UpdateSubscriptionPlanDto dto)
         {
             try
@@ -244,7 +297,7 @@ namespace BookingPro.API.Controllers
 
         // DELETE: api/subscription-plans/{code}
         [HttpDelete("{code}")]
-        [Authorize(Roles = "SuperAdmin")]
+        [Authorize(Roles = "super_admin")]
         public async Task<IActionResult> DeletePlan(string code)
         {
             try
@@ -280,7 +333,7 @@ namespace BookingPro.API.Controllers
 
         // POST: api/subscription-plans/seed
         [HttpPost("seed")]
-        [Authorize(Roles = "SuperAdmin")]
+        [Authorize(Roles = "super_admin")]
         public async Task<IActionResult> SeedDefaultPlans()
         {
             try

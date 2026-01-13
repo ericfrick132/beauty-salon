@@ -114,6 +114,16 @@ interface PlatformConfig {
   isActive: boolean;
 }
 
+interface SubscriptionPlan {
+  id: string;
+  name: string;
+  code: string;
+  monthlyPrice: number;
+  annualPrice: number;
+  currency: string;
+  isActive: boolean;
+}
+
 type TenantsManagementProps = {
   embedded?: boolean;
 };
@@ -145,7 +155,9 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
   const [tenantDetailsOpen, setTenantDetailsOpen] = useState(false);
   const [configDialog, setConfigDialog] = useState(false);
   const [manualPaymentDialog, setManualPaymentDialog] = useState(false);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [manualPaymentForm, setManualPaymentForm] = useState({
+    planId: '',
     amount: 0,
     period: 'monthly',
     periodStart: new Date().toISOString().split('T')[0],
@@ -161,10 +173,11 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [tenantsResponse, paymentsResponse, configResponse] = await Promise.allSettled([
+      const [tenantsResponse, paymentsResponse, configResponse, plansResponse] = await Promise.allSettled([
         api.get('/super-admin/tenants'),
         api.get('/super-admin/tenant-payments'),
         api.get('/super-admin/platform-config'),
+        api.get('/subscription-plans'),
       ]);
       
       let allTenants: Tenant[] = [];
@@ -188,7 +201,12 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
       if (configResponse.status === 'fulfilled') {
         setPlatformConfig(configResponse.value.data);
       }
-      
+
+      if (plansResponse.status === 'fulfilled') {
+        const activePlans = (plansResponse.value.data || []).filter((p: SubscriptionPlan) => p.isActive);
+        setPlans(activePlans);
+      }
+
       // Calculate stats
       const newStats: TenantStats = {
         total: allTenants.length,
@@ -255,11 +273,24 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
   };
 
   const handleRecordManualPayment = async () => {
-    if (!selectedTenant) return;
+    if (!selectedTenant || !manualPaymentForm.planId) return;
+
+    const selectedPlan = plans.find(p => p.id === manualPaymentForm.planId);
+    if (!selectedPlan) return;
+
+    // Calculate amount based on period
+    let amount = selectedPlan.monthlyPrice;
+    if (manualPaymentForm.period === 'quarterly') {
+      amount = selectedPlan.monthlyPrice * 3;
+    } else if (manualPaymentForm.period === 'annual') {
+      amount = selectedPlan.annualPrice || selectedPlan.monthlyPrice * 12;
+    }
+
     try {
       const payload = {
         tenantId: selectedTenant.id,
-        amount: Number(manualPaymentForm.amount),
+        planId: manualPaymentForm.planId,
+        amount: amount,
         period: manualPaymentForm.period,
         periodStart: new Date(manualPaymentForm.periodStart + 'T00:00:00Z').toISOString(),
         payerEmail: manualPaymentForm.payerEmail || undefined
@@ -269,6 +300,14 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
         setMessage({ type: 'success', text: 'Pago manual registrado y suscripción activada' });
         setManualPaymentDialog(false);
         setTenantDetailsOpen(false);
+        // Reset form
+        setManualPaymentForm({
+          planId: '',
+          amount: 0,
+          period: 'monthly',
+          periodStart: new Date().toISOString().split('T')[0],
+          payerEmail: ''
+        });
         await fetchData();
       } else {
         setMessage({ type: 'error', text: response.data?.error || 'Error registrando pago' });
@@ -856,12 +895,18 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
               <Grid item xs={12}>
                 <TextField
                   fullWidth
-                  label="Monto"
-                  type="number"
-                  value={manualPaymentForm.amount}
-                  onChange={(e) => setManualPaymentForm({ ...manualPaymentForm, amount: Number(e.target.value) })}
-                  InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
-                />
+                  select
+                  label="Plan de suscripción"
+                  value={manualPaymentForm.planId}
+                  onChange={(e) => setManualPaymentForm({ ...manualPaymentForm, planId: e.target.value })}
+                  required
+                >
+                  {plans.map((plan) => (
+                    <MenuItem key={plan.id} value={plan.id}>
+                      {plan.name} - ${plan.monthlyPrice.toLocaleString()} {plan.currency}/mes
+                    </MenuItem>
+                  ))}
+                </TextField>
               </Grid>
               <Grid item xs={12}>
                 <TextField
@@ -876,6 +921,26 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
                   <MenuItem value="annual">Anual</MenuItem>
                 </TextField>
               </Grid>
+              {manualPaymentForm.planId && (
+                <Grid item xs={12}>
+                  <Alert severity="info">
+                    {(() => {
+                      const selectedPlan = plans.find(p => p.id === manualPaymentForm.planId);
+                      if (!selectedPlan) return null;
+                      let amount = selectedPlan.monthlyPrice;
+                      let periodText = '1 mes';
+                      if (manualPaymentForm.period === 'quarterly') {
+                        amount = selectedPlan.monthlyPrice * 3;
+                        periodText = '3 meses';
+                      } else if (manualPaymentForm.period === 'annual') {
+                        amount = selectedPlan.annualPrice || selectedPlan.monthlyPrice * 12;
+                        periodText = '12 meses';
+                      }
+                      return `Monto a registrar: $${amount.toLocaleString()} ${selectedPlan.currency} por ${periodText}`;
+                    })()}
+                  </Alert>
+                </Grid>
+              )}
               <Grid item xs={12}>
                 <TextField
                   fullWidth
@@ -899,7 +964,7 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setManualPaymentDialog(false)}>Cancelar</Button>
-            <Button variant="contained" onClick={handleRecordManualPayment} disabled={!manualPaymentForm.amount || manualPaymentForm.amount <= 0}>
+            <Button variant="contained" onClick={handleRecordManualPayment} disabled={!manualPaymentForm.planId}>
               Guardar
             </Button>
           </DialogActions>

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Card, CardContent, Typography, Switch, TextField, Button, Grid, Alert } from '@mui/material';
+import { Box, Card, CardContent, Typography, Switch, TextField, Button, Grid, Alert, Chip } from '@mui/material';
+import { WhatsApp, CheckCircle, Info } from '@mui/icons-material';
 import { messagingApi } from '../services/api';
+import { useSubscription } from '../contexts/SubscriptionContext';
 
 const defaultTemplate = 'Hola {customer_name}! Te recordamos tu turno para {service_name} el {date} a las {time}. Si no podés asistir, avisanos respondiendo este mensaje.';
 
@@ -13,6 +15,11 @@ const MessagingSettings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const { subscription, hasFeature, isUnlimited } = useSubscription();
+  const whatsAppIncluded = hasFeature('allowWhatsApp');
+  const whatsAppLimit = subscription?.features?.whatsAppMonthlyLimit ?? 0;
+  const isWhatsAppUnlimited = isUnlimited('whatsAppMonthlyLimit');
 
   const load = async () => {
     try {
@@ -58,7 +65,38 @@ const MessagingSettings: React.FC = () => {
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
-              <Typography variant="h6">Recordatorios por WhatsApp</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <WhatsApp color="success" />
+                <Typography variant="h6">Recordatorios por WhatsApp</Typography>
+              </Box>
+
+              {/* Plan Info Alert */}
+              <Alert
+                severity={whatsAppIncluded ? "success" : "info"}
+                icon={whatsAppIncluded ? <CheckCircle /> : <Info />}
+                sx={{ mb: 2 }}
+              >
+                {whatsAppIncluded ? (
+                  <Box>
+                    <Typography variant="body2" fontWeight="medium">
+                      WhatsApp incluido en tu plan {subscription?.planName}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                      <Chip
+                        size="small"
+                        label={isWhatsAppUnlimited ? 'Mensajes ilimitados' : `${whatsAppLimit} mensajes/mes`}
+                        color="success"
+                        variant="outlined"
+                      />
+                    </Box>
+                  </Box>
+                ) : (
+                  <Typography variant="body2">
+                    WhatsApp no está incluido en tu plan actual. Actualiza tu suscripción para acceder a esta función.
+                  </Typography>
+                )}
+              </Alert>
+
               <Box display="flex" alignItems="center" mt={2}>
                 <Switch checked={enabled} onChange={(_, v) => setEnabled(v)} />
                 <Typography>Habilitar</Typography>

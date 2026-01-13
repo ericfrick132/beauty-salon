@@ -170,6 +170,10 @@ namespace BookingPro.API.Models.DTOs
         [Required]
         public Guid TenantId { get; set; }
 
+        // Plan de suscripción seleccionado
+        [Required]
+        public Guid PlanId { get; set; }
+
         [Required]
         public decimal Amount { get; set; }
 
