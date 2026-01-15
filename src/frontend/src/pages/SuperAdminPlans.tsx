@@ -126,7 +126,11 @@ const initialFormData: PlanFormData = {
   displayOrder: 0,
 };
 
-const SuperAdminPlans: React.FC = () => {
+interface SuperAdminPlansProps {
+  embedded?: boolean;
+}
+
+const SuperAdminPlans: React.FC<SuperAdminPlansProps> = ({ embedded = false }) => {
   const navigate = useNavigate();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -270,27 +274,29 @@ const SuperAdminPlans: React.FC = () => {
   };
 
   return (
-    <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
-      <AppBar position="static">
-        <Toolbar>
-          <IconButton
-            edge="start"
-            color="inherit"
-            onClick={() => navigate('/super-admin')}
-            sx={{ mr: 2 }}
-          >
-            <ArrowBack />
-          </IconButton>
-          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 600 }}>
-            Gestión de Planes de Membresía
-          </Typography>
-          <IconButton color="inherit" onClick={loadPlans}>
-            <Refresh />
-          </IconButton>
-        </Toolbar>
-      </AppBar>
+    <Box sx={{ backgroundColor: embedded ? 'transparent' : 'background.default', minHeight: embedded ? 'auto' : '100vh' }}>
+      {!embedded && (
+        <AppBar position="static">
+          <Toolbar>
+            <IconButton
+              edge="start"
+              color="inherit"
+              onClick={() => navigate('/super-admin')}
+              sx={{ mr: 2 }}
+            >
+              <ArrowBack />
+            </IconButton>
+            <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 600 }}>
+              Gestión de Planes de Membresía
+            </Typography>
+            <IconButton color="inherit" onClick={loadPlans}>
+              <Refresh />
+            </IconButton>
+          </Toolbar>
+        </AppBar>
+      )}
 
-      <Container maxWidth="xl" sx={{ py: 3 }}>
+      <Container maxWidth="xl" sx={{ py: embedded ? 2 : 3 }}>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
             {error}
@@ -344,13 +350,18 @@ const SuperAdminPlans: React.FC = () => {
         <Paper sx={{ mb: 3 }}>
           <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6">Planes de Membresía</Typography>
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={handleOpenCreate}
-            >
-              Nuevo Plan
-            </Button>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <IconButton onClick={loadPlans} color="primary">
+                <Refresh />
+              </IconButton>
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={handleOpenCreate}
+              >
+                Nuevo Plan
+              </Button>
+            </Box>
           </Box>
           <Divider />
 

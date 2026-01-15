@@ -56,9 +56,11 @@ import {
   Palette,
   Save,
   PersonAdd as PersonImpersonateIcon,
+  CardMembership,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import TenantsManagement from './TenantsManagement';
+import SuperAdminPlans from './SuperAdminPlans';
 import { useNavigate } from 'react-router-dom';
 import { superAdminApi } from '../services/api';
 import { superAdminService } from '../services/superAdminService';
@@ -787,8 +789,8 @@ const SuperAdminDashboard: React.FC = () => {
 
         {/* Tabs */}
         <Paper>
-          <Tabs 
-            value={currentTab} 
+          <Tabs
+            value={currentTab}
             onChange={(_, newValue) => setCurrentTab(newValue)}
             variant="scrollable"
             scrollButtons="auto"
@@ -797,6 +799,7 @@ const SuperAdminDashboard: React.FC = () => {
             <Tab icon={<Email />} label="Crear Invitación" />
             <Tab icon={<Email />} label="Invitaciones Enviadas" />
             <Tab icon={<People />} label="Negocios Registrados" />
+            <Tab icon={<CardMembership />} label="Planes" />
             <Tab icon={<Subscriptions />} label="Suscripciones" />
             <Tab icon={<AttachMoney />} label="Facturación" />
             <Tab icon={<Settings />} label="Configuración" />
@@ -822,22 +825,30 @@ const SuperAdminDashboard: React.FC = () => {
           <div role="tabpanel" hidden={currentTab !== 4}>
             {currentTab === 4 && (
               <Box sx={{ p: 0 }}>
+                <SuperAdminPlans embedded />
+              </Box>
+            )}
+          </div>
+
+          <div role="tabpanel" hidden={currentTab !== 5}>
+            {currentTab === 5 && (
+              <Box sx={{ p: 0 }}>
                 <TenantsManagement embedded />
               </Box>
             )}
           </div>
-          
-          <div role="tabpanel" hidden={currentTab !== 5}>
-            {currentTab === 5 && (
+
+          <div role="tabpanel" hidden={currentTab !== 6}>
+            {currentTab === 6 && (
               <Box sx={{ p: 3 }}>
                 <Typography variant="h5">Facturación</Typography>
                 <Typography color="text.secondary">Próximamente...</Typography>
               </Box>
             )}
           </div>
-          
-          <div role="tabpanel" hidden={currentTab !== 6}>
-            {currentTab === 6 && (
+
+          <div role="tabpanel" hidden={currentTab !== 7}>
+            {currentTab === 7 && (
               <Box sx={{ p: 3 }}>
                 <Typography variant="h5">Configuración</Typography>
                 <Typography color="text.secondary">Próximamente...</Typography>
