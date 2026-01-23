@@ -118,8 +118,7 @@ interface SubscriptionPlan {
   id: string;
   name: string;
   code: string;
-  monthlyPrice: number;
-  annualPrice: number;
+  price: number;
   currency: string;
   isActive: boolean;
 }
@@ -177,7 +176,7 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
         api.get('/super-admin/tenants'),
         api.get('/super-admin/tenant-payments'),
         api.get('/super-admin/platform-config'),
-        api.get('/subscription-plans'),
+        api.get('/subscription-plans/admin'),
       ]);
       
       let allTenants: Tenant[] = [];
@@ -279,11 +278,11 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
     if (!selectedPlan) return;
 
     // Calculate amount based on period
-    let amount = selectedPlan.monthlyPrice;
+    let amount = selectedPlan.price;
     if (manualPaymentForm.period === 'quarterly') {
-      amount = selectedPlan.monthlyPrice * 3;
+      amount = selectedPlan.price * 3;
     } else if (manualPaymentForm.period === 'annual') {
-      amount = selectedPlan.annualPrice || selectedPlan.monthlyPrice * 12;
+      amount = selectedPlan.price * 12;
     }
 
     try {
@@ -903,7 +902,7 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
                 >
                   {plans.map((plan) => (
                     <MenuItem key={plan.id} value={plan.id}>
-                      {plan.name} - ${plan.monthlyPrice.toLocaleString()} {plan.currency}/mes
+                      {plan.name} - ${plan.price.toLocaleString()} {plan.currency}/mes
                     </MenuItem>
                   ))}
                 </TextField>
@@ -927,13 +926,13 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
                     {(() => {
                       const selectedPlan = plans.find(p => p.id === manualPaymentForm.planId);
                       if (!selectedPlan) return null;
-                      let amount = selectedPlan.monthlyPrice;
+                      let amount = selectedPlan.price;
                       let periodText = '1 mes';
                       if (manualPaymentForm.period === 'quarterly') {
-                        amount = selectedPlan.monthlyPrice * 3;
+                        amount = selectedPlan.price * 3;
                         periodText = '3 meses';
                       } else if (manualPaymentForm.period === 'annual') {
-                        amount = selectedPlan.annualPrice || selectedPlan.monthlyPrice * 12;
+                        amount = selectedPlan.price * 12;
                         periodText = '12 meses';
                       }
                       return `Monto a registrar: $${amount.toLocaleString()} ${selectedPlan.currency} por ${periodText}`;
