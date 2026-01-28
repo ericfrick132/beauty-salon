@@ -334,6 +334,12 @@ namespace BookingPro.API.Migrations
                     b.Property<string>("Reason")
                         .HasColumnType("text");
 
+                    b.Property<string>("RecurrencePattern")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("SeriesId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("StartTime")
                         .HasColumnType("timestamp with time zone");
 
@@ -1573,6 +1579,103 @@ namespace BookingPro.API.Migrations
                     b.ToTable("platform_mercadopago_config", "public");
                 });
 
+            modelBuilder.Entity("BookingPro.API.Models.Entities.PreapprovalPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("CardLastFourDigits")
+                        .HasMaxLength(6)
+                        .HasColumnType("character varying(6)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CurrencyId")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("ExternalReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("MercadoPagoPaymentId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("MercadoPagoPreapprovalId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("MoneyReleaseDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("PaymentDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PaymentMethodId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("PaymentTypeId")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime?>("PeriodEnd")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("PeriodStart")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RawResponse")
+                        .HasColumnType("text");
+
+                    b.Property<int>("RetryAttempt")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("StatusDetail")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantPreapprovalId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExternalReference");
+
+                    b.HasIndex("MercadoPagoPaymentId")
+                        .IsUnique();
+
+                    b.HasIndex("PaymentDate");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantPreapprovalId");
+
+                    b.ToTable("preapproval_payments", "public");
+                });
+
             modelBuilder.Entity("BookingPro.API.Models.Entities.PriceHistory", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2553,6 +2656,132 @@ namespace BookingPro.API.Migrations
                     b.ToTable("tenant_plans", (string)null);
                 });
 
+            modelBuilder.Entity("BookingPro.API.Models.Entities.TenantPreapproval", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("AuthorizedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ConsecutiveFailedPayments")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CurrencyId")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<DateTime?>("DateCreated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ExternalReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("FrequencyType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("FrequencyValue")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("InitPoint")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("LastFailureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("LastPaymentDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MercadoPagoPreapprovalId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("NextPaymentDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("PausedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PayerEmail")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("PayerId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("SandboxInitPoint")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("StartDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("SubscriptionPlanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("TotalAmountPaid")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("TotalPaymentsProcessed")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("TransactionAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExternalReference");
+
+                    b.HasIndex("MercadoPagoPreapprovalId")
+                        .IsUnique();
+
+                    b.HasIndex("NextPaymentDate");
+
+                    b.HasIndex("PayerEmail");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("SubscriptionPlanId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("tenant_preapprovals", "public");
+                });
+
             modelBuilder.Entity("BookingPro.API.Models.Entities.TenantSubscriptionPayment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2950,6 +3179,25 @@ namespace BookingPro.API.Migrations
                     b.Navigation("Vertical");
                 });
 
+            modelBuilder.Entity("BookingPro.API.Models.Entities.PreapprovalPayment", b =>
+                {
+                    b.HasOne("BookingPro.API.Models.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("BookingPro.API.Models.Entities.TenantPreapproval", "TenantPreapproval")
+                        .WithMany("Payments")
+                        .HasForeignKey("TenantPreapprovalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+
+                    b.Navigation("TenantPreapproval");
+                });
+
             modelBuilder.Entity("BookingPro.API.Models.Entities.PriceHistory", b =>
                 {
                     b.HasOne("BookingPro.API.Models.Entities.Product", "Product")
@@ -3091,6 +3339,25 @@ namespace BookingPro.API.Migrations
                     b.Navigation("Vertical");
                 });
 
+            modelBuilder.Entity("BookingPro.API.Models.Entities.TenantPreapproval", b =>
+                {
+                    b.HasOne("BookingPro.API.Models.Entities.SubscriptionPlan", "SubscriptionPlan")
+                        .WithMany()
+                        .HasForeignKey("SubscriptionPlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BookingPro.API.Models.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SubscriptionPlan");
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("BookingPro.API.Models.Entities.TenantSubscriptionPayment", b =>
                 {
                     b.HasOne("BookingPro.API.Models.Entities.Tenant", "Tenant")
@@ -3201,6 +3468,11 @@ namespace BookingPro.API.Migrations
             modelBuilder.Entity("BookingPro.API.Models.Entities.TenantPlan", b =>
                 {
                     b.Navigation("Memberships");
+                });
+
+            modelBuilder.Entity("BookingPro.API.Models.Entities.TenantPreapproval", b =>
+                {
+                    b.Navigation("Payments");
                 });
 
             modelBuilder.Entity("BookingPro.API.Models.Entities.Vertical", b =>

@@ -38,7 +38,9 @@ namespace BookingPro.API.Controllers
                         employeeId = b.EmployeeId,
                         startTime = b.StartTime,
                         endTime = b.EndTime,
-                        reason = b.Reason
+                        reason = b.Reason,
+                        seriesId = b.SeriesId,
+                        recurrencePattern = b.RecurrencePattern
                     })
                     .ToListAsync();
 
@@ -162,6 +164,15 @@ namespace BookingPro.API.Controllers
                     offsetHours = -3; // default AR
                 }
 
+                // Generate a series ID for this recurring block group
+                var seriesId = Guid.NewGuid();
+                var recurrencePattern = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    daysOfWeek = dto.DaysOfWeek,
+                    startTimeOfDay = dto.StartTimeOfDay,
+                    endTimeOfDay = dto.EndTimeOfDay
+                });
+
                 var cancelledCount = 0;
                 while (current <= effectiveEndDate)
                 {
@@ -190,7 +201,9 @@ namespace BookingPro.API.Controllers
                                 EmployeeId = employeeId,
                                 StartTime = start,
                                 EndTime = end,
-                                Reason = dto.Reason
+                                Reason = dto.Reason,
+                                SeriesId = seriesId,
+                                RecurrencePattern = recurrencePattern
                             });
                         }
                         else if (overlappingBookings.Any() && dto.ForceOverride && !hasBlock)
@@ -206,7 +219,9 @@ namespace BookingPro.API.Controllers
                                 EmployeeId = employeeId,
                                 StartTime = start,
                                 EndTime = end,
-                                Reason = dto.Reason
+                                Reason = dto.Reason,
+                                SeriesId = seriesId,
+                                RecurrencePattern = recurrencePattern
                             });
                         }
                     }
@@ -219,7 +234,7 @@ namespace BookingPro.API.Controllers
                     await _context.SaveChangesAsync();
                 }
 
-                return Ok(new { created = blocksToAdd.Count, cancelledBookings = cancelledCount });
+                return Ok(new { created = blocksToAdd.Count, cancelledBookings = cancelledCount, seriesId = seriesId });
             }
             catch (Exception ex)
             {
@@ -293,6 +308,249 @@ namespace BookingPro.API.Controllers
                 await _context.SaveChangesAsync();
 
                 return Ok(new { message = "Bloqueo eliminado" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        // Delete all blocks in a series
+        [HttpDelete("series/{seriesId:guid}")]
+        public async Task<IActionResult> DeleteSeries(Guid employeeId, Guid seriesId)
+        {
+            try
+            {
+                var blocks = await _context.EmployeeTimeBlocks
+                    .Where(b => b.EmployeeId == employeeId && b.SeriesId == seriesId)
+                    .ToListAsync();
+
+                if (!blocks.Any())
+                    return NotFound(new { message = "Serie no encontrada" });
+
+                _context.EmployeeTimeBlocks.RemoveRange(blocks);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Serie eliminada", deleted = blocks.Count });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        // Delete this block and all following blocks in the series
+        [HttpDelete("{blockId:guid}/and-following")]
+        public async Task<IActionResult> DeleteBlockAndFollowing(Guid employeeId, Guid blockId)
+        {
+            try
+            {
+                var block = await _context.EmployeeTimeBlocks
+                    .FirstOrDefaultAsync(b => b.Id == blockId && b.EmployeeId == employeeId);
+                if (block == null)
+                    return NotFound(new { message = "Bloqueo no encontrado" });
+
+                if (!block.SeriesId.HasValue)
+                {
+                    // Single block, just delete it
+                    _context.EmployeeTimeBlocks.Remove(block);
+                    await _context.SaveChangesAsync();
+                    return Ok(new { message = "Bloqueo eliminado", deleted = 1 });
+                }
+
+                // Delete this and all following in the series
+                var blocksToDelete = await _context.EmployeeTimeBlocks
+                    .Where(b => b.EmployeeId == employeeId && b.SeriesId == block.SeriesId && b.StartTime >= block.StartTime)
+                    .ToListAsync();
+
+                _context.EmployeeTimeBlocks.RemoveRange(blocksToDelete);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Bloqueos eliminados", deleted = blocksToDelete.Count });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        public class UpdateSeriesDto
+        {
+            public string? Reason { get; set; }
+            public string? StartTimeOfDay { get; set; } // HH:mm - only for updating time across all blocks
+            public string? EndTimeOfDay { get; set; }   // HH:mm
+            public bool ForceOverride { get; set; } = false;
+        }
+
+        // Update all blocks in a series (reason and/or time)
+        [HttpPut("series/{seriesId:guid}")]
+        public async Task<IActionResult> UpdateSeries(Guid employeeId, Guid seriesId, [FromBody] UpdateSeriesDto dto)
+        {
+            try
+            {
+                var blocks = await _context.EmployeeTimeBlocks
+                    .Where(b => b.EmployeeId == employeeId && b.SeriesId == seriesId)
+                    .OrderBy(b => b.StartTime)
+                    .ToListAsync();
+
+                if (!blocks.Any())
+                    return NotFound(new { message = "Serie no encontrada" });
+
+                // Get tenant timezone
+                var tenant = _tenantService.GetCurrentTenant();
+                var tz = tenant?.TimeZone ?? "-3";
+                int offsetHours = int.TryParse(tz, out var oh) ? oh : -3;
+
+                TimeSpan? newStartTod = null;
+                TimeSpan? newEndTod = null;
+                if (!string.IsNullOrEmpty(dto.StartTimeOfDay) && TimeSpan.TryParse(dto.StartTimeOfDay, out var st))
+                    newStartTod = st;
+                if (!string.IsNullOrEmpty(dto.EndTimeOfDay) && TimeSpan.TryParse(dto.EndTimeOfDay, out var et))
+                    newEndTod = et;
+
+                var cancelledCount = 0;
+                foreach (var block in blocks)
+                {
+                    if (dto.Reason != null)
+                        block.Reason = dto.Reason;
+
+                    // Update times if provided
+                    if (newStartTod.HasValue || newEndTod.HasValue)
+                    {
+                        // Get original local date
+                        var localStart = block.StartTime.AddHours(offsetHours);
+                        var localEnd = block.EndTime.AddHours(offsetHours);
+                        var blockDate = localStart.Date;
+
+                        var newLocalStart = blockDate.Add(newStartTod ?? localStart.TimeOfDay);
+                        var newLocalEnd = blockDate.Add(newEndTod ?? localEnd.TimeOfDay);
+
+                        var newUtcStart = DateTime.SpecifyKind(newLocalStart.AddHours(-offsetHours), DateTimeKind.Utc);
+                        var newUtcEnd = DateTime.SpecifyKind(newLocalEnd.AddHours(-offsetHours), DateTimeKind.Utc);
+
+                        // Check for booking conflicts
+                        var overlappingBookings = await _context.Bookings
+                            .Where(b => b.EmployeeId == employeeId && b.Status != "cancelled" && b.StartTime < newUtcEnd && b.EndTime > newUtcStart)
+                            .ToListAsync();
+
+                        if (overlappingBookings.Any() && !dto.ForceOverride)
+                            continue; // Skip this block if conflicts and not forcing
+
+                        if (overlappingBookings.Any() && dto.ForceOverride)
+                        {
+                            foreach (var b in overlappingBookings)
+                            {
+                                b.Status = "cancelled";
+                                cancelledCount++;
+                            }
+                        }
+
+                        block.StartTime = newUtcStart;
+                        block.EndTime = newUtcEnd;
+                    }
+
+                    // Update recurrence pattern if times changed
+                    if (newStartTod.HasValue || newEndTod.HasValue)
+                    {
+                        var pattern = new
+                        {
+                            startTimeOfDay = dto.StartTimeOfDay ?? newStartTod?.ToString(@"hh\:mm"),
+                            endTimeOfDay = dto.EndTimeOfDay ?? newEndTod?.ToString(@"hh\:mm")
+                        };
+                        block.RecurrencePattern = System.Text.Json.JsonSerializer.Serialize(pattern);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Serie actualizada", updated = blocks.Count, cancelledBookings = cancelledCount });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        // Update this block and all following in the series
+        [HttpPut("{blockId:guid}/and-following")]
+        public async Task<IActionResult> UpdateBlockAndFollowing(Guid employeeId, Guid blockId, [FromBody] UpdateSeriesDto dto)
+        {
+            try
+            {
+                var block = await _context.EmployeeTimeBlocks
+                    .FirstOrDefaultAsync(b => b.Id == blockId && b.EmployeeId == employeeId);
+                if (block == null)
+                    return NotFound(new { message = "Bloqueo no encontrado" });
+
+                if (!block.SeriesId.HasValue)
+                {
+                    // Single block, just update it
+                    if (dto.Reason != null) block.Reason = dto.Reason;
+                    await _context.SaveChangesAsync();
+                    return Ok(new { message = "Bloqueo actualizado", updated = 1 });
+                }
+
+                // Get all following blocks in the series (including this one)
+                var blocksToUpdate = await _context.EmployeeTimeBlocks
+                    .Where(b => b.EmployeeId == employeeId && b.SeriesId == block.SeriesId && b.StartTime >= block.StartTime)
+                    .OrderBy(b => b.StartTime)
+                    .ToListAsync();
+
+                // Create a new series for these blocks
+                var newSeriesId = Guid.NewGuid();
+
+                // Get tenant timezone
+                var tenant = _tenantService.GetCurrentTenant();
+                var tz = tenant?.TimeZone ?? "-3";
+                int offsetHours = int.TryParse(tz, out var oh) ? oh : -3;
+
+                TimeSpan? newStartTod = null;
+                TimeSpan? newEndTod = null;
+                if (!string.IsNullOrEmpty(dto.StartTimeOfDay) && TimeSpan.TryParse(dto.StartTimeOfDay, out var st))
+                    newStartTod = st;
+                if (!string.IsNullOrEmpty(dto.EndTimeOfDay) && TimeSpan.TryParse(dto.EndTimeOfDay, out var et))
+                    newEndTod = et;
+
+                var cancelledCount = 0;
+                foreach (var b in blocksToUpdate)
+                {
+                    b.SeriesId = newSeriesId; // Split into new series
+                    if (dto.Reason != null) b.Reason = dto.Reason;
+
+                    if (newStartTod.HasValue || newEndTod.HasValue)
+                    {
+                        var localStart = b.StartTime.AddHours(offsetHours);
+                        var localEnd = b.EndTime.AddHours(offsetHours);
+                        var blockDate = localStart.Date;
+
+                        var newLocalStart = blockDate.Add(newStartTod ?? localStart.TimeOfDay);
+                        var newLocalEnd = blockDate.Add(newEndTod ?? localEnd.TimeOfDay);
+
+                        var newUtcStart = DateTime.SpecifyKind(newLocalStart.AddHours(-offsetHours), DateTimeKind.Utc);
+                        var newUtcEnd = DateTime.SpecifyKind(newLocalEnd.AddHours(-offsetHours), DateTimeKind.Utc);
+
+                        var overlappingBookings = await _context.Bookings
+                            .Where(bk => bk.EmployeeId == employeeId && bk.Status != "cancelled" && bk.StartTime < newUtcEnd && bk.EndTime > newUtcStart)
+                            .ToListAsync();
+
+                        if (overlappingBookings.Any() && dto.ForceOverride)
+                        {
+                            foreach (var bk in overlappingBookings)
+                            {
+                                bk.Status = "cancelled";
+                                cancelledCount++;
+                            }
+                        }
+
+                        if (!overlappingBookings.Any() || dto.ForceOverride)
+                        {
+                            b.StartTime = newUtcStart;
+                            b.EndTime = newUtcEnd;
+                        }
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Bloqueos actualizados", updated = blocksToUpdate.Count, newSeriesId = newSeriesId, cancelledBookings = cancelledCount });
             }
             catch (Exception ex)
             {

@@ -32,7 +32,9 @@
       "Bash(netstat:*)",
       "Bash(ss:*)",
       "Bash(npx:*)",
-      "Bash(node test-playwright.js:*)"
+      "Bash(node test-playwright.js:*)",
+      "Bash(git rm:*)",
+      "Bash(xargs:*)"
     ],
     "deny": [],
     "ask": []

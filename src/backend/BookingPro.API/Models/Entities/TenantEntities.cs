@@ -298,6 +298,10 @@ namespace BookingPro.API.Models.Entities
         public string? Reason { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        // Series support (for recurring blocks)
+        public Guid? SeriesId { get; set; } // Groups blocks belonging to the same recurring series
+        public string? RecurrencePattern { get; set; } // JSON: { daysOfWeek: [1,2,3,4,5], startTimeOfDay: "09:00", endTimeOfDay: "10:00" }
+
         // Navigation
         public Employee Employee { get; set; } = null!;
     }

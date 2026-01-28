@@ -10,6 +10,8 @@
 [Tt]est[Rr]esult*/
 artifacts/
 publish/
+**/bin/
+**/obj/
 
 # VS cache/settings
 .vs/
@@ -28,6 +30,7 @@ project.nuget.cache
 !**/[Pp]ackages/build/
 *.nupkg
 *.snupkg
+*.EntityFrameworkCore.targets
 
 # Logs/coverage
 [Ll]og*/
@@ -53,13 +56,15 @@ OpenCover/
 Generated\ Files/
 ScaffoldingReadMe.txt
 staticwebassets.build.json
+staticwebassets/
 
 # Optional: launchSettings.json is user/machine-specific; keep ignored
 launchSettings.json
 
-# Dotnet tools
+# Dotnet tools - local installations
 .config/dotnet-tools.json
-tools/.store/
+tools/
+**/tools/.store/
 
 # Rider / VSCode / IDEs
 .idea/
