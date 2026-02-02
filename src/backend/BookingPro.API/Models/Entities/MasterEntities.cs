@@ -79,7 +79,12 @@ namespace BookingPro.API.Models.Entities
         public DateTime? DemoExpiresAt { get; set; }
         
         public Guid? PlanId { get; set; }
-        
+
+        /// <summary>
+        /// Reference to the SubscriptionPlan (platform subscription plans for tenants)
+        /// </summary>
+        public Guid? SubscriptionPlanId { get; set; }
+
         [MaxLength(255)]
         public string? CustomDomain { get; set; }
         
@@ -101,6 +106,7 @@ namespace BookingPro.API.Models.Entities
         // Navigation properties
         public Vertical Vertical { get; set; } = null!;
         public Plan? Plan { get; set; }
+        public SubscriptionPlan? SubscriptionPlan { get; set; }
         public ICollection<User> Users { get; set; } = new List<User>();
         public ICollection<Subscription> Subscriptions { get; set; } = new List<Subscription>();
     }

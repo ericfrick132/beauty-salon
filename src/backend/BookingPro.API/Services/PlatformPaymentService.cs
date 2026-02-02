@@ -550,8 +550,8 @@ namespace BookingPro.API.Services
                     return ServiceResult<TenantSubscriptionPaymentResponseDto>.Fail("Tenant not found");
                 }
 
-                // Validate plan exists (Plans table, not SubscriptionPlans)
-                var plan = await _context.Plans.FindAsync(dto.PlanId);
+                // Validate plan exists in SubscriptionPlans table
+                var plan = await _context.SubscriptionPlans.FindAsync(dto.PlanId);
                 if (plan == null)
                 {
                     return ServiceResult<TenantSubscriptionPaymentResponseDto>.Fail("Plan not found");
@@ -586,7 +586,7 @@ namespace BookingPro.API.Services
 
                 // Activar tenant hasta el fin del período
                 tenant.Status = "active";
-                tenant.PlanId = dto.PlanId; // Assign the selected plan
+                tenant.SubscriptionPlanId = dto.PlanId; // Assign the selected subscription plan
                 tenant.TrialEndsAt = end; // reutilizado como fecha de expiración de acceso
                 tenant.UpdatedAt = DateTime.UtcNow;
 
@@ -602,7 +602,7 @@ namespace BookingPro.API.Services
                     {
                         TenantId = dto.TenantId,
                         PlanType = plan.Code, // Use plan code from selected plan
-                        MonthlyAmount = plan.PriceMonthly, // Use price from plan
+                        MonthlyAmount = plan.Price, // Use price from plan
                         PayerEmail = dto.PayerEmail ?? tenant.OwnerEmail,
                         Status = "active",
                         IsTrialPeriod = false,
@@ -617,7 +617,7 @@ namespace BookingPro.API.Services
                 {
                     // Actualizar suscripción existente como activa y no en trial
                     subscription.PlanType = plan.Code; // Update to new plan code
-                    subscription.MonthlyAmount = plan.PriceMonthly; // Update monthly amount from plan
+                    subscription.MonthlyAmount = plan.Price; // Update monthly amount from plan
                     subscription.Status = "active";
                     subscription.IsTrialPeriod = false;
                     subscription.TrialEndsAt = null;

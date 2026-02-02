@@ -110,6 +110,11 @@ namespace BookingPro.API.Data
                     .WithMany(p => p.Tenants)
                     .HasForeignKey(t => t.PlanId)
                     .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(t => t.SubscriptionPlan)
+                    .WithMany()
+                    .HasForeignKey(t => t.SubscriptionPlanId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             modelBuilder.Entity<Plan>(entity =>

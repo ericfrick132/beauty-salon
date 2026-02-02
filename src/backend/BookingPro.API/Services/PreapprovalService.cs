@@ -597,7 +597,7 @@ namespace BookingPro.API.Services
 
             // Actualizar tenant
             tenant.Status = "active";
-            tenant.PlanId = preapproval.SubscriptionPlanId;
+            tenant.SubscriptionPlanId = preapproval.SubscriptionPlanId;
             tenant.TrialEndsAt = preapproval.NextPaymentDate;
             tenant.UpdatedAt = DateTime.UtcNow;
 
