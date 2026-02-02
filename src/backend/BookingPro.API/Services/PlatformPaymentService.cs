@@ -550,8 +550,8 @@ namespace BookingPro.API.Services
                     return ServiceResult<TenantSubscriptionPaymentResponseDto>.Fail("Tenant not found");
                 }
 
-                // Validate plan exists
-                var plan = await _context.SubscriptionPlans.FindAsync(dto.PlanId);
+                // Validate plan exists (Plans table, not SubscriptionPlans)
+                var plan = await _context.Plans.FindAsync(dto.PlanId);
                 if (plan == null)
                 {
                     return ServiceResult<TenantSubscriptionPaymentResponseDto>.Fail("Plan not found");
@@ -602,7 +602,7 @@ namespace BookingPro.API.Services
                     {
                         TenantId = dto.TenantId,
                         PlanType = plan.Code, // Use plan code from selected plan
-                        MonthlyAmount = plan.Price, // Use price from plan
+                        MonthlyAmount = plan.PriceMonthly, // Use price from plan
                         PayerEmail = dto.PayerEmail ?? tenant.OwnerEmail,
                         Status = "active",
                         IsTrialPeriod = false,
@@ -617,7 +617,7 @@ namespace BookingPro.API.Services
                 {
                     // Actualizar suscripción existente como activa y no en trial
                     subscription.PlanType = plan.Code; // Update to new plan code
-                    subscription.MonthlyAmount = plan.Price; // Update monthly amount from plan
+                    subscription.MonthlyAmount = plan.PriceMonthly; // Update monthly amount from plan
                     subscription.Status = "active";
                     subscription.IsTrialPeriod = false;
                     subscription.TrialEndsAt = null;
