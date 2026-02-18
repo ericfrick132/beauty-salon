@@ -482,6 +482,26 @@ namespace BookingPro.API.Services
                     }
                 }
 
+                // Fallback: verificar Tenant.TrialEndsAt (usado por pagos manuales/plataforma)
+                // Mismo fallback que tiene el SubscriptionMiddleware
+                if (!isActive && tenant.TrialEndsAt.HasValue && tenant.TrialEndsAt.Value > DateTime.UtcNow)
+                {
+                    isActive = true;
+                    expirationDate = tenant.TrialEndsAt.Value;
+                    daysRemaining = Math.Max(0, (int)(tenant.TrialEndsAt.Value - DateTime.UtcNow).TotalDays);
+
+                    // Usar el plan del tenant si está disponible
+                    if (tenant.SubscriptionPlanId.HasValue)
+                    {
+                        var tenantPlan = await _context.SubscriptionPlans
+                            .FirstOrDefaultAsync(p => p.Id == tenant.SubscriptionPlanId.Value);
+                        if (tenantPlan != null)
+                        {
+                            plan = tenantPlan;
+                        }
+                    }
+                }
+
                 var status = new SubscriptionStatusDto
                 {
                     IsActive = isActive,
