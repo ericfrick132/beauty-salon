@@ -120,7 +120,6 @@ const Reports: React.FC = () => {
       setReportData(response.data);
     } catch (error) {
       console.error('Error fetching report data:', error);
-      setReportData(getMockData());
     } finally {
       setLoading(false);
     }

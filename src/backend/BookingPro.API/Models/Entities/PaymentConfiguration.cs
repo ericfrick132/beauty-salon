@@ -20,7 +20,7 @@ namespace BookingPro.API.Models.Entities
         // Configuration
         public bool IsEnabled { get; set; } = false;
         
-        public bool IsSandbox { get; set; } = true;
+        public bool IsSandbox { get; set; } = false;
         
         // Payment Settings
         public bool RequireImmediatePayment { get; set; } = false; // Si true, requiere pago al hacer la reserva

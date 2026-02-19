@@ -23,7 +23,7 @@ namespace BookingPro.API.Models.Entities
         [MaxLength(100)]
         public string? UserId { get; set; }
         
-        public bool IsSandbox { get; set; } = true;
+        public bool IsSandbox { get; set; } = false;
         public bool IsActive { get; set; } = false;
         
         public DateTime? TokenExpiresAt { get; set; }

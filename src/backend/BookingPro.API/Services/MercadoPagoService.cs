@@ -71,6 +71,7 @@ namespace BookingPro.API.Services
                 }
 
                 // Obtener el access token OAuth del tenant
+                string accessToken;
                 var tokenResult = await _oauthService.GetValidAccessTokenAsync(tenantId);
                 if (!tokenResult.Success)
                 {
@@ -78,7 +79,7 @@ namespace BookingPro.API.Services
                     if (paymentConfig != null && !string.IsNullOrEmpty(paymentConfig.MercadoPagoAccessToken))
                     {
                         _logger.LogWarning("Using manual MercadoPago credentials for tenant {TenantId}. OAuth is recommended.", tenantId);
-                        MercadoPagoConfig.AccessToken = paymentConfig.MercadoPagoAccessToken;
+                        accessToken = paymentConfig.MercadoPagoAccessToken;
                     }
                     else
                     {
@@ -88,9 +89,19 @@ namespace BookingPro.API.Services
                 else
                 {
                     // Usar el token OAuth
-                    MercadoPagoConfig.AccessToken = tokenResult.Data;
+                    accessToken = tokenResult.Data;
                     _logger.LogInformation("Using OAuth access token for tenant {TenantId}", tenantId);
                 }
+
+                // Detect test tokens (TEST- prefix) and warn
+                var isTestToken = accessToken.StartsWith("TEST-", StringComparison.OrdinalIgnoreCase);
+                if (isTestToken)
+                {
+                    _logger.LogWarning("Tenant {TenantId} is using a TEST MercadoPago token. Payments will only work with test accounts.", tenantId);
+                }
+
+                // Use per-request options instead of static MercadoPagoConfig.AccessToken for thread safety
+                var requestOptions = new MercadoPago.Client.RequestOptions { AccessToken = accessToken };
 
                 // Validación: evitar que el comprador sea la misma cuenta del comercio (collector)
                 try
@@ -167,7 +178,7 @@ namespace BookingPro.API.Services
                 };
 
                 var client = new PreferenceClient();
-                Preference preference = await client.CreateAsync(preferenceRequest);
+                Preference preference = await client.CreateAsync(preferenceRequest, requestOptions);
 
                 // Crear registro de transacción
                 var transaction = new PaymentTransaction
@@ -234,6 +245,7 @@ namespace BookingPro.API.Services
                     .FirstOrDefaultAsync(pc => pc.TenantId == tenantGuid);
 
                 // Obtener el access token OAuth del tenant
+                string webhookAccessToken;
                 var tokenResult = await _oauthService.GetValidAccessTokenAsync(tenantGuid);
                 if (!tokenResult.Success)
                 {
@@ -241,7 +253,7 @@ namespace BookingPro.API.Services
                     if (!string.IsNullOrEmpty(paymentConfig?.MercadoPagoAccessToken))
                     {
                         _logger.LogWarning("Using manual MercadoPago credentials for webhook processing. OAuth is recommended.");
-                        MercadoPagoConfig.AccessToken = paymentConfig!.MercadoPagoAccessToken;
+                        webhookAccessToken = paymentConfig!.MercadoPagoAccessToken;
                     }
                     else
                     {
@@ -250,8 +262,9 @@ namespace BookingPro.API.Services
                 }
                 else
                 {
-                    MercadoPagoConfig.AccessToken = tokenResult.Data;
+                    webhookAccessToken = tokenResult.Data;
                 }
+                var webhookRequestOptions = new MercadoPago.Client.RequestOptions { AccessToken = webhookAccessToken };
 
                 // Procesar notificación según el tipo
                 if (data.ContainsKey("type") && data["type"]?.ToString() == "payment")
@@ -264,7 +277,7 @@ namespace BookingPro.API.Services
 
                     if (!string.IsNullOrEmpty(paymentId))
                     {
-                        await ProcessPaymentNotificationAsync(tenantGuid, long.Parse(paymentId));
+                        await ProcessPaymentNotificationAsync(tenantGuid, long.Parse(paymentId), webhookRequestOptions);
                     }
                 }
 
@@ -277,13 +290,13 @@ namespace BookingPro.API.Services
             }
         }
 
-        private async Task ProcessPaymentNotificationAsync(Guid tenantId, long paymentId)
+        private async Task ProcessPaymentNotificationAsync(Guid tenantId, long paymentId, MercadoPago.Client.RequestOptions requestOptions)
         {
             try
             {
                 // Obtener información del pago desde MercadoPago
                 var paymentClient = new PaymentClient();
-                MercadoPago.Resource.Payment.Payment payment = await paymentClient.GetAsync(paymentId);
+                MercadoPago.Resource.Payment.Payment payment = await paymentClient.GetAsync(paymentId, requestOptions);
 
                 // Buscar la transacción por external_reference (booking ID)
                 var bookingId = Guid.Parse(payment.ExternalReference);
@@ -952,25 +965,27 @@ namespace BookingPro.API.Services
             {
                 var tenantId = _tenantProvider.GetCurrentTenantId();
                 // Obtener el access token OAuth del tenant
+                string depositAccessToken;
                 var tokenResult = await _oauthService.GetValidAccessTokenAsync(tenantId);
                 if (!tokenResult.Success)
                 {
                     // Verificar si hay configuración manual como fallback
                     var mpConfig = await _context.MercadoPagoConfigurations
                         .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.IsActive);
-                    
+
                     if (mpConfig == null || string.IsNullOrEmpty(mpConfig.AccessToken))
                     {
                         return ServiceResult<PaymentPreferenceResponseDto>.Fail("MercadoPago no está conectado. Por favor, conecte su cuenta.");
                     }
-                    
+
                     _logger.LogWarning("Using manual MercadoPago credentials for deposit preference. OAuth is recommended.");
-                    MercadoPagoConfig.AccessToken = mpConfig.AccessToken;
+                    depositAccessToken = mpConfig.AccessToken;
                 }
                 else
                 {
-                    MercadoPagoConfig.AccessToken = tokenResult.Data;
+                    depositAccessToken = tokenResult.Data;
                 }
+                var depositRequestOptions = new MercadoPago.Client.RequestOptions { AccessToken = depositAccessToken };
                 
                 var preferenceRequest = new PreferenceRequest
                 {
@@ -999,8 +1014,8 @@ namespace BookingPro.API.Services
                 };
                 
                 var client = new PreferenceClient();
-                var preference = await client.CreateAsync(preferenceRequest);
-                
+                var preference = await client.CreateAsync(preferenceRequest, depositRequestOptions);
+
                 // Generate deep link for mobile
                 var deepLink = $"mercadopago://checkout/v1/redirect?preference_id={preference.Id}";
                 

@@ -282,7 +282,7 @@ const BookingPage: React.FC = () => {
       if (requiresDeposit && response.data?.requiresPayment) {
         // Ir al paso de Pago y esperar acción del usuario
         setPaymentRequired(true);
-        setPaymentInfo({ initPoint: response.data.payment?.initPoint, amount: response.data.payment?.amount });
+        setPaymentInfo({ initPoint: response.data.payment?.initPoint || response.data.payment?.sandboxInitPoint, amount: response.data.payment?.amount });
         setActiveStep(5);
       } else {
         // Sin pago requerido, ir al paso final

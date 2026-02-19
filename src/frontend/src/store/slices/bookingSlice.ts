@@ -67,7 +67,11 @@ export const fetchCustomers = createAsyncThunk(
   'booking/fetchCustomers',
   async () => {
     const customers = await bookingApi.getCustomers();
-    return customers;
+    // API returns firstName/lastName separately; map to combined name
+    return customers.map((c: any) => ({
+      ...c,
+      name: c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim(),
+    }));
   }
 );
 

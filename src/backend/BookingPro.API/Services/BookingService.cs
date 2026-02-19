@@ -433,32 +433,53 @@ namespace BookingPro.API.Services
             }
         }
 
+        // Convert UTC times to tenant local time for business-hours / schedule validation
+        private (DateTime localStart, DateTime localEnd) ConvertToLocalTime(DateTime startTime, DateTime endTime)
+        {
+            var tenantInfo = _tenantService.GetCurrentTenant();
+            var timezoneStr = tenantInfo?.TimeZone ?? "-3";
+            if (!int.TryParse(timezoneStr, out int offsetHours))
+                offsetHours = -3; // default AR
+
+            var localStart = startTime.Kind == DateTimeKind.Utc
+                ? startTime.AddHours(offsetHours)
+                : startTime;
+            var localEnd = endTime.Kind == DateTimeKind.Utc
+                ? endTime.AddHours(offsetHours)
+                : endTime;
+
+            return (localStart, localEnd);
+        }
+
         // Validaciones críticas de negocio
         private async Task<ServiceResult> ValidateBookingBusinessRules(Guid employeeId, DateTime startTime, DateTime endTime, Service service, Guid? bookingIdToExclude = null)
         {
-            _logger.LogInformation("ValidateBookingBusinessRules: employeeId={EmployeeId}, startTime={StartTime}, endTime={EndTime}, dayOfWeek={DayOfWeek}",
-                employeeId, startTime, endTime, (int)startTime.DayOfWeek);
+            // Convert to local time for business-hours and schedule checks
+            var (localStart, localEnd) = ConvertToLocalTime(startTime, endTime);
+
+            _logger.LogInformation("ValidateBookingBusinessRules: employeeId={EmployeeId}, startTime(UTC)={StartTime}, localStart={LocalStart}, localEnd={LocalEnd}, dayOfWeek={DayOfWeek}",
+                employeeId, startTime, localStart, localEnd, (int)localStart.DayOfWeek);
 
             var businessConfig = await GetBusinessHoursConfigAsync();
             _logger.LogInformation("BusinessConfig: Opening={Opening}, Closing={Closing}, ClosedDays={ClosedDays}",
                 businessConfig.Opening, businessConfig.Closing, string.Join(",", businessConfig.ClosedDays));
 
-            if (businessConfig.ClosedDays.Contains((int)startTime.DayOfWeek))
+            if (businessConfig.ClosedDays.Contains((int)localStart.DayOfWeek))
             {
-                _logger.LogWarning("Validation failed: Business closed on day {DayOfWeek}", (int)startTime.DayOfWeek);
+                _logger.LogWarning("Validation failed: Business closed on day {DayOfWeek}", (int)localStart.DayOfWeek);
                 return ServiceResult.Fail("El negocio está cerrado en ese día");
             }
 
-            // 1. Validar horario de negocio (general window)
-            if (!IsWithinBusinessHours(startTime, endTime, businessConfig))
+            // 1. Validar horario de negocio (general window) - use local time
+            if (!IsWithinBusinessHours(localStart, localEnd, businessConfig))
             {
                 _logger.LogWarning("Validation failed: Outside business hours. Start={StartTime}, End={EndTime}, Opening={Opening}, Closing={Closing}",
-                    startTime.TimeOfDay, endTime.TimeOfDay, businessConfig.Opening, businessConfig.Closing);
+                    localStart.TimeOfDay, localEnd.TimeOfDay, businessConfig.Opening, businessConfig.Closing);
                 return ServiceResult.Fail("La cita está fuera del horario de atención del negocio");
             }
 
-            // 1b. Validar horario del empleado (turno de trabajo)
-            var withinSchedule = await ValidateWithinEmployeeSchedule(employeeId, startTime, endTime);
+            // 1b. Validar horario del empleado (turno de trabajo) - use local time
+            var withinSchedule = await ValidateWithinEmployeeSchedule(employeeId, localStart, localEnd);
             if (!withinSchedule.Success)
             {
                 _logger.LogWarning("Validation failed: Employee schedule. Message={Message}", withinSchedule.Message);

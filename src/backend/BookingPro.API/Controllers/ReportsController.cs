@@ -32,22 +32,18 @@ namespace BookingPro.API.Controllers
 
         [HttpGet("dashboard")]
         public async Task<IActionResult> GetDashboardReport(
-            [FromQuery] DateTime? startDate = null, 
+            [FromQuery] DateTime? startDate = null,
             [FromQuery] DateTime? endDate = null)
         {
             try
             {
-                // Establecer fechas por defecto si no se proporcionan
                 endDate ??= DateTime.UtcNow;
                 startDate ??= endDate.Value.AddDays(-30);
 
-                // Los filtros globales en ApplicationDbContext ya filtran por TenantId automáticamente
-                
-                // Total Revenue
-                var totalRevenue = await _context.Bookings
-                    .Where(b => b.StartTime >= startDate && b.StartTime <= endDate && 
-                           (b.Status == "confirmed" || b.Status == "completed"))
-                    .SumAsync(b => b.Price ?? 0);
+                // Total Revenue - use Payments table for actual revenue
+                var totalRevenue = await _context.Payments
+                    .Where(p => p.PaymentDate >= startDate && p.PaymentDate <= endDate && p.Status == "completed")
+                    .SumAsync(p => (decimal?)p.Amount) ?? 0;
 
                 // Total Bookings
                 var totalBookings = await _context.Bookings
@@ -61,13 +57,12 @@ namespace BookingPro.API.Controllers
                     .Distinct()
                     .CountAsync();
 
-                // Average Service Price
-                var averageServicePrice = await _context.Bookings
-                    .Where(b => b.StartTime >= startDate && b.StartTime <= endDate && 
-                           (b.Status == "confirmed" || b.Status == "completed") && b.Price > 0)
-                    .AverageAsync(b => (decimal?)b.Price) ?? 0;
+                // Average ticket from payments
+                var averageServicePrice = await _context.Payments
+                    .Where(p => p.PaymentDate >= startDate && p.PaymentDate <= endDate && p.Status == "completed")
+                    .AverageAsync(p => (decimal?)p.Amount) ?? 0;
 
-                // Top Services
+                // Top Services - combine booking count with payment revenue
                 var topServices = await _context.Bookings
                     .Where(b => b.StartTime >= startDate && b.StartTime <= endDate && b.Status != "cancelled")
                     .Include(b => b.Service)
@@ -76,22 +71,26 @@ namespace BookingPro.API.Controllers
                     {
                         name = g.Key.Name ?? "Sin servicio",
                         count = g.Count(),
-                        revenue = g.Sum(b => b.Price ?? 0)
+                        revenue = _context.Payments
+                            .Where(p => p.PaymentDate >= startDate && p.PaymentDate <= endDate
+                                && p.Status == "completed"
+                                && g.Select(b => b.Id).Contains(p.BookingId))
+                            .Sum(p => (decimal?)p.Amount) ?? 0
                     })
                     .OrderByDescending(x => x.count)
                     .Take(5)
                     .ToListAsync();
 
-                // Top Professionals
-                var topProfessionals = await _context.Bookings
-                    .Where(b => b.StartTime >= startDate && b.StartTime <= endDate && b.Status != "cancelled")
-                    .Include(b => b.Employee)
-                    .GroupBy(b => new { b.EmployeeId, b.Employee.Name })
+                // Top Professionals - use payments for revenue
+                var topProfessionals = await _context.Payments
+                    .Where(p => p.PaymentDate >= startDate && p.PaymentDate <= endDate && p.Status == "completed")
+                    .Include(p => p.Employee)
+                    .GroupBy(p => new { p.EmployeeId, p.Employee.Name })
                     .Select(g => new
                     {
                         name = g.Key.Name ?? "Sin profesional",
-                        bookings = g.Count(),
-                        revenue = g.Sum(b => b.Price ?? 0)
+                        bookings = g.Select(p => p.BookingId).Distinct().Count(),
+                        revenue = g.Sum(p => p.Amount)
                     })
                     .OrderByDescending(x => x.revenue)
                     .Take(4)
@@ -120,16 +119,15 @@ namespace BookingPro.API.Controllers
                     });
                 }
 
-                // Revenue by Month
-                var revenueByMonth = await _context.Bookings
-                    .Where(b => b.StartTime >= startDate && b.StartTime <= endDate && 
-                           (b.Status == "confirmed" || b.Status == "completed"))
-                    .GroupBy(b => new { b.StartTime.Year, b.StartTime.Month })
+                // Revenue by Month - use Payments
+                var revenueByMonth = await _context.Payments
+                    .Where(p => p.PaymentDate >= startDate && p.PaymentDate <= endDate && p.Status == "completed")
+                    .GroupBy(p => new { p.PaymentDate.Year, p.PaymentDate.Month })
                     .Select(g => new
                     {
                         year = g.Key.Year,
                         month = g.Key.Month,
-                        revenue = g.Sum(b => b.Price ?? 0)
+                        revenue = g.Sum(p => p.Amount)
                     })
                     .OrderBy(x => x.year).ThenBy(x => x.month)
                     .ToListAsync();
@@ -184,59 +182,95 @@ namespace BookingPro.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error generating dashboard report");
-                
-                // Retornar datos mock si hay error
-                var mockData = GetMockData();
-                return Ok(mockData);
+                return StatusCode(500, new { message = "Error generating report" });
             }
         }
 
-        private object GetMockData()
+        [HttpGet("financial")]
+        public async Task<IActionResult> GetFinancialReport(
+            [FromQuery] DateTime? startDate = null,
+            [FromQuery] DateTime? endDate = null)
         {
-            return new
+            try
             {
-                totalRevenue = 15750,
-                totalBookings = 245,
-                totalCustomers = 89,
-                averageServicePrice = 64.29,
-                topServices = new[]
-                {
-                    new { name = "Corte de Cabello", count = 85, revenue = 2550 },
-                    new { name = "Coloración", count = 45, revenue = 4500 },
-                    new { name = "Tratamiento Capilar", count = 38, revenue = 3800 },
-                    new { name = "Manicura", count = 42, revenue = 1260 },
-                    new { name = "Pedicura", count = 35, revenue = 1400 }
-                },
-                topProfessionals = new[]
-                {
-                    new { name = "María García", bookings = 78, revenue = 5460 },
-                    new { name = "Juan Pérez", bookings = 65, revenue = 4550 },
-                    new { name = "Ana López", bookings = 52, revenue = 3640 },
-                    new { name = "Carlos Ruiz", bookings = 50, revenue = 2100 }
-                },
-                bookingsByDay = new[]
-                {
-                    new { date = "Lun", count = 35 },
-                    new { date = "Mar", count = 42 },
-                    new { date = "Mié", count = 38 },
-                    new { date = "Jue", count = 45 },
-                    new { date = "Vie", count = 52 },
-                    new { date = "Sáb", count = 28 },
-                    new { date = "Dom", count = 5 }
-                },
-                revenueByMonth = new[]
-                {
-                    new { month = "Ene", revenue = 12500 },
-                    new { month = "Feb", revenue = 14200 },
-                    new { month = "Mar", revenue = 15750 }
-                },
-                bookingsByStatus = new[]
-                {
-                    new { status = "Confirmado", count = 210 },
-                    new { status = "Pendiente", count = 25 },
-                    new { status = "Cancelado", count = 10 }
-                }
-            };
+                endDate ??= DateTime.UtcNow;
+                startDate ??= endDate.Value.AddDays(-30);
+
+                var payments = await _context.Payments
+                    .Where(p => p.PaymentDate >= startDate && p.PaymentDate <= endDate && p.Status == "completed")
+                    .Include(p => p.Booking)
+                    .ToListAsync();
+
+                // Group by day to produce DailyReport-compatible objects
+                var reports = payments
+                    .GroupBy(p => p.PaymentDate.Date)
+                    .Select(g => new
+                    {
+                        date = g.Key.ToString("yyyy-MM-dd"),
+                        totalRevenue = g.Sum(p => p.Amount),
+                        cashRevenue = g.Where(p => p.PaymentMethod == "cash").Sum(p => p.Amount),
+                        cardRevenue = g.Where(p => p.PaymentMethod == "card").Sum(p => p.Amount),
+                        transferRevenue = g.Where(p => p.PaymentMethod == "transfer").Sum(p => p.Amount),
+                        mercadoPagoRevenue = g.Where(p => p.PaymentMethod == "mercadopago").Sum(p => p.Amount),
+                        totalBookings = g.Select(p => p.BookingId).Distinct().Count(),
+                        completedBookings = g.Where(p => p.Booking != null && p.Booking.Status == "completed")
+                            .Select(p => p.BookingId).Distinct().Count(),
+                        cancelledBookings = 0,
+                        totalCommissions = g.Sum(p => p.CommissionAmount ?? 0),
+                        totalTips = g.Sum(p => p.TipAmount ?? 0),
+                    })
+                    .OrderBy(x => x.date)
+                    .ToList();
+
+                return Ok(new { reports });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating financial report");
+                return StatusCode(500, new { message = "Error generating financial report" });
+            }
+        }
+
+        [HttpGet("commissions")]
+        public async Task<IActionResult> GetCommissionsReport(
+            [FromQuery] DateTime? startDate = null,
+            [FromQuery] DateTime? endDate = null)
+        {
+            try
+            {
+                endDate ??= DateTime.UtcNow;
+                startDate ??= endDate.Value.AddDays(-30);
+
+                var paymentsWithEmployee = await _context.Payments
+                    .Where(p => p.PaymentDate >= startDate && p.PaymentDate <= endDate && p.Status == "completed")
+                    .Include(p => p.Employee)
+                    .ToListAsync();
+
+                var commissions = paymentsWithEmployee
+                    .GroupBy(p => new { p.EmployeeId, EmployeeName = p.Employee?.Name ?? "Sin nombre" })
+                    .Select(g =>
+                    {
+                        var emp = _context.Employees.FirstOrDefault(e => e.Id == g.Key.EmployeeId);
+                        return new
+                        {
+                            employeeId = g.Key.EmployeeId,
+                            employeeName = g.Key.EmployeeName,
+                            totalServices = g.Select(p => p.BookingId).Distinct().Count(),
+                            totalRevenue = g.Sum(p => p.Amount),
+                            commissionPercentage = emp?.CommissionPercentage ?? 0,
+                            commissionAmount = g.Sum(p => p.CommissionAmount ?? 0),
+                        };
+                    })
+                    .OrderByDescending(x => x.totalRevenue)
+                    .ToList();
+
+                return Ok(commissions);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating commissions report");
+                return StatusCode(500, new { message = "Error generating commissions report" });
+            }
         }
     }
 }
