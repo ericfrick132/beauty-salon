@@ -94,9 +94,11 @@ export default function RegistrationModal({ open, onClose }: Props) {
           setSubdomainAvailable(Boolean(available));
           return;
         }
-        if (!cancelled) setSubdomainAvailable(false);
+        // Both endpoints failed — don't block the form, let the backend validate on submit
+        if (!cancelled) setSubdomainAvailable(null);
       } catch (e) {
-        if (!cancelled) setSubdomainAvailable(false);
+        // Network error — don't block the form, let the backend validate on submit
+        if (!cancelled) setSubdomainAvailable(null);
       } finally {
         if (!cancelled) setSubdomainChecking(false);
       }
@@ -130,7 +132,7 @@ export default function RegistrationModal({ open, onClose }: Props) {
     return (
       form.gymName.trim().length > 0 &&
       form.subdomain.trim().length >= 3 &&
-      subdomainAvailable === true &&
+      subdomainAvailable !== false &&
       form.adminFirstName.trim().length > 0 &&
       form.adminLastName.trim().length > 0 &&
       /[^\s@]+@[^\s@]+\.[^\s@]+/.test(form.adminEmail) &&

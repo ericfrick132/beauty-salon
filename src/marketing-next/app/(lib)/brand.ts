@@ -12,4 +12,7 @@ export const brand = {
   support_phone: '+54 11 1234-5678',
   demo_booking_url: 'mailto:soporte@turnos-pro.com?subject=Quiero%20una%20demo%20de%20TurnosPro',
   demo_video_url: 'https://www.loom.com/embed/6c2b52a60e9d4c1d8fae6e60d5b3b111',
+  instagram_url: 'https://www.instagram.com/turnospro',
+  whatsapp_url: 'https://wa.me/5411123456789',
+  linkedin_url: 'https://www.linkedin.com/company/efcloud',
 } as const;

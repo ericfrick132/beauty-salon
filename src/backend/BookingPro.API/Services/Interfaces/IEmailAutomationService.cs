@@ -50,6 +50,11 @@ namespace BookingPro.API.Services.Interfaces
         Task<ServiceResult<bool>> SendRecoveryEmailAsync(EndUser endUser, string reactivationLink);
         
         /// <summary>
+        /// Send welcome email to newly registered tenant admin
+        /// </summary>
+        Task<ServiceResult<bool>> SendTenantWelcomeEmailAsync(User adminUser, Tenant tenant);
+
+        /// <summary>
         /// Process all scheduled emails for today
         /// </summary>
         Task<ServiceResult<int>> ProcessScheduledEmailsAsync();

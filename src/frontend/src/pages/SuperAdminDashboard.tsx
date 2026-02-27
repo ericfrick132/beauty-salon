@@ -756,15 +756,20 @@ const SuperAdminDashboard: React.FC = () => {
   return (
     <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
       {/* AppBar */}
-      <AppBar position="static">
+      <AppBar position="static" sx={{ backgroundColor: '#1a237e' }}>
         <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 600 }}>
+          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 600, color: '#fff' }}>
             Panel de Super Administrador
           </Typography>
-          <IconButton color="inherit" onClick={loadData} sx={{ mr: 2 }}>
+          <Chip
+            label={(() => { try { return JSON.parse(localStorage.getItem('superAdminUser') || '{}').email || 'Super Admin'; } catch { return 'Super Admin'; } })()}
+            sx={{ mr: 2, backgroundColor: 'rgba(255,255,255,0.15)', color: '#fff', fontWeight: 500 }}
+            size="small"
+          />
+          <IconButton sx={{ color: '#fff' }} onClick={loadData}>
             <Refresh />
           </IconButton>
-          <IconButton color="inherit" onClick={handleLogout}>
+          <IconButton sx={{ color: '#fff' }} onClick={handleLogout}>
             <Logout />
           </IconButton>
         </Toolbar>

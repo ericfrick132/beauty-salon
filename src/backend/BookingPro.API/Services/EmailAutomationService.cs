@@ -345,6 +345,41 @@ namespace BookingPro.API.Services
             }
         }
 
+        public async Task<ServiceResult<bool>> SendTenantWelcomeEmailAsync(User adminUser, Tenant tenant)
+        {
+            try
+            {
+                var frontendUrl = _configuration["FrontendUrl"] ?? "https://turnos-pro.com";
+                var tenantUrl = $"https://{tenant.Subdomain}.turnos-pro.com";
+                var loginUrl = $"{tenantUrl}/login";
+
+                var vars = new Dictionary<string, string>
+                {
+                    {"FirstName", adminUser.FirstName ?? adminUser.Email},
+                    {"BusinessName", tenant.BusinessName},
+                    {"TenantUrl", tenantUrl},
+                    {"LoginUrl", loginUrl},
+                    {"SupportEmail", "soporte@turnos-pro.com"}
+                };
+
+                var template = GetTenantWelcomeTemplate(vars);
+                var emailSent = await SendEmailAsync(adminUser.Email, template.Subject, template.Body);
+
+                if (emailSent)
+                {
+                    _logger.LogInformation("Tenant welcome email sent to {Email} for tenant {TenantId}",
+                        adminUser.Email, tenant.Id);
+                }
+
+                return ServiceResult<bool>.Ok(emailSent);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending tenant welcome email to {Email}", adminUser.Email);
+                return ServiceResult<bool>.Fail("Error sending tenant welcome email");
+            }
+        }
+
         public async Task<ServiceResult<int>> ProcessScheduledEmailsAsync()
         {
             try
@@ -697,6 +732,30 @@ namespace BookingPro.API.Services
                 <p><strong>Oferta especial:</strong> Regresa hoy y obtén un 20% de descuento en tu primera renovación.</p>
                 <p><a href='{vars.GetValueOrDefault("ReactivationLink", "")}' style='background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>Reactivar con descuento</a></p>
                 <p>Esta oferta es por tiempo limitado.</p>"
+            };
+        }
+
+        private EmailTemplateDto GetTenantWelcomeTemplate(Dictionary<string, string> vars)
+        {
+            return new EmailTemplateDto
+            {
+                Template = "tenant_welcome",
+                Subject = $"¡Bienvenido a TurnosPro! Tu cuenta de {vars["BusinessName"]} está lista",
+                Body = $@"
+                <h1>¡Hola {vars["FirstName"]}!</h1>
+                <p>¡Tu negocio <strong>{vars["BusinessName"]}</strong> ya está online en <a href='{vars["TenantUrl"]}'>{vars["TenantUrl"]}</a>!</p>
+                <p>Tenés <strong>7 días de acceso completo</strong> para explorar todas las funciones de TurnosPro y configurar tu negocio.</p>
+                <p>Durante tu período de prueba podés:</p>
+                <ul>
+                    <li>Configurar tus servicios y horarios</li>
+                    <li>Agregar empleados y asignar turnos</li>
+                    <li>Compartir tu link de reservas con tus clientes</li>
+                    <li>Personalizar la apariencia de tu página</li>
+                </ul>
+                <p><a href='{vars["LoginUrl"]}' style='display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;'>Ir a mi panel</a></p>
+                <p>Si tenés alguna pregunta, escribinos a <a href='mailto:{vars["SupportEmail"]}'>{vars["SupportEmail"]}</a>.</p>
+                <p>¡Éxitos con tu negocio!</p>
+                <p>— El equipo de TurnosPro</p>"
             };
         }
 

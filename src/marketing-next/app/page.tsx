@@ -1,19 +1,42 @@
 import type { Metadata } from 'next';
+import { brand } from '@/app/(lib)/brand';
+import { organizationSchema, softwareAppSchema, faqSchema } from '@/app/(lib)/schema';
+import { faqs } from '@/app/(lib)/content';
+import LandingClient from '@/app/(components)/(sections)/LandingClient';
 
 export const metadata: Metadata = {
-  title: 'Turnos Pro | Reservas con seña, MercadoPago y WhatsApp',
-  description: '80% menos cancelaciones: señas con MercadoPago, confirmación automática y recordatorios por WhatsApp.',
+  title: 'TurnosPro | Reservas con seña, MercadoPago y WhatsApp',
+  description:
+    '80% menos cancelaciones: señas con MercadoPago, confirmación automática y recordatorios por WhatsApp.',
+  openGraph: {
+    title: 'TurnosPro | Reservas con seña, MercadoPago y WhatsApp',
+    description:
+      'Publica tu web de turnos, activa pagos anticipados y recordatorios por WhatsApp. Sin descargas ni apps nativas.',
+    url: `${brand.brand_domain}${brand.marketing_path}`,
+    siteName: brand.brand_name,
+    images: [{ url: brand.og_image, width: 1200, height: 630 }],
+    locale: brand.lang,
+    type: 'website',
+  },
 };
 
 export default function Page() {
+  const jsonLd = [
+    organizationSchema(),
+    softwareAppSchema(),
+    faqSchema(faqs),
+  ];
+
   return (
-    <main style={{ minHeight: '100vh', margin: 0, padding: 0 }}>
-      <iframe
-        src="/landing/index.html"
-        title="Turnos Pro Landing"
-        style={{ border: 'none', width: '100%', minHeight: '100vh' }}
-      />
-    </main>
+    <>
+      {jsonLd.map((schema, i) => (
+        <script
+          key={i}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+        />
+      ))}
+      <LandingClient />
+    </>
   );
 }
-

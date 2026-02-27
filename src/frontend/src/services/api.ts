@@ -59,13 +59,16 @@ api.interceptors.response.use(
       } catch {}
     }
     if (error.response?.status === 401) {
-      // Only redirect to login if we're not already on the login page or super admin pages
       const currentPath = window.location.pathname;
-      const isOnLoginPage = currentPath === '/login' || currentPath.includes('/super-admin');
-      
-      if (!isOnLoginPage) {
-        localStorage.removeItem('authToken');
+
+      if (currentPath.includes('/super-admin') && currentPath !== '/super-admin/login') {
+        // Super admin token expired — redirect to super admin login
         localStorage.removeItem('superAdminToken');
+        localStorage.removeItem('superAdminUser');
+        window.location.href = '/super-admin/login';
+      } else if (currentPath !== '/login' && !currentPath.includes('/super-admin')) {
+        // Regular token expired — redirect to tenant login
+        localStorage.removeItem('authToken');
         window.location.href = '/login';
       }
     }

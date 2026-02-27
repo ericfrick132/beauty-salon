@@ -9,15 +9,17 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@emotion/cache": "^11.11.0",
+    "@emotion/react": "^11.11.3",
+    "@emotion/server": "^11.11.0",
+    "@emotion/styled": "^11.11.0",
+    "@mui/icons-material": "^5.15.3",
+    "@mui/material": "^5.15.3",
+    "framer-motion": "^12.34.3",
     "next": "14.2.5",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "@mui/material": "^5.15.3",
-    "@mui/icons-material": "^5.15.3",
-    "@emotion/react": "^11.11.3",
-    "@emotion/cache": "^11.11.0",
-    "@emotion/server": "^11.11.0",
-    "@emotion/styled": "^11.11.0",
+    "swiper": "^12.1.2",
     "typescript": "^5.4.0"
   },
   "devDependencies": {
@@ -26,4 +28,3 @@
     "@types/react-dom": "^18.2.21"
   }
 }
-

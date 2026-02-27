@@ -11,6 +11,26 @@ const theme = createTheme({
   },
   typography: {
     fontFamily: '"Space Grotesk", Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif',
+    h2: { fontWeight: 700, letterSpacing: '-0.02em' },
+    h3: { fontWeight: 700, letterSpacing: '-0.02em' },
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 10,
+          textTransform: 'none',
+          fontWeight: 600,
+          transition: 'all 0.2s ease',
+          '&:hover': { transform: 'translateY(-1px)' },
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: { borderRadius: 12 },
+      },
+    },
   },
 });
 

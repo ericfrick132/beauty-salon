@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using BookingPro.API.Data;
 using BookingPro.API.Models.DTOs;
+using BookingPro.API.Models.Entities;
 using BookingPro.API.Services;
 using BookingPro.API.Services.Interfaces;
 using System.Text.RegularExpressions;
@@ -15,6 +16,7 @@ namespace BookingPro.API.Controllers
         private readonly ApplicationDbContext _context;
         private readonly ITenantService _tenantService;
         private readonly IAuthService _authService;
+        private readonly IEmailAutomationService _emailAutomationService;
         private readonly ILogger<SelfRegistrationController> _logger;
 
         // Reserved subdomains that cannot be used
@@ -32,11 +34,13 @@ namespace BookingPro.API.Controllers
             ApplicationDbContext context,
             ITenantService tenantService,
             IAuthService authService,
+            IEmailAutomationService emailAutomationService,
             ILogger<SelfRegistrationController> logger)
         {
             _context = context;
             _tenantService = tenantService;
             _authService = authService;
+            _emailAutomationService = emailAutomationService;
             _logger = logger;
         }
 
@@ -113,11 +117,12 @@ namespace BookingPro.API.Controllers
                     ? $"http://{sub}.localhost:3001"
                     : $"https://{sub}.turnos-pro.com";
 
-                // Generate auto-login token for the newly created admin
+                // Fetch admin user for token generation and welcome email
+                User? adminUser = null;
                 string? token = null;
                 try
                 {
-                    var adminUser = await _context.Users
+                    adminUser = await _context.Users
                         .IgnoreQueryFilters()
                         .Where(u => u.TenantId == result.Data.Id && u.Email == dto.AdminEmail)
                         .FirstOrDefaultAsync();
@@ -134,6 +139,25 @@ namespace BookingPro.API.Controllers
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "[SelfRegistration] Error generating auto-login token for tenant {TenantId}", result.Data.Id);
+                }
+
+                // Send welcome email (fire-and-forget, don't block registration)
+                try
+                {
+                    var tenant = await _context.Tenants.FindAsync(result.Data!.Id);
+
+                    if (adminUser != null && tenant != null)
+                    {
+                        _ = _emailAutomationService.SendTenantWelcomeEmailAsync(adminUser, tenant);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("[SelfRegistration] Could not send welcome email - admin user or tenant not found for tenant {TenantId}", result.Data.Id);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "[SelfRegistration] Failed to send welcome email for tenant {TenantId}", result.Data.Id);
                 }
 
                 var redirectUrl = token != null
