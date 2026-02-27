@@ -48,14 +48,14 @@ namespace BookingPro.API.Models.Entities
     {
         public Guid Id { get; set; } = Guid.NewGuid();
         
-        public Guid VerticalId { get; set; }
-        
+        public Guid? VerticalId { get; set; }
+
         [Required, MaxLength(100)]
         public string Subdomain { get; set; } = string.Empty;
-        
+
         [Required, MaxLength(255)]
         public string BusinessName { get; set; } = string.Empty;
-        
+
         [Required, MaxLength(255)]
         public string OwnerEmail { get; set; } = string.Empty;
         
@@ -104,7 +104,7 @@ namespace BookingPro.API.Models.Entities
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
         
         // Navigation properties
-        public Vertical Vertical { get; set; } = null!;
+        public Vertical? Vertical { get; set; }
         public Plan? Plan { get; set; }
         public SubscriptionPlan? SubscriptionPlan { get; set; }
         public ICollection<User> Users { get; set; } = new List<User>();
@@ -232,6 +232,29 @@ namespace BookingPro.API.Models.Entities
         public Vertical Vertical { get; set; } = null!;
         public Plan? Plan { get; set; }
         public Tenant? CreatedTenant { get; set; }
+    }
+
+    [Table("pending_registrations", Schema = "public")]
+    public class PendingRegistration
+    {
+        public Guid Id { get; set; } = Guid.NewGuid();
+
+        [Required, MaxLength(255)]
+        public string Email { get; set; } = string.Empty;
+
+        [Required]
+        public string PasswordHash { get; set; } = string.Empty;
+
+        [Required, MaxLength(255)]
+        public string RememberToken { get; set; } = string.Empty;
+
+        public DateTime ExpiresAt { get; set; }
+
+        public bool IsConfirmed { get; set; } = false;
+
+        public DateTime? ConfirmedAt { get; set; }
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 
     // Messaging packages sold by platform (no tenant scope)

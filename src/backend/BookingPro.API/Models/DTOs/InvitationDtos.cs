@@ -114,8 +114,7 @@ namespace BookingPro.API.Models.DTOs
 
     public class CreateTenantDto
     {
-        [Required]
-        public string VerticalCode { get; set; } = string.Empty;
+        public string? VerticalCode { get; set; }
         
         [Required, MaxLength(100)]
         public string Subdomain { get; set; } = string.Empty;

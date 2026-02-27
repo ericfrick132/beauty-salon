@@ -42,6 +42,7 @@ import SalesPOS from './pages/SalesPOS';
 import Products from './pages/Products';
 import MessagingCredits from './pages/MessagingCredits';
 import MessagingSettings from './pages/MessagingSettings';
+import WhatsAppSettings from './pages/WhatsAppSettings';
 import RecurringSubscription from './pages/RecurringSubscription';
 import TenantsManagement from './pages/TenantsManagement';
 import Blocks from './pages/Blocks';
@@ -89,8 +90,8 @@ function App() {
         return;
       }
 
-      // Check if we're on the main domain (for landing page)
-      if (isMainDomain() && (window.location.pathname === '/' || window.location.pathname === '/register')) {
+      // Check if we're on the main domain (for landing page or registration)
+      if (isMainDomain() && (window.location.pathname === '/' || window.location.pathname === '/register' || window.location.pathname.startsWith('/register/'))) {
         // We're on the main domain, no tenant config needed
         setLoading(false);
         return;
@@ -126,7 +127,7 @@ function App() {
       console.log('Current hostname:', window.location.hostname);
       
       // If we're on main domain and API fails, still allow access to landing/register
-      if (isMainDomain() && (window.location.pathname === '/' || window.location.pathname === '/register')) {
+      if (isMainDomain() && (window.location.pathname === '/' || window.location.pathname === '/register' || window.location.pathname.startsWith('/register/'))) {
         setLoading(false);
         return;
       }
@@ -255,6 +256,7 @@ function App() {
                 {isMainDomain() ? (
                   <>
                     <Route path="/register" element={<SelfRegistration />} />
+                    <Route path="/register/confirm" element={<SelfRegistration />} />
                     <Route path="/invitation/:token" element={<InvitationPage />} />
                   </>
                 ) : (
@@ -294,6 +296,7 @@ function App() {
                   <Route path="/platform-subscription" element={<PlatformSubscriptionStatus />} />
                   <Route path="/messaging" element={<MessagingCredits />} />
                   <Route path="/messaging/settings" element={<MessagingSettings />} />
+                  <Route path="/whatsapp" element={<WhatsAppSettings />} />
                 </Route>
               </Routes>
               </SubscriptionProvider>

@@ -48,5 +48,27 @@ namespace BookingPro.API.Models.DTOs
         public int TotalSent { get; set; }
         public DateTime UpdatedAt { get; set; }
     }
+
+    public class WhatsAppConnectResultDto
+    {
+        public string QrCodeBase64 { get; set; } = string.Empty;
+        public string InstanceName { get; set; } = string.Empty;
+        public string Status { get; set; } = "connecting";
+    }
+
+    public class WhatsAppStatusDto
+    {
+        public string Status { get; set; } = "pending";
+        public string? ConnectedPhone { get; set; }
+        public string? ProfileName { get; set; }
+        public DateTime? ConnectedAt { get; set; }
+        public string? InstanceName { get; set; }
+    }
+
+    public class SendTestDto
+    {
+        public string Phone { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+    }
 }
 

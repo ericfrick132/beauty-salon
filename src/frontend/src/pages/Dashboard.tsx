@@ -73,6 +73,8 @@ import {
   getCardBackground 
 } from '../utils/themeUtils';
 import { startOnboardingTour } from '../tours/onboarding';
+import TemplateSelectionModal from '../components/TemplateSelectionModal';
+import { templatesApi } from '../services/api';
 
 const Dashboard: React.FC = () => {
   const { config, getTerm } = useTenant();
@@ -86,6 +88,7 @@ const Dashboard: React.FC = () => {
   const [loadingUnpaid, setLoadingUnpaid] = useState(false);
   const [showUnpaidDetails, setShowUnpaidDetails] = useState(false);
   const [copiedBookingLink, setCopiedBookingLink] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
   const bookingShareUrl = `${window.location.origin}/book`;
   const handleCopyBookingLink = async () => {
     try {
@@ -107,6 +110,26 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     fetchFinancialStats();
   }, []);
+
+  // Check if tenant has vertical assigned (show template picker if not)
+  useEffect(() => {
+    const checkVertical = async () => {
+      try {
+        const response = await templatesApi.hasVertical();
+        if (!response.hasVertical) {
+          setShowTemplateModal(true);
+        }
+      } catch {
+        // Ignore errors - may not be authenticated yet
+      }
+    };
+    checkVertical();
+  }, []);
+
+  const handleTemplateApplied = () => {
+    // Reload the page to refresh tenant config with the new vertical
+    window.location.reload();
+  };
 
   // Launch guided tour if query param says so and not shown before
   useEffect(() => {
@@ -1062,6 +1085,13 @@ const Dashboard: React.FC = () => {
         </Grid>
       </Grid>
       </Container>
+
+      {/* Template Selection Modal (first visit without vertical) */}
+      <TemplateSelectionModal
+        open={showTemplateModal}
+        onClose={() => setShowTemplateModal(false)}
+        onTemplateApplied={handleTemplateApplied}
+      />
     </Box>
   );
 };

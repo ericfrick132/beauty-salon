@@ -24,6 +24,7 @@ namespace BookingPro.API.Data
         public DbSet<Subscription> Subscriptions { get; set; }
         public DbSet<Invitation> Invitations { get; set; }
         public DbSet<MessagePackage> MessagePackages { get; set; }
+        public DbSet<PendingRegistration> PendingRegistrations { get; set; }
 
         // DbSets para entidades por tenant
         public DbSet<Models.Entities.ServiceCategory> ServiceCategories { get; set; }
@@ -73,6 +74,7 @@ namespace BookingPro.API.Data
         public DbSet<PriceHistory> PriceHistories { get; set; }
         public DbSet<InventoryReport> InventoryReports { get; set; }
         public DbSet<EmployeeTimeBlock> EmployeeTimeBlocks { get; set; }
+        public DbSet<TenantWhatsAppConnection> TenantWhatsAppConnections { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -95,15 +97,22 @@ namespace BookingPro.API.Data
                 entity.HasIndex(v => v.Code).IsUnique();
             });
 
+            modelBuilder.Entity<PendingRegistration>(entity =>
+            {
+                entity.HasIndex(p => p.Email).IsUnique();
+                entity.HasIndex(p => p.RememberToken).IsUnique();
+            });
+
             modelBuilder.Entity<Tenant>(entity =>
             {
-                entity.HasIndex(t => new { t.Subdomain, t.VerticalId }).IsUnique();
+                entity.HasIndex(t => t.Subdomain).IsUnique();
                 entity.HasIndex(t => t.SchemaName).IsUnique();
                 entity.HasIndex(t => t.CustomDomain).IsUnique();
 
                 entity.HasOne(t => t.Vertical)
                     .WithMany(v => v.Tenants)
                     .HasForeignKey(t => t.VerticalId)
+                    .IsRequired(false)
                     .OnDelete(DeleteBehavior.Restrict);
 
                 entity.HasOne(t => t.Plan)
@@ -611,6 +620,13 @@ namespace BookingPro.API.Data
                 entity.HasIndex(l => l.Status);
                 entity.HasIndex(l => l.CreatedAt);
             });
+
+            modelBuilder.Entity<TenantWhatsAppConnection>(entity =>
+            {
+                entity.ToTable("tenant_whatsapp_connections");
+                entity.HasIndex(c => c.TenantId).IsUnique();
+                entity.HasIndex(c => c.InstanceName).IsUnique();
+            });
         }
 
         private void ConfigureMultiTenantFilters(ModelBuilder modelBuilder)
@@ -654,7 +670,8 @@ namespace BookingPro.API.Data
             modelBuilder.Entity<TenantMessageWallet>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<MessagePurchase>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<MessageLog>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
-            
+            modelBuilder.Entity<TenantWhatsAppConnection>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+
             // Nota: Service ya tiene su filtro combinado en ConfigureTenantEntities
         }
 

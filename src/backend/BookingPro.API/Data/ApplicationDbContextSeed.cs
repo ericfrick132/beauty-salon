@@ -166,6 +166,147 @@ namespace BookingPro.API.Data
                         ["multiLocation"] = false
                     })
                 }
+                ,
+                new Vertical
+                {
+                    Code = "carwash",
+                    Name = "Lavadero de Vehículos",
+                    Description = "Gestión de turnos para lavaderos de autos",
+                    Domain = "turnos-pro.com",
+                    DefaultTheme = JsonSerializer.Serialize(new
+                    {
+                        PrimaryColor = "#1E88E5",
+                        SecondaryColor = "#E3F2FD",
+                        AccentColor = "#43A047",
+                        BackgroundGradient = "linear-gradient(135deg, #FFFFFF 0%, #E3F2FD 50%, #BBDEFB 100%)",
+                        FontFamily = "Roboto"
+                    }),
+                    DefaultServices = JsonSerializer.Serialize(new[]
+                    {
+                        new { Name = "Lavado Exterior", DurationMinutes = 30, Price = 15.00 },
+                        new { Name = "Lavado Completo", DurationMinutes = 60, Price = 25.00 },
+                        new { Name = "Encerado", DurationMinutes = 60, Price = 30.00 }
+                    }),
+                    Terminology = JsonSerializer.Serialize(new Dictionary<string, string>
+                    {
+                        ["professional"] = "Lavador",
+                        ["customer"] = "Cliente",
+                        ["service"] = "Servicio",
+                        ["booking"] = "Turno"
+                    }),
+                    Features = JsonSerializer.Serialize(new Dictionary<string, bool>
+                    {
+                        ["onlinePayment"] = true,
+                        ["smsReminders"] = true,
+                        ["loyaltyProgram"] = false,
+                        ["multiLocation"] = false
+                    })
+                },
+                new Vertical
+                {
+                    Code = "depilation",
+                    Name = "Centro de Depilación",
+                    Description = "Gestión de turnos para centros de depilación",
+                    Domain = "turnos-pro.com",
+                    DefaultTheme = JsonSerializer.Serialize(new
+                    {
+                        PrimaryColor = "#AB47BC",
+                        SecondaryColor = "#F3E5F5",
+                        AccentColor = "#EC407A",
+                        BackgroundGradient = "linear-gradient(135deg, #FFFFFF 0%, #F3E5F5 50%, #E1BEE7 100%)",
+                        FontFamily = "Poppins"
+                    }),
+                    DefaultServices = JsonSerializer.Serialize(new[]
+                    {
+                        new { Name = "Piernas Completas", DurationMinutes = 45, Price = 35.00 },
+                        new { Name = "Axilas", DurationMinutes = 15, Price = 12.00 },
+                        new { Name = "Brasileño", DurationMinutes = 30, Price = 30.00 }
+                    }),
+                    Terminology = JsonSerializer.Serialize(new Dictionary<string, string>
+                    {
+                        ["professional"] = "Depiladora",
+                        ["customer"] = "Cliente",
+                        ["service"] = "Servicio",
+                        ["booking"] = "Turno"
+                    }),
+                    Features = JsonSerializer.Serialize(new Dictionary<string, bool>
+                    {
+                        ["onlinePayment"] = true,
+                        ["smsReminders"] = true,
+                        ["loyaltyProgram"] = true,
+                        ["multiLocation"] = false
+                    })
+                },
+                new Vertical
+                {
+                    Code = "sports",
+                    Name = "Alquiler de Canchas",
+                    Description = "Gestión de reservas para complejos deportivos",
+                    Domain = "turnos-pro.com",
+                    DefaultTheme = JsonSerializer.Serialize(new
+                    {
+                        PrimaryColor = "#2E7D32",
+                        SecondaryColor = "#E8F5E9",
+                        AccentColor = "#FF8F00",
+                        BackgroundGradient = "linear-gradient(135deg, #FFFFFF 0%, #E8F5E9 50%, #C8E6C9 100%)",
+                        FontFamily = "Roboto"
+                    }),
+                    DefaultServices = JsonSerializer.Serialize(new[]
+                    {
+                        new { Name = "Fútbol 5", DurationMinutes = 60, Price = 50.00 },
+                        new { Name = "Pádel", DurationMinutes = 60, Price = 40.00 },
+                        new { Name = "Tenis", DurationMinutes = 60, Price = 45.00 }
+                    }),
+                    Terminology = JsonSerializer.Serialize(new Dictionary<string, string>
+                    {
+                        ["professional"] = "Cancha",
+                        ["customer"] = "Jugador",
+                        ["service"] = "Cancha",
+                        ["booking"] = "Reserva"
+                    }),
+                    Features = JsonSerializer.Serialize(new Dictionary<string, bool>
+                    {
+                        ["onlinePayment"] = true,
+                        ["smsReminders"] = true,
+                        ["loyaltyProgram"] = false,
+                        ["multiLocation"] = true
+                    })
+                },
+                new Vertical
+                {
+                    Code = "consulting",
+                    Name = "Psicología / Consultorios",
+                    Description = "Gestión de turnos para consultorios y profesionales de la salud",
+                    Domain = "turnos-pro.com",
+                    DefaultTheme = JsonSerializer.Serialize(new
+                    {
+                        PrimaryColor = "#5C6BC0",
+                        SecondaryColor = "#E8EAF6",
+                        AccentColor = "#26A69A",
+                        BackgroundGradient = "linear-gradient(135deg, #FFFFFF 0%, #E8EAF6 50%, #C5CAE9 100%)",
+                        FontFamily = "Lato"
+                    }),
+                    DefaultServices = JsonSerializer.Serialize(new[]
+                    {
+                        new { Name = "Sesión Individual", DurationMinutes = 50, Price = 45.00 },
+                        new { Name = "Sesión de Pareja", DurationMinutes = 60, Price = 65.00 },
+                        new { Name = "Evaluación", DurationMinutes = 90, Price = 80.00 }
+                    }),
+                    Terminology = JsonSerializer.Serialize(new Dictionary<string, string>
+                    {
+                        ["professional"] = "Profesional",
+                        ["customer"] = "Paciente",
+                        ["service"] = "Consulta",
+                        ["booking"] = "Turno"
+                    }),
+                    Features = JsonSerializer.Serialize(new Dictionary<string, bool>
+                    {
+                        ["onlinePayment"] = true,
+                        ["smsReminders"] = true,
+                        ["loyaltyProgram"] = false,
+                        ["multiLocation"] = false
+                    })
+                }
             };
 
             await context.Verticals.AddRangeAsync(verticals);

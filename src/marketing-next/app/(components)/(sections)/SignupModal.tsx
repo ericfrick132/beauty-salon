@@ -9,17 +9,12 @@ import {
   TextField,
   Typography,
   Box,
-  Chip,
-  InputAdornment,
   Alert,
   CircularProgress,
   IconButton,
-  Stepper,
-  Step,
-  StepLabel,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import { businessTypeOptions } from '@/app/(lib)/content';
+import EmailIcon from '@mui/icons-material/Email';
 
 // --- Context ---
 interface SignupModalContextValue {
@@ -33,36 +28,8 @@ export function useSignupModal() {
 }
 
 // --- Helpers ---
-function sanitizeSubdomain(value: string): string {
-  const normalized = value.normalize('NFD').replace(/\p{Diacritic}/gu, '');
-  return normalized
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 30);
-}
-
-function mapBusinessToVertical(value: string): string {
-  switch (value) {
-    case 'barbershop':
-    case 'barberia':
-      return 'barbershop';
-    case 'peluqueria':
-      return 'peluqueria';
-    case 'estetica':
-    case 'aesthetics':
-    case 'salud':
-      return 'aesthetics';
-    case 'profesionales':
-      return 'other';
-    default:
-      return 'barbershop';
-  }
-}
-
 function passwordValid(pwd: string): boolean {
-  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/.test(pwd);
+  return pwd.length >= 8;
 }
 
 function emailValid(value: string): boolean {
@@ -85,55 +52,29 @@ function apiUrl(path: string): string {
   return `${base}/api${cleaned}`;
 }
 
-function buildAutoLoginUrl(payload: any): string {
-  const token = payload?.token;
-  const tenantSubdomain = payload?.tenantSubdomain || payload?.subdomain;
-  const dashboardUrl = payload?.dashboardUrl || payload?.tenantUrl;
-  const isLocal =
-    typeof window !== 'undefined' &&
-    (window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1'));
-  const domain = isLocal ? 'localhost:3001' : 'turnos-pro.com';
-  const protocol = isLocal ? 'http:' : 'https:';
-  if (token && tenantSubdomain) {
-    return `${protocol}//${tenantSubdomain}.${domain}/dashboard?impersonationToken=${encodeURIComponent(token)}&tour=onboarding&onboarding=1`;
-  }
-  if (tenantSubdomain && dashboardUrl) {
-    try {
-      return new URL(dashboardUrl).toString();
-    } catch {
-      return `${protocol}//${tenantSubdomain}.${domain}`;
-    }
-  }
-  return '';
-}
-
 // --- Component ---
 interface ModalState {
-  step: number;
-  businessType: string;
-  businessName: string;
-  subdomain: string;
+  step: 'form' | 'sent';
   email: string;
   password: string;
   confirmPassword: string;
   busy: boolean;
   error: string;
+  devConfirmUrl: string;
 }
 
 const initialState: ModalState = {
-  step: 1,
-  businessType: '',
-  businessName: '',
-  subdomain: '',
+  step: 'form',
   email: '',
   password: '',
   confirmPassword: '',
   busy: false,
   error: '',
+  devConfirmUrl: '',
 };
 
 function SignupModalInner() {
-  const { isOpen, prefilledSubdomain, close } = useSignupModalInternal();
+  const { isOpen, close } = useSignupModalInternal();
   const [state, setState] = useState<ModalState>(initialState);
 
   const set = useCallback((patch: Partial<ModalState>) => setState((s) => ({ ...s, ...patch })), []);
@@ -143,81 +84,43 @@ function SignupModalInner() {
     close();
   };
 
-  const handleBusinessNameChange = (value: string) => {
-    set({ businessName: value, subdomain: sanitizeSubdomain(value) });
-  };
-
-  const step1Valid = state.businessType && state.businessName.trim().length >= 2 && state.subdomain.trim().length >= 3;
-  const step2Valid =
+  const formValid =
     emailValid(state.email) && passwordValid(state.password) && state.password === state.confirmPassword;
 
-  const handleRegister = async () => {
+  const handleSubmit = async () => {
     set({ busy: true, error: '' });
     try {
-      const primaryBody = {
-        gymName: state.businessName.trim(),
-        subdomain: state.subdomain.trim(),
-        adminEmail: state.email.trim(),
-        adminFirstName: 'Admin',
-        adminLastName: 'Turnos Pro',
-        password: state.password,
-      };
-
-      let res = await fetch(apiUrl('/tenants/self-register'), {
+      const res = await fetch(apiUrl('/registration/start'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(primaryBody),
+        body: JSON.stringify({
+          email: state.email.trim(),
+          password: state.password,
+          confirmPassword: state.confirmPassword,
+        }),
       });
 
-      if (!res.ok) {
-        const fallbackBody = {
-          verticalCode: mapBusinessToVertical(state.businessType),
-          subdomain: state.subdomain.trim(),
-          businessName: state.businessName.trim(),
-          adminEmail: state.email.trim(),
-          adminFirstName: 'Admin',
-          adminLastName: 'Turnos Pro',
-          adminPassword: state.password,
-          confirmPassword: state.password,
-          timeZone: 'America/Argentina/Buenos_Aires',
-          currency: 'ARS',
-          language: 'es',
-          isDemo: true,
-          demoDays: 30,
-        };
-
-        res = await fetch(apiUrl('/self-registration'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(fallbackBody),
-        });
-      }
+      const body = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || body.title || 'Error al registrar. Intenta de nuevo.');
+        throw new Error(body.message || 'Error al registrar. Intenta de nuevo.');
       }
 
-      const payload = await res.json();
-      const loginUrl = buildAutoLoginUrl(payload);
-      if (loginUrl) {
-        window.location.href = loginUrl;
-      } else {
-        handleClose();
-      }
+      set({
+        step: 'sent',
+        busy: false,
+        devConfirmUrl: body.devConfirmUrl || '',
+      });
     } catch (err: any) {
       set({ error: err.message || 'Error inesperado', busy: false });
     }
   };
 
-  // Apply prefilled subdomain on open
-  const effectiveSubdomain = state.subdomain || prefilledSubdomain || '';
-
   return (
-    <Dialog open={isOpen} onClose={handleClose} maxWidth="sm" fullWidth>
+    <Dialog open={isOpen} onClose={handleClose} maxWidth="xs" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Typography variant="h6" component="span">
-          {state.step === 1 ? '¿Qué tipo de negocio tenés?' : 'Creá tu cuenta'}
+          {state.step === 'form' ? 'Creá tu cuenta' : 'Revisá tu email'}
         </Typography>
         <IconButton onClick={handleClose} size="small">
           <CloseIcon />
@@ -225,65 +128,17 @@ function SignupModalInner() {
       </DialogTitle>
 
       <DialogContent>
-        <Stepper activeStep={state.step - 1} sx={{ mb: 3 }}>
-          <Step>
-            <StepLabel>Negocio</StepLabel>
-          </Step>
-          <Step>
-            <StepLabel>Acceso</StepLabel>
-          </Step>
-        </Stepper>
-
         {state.error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {state.error}
           </Alert>
         )}
 
-        {state.step === 1 && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-            <Box>
-              <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>
-                Tipo de negocio
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {businessTypeOptions.map((opt) => (
-                  <Chip
-                    key={opt.value}
-                    label={opt.label}
-                    variant={state.businessType === opt.value ? 'filled' : 'outlined'}
-                    color={state.businessType === opt.value ? 'primary' : 'default'}
-                    onClick={() => set({ businessType: opt.value })}
-                    sx={{ cursor: 'pointer' }}
-                  />
-                ))}
-              </Box>
-            </Box>
-            <TextField
-              label="Nombre del negocio"
-              placeholder="Ej: Studio Ana"
-              value={state.businessName}
-              onChange={(e) => handleBusinessNameChange(e.target.value)}
-              fullWidth
-              size="small"
-            />
-            <TextField
-              label="Subdominio"
-              placeholder="studio-ana"
-              value={effectiveSubdomain}
-              onChange={(e) => set({ subdomain: sanitizeSubdomain(e.target.value) })}
-              fullWidth
-              size="small"
-              helperText="Min 3 letras/números, sin espacios."
-              InputProps={{
-                endAdornment: <InputAdornment position="end">.turnos-pro.com</InputAdornment>,
-              }}
-            />
-          </Box>
-        )}
-
-        {state.step === 2 && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+        {state.step === 'form' && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, mt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Ingresá tu email y una contraseña. Te enviaremos un link de confirmación.
+            </Typography>
             <TextField
               label="Email"
               type="email"
@@ -292,6 +147,7 @@ function SignupModalInner() {
               onChange={(e) => set({ email: e.target.value })}
               fullWidth
               size="small"
+              autoFocus
             />
             <TextField
               label="Contraseña"
@@ -300,7 +156,7 @@ function SignupModalInner() {
               onChange={(e) => set({ password: e.target.value })}
               fullWidth
               size="small"
-              helperText="Mínimo 8 caracteres, 1 mayúscula, 1 minúscula, 1 número y 1 símbolo."
+              helperText="Mínimo 8 caracteres"
             />
             <TextField
               label="Confirmar contraseña"
@@ -318,32 +174,53 @@ function SignupModalInner() {
             />
           </Box>
         )}
+
+        {state.step === 'sent' && (
+          <Box sx={{ textAlign: 'center', py: 2 }}>
+            <EmailIcon sx={{ fontSize: 56, color: 'primary.main', mb: 2 }} />
+            <Typography variant="body1" sx={{ mb: 1 }}>
+              Te enviamos un email de confirmación a:
+            </Typography>
+            <Typography variant="body1" sx={{ fontWeight: 600, mb: 2 }}>
+              {state.email}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Hacé click en el link del email para continuar con el registro.
+              Si no lo ves, revisá la carpeta de spam.
+            </Typography>
+            {state.devConfirmUrl && (
+              <Alert severity="info" sx={{ mt: 2, textAlign: 'left' }}>
+                <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                  Dev: {' '}
+                  <a href={state.devConfirmUrl} style={{ wordBreak: 'break-all' }}>
+                    {state.devConfirmUrl}
+                  </a>
+                </Typography>
+              </Alert>
+            )}
+          </Box>
+        )}
       </DialogContent>
 
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        {state.step === 2 && (
-          <Button onClick={() => set({ step: 1, error: '' })} disabled={state.busy}>
-            Volver
-          </Button>
+        {state.step === 'form' && (
+          <>
+            <Box sx={{ flex: 1 }} />
+            <Button
+              variant="contained"
+              disabled={!formValid || state.busy}
+              onClick={handleSubmit}
+              startIcon={state.busy ? <CircularProgress size={18} color="inherit" /> : undefined}
+            >
+              {state.busy ? 'Enviando...' : 'Continuar'}
+            </Button>
+          </>
         )}
-        <Box sx={{ flex: 1 }} />
-        {state.step === 1 ? (
-          <Button
-            variant="contained"
-            disabled={!step1Valid}
-            onClick={() => set({ step: 2, error: '', subdomain: effectiveSubdomain })}
-          >
-            Continuar
-          </Button>
-        ) : (
-          <Button
-            variant="contained"
-            disabled={!step2Valid || state.busy}
-            onClick={handleRegister}
-            startIcon={state.busy ? <CircularProgress size={18} color="inherit" /> : undefined}
-          >
-            {state.busy ? 'Creando...' : 'Crear cuenta'}
-          </Button>
+        {state.step === 'sent' && (
+          <>
+            <Box sx={{ flex: 1 }} />
+            <Button onClick={handleClose}>Cerrar</Button>
+          </>
         )}
       </DialogActions>
     </Dialog>
@@ -353,13 +230,11 @@ function SignupModalInner() {
 // --- Internal context for open/close state ---
 interface InternalContextValue {
   isOpen: boolean;
-  prefilledSubdomain: string;
   close: () => void;
 }
 
 const InternalContext = createContext<InternalContextValue>({
   isOpen: false,
-  prefilledSubdomain: '',
   close: () => {},
 });
 
@@ -370,21 +245,18 @@ function useSignupModalInternal() {
 // --- Provider ---
 export function SignupModalProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [prefilledSubdomain, setPrefilledSubdomain] = useState('');
 
-  const open = useCallback((sub?: string) => {
-    setPrefilledSubdomain(sub || '');
+  const open = useCallback(() => {
     setIsOpen(true);
   }, []);
 
   const close = useCallback(() => {
     setIsOpen(false);
-    setPrefilledSubdomain('');
   }, []);
 
   return (
     <SignupModalContext.Provider value={{ open }}>
-      <InternalContext.Provider value={{ isOpen, prefilledSubdomain, close }}>
+      <InternalContext.Provider value={{ isOpen, close }}>
         {children}
         <SignupModalInner />
       </InternalContext.Provider>

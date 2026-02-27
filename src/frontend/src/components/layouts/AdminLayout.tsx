@@ -58,6 +58,7 @@ import {
   Block as BlockIcon,
   Inventory2Outlined,
   Storefront,
+  WhatsApp,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useAppDispatch, useAppSelector } from '../../store';
@@ -270,6 +271,7 @@ export const AdminLayout: React.FC = () => {
       children: [
         { text: 'General', path: '/settings', icon: <Settings fontSize="small" /> },
         { text: 'Suscripción', path: '/subscription', icon: <CreditCard fontSize="small" /> },
+        { text: 'WhatsApp', path: '/whatsapp', icon: <WhatsApp fontSize="small" /> },
       ],
     },
   ];

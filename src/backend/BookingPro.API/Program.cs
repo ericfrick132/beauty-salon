@@ -126,6 +126,7 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IPublicService, Bo
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IMercadoPagoService, BookingPro.API.Services.MercadoPagoService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IMercadoPagoOAuthService, BookingPro.API.Services.MercadoPagoOAuthService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IWhatsAppService, BookingPro.API.Services.WhatsAppService>();
+builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IWhatsAppConnectionService, BookingPro.API.Services.WhatsAppConnectionService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ISubscriptionService, BookingPro.API.Services.SubscriptionService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IInventoryService, BookingPro.API.Services.InventoryService>();
 builder.Services.AddScoped<ISettingsService, SettingsService>();
@@ -142,6 +143,7 @@ builder.Services.AddHttpClient();
 
 // Add MercadoPago token refresh background service
 builder.Services.AddHostedService<BookingPro.API.Services.MercadoPagoTokenRefreshService>();
+builder.Services.AddHostedService<BookingPro.API.Services.WhatsAppReminderService>();
 
 // Configure Swagger with JWT support
 builder.Services.AddEndpointsApiExplorer();

@@ -1,6 +1,3 @@
-using System.Net.Http.Headers;
-using System.Text;
-using System.Text.Json;
 using BookingPro.API.Data;
 using BookingPro.API.Models.Common;
 using BookingPro.API.Models.Entities;
@@ -13,15 +10,16 @@ namespace BookingPro.API.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<WhatsAppService> _logger;
-        private readonly IConfiguration _configuration;
-        private readonly HttpClient _http;
+        private readonly IWhatsAppConnectionService _connectionService;
 
-        public WhatsAppService(ApplicationDbContext context, ILogger<WhatsAppService> logger, IConfiguration configuration, IHttpClientFactory httpFactory)
+        public WhatsAppService(
+            ApplicationDbContext context,
+            ILogger<WhatsAppService> logger,
+            IWhatsAppConnectionService connectionService)
         {
             _context = context;
             _logger = logger;
-            _configuration = configuration;
-            _http = httpFactory.CreateClient();
+            _connectionService = connectionService;
         }
 
         public async Task<ServiceResult<bool>> SendBookingReminderAsync(Guid bookingId)
@@ -34,14 +32,16 @@ namespace BookingPro.API.Services
                     .FirstOrDefaultAsync(b => b.Id == bookingId);
                 if (booking == null) return ServiceResult<bool>.Fail("Booking not found");
 
-                var settings = await _context.TenantMessagingSettings.FirstOrDefaultAsync(s => s.TenantId == booking.TenantId);
+                var settings = await _context.TenantMessagingSettings
+                    .FirstOrDefaultAsync(s => s.TenantId == booking.TenantId);
                 if (settings == null || !settings.WhatsAppRemindersEnabled)
                 {
                     return ServiceResult<bool>.Fail("WhatsApp reminders disabled");
                 }
 
                 // Check wallet
-                var wallet = await _context.TenantMessageWallets.FirstOrDefaultAsync(w => w.TenantId == booking.TenantId);
+                var wallet = await _context.TenantMessageWallets
+                    .FirstOrDefaultAsync(w => w.TenantId == booking.TenantId);
                 if (wallet == null || wallet.Balance <= 0)
                 {
                     return ServiceResult<bool>.Fail("Insufficient message credits");
@@ -53,21 +53,11 @@ namespace BookingPro.API.Services
                     return ServiceResult<bool>.Fail("Customer has no phone");
                 }
 
-                // Twilio configuration
-                var accountSid = _configuration["Twilio:AccountSid"];
-                var authToken = _configuration["Twilio:AuthToken"];
-                var fromWhatsApp = _configuration["Twilio:WhatsAppFrom"]; // e.g., whatsapp:+14155238886
-                if (string.IsNullOrWhiteSpace(accountSid) || string.IsNullOrWhiteSpace(authToken) || string.IsNullOrWhiteSpace(fromWhatsApp))
-                {
-                    return ServiceResult<bool>.Fail("Twilio not configured");
-                }
-
-                // Normalize phone: ensure whatsapp:+ prefix and country code
-                var to = toPhone.StartsWith("whatsapp:") ? toPhone : $"whatsapp:{toPhone}";
-
+                // Build message body from template
                 var timeLocal = booking.StartTime.ToLocalTime();
                 var tenant = await _context.Tenants.FirstOrDefaultAsync(t => t.Id == booking.TenantId);
-                var template = settings.ReminderTemplate ?? "Hola {customer_name}! Te recordamos tu turno para {service_name} el {date} a las {time}.";
+                var template = settings.ReminderTemplate
+                    ?? "Hola {customer_name}! Te recordamos tu turno para {service_name} el {date} a las {time}.";
                 string body = template
                     .Replace("{customer_name}", (booking.Customer?.FirstName + " " + (booking.Customer?.LastName ?? "")).Trim())
                     .Replace("{service_name}", booking.Service?.Name ?? "servicio")
@@ -75,24 +65,8 @@ namespace BookingPro.API.Services
                     .Replace("{time}", timeLocal.ToString("HH:mm"))
                     .Replace("{business_name}", tenant?.BusinessName ?? "");
 
-                var url = $"https://api.twilio.com/2010-04-01/Accounts/{accountSid}/Messages.json";
-
-                var form = new List<KeyValuePair<string, string>>
-                {
-                    new("From", fromWhatsApp),
-                    new("To", to),
-                    new("Body", body)
-                };
-
-                var req = new HttpRequestMessage(HttpMethod.Post, url)
-                {
-                    Content = new FormUrlEncodedContent(form)
-                };
-                var authBytes = Encoding.ASCII.GetBytes($"{accountSid}:{authToken}");
-                req.Headers.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(authBytes));
-
-                var response = await _http.SendAsync(req);
-                var content = await response.Content.ReadAsStringAsync();
+                // Send via Evolution API
+                var sendResult = await _connectionService.SendTextAsync(booking.TenantId, toPhone, body);
 
                 var log = new MessageLog
                 {
@@ -101,32 +75,17 @@ namespace BookingPro.API.Services
                     CustomerId = booking.CustomerId,
                     Channel = "whatsapp",
                     MessageType = "reminder",
-                    Status = response.IsSuccessStatusCode ? "sent" : "failed",
-                    To = to,
+                    Status = sendResult.Success ? "sent" : "failed",
+                    To = toPhone,
                     Body = body,
-                    SentAt = response.IsSuccessStatusCode ? DateTime.UtcNow : null,
+                    SentAt = sendResult.Success ? DateTime.UtcNow : null,
+                    ProviderMessageId = sendResult.Data,
+                    ErrorMessage = sendResult.Success ? null : sendResult.Message
                 };
-
-                try
-                {
-                    var json = JsonSerializer.Deserialize<JsonElement>(content);
-                    if (json.TryGetProperty("sid", out var sid))
-                    {
-                        log.ProviderMessageId = sid.GetString();
-                    }
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        log.ErrorMessage = json.TryGetProperty("message", out var msg) ? msg.GetString() : content;
-                    }
-                }
-                catch
-                {
-                    if (!response.IsSuccessStatusCode) log.ErrorMessage = content;
-                }
 
                 _context.MessageLogs.Add(log);
 
-                if (response.IsSuccessStatusCode)
+                if (sendResult.Success)
                 {
                     wallet.Balance -= 1;
                     wallet.TotalSent += 1;
@@ -134,9 +93,10 @@ namespace BookingPro.API.Services
                 }
 
                 await _context.SaveChangesAsync();
-                return response.IsSuccessStatusCode
+
+                return sendResult.Success
                     ? ServiceResult<bool>.Ok(true)
-                    : ServiceResult<bool>.Fail(log.ErrorMessage ?? "Failed to send message");
+                    : ServiceResult<bool>.Fail(sendResult.Message ?? "Failed to send message");
             }
             catch (Exception ex)
             {

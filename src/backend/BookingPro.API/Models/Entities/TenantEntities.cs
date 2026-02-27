@@ -410,6 +410,32 @@ namespace BookingPro.API.Models.Entities
         public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
     }
 
+    public class TenantWhatsAppConnection : ITenantEntity
+    {
+        public Guid TenantId { get; set; }
+        public Guid Id { get; set; } = Guid.NewGuid();
+
+        [Required, MaxLength(200)]
+        public string InstanceName { get; set; } = string.Empty;
+
+        [MaxLength(200)]
+        public string? InstanceToken { get; set; }
+
+        [MaxLength(30)]
+        public string Status { get; set; } = "pending"; // pending | connecting | open | close
+
+        [MaxLength(50)]
+        public string? ConnectedPhone { get; set; }
+
+        [MaxLength(200)]
+        public string? ProfileName { get; set; }
+
+        public DateTime? ConnectedAt { get; set; }
+        public DateTime? DisconnectedAt { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    }
+
     public class BookingStatusHistory : ITenantEntity
     {
         public Guid TenantId { get; set; }

@@ -264,16 +264,50 @@ export const invitationApi = {
     api.post('/invitation/accept', data).then(res => res.data),
 };
 
-// Self Registration API (public endpoints)  
+// Self Registration API (public endpoints)
 export const selfRegistrationApi = {
   register: (data: any) =>
     api.post('/self-registration', data).then(res => res.data),
-    
+
   checkSubdomain: (subdomain: string) =>
     api.get(`/self-registration/check-subdomain/${subdomain}`).then(res => res.data),
-    
+
   getVerticals: () =>
     api.get('/verticals').then(res => res.data),
+};
+
+// New Registration API (email confirmation flow)
+export const registrationApi = {
+  start: (data: { email: string; password: string; confirmPassword: string }) =>
+    api.post('/registration/start', data).then(res => res.data),
+
+  verify: (token: string) =>
+    api.get(`/registration/verify/${token}`).then(res => res.data),
+
+  complete: (data: {
+    rememberToken: string;
+    subdomain: string;
+    businessName: string;
+    businessAddress?: string;
+    phone?: string;
+    website?: string;
+    mobile: string;
+  }) => api.post('/registration/complete', data).then(res => res.data),
+
+  checkSubdomain: (subdomain: string) =>
+    api.get(`/registration/check-subdomain/${subdomain}`).then(res => res.data),
+};
+
+// Templates API
+export const templatesApi = {
+  getTemplates: () =>
+    api.get('/templates').then(res => res.data),
+
+  applyTemplate: (verticalCode: string) =>
+    api.post('/tenant/apply-template', { verticalCode }).then(res => res.data),
+
+  hasVertical: () =>
+    api.get('/tenant/has-vertical').then(res => res.data),
 };
 
 export default api;
@@ -306,6 +340,16 @@ export const messagingApi = {
   updateSettings: (data: { whatsappRemindersEnabled: boolean; reminderAdvanceMinutes: number; reminderTemplate: string }) =>
     api.put('/messaging/settings', data).then(res => res.data),
   sendDueReminders: () => api.post('/messaging/send-due-reminders').then(res => res.data),
+};
+
+// WhatsApp Connection API
+export const whatsappApi = {
+  connect: () => api.post('/whatsapp/connect').then(res => res.data),
+  getStatus: () => api.get('/whatsapp/status').then(res => res.data),
+  refreshQr: () => api.post('/whatsapp/refresh-qr').then(res => res.data),
+  disconnect: () => api.post('/whatsapp/disconnect').then(res => res.data),
+  sendTest: (phone: string, message: string) =>
+    api.post('/whatsapp/send-test', { phone, message }).then(res => res.data),
 };
 
 // Admin packages API (super admin)

@@ -61,44 +61,20 @@ namespace BookingPro.API.Services
 
             if (tenant == null) return null;
 
-            return new TenantInfo
-            {
-                Id = tenant.Id,
-                Subdomain = tenant.Subdomain,
-                BusinessName = tenant.BusinessName,
-                VerticalCode = tenant.Vertical.Code,
-                SchemaName = tenant.SchemaName,
-                Domain = domain,
-                TimeZone = tenant.TimeZone ?? "-3",
-                Theme = System.Text.Json.JsonSerializer.Deserialize<TenantTheme>(tenant.Vertical.DefaultTheme) ?? new TenantTheme(),
-                Features = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, bool>>(tenant.Vertical.Features) ?? new(),
-                Terminology = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(tenant.Vertical.Terminology) ?? new()
-            };
+            return MapTenantToInfo(tenant, domain);
         }
 
         public async Task<TenantInfo?> GetTenantByCustomDomain(string hostname)
         {
             var tenant = await _context.Tenants
                 .Include(t => t.Vertical)
-                .FirstOrDefaultAsync(t => 
+                .FirstOrDefaultAsync(t =>
                     t.CustomDomain == hostname &&
                     (t.Status == TenantStatus.Active.ToString().ToLower() || t.Status == TenantStatus.Trial.ToString().ToLower()));
 
             if (tenant == null) return null;
 
-            return new TenantInfo
-            {
-                Id = tenant.Id,
-                Subdomain = tenant.Subdomain,
-                BusinessName = tenant.BusinessName,
-                VerticalCode = tenant.Vertical.Code,
-                SchemaName = tenant.SchemaName,
-                Domain = hostname,
-                TimeZone = tenant.TimeZone ?? "-3",
-                Theme = System.Text.Json.JsonSerializer.Deserialize<TenantTheme>(tenant.Vertical.DefaultTheme) ?? new TenantTheme(),
-                Features = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, bool>>(tenant.Vertical.Features) ?? new(),
-                Terminology = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(tenant.Vertical.Terminology) ?? new()
-            };
+            return MapTenantToInfo(tenant, hostname);
         }
 
         public async Task<TenantInfo?> GetTenantBySubdomainOnly(string subdomain)
@@ -106,24 +82,35 @@ namespace BookingPro.API.Services
             // Para desarrollo local, buscar tenant solo por subdomain
             var tenant = await _context.Tenants
                 .Include(t => t.Vertical)
-                .FirstOrDefaultAsync(t => 
+                .FirstOrDefaultAsync(t =>
                     t.Subdomain == subdomain &&
                     (t.Status == TenantStatus.Active.ToString().ToLower() || t.Status == TenantStatus.Trial.ToString().ToLower()));
 
             if (tenant == null) return null;
 
+            return MapTenantToInfo(tenant, tenant.Vertical?.Domain ?? "turnos-pro.com");
+        }
+
+        private static TenantInfo MapTenantToInfo(Tenant tenant, string domain)
+        {
             return new TenantInfo
             {
                 Id = tenant.Id,
                 Subdomain = tenant.Subdomain,
                 BusinessName = tenant.BusinessName,
-                VerticalCode = tenant.Vertical.Code,
+                VerticalCode = tenant.Vertical?.Code ?? string.Empty,
                 SchemaName = tenant.SchemaName,
-                Domain = tenant.Vertical.Domain,
+                Domain = domain,
                 TimeZone = tenant.TimeZone ?? "-3",
-                Theme = System.Text.Json.JsonSerializer.Deserialize<TenantTheme>(tenant.Vertical.DefaultTheme) ?? new TenantTheme(),
-                Features = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, bool>>(tenant.Vertical.Features) ?? new(),
-                Terminology = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(tenant.Vertical.Terminology) ?? new()
+                Theme = tenant.Vertical != null
+                    ? System.Text.Json.JsonSerializer.Deserialize<TenantTheme>(tenant.Vertical.DefaultTheme) ?? new TenantTheme()
+                    : new TenantTheme(),
+                Features = tenant.Vertical != null
+                    ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, bool>>(tenant.Vertical.Features) ?? new()
+                    : new(),
+                Terminology = tenant.Vertical != null
+                    ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(tenant.Vertical.Terminology) ?? new()
+                    : new()
             };
         }
 
@@ -157,23 +144,27 @@ namespace BookingPro.API.Services
         public async Task<ServiceResult<TenantCreationResult>> CreateSelfRegisteredTenantAsync(CreateTenantDto dto)
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
-            
+
             try
             {
-                // Get vertical
-                var vertical = await _context.Verticals
-                    .FirstOrDefaultAsync(v => v.Code == dto.VerticalCode);
-                
-                if (vertical == null)
+                // Get vertical (nullable for new registration flow)
+                Vertical? vertical = null;
+                if (!string.IsNullOrEmpty(dto.VerticalCode))
                 {
-                    return ServiceResult<TenantCreationResult>.Fail("Vertical not found");
+                    vertical = await _context.Verticals
+                        .FirstOrDefaultAsync(v => v.Code == dto.VerticalCode);
+
+                    if (vertical == null)
+                    {
+                        return ServiceResult<TenantCreationResult>.Fail("Vertical not found");
+                    }
                 }
 
                 // Create tenant
                 var tenant = new Tenant
                 {
                     Id = Guid.NewGuid(),
-                    VerticalId = vertical.Id,
+                    VerticalId = vertical?.Id,
                     Subdomain = dto.Subdomain,
                     BusinessName = dto.BusinessName,
                     BusinessAddress = dto.BusinessAddress,
@@ -233,8 +224,11 @@ namespace BookingPro.API.Services
                     await _context.SaveChangesAsync();
                 }
 
-                // Initialize tenant data (services, categories, etc.)
-                await InitializeTenantData(tenant.Id, vertical.Code);
+                // Initialize tenant data (services, categories, etc.) only if vertical is specified
+                if (vertical != null)
+                {
+                    await InitializeTenantData(tenant.Id, vertical.Code);
+                }
 
                 await transaction.CommitAsync();
 

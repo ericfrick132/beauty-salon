@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Box,
   Container,
@@ -11,476 +11,266 @@ import {
   Button,
   TextField,
   Grid,
-  Card,
-  CardContent,
   Alert,
   CircularProgress,
   InputAdornment,
   IconButton,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  SelectChangeEvent,
-  Chip,
 } from '@mui/material';
 import {
-  Business,
-  Person,
+  Email,
   Security,
   Visibility,
   VisibilityOff,
   CheckCircle,
-  Store,
+  Language,
+  Business,
+  Phone,
+  PhoneAndroid,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import { selfRegistrationApi } from '../services/api';
+import { registrationApi } from '../services/api';
 
-interface Vertical {
-  id: string;
-  name: string;
-  code: string;
-  description: string;
-  domain: string;
-}
-
-interface SelfRegistrationData {
-  verticalCode: string;
-  subdomain: string;
-  businessName: string;
-  businessAddress?: string;
-  adminEmail: string;
-  adminFirstName: string;
-  adminLastName: string;
-  adminPhone?: string;
-  adminPassword: string;
-  confirmPassword: string;
-}
+type FlowStep = 'email' | 'email-sent' | 'url' | 'business' | 'success';
 
 const SelfRegistration: React.FC = () => {
-  const navigate = useNavigate();
-  
-  const [activeStep, setActiveStep] = useState(0);
-  const [verticals, setVerticals] = useState<Vertical[]>([]);
+  const [searchParams] = useSearchParams();
+  const tokenFromUrl = searchParams.get('token');
+
+  // Determine initial step based on URL
+  const [currentStep, setCurrentStep] = useState<FlowStep>(tokenFromUrl ? 'url' : 'email');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [success, setSuccess] = useState('');
+
+  // Step 0: Email + Password
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Token from verification
+  const [rememberToken, setRememberToken] = useState(tokenFromUrl || '');
+  const [verifiedEmail, setVerifiedEmail] = useState('');
+
+  // Step 1: URL
+  const [subdomain, setSubdomain] = useState('');
   const [subdomainAvailable, setSubdomainAvailable] = useState<boolean | null>(null);
   const [checkingSubdomain, setCheckingSubdomain] = useState(false);
-  
-  const [formData, setFormData] = useState<SelfRegistrationData>({
-    verticalCode: '',
-    subdomain: '',
-    businessName: '',
-    businessAddress: '',
-    adminEmail: '',
-    adminFirstName: '',
-    adminLastName: '',
-    adminPhone: '',
-    adminPassword: '',
-    confirmPassword: ''
-  });
 
-  const steps = ['Tipo de Negocio', 'Información del Negocio', 'Datos del Administrador', 'Confirmación'];
+  // Step 2: Business Data
+  const [businessName, setBusinessName] = useState('');
+  const [businessAddress, setBusinessAddress] = useState('');
+  const [phone, setPhone] = useState('');
+  const [website, setWebsite] = useState('');
+  const [mobile, setMobile] = useState('');
 
+  // Step 3: Success
+  const [redirectUrl, setRedirectUrl] = useState('');
+
+  // Dev helpers
+  const [devToken, setDevToken] = useState('');
+  const [devConfirmUrl, setDevConfirmUrl] = useState('');
+
+  // Verify token when arriving from /register/confirm?token=xxx
   useEffect(() => {
-    loadVerticals();
-  }, []);
-
-  const loadVerticals = async () => {
-    try {
-      const response = await selfRegistrationApi.getVerticals();
-      setVerticals(response.data || []);
-    } catch (error: any) {
-      setError('Error cargando tipos de negocio');
+    if (tokenFromUrl) {
+      verifyToken(tokenFromUrl);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokenFromUrl]);
 
-  const checkSubdomainAvailability = async (subdomain: string) => {
-    if (!subdomain || subdomain.length < 3) {
-      setSubdomainAvailable(null);
-      return;
-    }
-
-    setCheckingSubdomain(true);
-    try {
-      const response = await selfRegistrationApi.checkSubdomain(subdomain);
-      setSubdomainAvailable(response.available);
-    } catch (error) {
-      setSubdomainAvailable(false);
-    } finally {
-      setCheckingSubdomain(false);
-    }
-  };
-
-  const generateSubdomain = (businessName: string): string => {
-    // Generate subdomain from business name
-    return businessName
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, '-') // Replace spaces with hyphens
-      .replace(/[^a-z0-9-]/g, '') // Remove non-alphanumeric except hyphens
-      .replace(/-+/g, '-') // Replace multiple hyphens with single
-      .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
-  };
-
-  const handleBusinessNameChange = (value: string) => {
-    const newFormData = { ...formData, businessName: value };
-    
-    // Auto-generate subdomain only if it hasn't been manually modified
-    if (!formData.subdomain || formData.subdomain === generateSubdomain(formData.businessName)) {
-      const newSubdomain = generateSubdomain(value);
-      newFormData.subdomain = newSubdomain;
-      
-      // Check availability if subdomain is valid
-      if (newSubdomain && newSubdomain.length >= 3) {
-        setTimeout(() => {
-          checkSubdomainAvailability(newSubdomain);
-        }, 500);
-      }
-    }
-    
-    setFormData(newFormData);
-  };
-
-  const handleSubdomainChange = (value: string) => {
-    // Sanitize subdomain: only letters, numbers, and hyphens
-    const sanitized = value.toLowerCase().replace(/[^a-z0-9-]/g, '');
-    setFormData({ ...formData, subdomain: sanitized });
-    
-    // Debounce subdomain check
-    setTimeout(() => {
-      checkSubdomainAvailability(sanitized);
-    }, 500);
-  };
-
-  const handleNext = () => {
-    if (validateCurrentStep()) {
-      setActiveStep((prevStep) => prevStep + 1);
-    }
-  };
-
-  const handleBack = () => {
-    setActiveStep((prevStep) => prevStep - 1);
-  };
-
-  const validateCurrentStep = (): boolean => {
+  const verifyToken = async (token: string) => {
+    setLoading(true);
     setError('');
-    setFieldErrors({});
-    
-    switch (activeStep) {
-      case 0:
-        if (!formData.verticalCode) {
-          setError('Por favor selecciona el tipo de negocio');
-          return false;
-        }
-        return true;
-        
-      case 1:
-        if (!formData.businessName || !formData.subdomain) {
-          setError('Por favor completa todos los campos requeridos');
-          return false;
-        }
-        if (subdomainAvailable === false) {
-          setError('El subdominio no está disponible');
-          return false;
-        }
-        return true;
-        
-      case 2:
-        if (!formData.adminFirstName || !formData.adminLastName || !formData.adminEmail || !formData.adminPassword) {
-          setError('Por favor completa todos los campos requeridos');
-          return false;
-        }
-        if (formData.adminPassword !== formData.confirmPassword) {
-          setError('Las contraseñas no coinciden');
-          return false;
-        }
-        if (formData.adminPassword.length < 8) {
-          setError('La contraseña debe tener al menos 8 caracteres');
-          return false;
-        }
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.adminEmail)) {
-          setError('Por favor ingresa un email válido');
-          return false;
-        }
-        return true;
-        
-      default:
-        return true;
-    }
-  };
-
-  const handleSubmit = async () => {
     try {
-      setLoading(true);
-      setError('');
-      setFieldErrors({});
-      
-      const payload = {
-        ...formData,
-        isDemo: true,
-        demoDays: 7
-      };
-      
-      const response = await selfRegistrationApi.register(payload);
-      
-      setSuccess('¡Cuenta creada exitosamente! Redirigiendo a tu plataforma...');
-      setActiveStep(3);
-      
-      // Redirect after 3 seconds
-      setTimeout(() => {
-        window.location.href = response.data.tenantUrl;
-      }, 3000);
-      
-    } catch (error: any) {
-      if (error.response?.data?.errors) {
-        // Handle validation errors from backend
-        const backendErrors: Record<string, string> = {};
-        const errors = error.response.data.errors;
-        
-        Object.keys(errors).forEach(key => {
-          if (Array.isArray(errors[key]) && errors[key].length > 0) {
-            backendErrors[key] = errors[key][0]; // Take first error message
-          }
-        });
-        
-        setFieldErrors(backendErrors);
-        setError('Por favor corrige los errores en el formulario');
+      const response = await registrationApi.verify(token);
+      if (response.success) {
+        setRememberToken(token);
+        setVerifiedEmail(response.email);
+        setCurrentStep('url');
       } else {
-        setError(error.response?.data?.message || 'Error creando la cuenta');
+        setError(response.message || 'Token inválido');
       }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Error verificando el token. El link puede haber expirado.');
     } finally {
       setLoading(false);
     }
   };
 
-  const renderVerticalStep = () => (
-    <Box sx={{ py: 4 }}>
-      <Typography variant="h5" sx={{ mb: 4, textAlign: 'center', color: 'primary.main' }}>
-        ¿Qué tipo de negocio tienes?
-      </Typography>
-      
-      {fieldErrors.VerticalCode && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {fieldErrors.VerticalCode}
-        </Alert>
-      )}
-      
-      <Grid container spacing={3}>
-        {verticals.map((vertical) => (
-          <Grid item xs={12} sm={6} md={4} key={vertical.id}>
-            <Card 
-              sx={{ 
-                height: '100%',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                border: formData.verticalCode === vertical.code ? 2 : 1,
-                borderColor: formData.verticalCode === vertical.code ? 'primary.main' : 'grey.300',
-                display: 'flex',
-                flexDirection: 'column',
-                '&:hover': {
-                  boxShadow: 4,
-                  transform: 'translateY(-2px)'
-                }
-              }}
-              onClick={() => setFormData({ ...formData, verticalCode: vertical.code })}
-            >
-              <CardContent sx={{ 
-                textAlign: 'center', 
-                py: 3,
-                flexGrow: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                minHeight: '200px'
-              }}>
-                <Store sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
-                <Typography variant="h6" sx={{ mb: 1, fontWeight: 'bold' }}>
-                  {vertical.name}
-                </Typography>
-                <Typography 
-                  variant="body2" 
-                  color="text.secondary"
-                  sx={{
-                    minHeight: '40px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    textAlign: 'center'
-                  }}
-                >
-                  {vertical.description}
-                </Typography>
-                {formData.verticalCode === vertical.code && (
-                  <Chip 
-                    label="Seleccionado" 
-                    color="primary" 
-                    size="small" 
-                    sx={{ mt: 2 }}
-                    icon={<CheckCircle />}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-    </Box>
-  );
+  // Subdomain availability check with debounce
+  const checkSubdomain = useCallback(async (value: string) => {
+    if (!value || value.length < 3) {
+      setSubdomainAvailable(null);
+      return;
+    }
+    setCheckingSubdomain(true);
+    try {
+      const response = await registrationApi.checkSubdomain(value);
+      setSubdomainAvailable(response.available);
+    } catch {
+      setSubdomainAvailable(false);
+    } finally {
+      setCheckingSubdomain(false);
+    }
+  }, []);
 
-  const renderBusinessStep = () => (
-    <Box sx={{ py: 4 }}>
-      <Typography variant="h5" sx={{ mb: 4, textAlign: 'center', color: 'primary.main' }}>
-        Información de tu negocio
-      </Typography>
-      
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Nombre del Negocio"
-            value={formData.businessName}
-            onChange={(e) => handleBusinessNameChange(e.target.value)}
-            required
-            error={!!fieldErrors.BusinessName}
-            helperText={fieldErrors.BusinessName || "El subdominio se generará automáticamente basado en este nombre"}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Business />
-                </InputAdornment>
-              ),
-            }}
-          />
-        </Grid>
-        
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Dirección del Negocio"
-            value={formData.businessAddress}
-            onChange={(e) => setFormData({ ...formData, businessAddress: e.target.value })}
-            multiline
-            rows={2}
-          />
-        </Grid>
-        
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Subdominio"
-            value={formData.subdomain}
-            onChange={(e) => handleSubdomainChange(e.target.value)}
-            required
-            error={subdomainAvailable === false || !!fieldErrors.Subdomain}
-            helperText={
-              fieldErrors.Subdomain ? fieldErrors.Subdomain :
-              checkingSubdomain ? 'Verificando disponibilidad...' :
-              subdomainAvailable === true ? '✅ Subdominio disponible' :
-              subdomainAvailable === false ? '❌ Subdominio no disponible' :
-              'Tu URL será: ' + (formData.subdomain || 'tu-negocio') + '.turnos-pro.com'
-            }
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  {checkingSubdomain && <CircularProgress size={20} />}
-                </InputAdornment>
-              ),
-            }}
-          />
-        </Grid>
-      </Grid>
-    </Box>
-  );
+  useEffect(() => {
+    if (!subdomain || subdomain.length < 3) {
+      setSubdomainAvailable(null);
+      return;
+    }
+    const timer = setTimeout(() => checkSubdomain(subdomain), 500);
+    return () => clearTimeout(timer);
+  }, [subdomain, checkSubdomain]);
 
-  const renderAdminStep = () => (
-    <Box sx={{ py: 4 }}>
-      <Typography variant="h5" sx={{ mb: 4, textAlign: 'center', color: 'primary.main' }}>
-        Datos del Administrador
+  const handleSubdomainChange = (value: string) => {
+    const sanitized = value.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30);
+    setSubdomain(sanitized);
+  };
+
+  // ---- STEP HANDLERS ----
+
+  const handleStartSubmit = async () => {
+    setError('');
+
+    if (!email || !password || !confirmPassword) {
+      setError('Completá todos los campos');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError('Ingresá un email válido');
+      return;
+    }
+    if (password.length < 8) {
+      setError('La contraseña debe tener al menos 8 caracteres');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Las contraseñas no coinciden');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await registrationApi.start({ email, password, confirmPassword });
+      if (response.success) {
+        // Save dev helpers if present
+        if (response.devToken) setDevToken(response.devToken);
+        if (response.devConfirmUrl) setDevConfirmUrl(response.devConfirmUrl);
+        setCurrentStep('email-sent');
+      } else {
+        setError(response.message || 'Error al iniciar el registro');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Error al iniciar el registro');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUrlNext = () => {
+    setError('');
+    if (!subdomain || subdomain.length < 3) {
+      setError('El subdominio debe tener al menos 3 caracteres');
+      return;
+    }
+    if (subdomainAvailable === false) {
+      setError('El subdominio no está disponible');
+      return;
+    }
+    setCurrentStep('business');
+  };
+
+  const handleCompleteSubmit = async () => {
+    setError('');
+    if (!businessName) {
+      setError('El nombre del negocio es requerido');
+      return;
+    }
+    if (!mobile) {
+      setError('El celular es requerido');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await registrationApi.complete({
+        rememberToken,
+        subdomain,
+        businessName,
+        businessAddress: businessAddress || undefined,
+        phone: phone || undefined,
+        website: website || undefined,
+        mobile,
+      });
+
+      if (response.success) {
+        setRedirectUrl(response.redirectUrl);
+        setCurrentStep('success');
+      } else {
+        setError(response.message || 'Error al completar el registro');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Error al completar el registro');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ---- STEP RENDERERS ----
+
+  const getStepperIndex = (): number => {
+    switch (currentStep) {
+      case 'email':
+      case 'email-sent': return 0;
+      case 'url': return 1;
+      case 'business': return 2;
+      case 'success': return 3;
+      default: return 0;
+    }
+  };
+
+  const stepLabels = ['Cuenta', 'URL', 'Negocio', 'Listo'];
+
+  const renderEmailStep = () => (
+    <Box sx={{ py: 3 }}>
+      <Typography variant="h5" sx={{ mb: 1, textAlign: 'center', fontWeight: 600 }}>
+        Creá tu cuenta
       </Typography>
-      
-      <Grid container spacing={3}>
-        <Grid item xs={12} sm={6}>
-          <TextField
-            fullWidth
-            label="Nombre"
-            value={formData.adminFirstName}
-            onChange={(e) => setFormData({ ...formData, adminFirstName: e.target.value })}
-            required
-            error={!!fieldErrors.AdminFirstName}
-            helperText={fieldErrors.AdminFirstName}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Person />
-                </InputAdornment>
-              ),
-            }}
-          />
-        </Grid>
-        
-        <Grid item xs={12} sm={6}>
-          <TextField
-            fullWidth
-            label="Apellido"
-            value={formData.adminLastName}
-            onChange={(e) => setFormData({ ...formData, adminLastName: e.target.value })}
-            required
-            error={!!fieldErrors.AdminLastName}
-            helperText={fieldErrors.AdminLastName}
-          />
-        </Grid>
-        
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 4, textAlign: 'center' }}>
+        Empezá con tu email y una contraseña
+      </Typography>
+
+      <Grid container spacing={2}>
         <Grid item xs={12}>
           <TextField
             fullWidth
             label="Email"
             type="email"
-            value={formData.adminEmail}
-            onChange={(e) => setFormData({ ...formData, adminEmail: e.target.value })}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             required
-            error={!!fieldErrors.AdminEmail}
-            helperText={fieldErrors.AdminEmail || "Este será tu email de acceso a la plataforma"}
+            autoFocus
+            InputProps={{
+              startAdornment: <InputAdornment position="start"><Email /></InputAdornment>,
+            }}
           />
         </Grid>
-        
         <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Teléfono"
-            value={formData.adminPhone}
-            onChange={(e) => setFormData({ ...formData, adminPhone: e.target.value })}
-            error={!!fieldErrors.AdminPhone}
-            helperText={fieldErrors.AdminPhone}
-          />
-        </Grid>
-        
-        <Grid item xs={12} sm={6}>
           <TextField
             fullWidth
             label="Contraseña"
             type={showPassword ? 'text' : 'password'}
-            value={formData.adminPassword}
-            onChange={(e) => setFormData({ ...formData, adminPassword: e.target.value })}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             required
-            error={!!fieldErrors.AdminPassword}
-            helperText={fieldErrors.AdminPassword || "Mínimo 8 caracteres, mayúscula, minúscula, número y carácter especial"}
+            helperText="Mínimo 8 caracteres"
             InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Security />
-                </InputAdornment>
-              ),
+              startAdornment: <InputAdornment position="start"><Security /></InputAdornment>,
               endAdornment: (
                 <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => setShowPassword(!showPassword)}
-                    edge="end"
-                  >
+                  <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small">
                     {showPassword ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
                 </InputAdornment>
@@ -488,24 +278,20 @@ const SelfRegistration: React.FC = () => {
             }}
           />
         </Grid>
-        
-        <Grid item xs={12} sm={6}>
+        <Grid item xs={12}>
           <TextField
             fullWidth
-            label="Confirmar Contraseña"
+            label="Confirmar contraseña"
             type={showConfirmPassword ? 'text' : 'password'}
-            value={formData.confirmPassword}
-            onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
             required
-            error={formData.confirmPassword !== '' && formData.adminPassword !== formData.confirmPassword}
-            helperText={formData.confirmPassword !== '' && formData.adminPassword !== formData.confirmPassword ? 'Las contraseñas no coinciden' : ''}
+            error={confirmPassword !== '' && password !== confirmPassword}
+            helperText={confirmPassword !== '' && password !== confirmPassword ? 'Las contraseñas no coinciden' : ''}
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    edge="end"
-                  >
+                  <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)} edge="end" size="small">
                     {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
                 </InputAdornment>
@@ -513,121 +299,306 @@ const SelfRegistration: React.FC = () => {
             }}
           />
         </Grid>
+        <Grid item xs={12}>
+          <Button
+            fullWidth
+            variant="contained"
+            size="large"
+            onClick={handleStartSubmit}
+            disabled={loading}
+            sx={{ mt: 1, py: 1.5 }}
+          >
+            {loading ? <CircularProgress size={24} /> : 'Continuar'}
+          </Button>
+        </Grid>
       </Grid>
     </Box>
   );
 
-  const renderConfirmationStep = () => (
-    <Box sx={{ textAlign: 'center', py: 4 }}>
-      <CheckCircle color="success" sx={{ fontSize: 80, mb: 3 }} />
-      <Typography variant="h4" color="success.main" gutterBottom>
-        ¡Bienvenido a Turnos Pro!
-      </Typography>
-      <Typography variant="h6" sx={{ mb: 2 }}>
-        Tu cuenta ha sido creada exitosamente
+  const renderEmailSentStep = () => (
+    <Box sx={{ py: 4, textAlign: 'center' }}>
+      <Email sx={{ fontSize: 64, color: 'primary.main', mb: 2 }} />
+      <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
+        Revisá tu email
       </Typography>
       <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-        Redirigiendo a tu plataforma en unos momentos...
+        Te enviamos un email de confirmación a <strong>{email}</strong>.
+        <br />
+        Hacé click en el link para continuar con el registro.
       </Typography>
-      <CircularProgress />
+      <Typography variant="body2" color="text.secondary">
+        Si no lo ves, revisá la carpeta de spam.
+      </Typography>
+
+      {/* Dev helper - only shown in development */}
+      {devConfirmUrl && (
+        <Alert severity="info" sx={{ mt: 3, textAlign: 'left' }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+            Modo desarrollo - Link de confirmación:
+          </Typography>
+          <Typography
+            variant="body2"
+            component="a"
+            href={devConfirmUrl}
+            sx={{ wordBreak: 'break-all', color: 'primary.main' }}
+          >
+            {devConfirmUrl}
+          </Typography>
+        </Alert>
+      )}
     </Box>
   );
 
-  const getStepContent = (step: number) => {
-    switch (step) {
-      case 0:
-        return renderVerticalStep();
-      case 1:
-        return renderBusinessStep();
-      case 2:
-        return renderAdminStep();
-      case 3:
-        return renderConfirmationStep();
-      default:
-        return 'Paso desconocido';
+  const renderUrlStep = () => (
+    <Box sx={{ py: 3 }}>
+      <Typography variant="h5" sx={{ mb: 1, textAlign: 'center', fontWeight: 600 }}>
+        Elegí tu URL
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 4, textAlign: 'center' }}>
+        Paso 1 de 2 {verifiedEmail && `- ${verifiedEmail}`}
+      </Typography>
+
+      <Grid container spacing={2}>
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            label="Subdominio"
+            value={subdomain}
+            onChange={(e) => handleSubdomainChange(e.target.value)}
+            required
+            autoFocus
+            error={subdomainAvailable === false}
+            helperText={
+              checkingSubdomain ? 'Verificando disponibilidad...' :
+              subdomainAvailable === true ? 'Subdominio disponible' :
+              subdomainAvailable === false ? 'Subdominio no disponible' :
+              'Solo letras minúsculas, números y guiones'
+            }
+            InputProps={{
+              startAdornment: <InputAdornment position="start"><Language /></InputAdornment>,
+              endAdornment: (
+                <InputAdornment position="end">
+                  {checkingSubdomain && <CircularProgress size={20} />}
+                  {subdomainAvailable === true && <CheckCircle color="success" />}
+                </InputAdornment>
+              ),
+            }}
+          />
+        </Grid>
+        <Grid item xs={12}>
+          <Paper
+            variant="outlined"
+            sx={{
+              p: 2,
+              textAlign: 'center',
+              bgcolor: 'grey.50',
+              borderStyle: 'dashed',
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              Tu URL será:
+            </Typography>
+            <Typography variant="h6" color="primary.main" sx={{ fontWeight: 600 }}>
+              {subdomain || 'tu-negocio'}.turnos-pro.com
+            </Typography>
+          </Paper>
+        </Grid>
+        <Grid item xs={12}>
+          <Button
+            fullWidth
+            variant="contained"
+            size="large"
+            onClick={handleUrlNext}
+            disabled={loading || subdomainAvailable === false || !subdomain || subdomain.length < 3}
+            sx={{ mt: 1, py: 1.5 }}
+          >
+            Continuar
+          </Button>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+
+  const renderBusinessStep = () => (
+    <Box sx={{ py: 3 }}>
+      <Typography variant="h5" sx={{ mb: 1, textAlign: 'center', fontWeight: 600 }}>
+        Datos del negocio
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 4, textAlign: 'center' }}>
+        Paso 2 de 2
+      </Typography>
+
+      <Grid container spacing={2}>
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            label="Nombre de la empresa"
+            value={businessName}
+            onChange={(e) => setBusinessName(e.target.value)}
+            required
+            autoFocus
+            InputProps={{
+              startAdornment: <InputAdornment position="start"><Business /></InputAdornment>,
+            }}
+          />
+        </Grid>
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            label="Dirección"
+            value={businessAddress}
+            onChange={(e) => setBusinessAddress(e.target.value)}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            fullWidth
+            label="Teléfono"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            InputProps={{
+              startAdornment: <InputAdornment position="start"><Phone /></InputAdornment>,
+            }}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            fullWidth
+            label="Celular"
+            value={mobile}
+            onChange={(e) => setMobile(e.target.value)}
+            required
+            InputProps={{
+              startAdornment: <InputAdornment position="start"><PhoneAndroid /></InputAdornment>,
+            }}
+          />
+        </Grid>
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            label="Sitio web"
+            value={website}
+            onChange={(e) => setWebsite(e.target.value)}
+            placeholder="https://www.ejemplo.com"
+          />
+        </Grid>
+        <Grid item xs={12}>
+          <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
+            <Button
+              variant="outlined"
+              size="large"
+              onClick={() => setCurrentStep('url')}
+              sx={{ flex: 1, py: 1.5 }}
+            >
+              Atrás
+            </Button>
+            <Button
+              variant="contained"
+              size="large"
+              onClick={handleCompleteSubmit}
+              disabled={loading}
+              sx={{ flex: 2, py: 1.5 }}
+            >
+              {loading ? <CircularProgress size={24} /> : 'Completar el registro'}
+            </Button>
+          </Box>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+
+  const renderSuccessStep = () => (
+    <Box sx={{ py: 4, textAlign: 'center' }}>
+      <CheckCircle sx={{ fontSize: 80, color: 'success.main', mb: 2 }} />
+      <Typography variant="h4" sx={{ mb: 2, fontWeight: 600, color: 'success.main' }}>
+        Felicidades!
+      </Typography>
+      <Typography variant="h6" sx={{ mb: 1 }}>
+        Te has registrado correctamente.
+      </Typography>
+      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+        Tu negocio ya está listo en Turnos Pro.
+      </Typography>
+      <Button
+        variant="contained"
+        size="large"
+        onClick={() => { window.location.href = redirectUrl; }}
+        sx={{ px: 6, py: 1.5 }}
+      >
+        Ir al panel de control
+      </Button>
+    </Box>
+  );
+
+  const renderCurrentStep = () => {
+    switch (currentStep) {
+      case 'email': return renderEmailStep();
+      case 'email-sent': return renderEmailSentStep();
+      case 'url': return renderUrlStep();
+      case 'business': return renderBusinessStep();
+      case 'success': return renderSuccessStep();
+      default: return null;
     }
   };
 
   return (
-    <Box sx={{ 
-      minHeight: '100vh', 
-      background: 'linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%)',
-      py: 4
+    <Box sx={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+      display: 'flex',
+      alignItems: 'center',
+      py: 4,
     }}>
-      <Container maxWidth="md">
+      <Container maxWidth="sm">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.5 }}
         >
-          <Paper elevation={8} sx={{ overflow: 'hidden' }}>
+          <Paper elevation={8} sx={{ overflow: 'hidden', borderRadius: 3 }}>
             {/* Header */}
-            <Box sx={{ 
-              background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
+            <Box sx={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
               color: 'white',
               p: 3,
-              textAlign: 'center'
+              textAlign: 'center',
             }}>
-              <Typography variant="h4" gutterBottom>
-                Crear Cuenta en Turnos Pro
+              <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                Turnos Pro
               </Typography>
-              <Typography variant="subtitle1">
-                Configura tu negocio en minutos - 7 días gratis
+              <Typography variant="subtitle1" sx={{ opacity: 0.9 }}>
+                Creá tu cuenta gratis - 7 días de prueba
               </Typography>
             </Box>
 
-            {/* Stepper */}
-            <Box sx={{ px: 3, pt: 3 }}>
-              <Stepper activeStep={activeStep} alternativeLabel>
-                {steps.map((label) => (
-                  <Step key={label}>
-                    <StepLabel>{label}</StepLabel>
-                  </Step>
-                ))}
-              </Stepper>
-            </Box>
+            {/* Stepper - only show for url/business/success steps */}
+            {(currentStep === 'url' || currentStep === 'business' || currentStep === 'success') && (
+              <Box sx={{ px: 3, pt: 3 }}>
+                <Stepper activeStep={getStepperIndex() - 1} alternativeLabel>
+                  {['URL', 'Negocio'].map((label) => (
+                    <Step key={label}>
+                      <StepLabel>{label}</StepLabel>
+                    </Step>
+                  ))}
+                </Stepper>
+              </Box>
+            )}
 
             {/* Content */}
-            <Box sx={{ p: 3, minHeight: 400 }}>
+            <Box sx={{ p: 3 }}>
               {error && (
                 <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
                   {error}
                 </Alert>
               )}
-              
-              {success && (
-                <Alert severity="success" sx={{ mb: 2 }}>
-                  {success}
-                </Alert>
-              )}
 
-              {getStepContent(activeStep)}
-
-              {/* Actions */}
-              {activeStep < 3 && (
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
-                  <Button
-                    disabled={activeStep === 0}
-                    onClick={handleBack}
-                  >
-                    Atrás
-                  </Button>
-                  
-                  <Button
-                    variant="contained"
-                    onClick={activeStep === steps.length - 2 ? handleSubmit : handleNext}
-                    disabled={loading || (activeStep === 1 && subdomainAvailable === false)}
-                    sx={{ minWidth: 120 }}
-                  >
-                    {loading ? (
-                      <CircularProgress size={20} />
-                    ) : activeStep === steps.length - 2 ? (
-                      'Crear Cuenta'
-                    ) : (
-                      'Siguiente'
-                    )}
-                  </Button>
+              {loading && currentStep === 'url' && !error ? (
+                <Box sx={{ textAlign: 'center', py: 4 }}>
+                  <CircularProgress />
+                  <Typography sx={{ mt: 2 }}>Verificando token...</Typography>
                 </Box>
+              ) : (
+                renderCurrentStep()
               )}
             </Box>
           </Paper>

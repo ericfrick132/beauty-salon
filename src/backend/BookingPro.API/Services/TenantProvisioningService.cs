@@ -14,6 +14,7 @@ namespace BookingPro.API.Services
     {
         Task<bool> ProvisionNewTenantAsync(Guid tenantId);
         Task<Models.Common.ServiceResult<string>> CreateTenantAsync(Models.DTOs.CreateTenantDto dto);
+        Task<bool> ApplyTemplateAsync(Guid tenantId, string verticalCode);
     }
 
     public class TenantProvisioningService : ITenantProvisioningService
@@ -35,6 +36,55 @@ namespace BookingPro.API.Services
             _subscriptionService = subscriptionService;
         }
 
+        public async Task<bool> ApplyTemplateAsync(Guid tenantId, string verticalCode)
+        {
+            try
+            {
+                var tenant = await _context.Tenants
+                    .FirstOrDefaultAsync(t => t.Id == tenantId);
+
+                if (tenant == null) return false;
+
+                // Find the vertical
+                var vertical = await _context.Verticals
+                    .FirstOrDefaultAsync(v => v.Code == verticalCode);
+
+                if (vertical == null && verticalCode != "blank") return false;
+
+                // Update tenant's VerticalId
+                if (vertical != null)
+                {
+                    tenant.VerticalId = vertical.Id;
+                    tenant.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                }
+
+                // If "blank", just assign a default vertical but don't seed services
+                if (verticalCode == "blank")
+                {
+                    var defaultVertical = await _context.Verticals.FirstOrDefaultAsync();
+                    if (defaultVertical != null)
+                    {
+                        tenant.VerticalId = defaultVertical.Id;
+                        tenant.UpdatedAt = DateTime.UtcNow;
+                        await _context.SaveChangesAsync();
+                    }
+                    return true;
+                }
+
+                // Seed categories, services, professionals, and sample customers
+                await SeedVerticalData(tenantId, verticalCode);
+
+                _logger.LogInformation("Template {VerticalCode} applied to tenant {TenantId}", verticalCode, tenantId);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error applying template {VerticalCode} to tenant {TenantId}", verticalCode, tenantId);
+                return false;
+            }
+        }
+
         public async Task<bool> ProvisionNewTenantAsync(Guid tenantId)
         {
             try
@@ -42,42 +92,15 @@ namespace BookingPro.API.Services
                 var tenant = await _context.Tenants
                     .Include(t => t.Vertical)
                     .FirstOrDefaultAsync(t => t.Id == tenantId);
-                
+
                 if (tenant == null) return false;
+
+                // If no vertical assigned, skip provisioning (will be done via template picker)
+                if (tenant.Vertical == null) return true;
 
                 var verticalCode = tenant.Vertical.Code;
 
-                // Obtener categorías y servicios según el vertical
-                List<ServiceCategory> categories = verticalCode switch
-                {
-                    "barbershop" => GetBarbershopCategories(tenantId),
-                    "peluqueria" => GetBeautySalonCategories(tenantId), // Usa los mismos servicios que beautysalon
-                    "aesthetics" => GetAestheticsCategories(tenantId),
-                    _ => new List<ServiceCategory>()
-                };
-
-                // Obtener profesionales según el vertical
-                List<Employee> professionals = verticalCode switch
-                {
-                    "barbershop" => GetBarbershopProfessionals(tenantId),
-                    "peluqueria" => GetBeautySalonProfessionals(tenantId), // Usa los mismos profesionales que beautysalon
-                    "aesthetics" => GetAestheticsProfessionals(tenantId),
-                    _ => new List<Employee>()
-                };
-
-                // Agregar categorías y servicios
-                foreach (var category in categories)
-                {
-                    _context.ServiceCategories.Add(category);
-                    _context.Services.AddRange(category.Services);
-                }
-                _context.Employees.AddRange(professionals);
-
-                // Agregar algunos clientes de ejemplo
-                var sampleCustomers = GetSampleCustomers(tenantId);
-                _context.Customers.AddRange(sampleCustomers);
-
-                await _context.SaveChangesAsync();
+                await SeedVerticalData(tenantId, verticalCode);
 
                 _logger.LogInformation($"Tenant {tenantId} provisioned successfully");
                 return true;
@@ -182,8 +205,100 @@ namespace BookingPro.API.Services
             }
         }
 
-        // Password hashing centralized in Services.Security.PasswordHasher
+        private async Task SeedVerticalData(Guid tenantId, string verticalCode)
+        {
+            List<ServiceCategory> categories = verticalCode switch
+            {
+                "barbershop" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.BarbershopSeeder.GetCategories()),
+                "peluqueria" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.BeautySalonSeeder.GetCategories()),
+                "aesthetics" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.AestheticsSeeder.GetCategories()),
+                "nailsalon" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.NailSalonSeeder.GetCategories()),
+                "carwash" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.CarWashSeeder.GetCategories()),
+                "depilation" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.DepilationSeeder.GetCategories()),
+                "sports" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.SportsSeeder.GetCategories()),
+                "consulting" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.ConsultingSeeder.GetCategories()),
+                _ => new List<ServiceCategory>()
+            };
 
+            List<Employee> professionals = verticalCode switch
+            {
+                "barbershop" => GetProfessionalsFromData(tenantId, VerticalSeeders.GetBarbershopProfessionals()),
+                "peluqueria" => GetProfessionalsFromData(tenantId, VerticalSeeders.GetBeautySalonProfessionals()),
+                "aesthetics" => GetProfessionalsFromData(tenantId, VerticalSeeders.GetAestheticsProfessionals()),
+                "nailsalon" => GetProfessionalsFromData(tenantId, VerticalSeeders.GetNailSalonProfessionals()),
+                "carwash" => GetProfessionalsFromData(tenantId, VerticalSeeders.GetCarWashProfessionals()),
+                "depilation" => GetProfessionalsFromData(tenantId, VerticalSeeders.GetDepilationProfessionals()),
+                "sports" => GetProfessionalsFromData(tenantId, VerticalSeeders.GetSportsProfessionals()),
+                "consulting" => GetProfessionalsFromData(tenantId, VerticalSeeders.GetConsultingProfessionals()),
+                _ => new List<Employee>()
+            };
+
+            foreach (var category in categories)
+            {
+                _context.ServiceCategories.Add(category);
+                _context.Services.AddRange(category.Services);
+            }
+            _context.Employees.AddRange(professionals);
+
+            var sampleCustomers = GetSampleCustomers(tenantId);
+            _context.Customers.AddRange(sampleCustomers);
+
+            await _context.SaveChangesAsync();
+        }
+
+        private List<ServiceCategory> GetCategoriesFromSeeder(Guid tenantId, List<ServiceCategoryTemplate> templates)
+        {
+            var result = new List<ServiceCategory>();
+            foreach (var cat in templates)
+            {
+                var category = new ServiceCategory
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenantId,
+                    Name = cat.Name,
+                    Description = cat.Description,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    Services = new List<Service>()
+                };
+
+                foreach (var svc in cat.Services)
+                {
+                    category.Services.Add(new Service
+                    {
+                        Id = Guid.NewGuid(),
+                        TenantId = tenantId,
+                        CategoryId = category.Id,
+                        Name = svc.Name,
+                        Description = svc.Description,
+                        DurationMinutes = svc.DurationMinutes,
+                        Price = svc.Price,
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+
+                result.Add(category);
+            }
+            return result;
+        }
+
+        private List<Employee> GetProfessionalsFromData(Guid tenantId, List<ProfessionalData> professionals)
+        {
+            return professionals.Select(p => new Employee
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                Name = p.Name,
+                Email = p.Email,
+                Phone = p.Phone,
+                Specialties = JsonSerializer.Serialize(p.Specialties),
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            }).ToList();
+        }
+
+        // Legacy methods kept for backward compatibility
         private List<ServiceCategory> GetBarbershopCategories(Guid tenantId)
         {
             var categories = VerticalSeeders.BarbershopSeeder.GetCategories();
