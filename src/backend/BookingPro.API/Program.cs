@@ -137,6 +137,7 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IEndUserService, B
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IEmailAutomationService, BookingPro.API.Services.EmailAutomationService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ISuperAdminService, BookingPro.API.Services.SuperAdminService>();
 builder.Services.AddScoped<BookingPro.API.Services.IPreapprovalService, BookingPro.API.Services.PreapprovalService>();
+builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IEmailService, BookingPro.API.Services.EmailService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();

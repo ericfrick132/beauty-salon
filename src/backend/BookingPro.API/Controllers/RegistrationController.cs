@@ -16,6 +16,7 @@ namespace BookingPro.API.Controllers
         private readonly ApplicationDbContext _context;
         private readonly ITenantService _tenantService;
         private readonly IAuthService _authService;
+        private readonly IEmailService _emailService;
         private readonly ILogger<RegistrationController> _logger;
 
         private readonly HashSet<string> _reservedSubdomains = new(StringComparer.OrdinalIgnoreCase)
@@ -32,11 +33,13 @@ namespace BookingPro.API.Controllers
             ApplicationDbContext context,
             ITenantService tenantService,
             IAuthService authService,
+            IEmailService emailService,
             ILogger<RegistrationController> logger)
         {
             _context = context;
             _tenantService = tenantService;
             _authService = authService;
+            _emailService = emailService;
             _logger = logger;
         }
 
@@ -101,12 +104,19 @@ namespace BookingPro.API.Controllers
                     : "https://www.turnos-pro.com";
                 var confirmUrl = $"{baseUrl}/register/confirm?token={existingPending.RememberToken}";
 
-                // Log confirmation link (in production, this would send an email)
-                _logger.LogInformation("=== REGISTRATION CONFIRMATION LINK ===");
-                _logger.LogInformation("Email: {Email}", emailLower);
-                _logger.LogInformation("Link: {ConfirmUrl}", confirmUrl);
-                _logger.LogInformation("Token: {Token}", existingPending.RememberToken);
-                _logger.LogInformation("=======================================");
+                // Send confirmation email
+                try
+                {
+                    await _emailService.SendConfirmationEmailAsync(emailLower, confirmUrl);
+                }
+                catch (Exception emailEx)
+                {
+                    _logger.LogError(emailEx, "Failed to send confirmation email to {Email}", emailLower);
+                    // Still log the link as fallback
+                    _logger.LogInformation("=== REGISTRATION CONFIRMATION LINK (email failed) ===");
+                    _logger.LogInformation("Link: {ConfirmUrl}", confirmUrl);
+                    _logger.LogInformation("=====================================================");
+                }
 
                 return Ok(new
                 {
