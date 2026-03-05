@@ -29,6 +29,7 @@ namespace BookingPro.API.Utilities
                 path.StartsWith("/api/platform") ||
                 path.StartsWith("/api/invitation") ||
                 path.StartsWith("/api/self-registration") ||
+                path.StartsWith("/api/registration") ||
                 path.StartsWith("/api/subscription-plans") ||
                 path.StartsWith("/api/verticals") ||
                 path.StartsWith("/api/mercadopago/callback") ||

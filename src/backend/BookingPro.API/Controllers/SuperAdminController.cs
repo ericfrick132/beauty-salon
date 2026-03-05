@@ -207,6 +207,107 @@ namespace BookingPro.API.Controllers
             }
         }
 
+        [HttpGet("tenants/{tenantId}/message-wallet")]
+        public async Task<IActionResult> GetTenantMessageWallet(Guid tenantId)
+        {
+            try
+            {
+                var tenant = await _context.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId);
+                if (tenant == null)
+                    return NotFound(new { success = false, message = "Tenant not found" });
+
+                var wallet = await _context.TenantMessageWallets
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(w => w.TenantId == tenantId);
+
+                return Ok(new
+                {
+                    success = true,
+                    data = new
+                    {
+                        balance = wallet?.Balance ?? 0,
+                        totalPurchased = wallet?.TotalPurchased ?? 0,
+                        totalSent = wallet?.TotalSent ?? 0,
+                        updatedAt = wallet?.UpdatedAt
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching message wallet for tenant {TenantId}", tenantId);
+                return StatusCode(500, new { success = false, message = "Error fetching wallet" });
+            }
+        }
+
+        [HttpPost("tenants/{tenantId}/message-credits")]
+        public async Task<IActionResult> AddMessageCredits(Guid tenantId, [FromBody] AddMessageCreditsDto dto)
+        {
+            try
+            {
+                if (dto.Amount <= 0)
+                    return BadRequest(new { success = false, message = "Amount must be greater than 0" });
+
+                var tenant = await _context.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId);
+                if (tenant == null)
+                    return NotFound(new { success = false, message = "Tenant not found" });
+
+                var wallet = await _context.TenantMessageWallets
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(w => w.TenantId == tenantId);
+
+                if (wallet == null)
+                {
+                    wallet = new TenantMessageWallet
+                    {
+                        TenantId = tenantId,
+                        Balance = 0,
+                        TotalPurchased = 0,
+                        TotalSent = 0
+                    };
+                    _context.TenantMessageWallets.Add(wallet);
+                }
+
+                wallet.Balance += dto.Amount;
+                wallet.TotalPurchased += dto.Amount;
+                wallet.UpdatedAt = DateTime.UtcNow;
+
+                // Create audit log entry
+                var log = new MessageLog
+                {
+                    TenantId = tenantId,
+                    Channel = "system",
+                    MessageType = "credit",
+                    Status = "sent",
+                    To = "wallet",
+                    Body = $"Super admin added {dto.Amount} credits. Reason: {dto.Reason ?? "N/A"}",
+                    SentAt = DateTime.UtcNow
+                };
+                _context.MessageLogs.Add(log);
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("Super admin added {Amount} message credits to tenant {TenantId}. Reason: {Reason}",
+                    dto.Amount, tenantId, dto.Reason);
+
+                return Ok(new
+                {
+                    success = true,
+                    message = $"Se cargaron {dto.Amount} créditos al tenant {tenant.BusinessName}",
+                    data = new
+                    {
+                        balance = wallet.Balance,
+                        totalPurchased = wallet.TotalPurchased,
+                        totalSent = wallet.TotalSent
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error adding message credits for tenant {TenantId}", tenantId);
+                return StatusCode(500, new { success = false, message = "Error adding credits" });
+            }
+        }
+
         [HttpGet("tenants/list")]
         public async Task<IActionResult> GetTenantsForImpersonation()
         {
@@ -234,5 +335,11 @@ namespace BookingPro.API.Controllers
         public decimal MonthlyPrice { get; set; }
         public string Currency { get; set; } = "ARS";
         public bool IsActive { get; set; }
+    }
+
+    public class AddMessageCreditsDto
+    {
+        public int Amount { get; set; }
+        public string? Reason { get; set; }
     }
 }

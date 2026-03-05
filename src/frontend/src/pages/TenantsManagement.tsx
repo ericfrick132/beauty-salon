@@ -52,6 +52,7 @@ import {
   Timeline,
   PersonAdd as PersonImpersonateIcon,
   MoreVert as MoreVertIcon,
+  Message as MessageIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -164,6 +165,11 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
   });
   const [actionMenuAnchor, setActionMenuAnchor] = useState<null | HTMLElement>(null);
   const [actionMenuTenant, setActionMenuTenant] = useState<Tenant | null>(null);
+  const [creditsDialog, setCreditsDialog] = useState(false);
+  const [creditsTenant, setCreditsTenant] = useState<Tenant | null>(null);
+  const [creditsForm, setCreditsForm] = useState({ amount: 100, reason: '' });
+  const [creditsWallet, setCreditsWallet] = useState<{ balance: number; totalPurchased: number; totalSent: number } | null>(null);
+  const [creditsLoading, setCreditsLoading] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -327,6 +333,43 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
         type: 'error', 
         text: error.message || 'Error al impersonar tenant' 
       });
+    }
+  };
+
+  const handleOpenCreditsDialog = async (tenant: Tenant) => {
+    setCreditsTenant(tenant);
+    setCreditsForm({ amount: 100, reason: '' });
+    setCreditsWallet(null);
+    setCreditsDialog(true);
+    try {
+      const response = await api.get(`/super-admin/tenants/${tenant.id}/message-wallet`);
+      if (response.data?.success) {
+        setCreditsWallet(response.data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching wallet:', err);
+    }
+  };
+
+  const handleAddCredits = async () => {
+    if (!creditsTenant || creditsForm.amount <= 0) return;
+    setCreditsLoading(true);
+    try {
+      const response = await api.post(`/super-admin/tenants/${creditsTenant.id}/message-credits`, {
+        amount: creditsForm.amount,
+        reason: creditsForm.reason || undefined,
+      });
+      if (response.data?.success) {
+        setMessage({ type: 'success', text: response.data.message });
+        setCreditsWallet(response.data.data);
+        setCreditsForm({ amount: 100, reason: '' });
+      } else {
+        setMessage({ type: 'error', text: response.data?.message || 'Error cargando créditos' });
+      }
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.response?.data?.message || 'Error cargando créditos' });
+    } finally {
+      setCreditsLoading(false);
     }
   };
 
@@ -884,6 +927,9 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
           </MenuItem>
           <MenuItem onClick={() => { if (actionMenuTenant) { setSelectedTenant(actionMenuTenant); setManualPaymentDialog(true); } setActionMenuAnchor(null); }}>
             Registrar pago manual
+          </MenuItem>
+          <MenuItem onClick={() => { if (actionMenuTenant) handleOpenCreditsDialog(actionMenuTenant); setActionMenuAnchor(null); }}>
+            Cargar créditos WhatsApp
           </MenuItem>
         </Menu>
         {/* Manual Payment Dialog */}
