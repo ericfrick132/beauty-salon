@@ -5,6 +5,7 @@ namespace BookingPro.API.Services.Interfaces
     public interface IWhatsAppService
     {
         Task<ServiceResult<bool>> SendBookingReminderAsync(Guid bookingId);
+        Task<ServiceResult<bool>> SendBookingConfirmationAsync(Guid bookingId);
     }
 }
 

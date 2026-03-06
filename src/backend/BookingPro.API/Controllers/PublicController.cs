@@ -22,6 +22,7 @@ namespace BookingPro.API.Controllers
         private readonly IMercadoPagoService _mercadoPagoService;
         private readonly IBookingService _bookingService;
         private readonly IEmailService _emailService;
+        private readonly IWhatsAppService _whatsAppService;
         private readonly ILogger<PublicController> _logger;
 
         public PublicController(
@@ -30,6 +31,7 @@ namespace BookingPro.API.Controllers
             IMercadoPagoService mercadoPagoService,
             IBookingService bookingService,
             IEmailService emailService,
+            IWhatsAppService whatsAppService,
             ILogger<PublicController> logger)
         {
             _context = context;
@@ -37,6 +39,7 @@ namespace BookingPro.API.Controllers
             _mercadoPagoService = mercadoPagoService;
             _bookingService = bookingService;
             _emailService = emailService;
+            _whatsAppService = whatsAppService;
             _logger = logger;
         }
 
@@ -265,8 +268,14 @@ namespace BookingPro.API.Controllers
                                   b.EndTime > dto.StartTime &&
                                   b.Status != "cancelled");
 
-                var hasBlock = await _context.EmployeeTimeBlocks
-                    .AnyAsync(bl => bl.EmployeeId == dto.EmployeeId && bl.StartTime < dto.EndTime && bl.EndTime > dto.StartTime);
+                var tenantTz = _tenantService.GetCurrentTenant()?.TimeZone ?? "-3";
+                int blockTzOffset = int.TryParse(tenantTz, out var btz) ? btz : -3;
+                var employeeBlocks = await _context.EmployeeTimeBlocks
+                    .Where(bl => bl.EmployeeId == dto.EmployeeId)
+                    .ToListAsync();
+                var hasBlock = employeeBlocks
+                    .SelectMany(bl => bl.ExpandOccurrences(dto.StartTime, dto.EndTime, blockTzOffset))
+                    .Any(occ => occ.Start < dto.EndTime && occ.End > dto.StartTime);
 
                 if (existingBooking || hasBlock)
                 {
@@ -403,7 +412,17 @@ namespace BookingPro.API.Controllers
                     _logger.LogError(emailEx, "Failed to send booking confirmation email to {Email}", dto.CustomerEmail);
                 }
 
-                return Ok(new 
+                // Send WhatsApp confirmation (best-effort, non-blocking)
+                try
+                {
+                    await _whatsAppService.SendBookingConfirmationAsync(booking.Id);
+                }
+                catch (Exception waEx)
+                {
+                    _logger.LogWarning(waEx, "Failed to send WhatsApp booking confirmation for booking {BookingId}", booking.Id);
+                }
+
+                return Ok(new
                 { 
                     success = true,
                     bookingId = booking.Id,

@@ -340,6 +340,9 @@ export const messagingApi = {
   updateSettings: (data: { whatsappRemindersEnabled: boolean; reminderAdvanceMinutes: number; reminderTemplate: string }) =>
     api.put('/messaging/settings', data).then(res => res.data),
   sendDueReminders: () => api.post('/messaging/send-due-reminders').then(res => res.data),
+  getHistory: (page = 1, pageSize = 50, status?: string) =>
+    api.get('/messaging/history', { params: { page, pageSize, status } }).then(res => res.data),
+  getStats: () => api.get('/messaging/stats').then(res => res.data),
 };
 
 // WhatsApp Connection API

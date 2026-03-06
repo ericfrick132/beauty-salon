@@ -293,17 +293,80 @@ namespace BookingPro.API.Models.Entities
         public Guid TenantId { get; set; }
         public Guid Id { get; set; } = Guid.NewGuid();
         public Guid EmployeeId { get; set; }
-        public DateTime StartTime { get; set; }
-        public DateTime EndTime { get; set; }
+        public DateTime StartTime { get; set; }     // For single: actual UTC start. For recurring: not used (kept for backward compat)
+        public DateTime EndTime { get; set; }       // For single: actual UTC end. For recurring: not used
         public string? Reason { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Series support (for recurring blocks)
-        public Guid? SeriesId { get; set; } // Groups blocks belonging to the same recurring series
+        public Guid? SeriesId { get; set; }
         public string? RecurrencePattern { get; set; } // JSON: { daysOfWeek: [1,2,3,4,5], startTimeOfDay: "09:00", endTimeOfDay: "10:00" }
+        public bool IsRecurring { get; set; } = false;
+        public DateTime? RecurrenceStart { get; set; } // Local date: first day of recurrence
+        public DateTime? RecurrenceEnd { get; set; }   // Local date: last day of recurrence (null = indefinite)
 
         // Navigation
         public Employee Employee { get; set; } = null!;
+
+        /// <summary>
+        /// Expand this recurring block into concrete occurrences within a date range (UTC).
+        /// For single blocks, returns itself if it overlaps the range.
+        /// </summary>
+        public List<(DateTime Start, DateTime End)> ExpandOccurrences(DateTime rangeStartUtc, DateTime rangeEndUtc, int tzOffsetHours)
+        {
+            var result = new List<(DateTime, DateTime)>();
+
+            if (!IsRecurring || string.IsNullOrEmpty(RecurrencePattern))
+            {
+                // Single block
+                if (StartTime < rangeEndUtc && EndTime > rangeStartUtc)
+                    result.Add((StartTime, EndTime));
+                return result;
+            }
+
+            // Parse pattern
+            var pattern = System.Text.Json.JsonSerializer.Deserialize<RecurrencePatternData>(RecurrencePattern);
+            if (pattern == null) return result;
+
+            if (!TimeSpan.TryParse(pattern.startTimeOfDay, out var startTod) ||
+                !TimeSpan.TryParse(pattern.endTimeOfDay, out var endTod))
+                return result;
+
+            var days = pattern.daysOfWeek?.ToHashSet() ?? new HashSet<int>();
+            if (days.Count == 0) return result;
+
+            // Convert range to local dates
+            var localRangeStart = rangeStartUtc.AddHours(tzOffsetHours).Date;
+            var localRangeEnd = rangeEndUtc.AddHours(tzOffsetHours).Date;
+
+            var recStart = RecurrenceStart?.Date ?? localRangeStart;
+            var recEnd = RecurrenceEnd?.Date ?? localRangeEnd;
+
+            var iterStart = localRangeStart < recStart ? recStart : localRangeStart;
+            var iterEnd = localRangeEnd > recEnd ? recEnd : localRangeEnd;
+
+            for (var d = iterStart; d <= iterEnd; d = d.AddDays(1))
+            {
+                if (!days.Contains((int)d.DayOfWeek)) continue;
+
+                var localStart = d.Add(startTod);
+                var localEnd = d.Add(endTod);
+                var utcStart = DateTime.SpecifyKind(localStart.AddHours(-tzOffsetHours), DateTimeKind.Utc);
+                var utcEnd = DateTime.SpecifyKind(localEnd.AddHours(-tzOffsetHours), DateTimeKind.Utc);
+
+                if (utcStart < rangeEndUtc && utcEnd > rangeStartUtc)
+                    result.Add((utcStart, utcEnd));
+            }
+
+            return result;
+        }
+    }
+
+    public class RecurrencePatternData
+    {
+        public List<int>? daysOfWeek { get; set; }
+        public string? startTimeOfDay { get; set; }
+        public string? endTimeOfDay { get; set; }
     }
 
     public class Payment : ITenantEntity

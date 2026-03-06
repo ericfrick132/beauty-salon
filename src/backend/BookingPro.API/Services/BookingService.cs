@@ -378,11 +378,14 @@ namespace BookingPro.API.Services
                     b.StartTime < utcEndOfDay &&
                     b.Status != "cancelled");
 
-                // Load employee blocks for the day (in UTC)
+                // Load employee blocks for the day (expand recurring rules)
                 var context = _bookingRepository.GetContext();
-                var blocks = await context.Set<EmployeeTimeBlock>()
-                    .Where(b => b.EmployeeId == professionalId && b.StartTime < utcEndOfDay && b.EndTime > utcStartOfDay)
+                var allBlocks = await context.Set<EmployeeTimeBlock>()
+                    .Where(b => b.EmployeeId == professionalId)
                     .ToListAsync();
+                var blockOccurrences = allBlocks
+                    .SelectMany(b => b.ExpandOccurrences(utcStartOfDay, utcEndOfDay, offsetHours))
+                    .ToList();
 
                 var availableSlots = new List<string>();
                 var employeeHours = GetEmployeeBusinessHoursForDate(professionalId, localDate);
@@ -411,7 +414,7 @@ namespace BookingPro.API.Services
                         var bufferStart = b.StartTime.Subtract(minimumGap);
                         var bufferEnd = b.EndTime.Add(minimumGap);
                         return utcSlotStart < bufferEnd && utcSlotEnd > bufferStart;
-                    }) || blocks.Any(bl => utcSlotStart < bl.EndTime && utcSlotEnd > bl.StartTime);
+                    }) || blockOccurrences.Any(bl => utcSlotStart < bl.End && utcSlotEnd > bl.Start);
 
                     if (!hasConflict && IsWithinBusinessHours(localSlotStart, localSlotEnd, businessConfig))
                     {
@@ -720,8 +723,16 @@ namespace BookingPro.API.Services
         private async Task<ServiceResult> ValidateEmployeeNotBlocked(Guid employeeId, DateTime startTime, DateTime endTime)
         {
             var ctx = _bookingRepository.GetContext();
-            var hasBlock = await ctx.Set<EmployeeTimeBlock>()
-                .AnyAsync(b => b.EmployeeId == employeeId && b.StartTime < endTime && b.EndTime > startTime);
+            var tenantInfo = _tenantService.GetCurrentTenant();
+            var tzStr = tenantInfo?.TimeZone ?? "-3";
+            int tzOffset = int.TryParse(tzStr, out var o) ? o : -3;
+
+            var allBlocks = await ctx.Set<EmployeeTimeBlock>()
+                .Where(b => b.EmployeeId == employeeId)
+                .ToListAsync();
+            var hasBlock = allBlocks
+                .SelectMany(b => b.ExpandOccurrences(startTime, endTime, tzOffset))
+                .Any(occ => occ.Start < endTime && occ.End > startTime);
             if (hasBlock)
             {
                 return ServiceResult.Fail("El profesional tiene un bloqueo en ese horario");

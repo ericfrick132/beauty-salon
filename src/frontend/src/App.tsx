@@ -43,6 +43,7 @@ import Products from './pages/Products';
 import MessagingCredits from './pages/MessagingCredits';
 import MessagingSettings from './pages/MessagingSettings';
 import WhatsAppSettings from './pages/WhatsAppSettings';
+import MessageHistory from './pages/MessageHistory';
 import RecurringSubscription from './pages/RecurringSubscription';
 import TenantsManagement from './pages/TenantsManagement';
 import Blocks from './pages/Blocks';
@@ -296,6 +297,7 @@ function App() {
                   <Route path="/platform-subscription" element={<PlatformSubscriptionStatus />} />
                   <Route path="/messaging" element={<MessagingCredits />} />
                   <Route path="/messaging/settings" element={<MessagingSettings />} />
+                  <Route path="/messaging/history" element={<MessageHistory />} />
                   <Route path="/whatsapp" element={<WhatsAppSettings />} />
                 </Route>
               </Routes>

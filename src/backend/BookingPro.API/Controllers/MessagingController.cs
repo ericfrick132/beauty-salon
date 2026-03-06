@@ -161,5 +161,65 @@ namespace BookingPro.API.Controllers
 
             return Ok(new { sent = sentCount });
         }
+
+        [HttpGet("history")]
+        public async Task<IActionResult> GetHistory([FromQuery] int page = 1, [FromQuery] int pageSize = 50, [FromQuery] string? status = null)
+        {
+            var tenantId = GetTenantId();
+            if (tenantId == Guid.Empty) return Unauthorized();
+
+            var query = _context.MessageLogs
+                .Where(l => l.TenantId == tenantId && l.Channel == "whatsapp")
+                .AsQueryable();
+
+            if (!string.IsNullOrEmpty(status))
+                query = query.Where(l => l.Status == status);
+
+            var total = await query.CountAsync();
+            var items = await query
+                .OrderByDescending(l => l.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(l => new
+                {
+                    l.Id,
+                    l.To,
+                    l.Body,
+                    l.MessageType,
+                    l.Status,
+                    l.CreatedAt,
+                    l.SentAt,
+                    l.DeliveredAt,
+                    l.ErrorMessage
+                })
+                .ToListAsync();
+
+            return Ok(new { items, total, page, pageSize });
+        }
+
+        [HttpGet("stats")]
+        public async Task<IActionResult> GetStats()
+        {
+            var tenantId = GetTenantId();
+            if (tenantId == Guid.Empty) return Unauthorized();
+
+            var now = DateTime.UtcNow;
+            var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            var totalSent = await _context.MessageLogs
+                .CountAsync(l => l.TenantId == tenantId && l.Channel == "whatsapp" && l.Status == "sent");
+
+            var sentThisMonth = await _context.MessageLogs
+                .CountAsync(l => l.TenantId == tenantId && l.Channel == "whatsapp"
+                    && l.Status == "sent" && l.CreatedAt >= monthStart);
+
+            var delivered = await _context.MessageLogs
+                .CountAsync(l => l.TenantId == tenantId && l.Channel == "whatsapp" && l.Status == "delivered");
+
+            var failed = await _context.MessageLogs
+                .CountAsync(l => l.TenantId == tenantId && l.Channel == "whatsapp" && l.Status == "failed");
+
+            return Ok(new { totalSent, sentThisMonth, delivered, failed });
+        }
     }
 }

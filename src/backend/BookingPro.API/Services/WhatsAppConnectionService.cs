@@ -17,6 +17,7 @@ namespace BookingPro.API.Services
         private readonly HttpClient _http;
         private readonly string _baseUrl;
         private readonly string _apiKey;
+        private readonly string _webhookUrl;
 
         public WhatsAppConnectionService(
             ApplicationDbContext context,
@@ -31,6 +32,7 @@ namespace BookingPro.API.Services
             _http = httpFactory.CreateClient();
             _baseUrl = configuration["EvolutionApi:BaseUrl"]?.TrimEnd('/') ?? "";
             _apiKey = configuration["EvolutionApi:ApiKey"] ?? "";
+            _webhookUrl = $"{configuration["BaseUrl"]}/api/webhooks/evolution";
             _http.DefaultRequestHeaders.Add("apikey", _apiKey);
         }
 
@@ -82,6 +84,29 @@ namespace BookingPro.API.Services
                     {
                         var errorBody = await createResponse.Content.ReadAsStringAsync();
                         _logger.LogWarning("Evolution API create instance failed: {StatusCode} {Body}", statusCode, errorBody);
+                    }
+                }
+
+                // Set webhook for connection status and message delivery updates
+                if (!string.IsNullOrEmpty(_webhookUrl))
+                {
+                    try
+                    {
+                        var webhookPayload = new
+                        {
+                            url = _webhookUrl,
+                            webhook_by_events = true,
+                            webhook_base64 = false,
+                            events = new[] { "CONNECTION_UPDATE", "MESSAGES_UPDATE" }
+                        };
+                        var webhookContent = new StringContent(
+                            JsonSerializer.Serialize(webhookPayload),
+                            Encoding.UTF8, "application/json");
+                        await _http.PostAsync($"{_baseUrl}/webhook/set/{instanceName}", webhookContent);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to set Evolution API webhook for {Instance}", instanceName);
                     }
                 }
 

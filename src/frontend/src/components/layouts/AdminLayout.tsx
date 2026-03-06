@@ -272,6 +272,9 @@ export const AdminLayout: React.FC = () => {
         { text: 'General', path: '/settings', icon: <Settings fontSize="small" /> },
         { text: 'Suscripción', path: '/subscription', icon: <CreditCard fontSize="small" /> },
         { text: 'WhatsApp', path: '/whatsapp', icon: <WhatsApp fontSize="small" /> },
+        { text: 'Mensajería', path: '/messaging/settings', icon: <WhatsApp fontSize="small" /> },
+        { text: 'Créditos', path: '/messaging', icon: <CreditCard fontSize="small" /> },
+        { text: 'Historial', path: '/messaging/history', icon: <Assessment fontSize="small" /> },
       ],
     },
   ];
