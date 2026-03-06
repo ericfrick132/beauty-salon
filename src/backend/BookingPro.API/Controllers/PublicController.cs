@@ -21,6 +21,7 @@ namespace BookingPro.API.Controllers
         private readonly ITenantService _tenantService;
         private readonly IMercadoPagoService _mercadoPagoService;
         private readonly IBookingService _bookingService;
+        private readonly IEmailService _emailService;
         private readonly ILogger<PublicController> _logger;
 
         public PublicController(
@@ -28,12 +29,14 @@ namespace BookingPro.API.Controllers
             ITenantService tenantService,
             IMercadoPagoService mercadoPagoService,
             IBookingService bookingService,
+            IEmailService emailService,
             ILogger<PublicController> logger)
         {
             _context = context;
             _tenantService = tenantService;
             _mercadoPagoService = mercadoPagoService;
             _bookingService = bookingService;
+            _emailService = emailService;
             _logger = logger;
         }
 
@@ -378,8 +381,27 @@ namespace BookingPro.API.Controllers
                     // 2) Si no requiere seña: NO exigir pago en la creación de la reserva
                 }
 
-                // TODO: Send confirmation email
-                // await _emailService.SendBookingConfirmation(customer.Email, booking, confirmationCode);
+                // Send confirmation email
+                try
+                {
+                    var employee = await _context.Employees.FindAsync(dto.EmployeeId);
+                    var tenantName = _tenantService.GetCurrentTenant()?.BusinessName ?? "TurnosPro";
+                    await _emailService.SendBookingConfirmationAsync(
+                        dto.CustomerEmail,
+                        dto.CustomerName,
+                        service.Name,
+                        booking.StartTime,
+                        (int)(booking.EndTime - booking.StartTime).TotalMinutes,
+                        service.Price,
+                        employee?.Name ?? "Sin asignar",
+                        tenantName,
+                        confirmationCode
+                    );
+                }
+                catch (Exception emailEx)
+                {
+                    _logger.LogError(emailEx, "Failed to send booking confirmation email to {Email}", dto.CustomerEmail);
+                }
 
                 return Ok(new 
                 { 

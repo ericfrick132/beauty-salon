@@ -189,9 +189,10 @@ const NewBooking: React.FC = () => {
       })).unwrap();
 
       navigate('/calendar');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating booking:', error);
-      setErrors({ submit: 'Error al crear la reserva. Intente nuevamente.' });
+      const backendMessage = error?.message || error?.response?.data?.message || error?.response?.data?.errors?.[0];
+      setErrors({ submit: backendMessage || 'Error al crear la reserva. Intente nuevamente.' });
     } finally {
       setSubmitting(false);
     }
@@ -309,7 +310,14 @@ const NewBooking: React.FC = () => {
                         </Typography>
                       </Box>
                       <Typography variant="body2" color="text.secondary">
-                        {employee.specialties?.split(',').join(', ')}
+                        {(() => {
+                          try {
+                            const parsed = JSON.parse(employee.specialties || '[]');
+                            return Array.isArray(parsed) ? parsed.join(', ') : employee.specialties;
+                          } catch {
+                            return employee.specialties?.split(',').join(', ') || '';
+                          }
+                        })()}
                       </Typography>
                     </CardContent>
                   </Card>

@@ -114,5 +114,125 @@ namespace BookingPro.API.Services
             await smtp.SendMailAsync(message);
             _logger.LogInformation("Confirmation email sent to {Email}", toEmail);
         }
+
+        public async Task SendBookingConfirmationAsync(string toEmail, string customerName, string serviceName, DateTime startTime, int durationMinutes, decimal price, string professionalName, string businessName, string confirmationCode)
+        {
+            var from = _config["Email:From"]!;
+            var password = _config["Email:Password"]!;
+            var smtpHost = _config["Email:SmtpHost"] ?? "smtp.gmail.com";
+            var smtpPort = int.Parse(_config["Email:SmtpPort"] ?? "587");
+
+            var tz = TimeZoneInfo.FindSystemTimeZoneById("America/Argentina/Buenos_Aires");
+            var localStart = TimeZoneInfo.ConvertTimeFromUtc(startTime, tz);
+            var dateStr = localStart.ToString("dddd d 'de' MMMM", new System.Globalization.CultureInfo("es-AR"));
+            var timeStr = localStart.ToString("HH:mm");
+            var endTime = localStart.AddMinutes(durationMinutes);
+            var endTimeStr = endTime.ToString("HH:mm");
+
+            using var message = new MailMessage(from, toEmail)
+            {
+                Subject = $"Confirmación de turno en {businessName}",
+                IsBodyHtml = true,
+                Body = $@"
+<!DOCTYPE html>
+<html>
+<head><meta charset=""utf-8""></head>
+<body style=""margin: 0; padding: 0; background-color: #f0f4f8; font-family: 'Segoe UI', Arial, sans-serif;"">
+<table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"" style=""background-color: #f0f4f8; padding: 40px 0;"">
+  <tr>
+    <td align=""center"">
+      <table role=""presentation"" width=""560"" cellpadding=""0"" cellspacing=""0"" style=""background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08);"">
+        <!-- Header -->
+        <tr>
+          <td style=""background: linear-gradient(135deg, #1565c0, #1e88e5, #42a5f5); padding: 40px 40px 32px; text-align: center;"">
+            <table role=""presentation"" cellpadding=""0"" cellspacing=""0"" style=""margin: 0 auto;"">
+              <tr>
+                <td style=""background-color: rgba(255,255,255,0.2); border-radius: 12px; padding: 12px 16px;"">
+                  <span style=""font-size: 28px; color: #ffffff; font-weight: 800; letter-spacing: -0.5px;"">{businessName}</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <!-- Body -->
+        <tr>
+          <td style=""padding: 40px 40px 16px;"">
+            <h1 style=""margin: 0 0 8px; font-size: 24px; font-weight: 700; color: #1a1a2e;"">&#9989; Turno confirmado</h1>
+            <p style=""margin: 0 0 28px; font-size: 16px; color: #555; line-height: 1.6;"">
+              Hola <strong>{customerName}</strong>, tu turno fue reservado con éxito.
+            </p>
+            <!-- Booking details card -->
+            <table role=""presentation"" cellpadding=""0"" cellspacing=""0"" width=""100%"" style=""background-color: #f8fafc; border-radius: 12px; overflow: hidden;"">
+              <tr>
+                <td style=""padding: 24px;"">
+                  <table role=""presentation"" cellpadding=""0"" cellspacing=""0"" width=""100%"">
+                    <tr>
+                      <td style=""padding: 8px 0;"">
+                        <span style=""font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;"">Servicio</span><br/>
+                        <span style=""font-size: 16px; font-weight: 600; color: #1a1a2e;"">{serviceName}</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style=""padding: 8px 0; border-top: 1px solid #e8ecf0;"">
+                        <span style=""font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;"">Fecha y hora</span><br/>
+                        <span style=""font-size: 16px; font-weight: 600; color: #1a1a2e;"">&#128197; {dateStr}</span><br/>
+                        <span style=""font-size: 16px; font-weight: 600; color: #1e88e5;"">&#128337; {timeStr} - {endTimeStr}</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style=""padding: 8px 0; border-top: 1px solid #e8ecf0;"">
+                        <span style=""font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;"">Profesional</span><br/>
+                        <span style=""font-size: 16px; font-weight: 600; color: #1a1a2e;"">{professionalName}</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style=""padding: 8px 0; border-top: 1px solid #e8ecf0;"">
+                        <span style=""font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;"">Precio</span><br/>
+                        <span style=""font-size: 20px; font-weight: 700; color: #1565c0;"">$ {price:N0}</span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+            <!-- Confirmation code -->
+            <table role=""presentation"" cellpadding=""0"" cellspacing=""0"" width=""100%"" style=""margin-top: 20px;"">
+              <tr>
+                <td align=""center"" style=""background-color: #e3f2fd; border-radius: 10px; padding: 16px;"">
+                  <span style=""font-size: 13px; color: #666;"">Código de confirmación</span><br/>
+                  <span style=""font-size: 24px; font-weight: 700; color: #1565c0; letter-spacing: 2px;"">{confirmationCode}</span>
+                </td>
+              </tr>
+            </table>
+            <!-- Note -->
+            <p style=""margin: 24px 0 0; font-size: 13px; color: #888; line-height: 1.5;"">
+              Si necesitás cancelar o reprogramar, contactá directamente a {businessName}.
+            </p>
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style=""padding: 24px 40px 32px; text-align: center;"">
+            <p style=""margin: 0 0 4px; font-size: 12px; color: #aaa;"">Reservado a través de TurnosPro</p>
+            <p style=""margin: 0; font-size: 12px; color: #ccc;"">turnos-pro.com</p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>"
+            };
+
+            using var smtp = new SmtpClient(smtpHost, smtpPort)
+            {
+                Credentials = new NetworkCredential(from, password),
+                EnableSsl = true
+            };
+
+            await smtp.SendMailAsync(message);
+            _logger.LogInformation("Booking confirmation email sent to {Email}", toEmail);
+        }
     }
 }

@@ -459,7 +459,7 @@ const BookingPage: React.FC = () => {
                         }, 300);
                       }}
                     >
-                      {service.bookingCount && service.bookingCount > 5 && (
+                      {service.bookingCount != null && service.bookingCount > 5 && (
                         <Chip
                           icon={<TrendingUp />}
                           label="Popular"
