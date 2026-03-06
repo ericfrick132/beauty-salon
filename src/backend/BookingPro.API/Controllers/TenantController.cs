@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using BookingPro.API.Services;
 using BookingPro.API.Data;
 
@@ -13,12 +14,14 @@ namespace BookingPro.API.Controllers
         private readonly ITenantService _tenantService;
         private readonly ITenantProvisioningService _provisioningService;
         private readonly ApplicationDbContext _context;
+        private readonly IMemoryCache _cache;
 
-        public TenantController(ITenantService tenantService, ITenantProvisioningService provisioningService, ApplicationDbContext context)
+        public TenantController(ITenantService tenantService, ITenantProvisioningService provisioningService, ApplicationDbContext context, IMemoryCache cache)
         {
             _tenantService = tenantService;
             _provisioningService = provisioningService;
             _context = context;
+            _cache = cache;
         }
 
         [HttpGet("config")]
@@ -102,16 +105,24 @@ namespace BookingPro.API.Controllers
         /// Check if the current tenant has a vertical assigned (for template picker detection).
         /// </summary>
         [HttpGet("has-vertical")]
-        public IActionResult HasVertical()
+        public async Task<IActionResult> HasVertical()
         {
             try
             {
-                var tenant = _tenantService.GetCurrentTenant();
+                var tenantInfo = _tenantService.GetCurrentTenant();
+                if (tenantInfo == null)
+                    return NotFound(new { message = "Tenant not found" });
+
+                // Query DB directly to avoid stale cache
+                var tenant = await _context.Tenants
+                    .Include(t => t.Vertical)
+                    .FirstOrDefaultAsync(t => t.Id == tenantInfo.Id);
+
                 if (tenant == null)
                     return NotFound(new { message = "Tenant not found" });
 
-                var hasVertical = !string.IsNullOrEmpty(tenant.VerticalCode);
-                return Ok(new { hasVertical, verticalCode = tenant.VerticalCode });
+                var hasVertical = tenant.VerticalId != null;
+                return Ok(new { hasVertical, verticalCode = tenant.Vertical?.Code ?? "" });
             }
             catch (Exception ex)
             {
@@ -137,6 +148,12 @@ namespace BookingPro.API.Controllers
 
                 if (!success)
                     return BadRequest(new { success = false, message = "Error aplicando template. Verificá que el tipo de negocio sea válido." });
+
+                // Invalidate tenant cache so the next request gets fresh data
+                var host = HttpContext.Request.Host.Value;
+                _cache.Remove($"tenant_header_{tenant.Subdomain}");
+                _cache.Remove($"tenant_qs_{tenant.Subdomain}");
+                _cache.Remove($"tenant_{host}");
 
                 return Ok(new { success = true, message = "Template aplicado correctamente." });
             }

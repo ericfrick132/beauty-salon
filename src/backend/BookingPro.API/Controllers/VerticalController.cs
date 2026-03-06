@@ -96,18 +96,6 @@ namespace BookingPro.API.Controllers
         {
             try
             {
-                var imageExtensions = new Dictionary<string, string>
-                {
-                    ["aesthetics"] = ".png",
-                    ["peluqueria"] = ".png",
-                    ["barbershop"] = ".jpg",
-                    ["nailsalon"] = ".jpeg",
-                    ["carwash"] = ".jpg",
-                    ["depilation"] = ".jpg",
-                    ["sports"] = ".jpeg",
-                    ["consulting"] = ".jpg",
-                };
-
                 var verticals = await _context.Verticals
                     .OrderBy(v => v.Name)
                     .ToListAsync();
@@ -117,7 +105,7 @@ namespace BookingPro.API.Controllers
                     code = v.Code,
                     name = v.Name,
                     description = v.Description,
-                    imageUrl = $"/templates/{v.Code}{(imageExtensions.TryGetValue(v.Code, out var ext) ? ext : ".png")}"
+                    imageUrl = $"/images/templates/{v.Code}.jpg"
                 }).ToList();
 
                 return Ok(new { success = true, data = templates });

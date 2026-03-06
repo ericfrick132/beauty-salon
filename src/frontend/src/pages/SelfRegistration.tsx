@@ -363,6 +363,7 @@ const SelfRegistration: React.FC = () => {
           <TextField
             fullWidth
             label="Subdominio"
+            placeholder="ej: mi-peluqueria"
             value={subdomain}
             onChange={(e) => handleSubdomainChange(e.target.value)}
             required
