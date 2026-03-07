@@ -203,10 +203,9 @@ const Dashboard: React.FC = () => {
   };
 
   // Aplicar colores específicos del vertical
-  const primaryColor = config?.theme?.primaryColor || '#1976d2';
-  const secondaryColor = config?.theme?.secondaryColor || '#ffffff';
-  const accentColor = config?.theme?.accentColor || '#ffc107';
-  const verticalGradient = `linear-gradient(135deg, ${primaryColor}20 0%, ${primaryColor}10 100%)`;
+  const primaryColor = config?.theme?.primaryColor || '#1E40AF';
+  const secondaryColor = config?.theme?.secondaryColor || '#1E3A5F';
+  const accentColor = config?.theme?.accentColor || '#2563EB';
 
   
   // Obtener configuración del tema para el vertical
@@ -387,15 +386,12 @@ const Dashboard: React.FC = () => {
               sx={{ 
                 fontWeight: 700, 
                 mb: 1,
-                background: `linear-gradient(45deg, ${primaryColor}, ${accentColor})`,
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
+                color: '#111827',
               }}
             >
               ¡Bienvenido de vuelta, {config?.businessName}!
             </Typography>
-            <Typography variant="body1" sx={{ color: primaryColor, opacity: 0.8 }}>
+            <Typography variant="body1" sx={{ color: '#6B7280' }}>
               Aquí está el resumen de tu negocio para hoy, {format(new Date(), "EEEE d 'de' MMMM", { locale: es })}
             </Typography>
           </Box>
@@ -406,15 +402,14 @@ const Dashboard: React.FC = () => {
           <Grid item xs={12}>
             <Card
               sx={{
-                background: cardBackground,
-                boxShadow: shadowStyle,
-                border: '1px solid',
-                borderColor: 'divider',
+                background: '#FFFFFF',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                border: '1px solid #E5E7EB',
               }}
             >
               <CardContent>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  <Typography variant="h6" sx={{ mb: 0.5 }}>
+                  <Typography variant="h6" sx={{ mb: 0.5, color: '#111827' }}>
                     Comparte este enlace con tus clientes para reservar
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
@@ -453,10 +448,9 @@ const Dashboard: React.FC = () => {
             <Grid item xs={12} md={6}>
               <Card
                 sx={{
-                  background: `linear-gradient(135deg, ${primaryColor}08, ${accentColor}05)`,
-                  boxShadow: shadowStyle,
-                  border: '1px solid',
-                  borderColor: `${primaryColor}20`,
+                  background: '#FFFFFF',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                  border: '1px solid #E5E7EB',
                 }}
               >
                 <CardContent>
@@ -483,11 +477,10 @@ const Dashboard: React.FC = () => {
         {financialStats && (
           <Grid container spacing={3} sx={{ mb: 3, mt: 3 }}>
             <Grid item xs={12}>
-              <Card sx={{ 
-                background: cardBackground,
-                boxShadow: shadowStyle,
-                border: '1px solid',
-                borderColor: 'divider',
+              <Card sx={{
+                background: '#FFFFFF',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                border: '1px solid #E5E7EB',
               }}>
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -680,16 +673,16 @@ const Dashboard: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
             >
-              <Card 
-                sx={{ 
+              <Card
+                sx={{
                   height: '100%',
-                  background: cardBackground,
-                  border: themeConfig.borderStyle === 'accent' ? `1px solid ${accentColor}30` : borderStyle,
-                  boxShadow: getCardShadow(themeConfig, stat.color),
-                  transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                  background: '#FFFFFF',
+                  border: '1px solid #E5E7EB',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                   '&:hover': {
-                    transform: 'translateY(-5px)',
-                    boxShadow: getCardShadow({ ...themeConfig, shadowIntensity: 'strong' }, stat.color),
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                   }
                 }}
               >
@@ -715,16 +708,16 @@ const Dashboard: React.FC = () => {
                         size="small"
                         sx={{ 
                           fontWeight: 600,
-                          backgroundColor: stat.changeType === 'positive' ? `${accentColor}20` : '#ff000020',
-                          color: stat.changeType === 'positive' ? accentColor : '#ff0000',
+                          backgroundColor: stat.changeType === 'positive' ? '#DCFCE7' : '#FEE2E2',
+                          color: stat.changeType === 'positive' ? '#166534' : '#991B1B',
                         }}
                       />
                     </Box>
                   </Box>
-                  <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5, color: stat.color }}>
+                  <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5, color: '#111827' }}>
                     {stat.value}
                   </Typography>
-                  <Typography variant="body2" sx={{ color: textColor, opacity: 0.8 }}>
+                  <Typography variant="body2" sx={{ color: '#6B7280' }}>
                     {stat.title}
                   </Typography>
                 </CardContent>
@@ -747,24 +740,24 @@ const Dashboard: React.FC = () => {
               sx={{ 
                 p: 3, 
                 height: '100%',
-                background: cardBackground,
-                border: borderStyle,
-                boxShadow: shadowStyle,
+                background: '#FFFFFF',
+                border: '1px solid #E5E7EB',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
               }}
             >
-              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: textColor }}>
+              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: '#111827' }}>
                 Ingresos de la Semana
               </Typography>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={weeklyRevenue}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={`${primaryColor}20`} />
-                  <XAxis dataKey="day" stroke={primaryColor} />
-                  <YAxis stroke={primaryColor} />
-                  <RechartsTooltip 
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                  <XAxis dataKey="day" stroke="#6B7280" />
+                  <YAxis stroke="#6B7280" />
+                  <RechartsTooltip
                     formatter={(value: any) => `$${value}`}
-                    contentStyle={{ 
-                      backgroundColor: secondaryColor,
-                      border: `1px solid ${primaryColor}`,
+                    contentStyle={{
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid #E5E7EB',
                       borderRadius: 8
                     }}
                   />
@@ -785,12 +778,12 @@ const Dashboard: React.FC = () => {
               sx={{ 
                 p: 3, 
                 height: '100%',
-                background: cardBackground,
-                border: borderStyle,
-                boxShadow: shadowStyle,
+                background: '#FFFFFF',
+                border: '1px solid #E5E7EB',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
               }}
             >
-              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: textColor }}>
+              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: '#111827' }}>
                 Distribución de Servicios
               </Typography>
               <ResponsiveContainer width="100%" height={300}>
@@ -850,12 +843,12 @@ const Dashboard: React.FC = () => {
                 p: 3, 
                 height: 400, 
                 overflow: 'auto',
-                background: cardBackground,
-                border: borderStyle,
-                boxShadow: shadowStyle,
+                background: '#FFFFFF',
+                border: '1px solid #E5E7EB',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
               }}
             >
-              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: textColor }}>
+              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: '#111827' }}>
                 Agenda de Hoy
               </Typography>
               {loading ? (
@@ -875,8 +868,8 @@ const Dashboard: React.FC = () => {
                         p: 2,
                         mb: 1,
                         borderRadius: 2,
-                        backgroundColor: themeConfig.usesSoftColors ? '#FFF9FC' : (themeConfig.isLightBackground ? '#FAF9F7' : `${secondaryColor}50`),
-                        border: getBorderStyle(themeConfig, primaryColor, accentColor),
+                        backgroundColor: '#F9FAFB',
+                        border: '1px solid #E5E7EB',
                         transition: 'all 0.3s ease',
                         '&:hover': {
                           backgroundColor: `${primaryColor}10`,
@@ -897,10 +890,10 @@ const Dashboard: React.FC = () => {
                         }}
                       />
                       <Box sx={{ flex: 1 }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 600, color: textColor }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#111827' }}>
                           {booking.customerName}
                         </Typography>
-                        <Typography variant="body2" sx={{ color: `${textColor}99` }}>
+                        <Typography variant="body2" sx={{ color: '#6B7280' }}>
                           {booking.serviceName} • {booking.employeeName}
                         </Typography>
                       </Box>
@@ -916,12 +909,12 @@ const Dashboard: React.FC = () => {
                           }
                           label={booking.status}
                           sx={{
-                            backgroundColor: 
-                              booking.status === 'confirmed' ? `${accentColor}20` :
-                              booking.status === 'cancelled' ? '#ff000020' : `${primaryColor}20`,
-                            color: 
-                              booking.status === 'confirmed' ? accentColor :
-                              booking.status === 'cancelled' ? '#ff0000' : primaryColor,
+                            backgroundColor:
+                              booking.status === 'confirmed' ? '#DCFCE7' :
+                              booking.status === 'cancelled' ? '#FEE2E2' : '#FEF3C7',
+                            color:
+                              booking.status === 'confirmed' ? '#166534' :
+                              booking.status === 'cancelled' ? '#991B1B' : '#92400E',
                             fontWeight: 600,
                           }}
                         />
@@ -944,12 +937,12 @@ const Dashboard: React.FC = () => {
               sx={{ 
                 p: 3, 
                 height: 400,
-                background: cardBackground,
-                border: borderStyle,
-                boxShadow: shadowStyle,
+                background: '#FFFFFF',
+                border: '1px solid #E5E7EB',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
               }}
             >
-              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: textColor }}>
+              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: '#111827' }}>
                 Actividad Reciente
               </Typography>
               <Box>

@@ -18,38 +18,38 @@ export const verticalThemes: Record<string, ThemeConfig> = {
   barbershop: {
     isLightBackground: true,
     usesSoftColors: false,
-    headerStyle: 'subtle',
+    headerStyle: 'solid',
     shadowIntensity: 'soft',
-    borderStyle: 'subtle',
+    borderStyle: 'normal',
   },
   beautysalon: {
     isLightBackground: true,
     usesSoftColors: false,
-    headerStyle: 'subtle',
+    headerStyle: 'solid',
     shadowIntensity: 'soft',
-    borderStyle: 'subtle',
+    borderStyle: 'normal',
   },
   aesthetics: {
     isLightBackground: true,
     usesSoftColors: false,
-    headerStyle: 'subtle',
+    headerStyle: 'solid',
     shadowIntensity: 'soft',
-    borderStyle: 'subtle',
+    borderStyle: 'normal',
   },
   nailsalon: {
     isLightBackground: true,
     usesSoftColors: false,
-    headerStyle: 'subtle',
+    headerStyle: 'solid',
     shadowIntensity: 'soft',
-    borderStyle: 'subtle',
+    borderStyle: 'normal',
   },
   // Default configuration
   default: {
     isLightBackground: true,
     usesSoftColors: false,
-    headerStyle: 'subtle',
+    headerStyle: 'solid',
     shadowIntensity: 'soft',
-    borderStyle: 'subtle',
+    borderStyle: 'normal',
   },
 };
 
@@ -58,34 +58,12 @@ export const getThemeConfig = (vertical?: string): ThemeConfig => {
 };
 
 // Helper functions for generating styles
-export const getCardShadow = (config: ThemeConfig, color: string): string => {
-  switch (config.shadowIntensity) {
-    case 'none':
-      return 'none';
-    case 'soft':
-      return `0 2px 8px rgba(0,0,0,0.05)`;
-    case 'medium':
-      return `0 3px 12px ${color}20`;
-    case 'strong':
-      return `0 4px 20px ${color}30`;
-    default:
-      return `0 2px 10px ${color}15`;
-  }
+export const getCardShadow = (_config: ThemeConfig, _color: string): string => {
+  return 'none'; // AppBar uses no shadow, relies on solid bg
 };
 
-export const getBorderStyle = (config: ThemeConfig, primaryColor: string, accentColor: string): string => {
-  switch (config.borderStyle) {
-    case 'none':
-      return 'none';
-    case 'subtle':
-      return `1px solid ${primaryColor}20`;
-    case 'normal':
-      return `2px solid ${primaryColor}30`;
-    case 'accent':
-      return `1px solid ${accentColor}40`;
-    default:
-      return `1px solid ${primaryColor}25`;
-  }
+export const getBorderStyle = (_config: ThemeConfig, _primaryColor: string, _accentColor: string): string => {
+  return 'none'; // AppBar is solid dark, no border needed
 };
 
 export const getHeaderGradient = (
@@ -93,27 +71,24 @@ export const getHeaderGradient = (
   _primaryColor: string,
   _accentColor: string
 ): string => {
-  // Neutral subtle gradient to ensure readability across verticals
-  return 'linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 100%)';
+  return 'none';
 };
 
 export const getTextColor = (_config: ThemeConfig, _primaryColor: string): string => {
-  // Always use high-contrast neutral text
-  return '#0F172A';
+  return '#FFFFFF'; // White text on dark navbar
 };
 
 export const getStatusColor = (status: string, config: ThemeConfig): string => {
   const colors = {
-    confirmed: config.secondaryColors?.accent2 || '#28A745',
-    pending: config.secondaryColors?.deep || '#FFC107',
-    cancelled: '#DC3545',
+    confirmed: config.secondaryColors?.accent2 || '#16A34A',
+    pending: config.secondaryColors?.deep || '#D97706',
+    cancelled: '#DC2626',
   };
-  return colors[status as keyof typeof colors] || '#6C757D';
+  return colors[status as keyof typeof colors] || '#6B7280';
 };
 
 export const getHeaderTextColor = (_config: ThemeConfig): string => {
-  // Dark neutral for subtle headers
-  return '#0F172A';
+  return '#FFFFFF'; // White on dark navbar
 };
 
 export const getCardBackground = (_config: ThemeConfig, _secondaryColor: string): string => {

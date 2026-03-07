@@ -47,6 +47,7 @@ import MessageHistory from './pages/MessageHistory';
 import RecurringSubscription from './pages/RecurringSubscription';
 import TenantsManagement from './pages/TenantsManagement';
 import Blocks from './pages/Blocks';
+import LoginRedirect from './pages/LoginRedirect';
 import { AdminLayout } from './components/layouts/AdminLayout';
 import SubscriptionVerification from './components/SubscriptionVerification';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
@@ -92,7 +93,7 @@ function App() {
       }
 
       // Check if we're on the main domain (for landing page or registration)
-      if (isMainDomain() && (window.location.pathname === '/' || window.location.pathname === '/register' || window.location.pathname.startsWith('/register/'))) {
+      if (isMainDomain() && (window.location.pathname === '/' || window.location.pathname === '/login' || window.location.pathname === '/register' || window.location.pathname.startsWith('/register/'))) {
         // We're on the main domain, no tenant config needed
         setLoading(false);
         return;
@@ -128,7 +129,7 @@ function App() {
       console.log('Current hostname:', window.location.hostname);
       
       // If we're on main domain and API fails, still allow access to landing/register
-      if (isMainDomain() && (window.location.pathname === '/' || window.location.pathname === '/register' || window.location.pathname.startsWith('/register/'))) {
+      if (isMainDomain() && (window.location.pathname === '/' || window.location.pathname === '/login' || window.location.pathname === '/register' || window.location.pathname.startsWith('/register/'))) {
         setLoading(false);
         return;
       }
@@ -256,6 +257,7 @@ function App() {
                 {/* Main Domain Routes - Landing Page */}
                 {isMainDomain() ? (
                   <>
+                    <Route path="/login" element={<LoginRedirect />} />
                     <Route path="/register" element={<SelfRegistration />} />
                     <Route path="/register/confirm" element={<SelfRegistration />} />
                     <Route path="/invitation/:token" element={<InvitationPage />} />

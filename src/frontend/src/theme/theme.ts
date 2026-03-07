@@ -4,38 +4,34 @@ import { TenantConfig } from '../types';
 // Function to create dynamic theme based on tenant config
 export const createTurnosProTheme = (config?: TenantConfig) => {
   const theme = config?.theme;
-  
+
   // Use theme configuration if available, otherwise use defaults
-  // Accessible, neutral defaults
-  const primaryColor = theme?.primaryColor || '#2563EB'; // blue-600
-  const secondaryColor = theme?.secondaryColor || '#0EA5E9'; // sky-500
-  const accentColor = theme?.accentColor || '#10B981'; // emerald-500
-  const backgroundColor = theme?.backgroundColor || '#F8FAFC'; // slate-50
+  const primaryColor = theme?.primaryColor || '#1E40AF'; // blue-800 (deeper blue)
+  const secondaryColor = theme?.secondaryColor || '#1E3A5F';
+  const accentColor = theme?.accentColor || '#2563EB'; // blue-600
+  const backgroundColor = theme?.backgroundColor || '#FAF7F2'; // warm cream
   const surfaceColor = theme?.surfaceColor || '#FFFFFF';
-  const errorColor = theme?.errorColor || '#f44336';
-  const warningColor = theme?.warningColor || '#ff9800';
-  const infoColor = theme?.infoColor || '#2196f3';
-  const successColor = theme?.successColor || '#4caf50';
-  const textPrimaryColor = theme?.textPrimaryColor || '#0F172A'; // slate-900
-  const textSecondaryColor = theme?.textSecondaryColor || '#475569'; // slate-600
-  const borderColor = theme?.borderColor || '#E5E7EB'; // gray-200
-  const fontFamily = theme?.fontFamily || 'Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"';
+  const errorColor = theme?.errorColor || '#DC2626';
+  const warningColor = theme?.warningColor || '#D97706';
+  const infoColor = theme?.infoColor || '#2563EB';
+  const successColor = theme?.successColor || '#16A34A';
+  const textPrimaryColor = theme?.textPrimaryColor || '#111827'; // gray-900
+  const textSecondaryColor = theme?.textSecondaryColor || '#374151'; // gray-700
+  const borderColor = theme?.borderColor || '#D1D5DB'; // gray-300
+  const fontFamily = theme?.fontFamily || '"Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
   const borderRadius = theme?.borderRadius || 8;
   const useShadows = theme?.useShadows ?? true;
-  
-  // Determine if this should be light or dark theme based on vertical
-  const isLightTheme = true; // light theme for clarity and contrast
-  
+
   return createTheme({
     palette: {
-      mode: isLightTheme ? 'light' : 'dark',
+      mode: 'light',
       primary: {
         main: primaryColor,
-        contrastText: '#ffffff', // Always white text on primary color
+        contrastText: '#ffffff',
       },
       secondary: {
         main: secondaryColor,
-        contrastText: isLightTheme ? '#000000' : '#ffffff',
+        contrastText: '#ffffff',
       },
       background: {
         default: backgroundColor,
@@ -57,6 +53,7 @@ export const createTurnosProTheme = (config?: TenantConfig) => {
       info: {
         main: infoColor,
       },
+      divider: borderColor,
     },
     typography: {
       fontFamily: fontFamily,
@@ -111,28 +108,30 @@ export const createTurnosProTheme = (config?: TenantConfig) => {
         styleOverrides: {
           root: {
             textTransform: 'none',
-            fontWeight: 500,
+            fontWeight: 600,
             borderRadius: borderRadius,
-            padding: '8px 16px',
-            transition: 'all 0.3s ease',
+            padding: '8px 20px',
+            transition: 'all 0.2s ease',
             '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: useShadows ? `0 4px 12px ${primaryColor}30` : 'none',
+              transform: 'translateY(-1px)',
+              boxShadow: useShadows ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
             },
           },
           contained: {
             backgroundColor: primaryColor,
-            color: '#ffffff', // Always white text on primary buttons
+            color: '#ffffff',
             '&:hover': {
               backgroundColor: accentColor,
             },
           },
           outlined: {
-            borderColor: primaryColor,
-            color: primaryColor,
+            borderColor: borderColor,
+            color: textPrimaryColor,
+            borderWidth: '1.5px',
             '&:hover': {
-              borderColor: accentColor,
-              backgroundColor: `${primaryColor}10`,
+              borderColor: primaryColor,
+              backgroundColor: `${primaryColor}08`,
+              borderWidth: '1.5px',
             },
           },
         },
@@ -143,10 +142,10 @@ export const createTurnosProTheme = (config?: TenantConfig) => {
             backgroundColor: surfaceColor,
             borderRadius: borderRadius,
             border: `1px solid ${borderColor}`,
-            transition: 'all 0.3s ease',
+            boxShadow: useShadows ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+            transition: 'all 0.2s ease',
             '&:hover': {
-              transform: 'translateY(-4px)',
-              boxShadow: useShadows ? `0 8px 24px ${primaryColor}20` : 'none',
+              boxShadow: useShadows ? '0 4px 12px rgba(0,0,0,0.1)' : 'none',
             },
           },
         },
@@ -159,6 +158,7 @@ export const createTurnosProTheme = (config?: TenantConfig) => {
               backgroundColor: surfaceColor,
               '& fieldset': {
                 borderColor: borderColor,
+                borderWidth: '1.5px',
               },
               '&:hover fieldset': {
                 borderColor: primaryColor,
@@ -168,7 +168,7 @@ export const createTurnosProTheme = (config?: TenantConfig) => {
               },
             },
             '& .MuiInputLabel-root': {
-              color: isLightTheme ? `${primaryColor}80` : '#CCCCCC',
+              color: textSecondaryColor,
               '&.Mui-focused': {
                 color: primaryColor,
               },
@@ -179,8 +179,9 @@ export const createTurnosProTheme = (config?: TenantConfig) => {
       MuiAppBar: {
         styleOverrides: {
           root: {
-            backgroundColor: surfaceColor,
-            borderBottom: `1px solid ${borderColor}`,
+            backgroundColor: '#111827',
+            color: '#ffffff',
+            borderBottom: 'none',
           },
         },
       },
@@ -189,6 +190,24 @@ export const createTurnosProTheme = (config?: TenantConfig) => {
           paper: {
             backgroundColor: surfaceColor,
             borderRight: `1px solid ${borderColor}`,
+          },
+        },
+      },
+      MuiChip: {
+        styleOverrides: {
+          root: {
+            fontWeight: 500,
+          },
+        },
+      },
+      MuiTableHead: {
+        styleOverrides: {
+          root: {
+            '& .MuiTableCell-head': {
+              fontWeight: 600,
+              color: textPrimaryColor,
+              backgroundColor: '#F3F4F6',
+            },
           },
         },
       },

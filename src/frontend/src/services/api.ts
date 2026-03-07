@@ -26,13 +26,16 @@ api.interceptors.request.use(
     
     // Only add tenant subdomain if not super admin route
     if (!config.url?.includes('/super-admin') && !config.url?.includes('/admin') && !config.url?.includes('/invitation')) {
-      // Extraer subdomain del hostname para desarrollo local
+      // Extraer subdomain del hostname
+      // Formato esperado: subdomain.turnos-pro.com o subdomain.localhost:3000
       const hostname = window.location.hostname;
       const parts = hostname.split('.');
-      if (parts.length >= 2 && parts[0] !== 'www') {
-        // Formato: subdomain.localhost o subdomain.domain.com
+      // Need at least 3 parts for a subdomain (sub.domain.tld) or 2 for local (sub.localhost)
+      const isLocalhost = parts[parts.length - 1] === 'localhost';
+      const hasSubdomain = isLocalhost ? parts.length >= 2 : parts.length >= 3;
+      if (hasSubdomain) {
         const subdomain = parts[0];
-        if (subdomain && subdomain !== 'localhost') {
+        if (subdomain && subdomain !== 'www') {
           config.headers['X-Tenant-Subdomain'] = subdomain;
         }
       }

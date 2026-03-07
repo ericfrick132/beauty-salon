@@ -79,12 +79,11 @@ const mobileDrawerWidth = 260;
 
 // Styled components
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
-  backgroundColor: theme.palette.background.paper,
-  borderBottom: `1px solid ${theme.palette.divider}`,
-  backdropFilter: 'blur(10px)',
-  boxShadow: 'none',
+  backgroundColor: '#111827',
+  borderBottom: 'none',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
   zIndex: theme.zIndex.drawer + 1,
-  color: theme.palette.text.primary,
+  color: '#FFFFFF',
 }));
 
 const StyledDrawer = styled(Drawer)(({ theme }) => ({
@@ -92,10 +91,10 @@ const StyledDrawer = styled(Drawer)(({ theme }) => ({
   flexShrink: 0,
   '& .MuiDrawer-paper': {
     width: drawerWidth,
-    backgroundColor: theme.palette.background.paper,
-    borderRight: `1px solid ${theme.palette.divider}`,
+    backgroundColor: '#FFFFFF',
+    borderRight: '1px solid #E5E7EB',
     backgroundImage: 'none',
-    color: theme.palette.text.primary,
+    color: '#111827',
     [theme.breakpoints.down('sm')]: {
       width: mobileDrawerWidth,
     },
@@ -107,31 +106,17 @@ const DrawerHeader = styled(Box)(({ theme }) => ({
   alignItems: 'center',
   padding: theme.spacing(0, 2),
   ...theme.mixins.toolbar,
-  background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
-  color: theme.palette.primary.contrastText,
+  background: '#111827',
+  color: '#FFFFFF',
   position: 'relative',
   overflow: 'hidden',
-  '&::before': {
-    content: '""',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    background: `linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%)`,
-    animation: 'shimmer 3s ease-in-out infinite',
-  },
-  '@keyframes shimmer': {
-    '0%': { transform: 'translateX(-100%)' },
-    '100%': { transform: 'translateX(100%)' },
-  },
 }));
 
 const MainContent = styled(Box)<{ open: boolean; hasMobileNav?: boolean }>(({ theme, open, hasMobileNav }) => ({
   flexGrow: 1,
   padding: theme.spacing(3),
   paddingBottom: hasMobileNav ? theme.spacing(12) : theme.spacing(3),
-  backgroundColor: theme.palette.background.default,
+  backgroundColor: '#FAF7F2',
   minHeight: '100vh',
   marginLeft: open ? 0 : `-${drawerWidth}px`,
   transition: theme.transitions.create('margin', {
@@ -150,45 +135,42 @@ const MainContent = styled(Box)<{ open: boolean; hasMobileNav?: boolean }>(({ th
 
 const StyledListItemButton = styled(ListItemButton, {
   shouldForwardProp: (prop) => prop !== 'active' && prop !== 'primaryColor' && prop !== 'accentColor' && prop !== 'isLightTheme',
-})<{ active?: boolean; primaryColor?: string; accentColor?: string; isLightTheme?: boolean }>(({ theme, active, primaryColor = '#1976d2', accentColor = '#ffc107', isLightTheme = false }) => ({
+})<{ active?: boolean; primaryColor?: string; accentColor?: string; isLightTheme?: boolean }>(({ theme, active, primaryColor = '#1E40AF' }) => ({
   margin: theme.spacing(0.5, 1),
-  borderRadius: '12px',
-  color: active ? (isLightTheme ? '#6B5B73' : primaryColor) : (isLightTheme ? '#9D8DA5' : `${primaryColor}cc`),
-  transition: 'all 0.3s ease',
-  backgroundColor: active ? (isLightTheme ? `${primaryColor}10` : `${primaryColor}15`) : 'transparent',
-  borderLeft: active ? (isLightTheme ? `3px solid ${primaryColor}` : `4px solid ${accentColor}`) : (isLightTheme ? '3px solid transparent' : '4px solid transparent'),
+  borderRadius: '8px',
+  color: active ? primaryColor : '#374151',
+  transition: 'all 0.2s ease',
+  backgroundColor: active ? `${primaryColor}0D` : 'transparent',
+  borderLeft: active ? `3px solid ${primaryColor}` : '3px solid transparent',
   '&:hover': {
-    backgroundColor: isLightTheme ? `${primaryColor}08` : `${primaryColor}10`,
-    color: isLightTheme ? '#6B5B73' : primaryColor,
-    transform: 'translateX(4px)',
-    borderLeft: isLightTheme ? `3px solid ${primaryColor}` : `4px solid ${accentColor}`,
+    backgroundColor: '#F3F4F6',
+    color: '#111827',
   },
   '& .MuiListItemIcon-root': {
-    color: active ? theme.palette.primary.main : theme.palette.text.secondary,
+    color: active ? primaryColor : '#6B7280',
     minWidth: 40,
   },
   '& .MuiListItemText-primary': {
-    color: active ? theme.palette.primary.main : 'inherit',
-    fontWeight: active ? 600 : 400,
+    color: active ? primaryColor : '#374151',
+    fontWeight: active ? 600 : 500,
+    fontSize: '0.9rem',
   },
 }));
 
 const UserAvatar = styled(Avatar, {
   shouldForwardProp: (prop) => prop !== 'primaryColor' && prop !== 'accentColor' && prop !== 'isLightTheme',
-})<{ primaryColor?: string; accentColor?: string; isLightTheme?: boolean }>(({ theme, primaryColor = '#1976d2', accentColor = '#ffc107', isLightTheme = false }) => ({
-  background: isLightTheme 
-    ? `linear-gradient(135deg, ${primaryColor}80 0%, ${accentColor}60 100%)`
-    : `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`,
+})<{ primaryColor?: string; accentColor?: string; isLightTheme?: boolean }>(({ theme, primaryColor = '#1E40AF' }) => ({
+  background: primaryColor,
   color: '#ffffff',
-  border: isLightTheme ? `1px solid ${primaryColor}40` : `2px solid ${accentColor}`,
+  border: 'none',
   width: 40,
   height: 40,
   fontWeight: 600,
   cursor: 'pointer',
-  transition: 'all 0.3s ease',
+  transition: 'all 0.2s ease',
   '&:hover': {
-    transform: 'scale(1.1)',
-    boxShadow: theme.shadows[4],
+    transform: 'scale(1.05)',
+    boxShadow: theme.shadows[2],
   },
 }));
 
@@ -224,10 +206,9 @@ export const AdminLayout: React.FC = () => {
   const [notificationList] = useState<any[]>([]);
   
   // Colores específicos del vertical
-  const primaryColor = config?.theme?.primaryColor || '#1976d2';
-  const secondaryColor = config?.theme?.secondaryColor || '#ffffff';
-  const accentColor = config?.theme?.accentColor || '#ffc107';
-  const verticalGradient = 'linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 100%)';
+  const primaryColor = config?.theme?.primaryColor || '#1E40AF';
+  const secondaryColor = config?.theme?.secondaryColor || '#1E3A5F';
+  const accentColor = config?.theme?.accentColor || '#2563EB';
   
   // Obtener configuración del tema
   const themeConfig = getThemeConfig(config?.vertical);
@@ -378,11 +359,8 @@ export const AdminLayout: React.FC = () => {
           alignItems: 'center',
           padding: theme.spacing(2, 2),
           ...theme.mixins.toolbar,
-          background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`,
+          background: '#111827',
           color: '#ffffff',
-          position: 'relative',
-          overflow: 'hidden',
-          boxShadow: config?.vertical === 'beautysalon' ? '0 2px 10px rgba(0,0,0,0.05)' : `0 4px 20px ${primaryColor}30`,
         }}
       >
         <CalendarToday sx={{ mr: 1, fontSize: { xs: 24, sm: 32 }, color: '#ffffff' }} />
@@ -422,21 +400,21 @@ export const AdminLayout: React.FC = () => {
               alignItems: 'center',
               p: { xs: 1.5, sm: 2 },
               borderRadius: '12px',
-              backgroundColor: config?.vertical === 'beautysalon' ? '#FFF9FC' : `${secondaryColor}50`,
-              border: config?.vertical === 'beautysalon' ? `1px solid ${primaryColor}15` : `2px solid ${primaryColor}20`,
+              backgroundColor: '#F9FAFB',
+              border: '1px solid #E5E7EB',
               mb: 2,
               flexDirection: { xs: 'column', sm: 'row' },
               textAlign: { xs: 'center', sm: 'left' },
             }}
           >
-            <UserAvatar sx={{ mb: { xs: 1, sm: 0 } }} primaryColor={primaryColor} accentColor={accentColor} isLightTheme={config?.vertical === 'beautysalon'}>
+            <UserAvatar sx={{ mb: { xs: 1, sm: 0 } }} primaryColor={primaryColor} accentColor={accentColor} isLightTheme>
               {getInitials(user?.firstName)}
             </UserAvatar>
             <Box sx={{ ml: { xs: 0, sm: 2 }, flex: 1 }}>
               <Typography 
                 variant="subtitle2" 
                 fontWeight={600}
-                sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' }, color: config?.vertical === 'beautysalon' ? '#6B5B73' : primaryColor }}
+                sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' }, color: '#111827' }}
               >
                 {user?.firstName || 'Usuario'}
               </Typography>
@@ -445,7 +423,7 @@ export const AdminLayout: React.FC = () => {
                 sx={{ 
                   display: { xs: 'none', sm: 'block' },
                   fontSize: { xs: '0.7rem', sm: '0.75rem' },
-                  color: config?.vertical === 'beautysalon' ? '#9D8DA5' : 'text.secondary'
+                  color: '#6B7280'
                 }}
               >
                 {user?.email || 'admin@turnospro.com'}
@@ -470,7 +448,7 @@ export const AdminLayout: React.FC = () => {
                     onClick={() => handleSubmenuToggle(item.text)}
                     primaryColor={primaryColor}
                     accentColor={accentColor}
-                    isLightTheme={config?.vertical === 'beautysalon'}
+                    isLightTheme
                     sx={{
                       mx: { xs: 0.5, sm: 1 },
                     }}
@@ -494,7 +472,7 @@ export const AdminLayout: React.FC = () => {
                           active={location.pathname === child.path}
                           primaryColor={primaryColor}
                           accentColor={accentColor}
-                          isLightTheme={config?.vertical === 'beautysalon'}
+                          isLightTheme
                           onClick={() => child.path && handleNavigation(child.path)}
                           sx={{
                             mx: { xs: 0.5, sm: 1 },
@@ -519,7 +497,7 @@ export const AdminLayout: React.FC = () => {
                   active={location.pathname === item.path}
                   primaryColor={primaryColor}
                   accentColor={accentColor}
-                  isLightTheme={config?.vertical === 'beautysalon'}
+                  isLightTheme
                   onClick={() => item.path && handleNavigation(item.path)}
                   sx={{
                     mx: { xs: 0.5, sm: 1 },
@@ -559,28 +537,27 @@ export const AdminLayout: React.FC = () => {
   );
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', background: verticalGradient }}>
-      <AppBar 
-        position="fixed" 
-        sx={{ 
-          backgroundColor: isLightTheme ? '#FFFFFF' : `${secondaryColor}f5`,
-          borderBottom: getBorderStyle(themeConfig, primaryColor, accentColor),
-          backdropFilter: 'blur(15px)',
-          boxShadow: getCardShadow(themeConfig, primaryColor),
+    <Box sx={{ display: 'flex', minHeight: '100vh', background: '#FAF7F2' }}>
+      <AppBar
+        position="fixed"
+        sx={{
+          backgroundColor: '#111827',
+          borderBottom: 'none',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
           zIndex: theme.zIndex.drawer + 1,
-          color: textColor,
+          color: '#FFFFFF',
         }}
       >
         <Toolbar>
           <IconButton
             edge="start"
             onClick={handleDrawerToggle}
-            sx={{ 
+            sx={{
               mr: 2,
-              color: textColor,
+              color: '#FFFFFF',
               display: { xs: 'none', md: 'inline-flex' },
               '&:hover': {
-                backgroundColor: isLightTheme ? `${primaryColor}08` : `${primaryColor}10`,
+                backgroundColor: 'rgba(255,255,255,0.1)',
               }
             }}
           >
@@ -588,12 +565,12 @@ export const AdminLayout: React.FC = () => {
           </IconButton>
           
           <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
-            <Typography 
-              variant="h6" 
-              component="div" 
-              sx={{ 
-                color: textColor,
-                fontSize: { xs: '1rem', sm: '1.25rem' },
+            <Typography
+              variant="h6"
+              component="div"
+              sx={{
+                color: '#FFFFFF',
+                fontSize: { xs: '1rem', sm: '1.15rem' },
                 fontWeight: 600,
               }}
             >
@@ -604,13 +581,16 @@ export const AdminLayout: React.FC = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {/* Quick actions to guarantee 1–2 click access */}
             <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 1, mr: 2 }}>
-              <Button size="small" variant="contained" startIcon={<AddCircle />} onClick={() => navigate('/new-booking')}>
+              <Button size="small" variant="contained" startIcon={<AddCircle />} onClick={() => navigate('/new-booking')}
+                sx={{ backgroundColor: '#2563EB', '&:hover': { backgroundColor: '#1D4ED8' } }}>
                 Nueva reserva
               </Button>
-              <Button size="small" variant="outlined" onClick={() => navigate('/customers/new')}>
+              <Button size="small" variant="outlined" onClick={() => navigate('/customers/new')}
+                sx={{ color: '#FFFFFF', borderColor: 'rgba(255,255,255,0.4)', '&:hover': { borderColor: '#FFFFFF', backgroundColor: 'rgba(255,255,255,0.1)' } }}>
                 Nuevo cliente
               </Button>
-              <Button size="small" variant="outlined" onClick={() => navigate('/payments')}>
+              <Button size="small" variant="outlined" onClick={() => navigate('/payments')}
+                sx={{ color: '#FFFFFF', borderColor: 'rgba(255,255,255,0.4)', '&:hover': { borderColor: '#FFFFFF', backgroundColor: 'rgba(255,255,255,0.1)' } }}>
                 Cobrar
               </Button>
             </Box>
@@ -625,21 +605,21 @@ export const AdminLayout: React.FC = () => {
                     } 
                   }}
                 >
-                  <Notifications sx={{ color: textColor }} />
+                  <Notifications sx={{ color: '#FFFFFF' }} />
                 </Badge>
               </IconButton>
             </Tooltip>
             
             <Tooltip title="Perfil de usuario">
               <IconButton onClick={handleUserMenuOpen}>
-                <Avatar 
-                  sx={{ 
-                    backgroundColor: themeConfig.borderStyle === 'accent' ? accentColor : primaryColor,
+                <Avatar
+                  sx={{
+                    backgroundColor: '#2563EB',
                     color: '#FFFFFF',
                     width: 36,
                     height: 36,
                     fontWeight: 600,
-                    border: themeConfig.borderStyle === 'subtle' ? `1px solid ${accentColor}` : `2px solid ${themeConfig.borderStyle === 'accent' ? primaryColor : accentColor}`,
+                    border: '2px solid rgba(255,255,255,0.3)',
                   }}
                 >
                   {user?.email?.[0]?.toUpperCase() || 'U'}

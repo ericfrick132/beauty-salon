@@ -62,13 +62,13 @@ export default function FinalCta() {
               fontSize: { xs: '1rem', md: '1.15rem' },
             }}
           >
-            turnos-pro.com/
             <Box
               component="span"
               sx={{ color: '#60a5fa', fontWeight: 600 }}
             >
               {displaySubdomain}
             </Box>
+            .turnos-pro.com
           </Typography>
 
           {/* Input + Button */}
