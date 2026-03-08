@@ -370,7 +370,7 @@ const Dashboard: React.FC = () => {
   return (
     <Box sx={{ 
       minHeight: '100vh',
-      background: verticalGradient,
+      background: '#FAF7F2',
       py: 3
     }}>
       <Container maxWidth="xl">
