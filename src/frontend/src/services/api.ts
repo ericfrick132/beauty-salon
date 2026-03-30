@@ -228,6 +228,8 @@ export const employeeApi = {
     api.put(`/employees/${employeeId}/blocks/${blockId}`, data).then(res => res.data),
   deleteBlock: (employeeId: string, blockId: string) =>
     api.delete(`/employees/${employeeId}/blocks/${blockId}`).then(res => res.data),
+  excludeOccurrence: (employeeId: string, blockId: string, date: string) =>
+    api.delete(`/employees/${employeeId}/blocks/${blockId}/occurrence`, { params: { date } }).then(res => res.data),
 };
 
 // Services API

@@ -363,6 +363,39 @@ namespace BookingPro.API.Controllers
             }
         }
 
+        /// <summary>
+        /// Exclude a single occurrence from a recurring block (by local date).
+        /// </summary>
+        [HttpDelete("{blockId:guid}/occurrence")]
+        public async Task<IActionResult> DeleteOccurrence(Guid employeeId, Guid blockId, [FromQuery] string date)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(date))
+                    return BadRequest(new { message = "Fecha requerida" });
+
+                var block = await _context.EmployeeTimeBlocks
+                    .FirstOrDefaultAsync(b => b.Id == blockId && b.EmployeeId == employeeId && b.IsRecurring);
+                if (block == null)
+                    return NotFound(new { message = "Regla recurrente no encontrada" });
+
+                var exclusions = string.IsNullOrEmpty(block.Exclusions)
+                    ? new List<string>()
+                    : System.Text.Json.JsonSerializer.Deserialize<List<string>>(block.Exclusions) ?? new List<string>();
+
+                if (!exclusions.Contains(date))
+                    exclusions.Add(date);
+
+                block.Exclusions = System.Text.Json.JsonSerializer.Serialize(exclusions);
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Ocurrencia eliminada" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
         // Keep legacy endpoints for backward compat but they just delete the single row
         [HttpDelete("series/{seriesId:guid}")]
         public async Task<IActionResult> DeleteSeries(Guid employeeId, Guid seriesId)

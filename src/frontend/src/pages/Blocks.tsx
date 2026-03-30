@@ -66,6 +66,8 @@ const Blocks: React.FC = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<'create'|'edit'>('create');
   const [editing, setEditing] = useState<BlockItem | null>(null);
+  const [clickedOccurrenceDate, setClickedOccurrenceDate] = useState<string>('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const [form, setForm] = useState({
     employeeId: 'all',
@@ -141,8 +143,15 @@ const Blocks: React.FC = () => {
   };
 
   const handleEventClick = (info: EventClickArg) => {
-    const block = rows.find(r => r.id === info.event.id);
+    // Event ID may be "{blockId}-{idx}" for recurring occurrences
+    const blockId = info.event.extendedProps.blockId || info.event.id;
+    const block = rows.find(r => r.id === blockId);
     if (!block) return;
+    // Capture the specific occurrence date for recurring blocks
+    if (block.isRecurring && info.event.start) {
+      const d = info.event.start;
+      setClickedOccurrenceDate(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
+    }
     handleOpenEdit(block);
   };
 
@@ -188,19 +197,37 @@ const Blocks: React.FC = () => {
     setDialogOpen(true);
   };
 
-  const handleDelete = async () => {
+  const handleDeleteClick = () => {
     if (!editing) return;
-    const msg = editing.isRecurring
-      ? '¿Eliminar esta regla recurrente? Se desbloqueará en todos los días.'
-      : '¿Eliminar este bloqueo?';
-    if (!window.confirm(msg)) return;
+    if (editing.isRecurring) {
+      setDeleteDialogOpen(true);
+    } else {
+      if (!window.confirm('¿Eliminar este bloqueo?')) return;
+      doDeleteBlock();
+    }
+  };
 
+  const doDeleteBlock = async () => {
+    if (!editing) return;
     try {
       await employeeApi.deleteBlock(editing.employeeId, editing.id);
+      setDeleteDialogOpen(false);
       setDialogOpen(false);
       await loadBlocks();
     } catch (e: any) {
       alert(e?.response?.data?.message || 'Error eliminando bloqueo');
+    }
+  };
+
+  const doDeleteOccurrence = async () => {
+    if (!editing || !clickedOccurrenceDate) return;
+    try {
+      await employeeApi.excludeOccurrence(editing.employeeId, editing.id, clickedOccurrenceDate);
+      setDeleteDialogOpen(false);
+      setDialogOpen(false);
+      await loadBlocks();
+    } catch (e: any) {
+      alert(e?.response?.data?.message || 'Error eliminando ocurrencia');
     }
   };
 
@@ -265,7 +292,7 @@ const Blocks: React.FC = () => {
   const findEmployeeName = (id: string) => employees.find(e => e.id === id)?.name || '-';
 
   const blockEvents = rows.map((b, idx) => ({
-    id: b.id,
+    id: b.isRecurring ? `${b.id}-${idx}` : b.id,
     title: b.reason || `Bloqueado - ${findEmployeeName(b.employeeId)}`,
     start: b.startTime,
     end: b.endTime,
@@ -273,6 +300,7 @@ const Blocks: React.FC = () => {
     borderColor: b.isRecurring ? '#5c6bc0' : '#757575',
     textColor: '#ffffff',
     extendedProps: {
+      blockId: b.id,
       employeeId: b.employeeId,
       employeeName: findEmployeeName(b.employeeId),
       reason: b.reason,
@@ -441,11 +469,31 @@ const Blocks: React.FC = () => {
         <DialogActions>
           <Button onClick={() => setDialogOpen(false)}>Cancelar</Button>
           {dialogMode === 'edit' && editing && (
-            <Button color="error" startIcon={<Delete />} onClick={handleDelete}>
+            <Button color="error" startIcon={<Delete />} onClick={handleDeleteClick}>
               Eliminar
             </Button>
           )}
           <Button variant="contained" onClick={handleSave}>Guardar</Button>
+        </DialogActions>
+      </Dialog>
+      {/* Delete confirmation dialog for recurring blocks */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Eliminar bloqueo recurrente</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Este bloqueo es parte de una serie. ¿Qué desea eliminar?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ flexDirection: 'column', gap: 1, p: 2 }}>
+          <Button fullWidth variant="outlined" onClick={doDeleteOccurrence}>
+            Solo este día ({clickedOccurrenceDate})
+          </Button>
+          <Button fullWidth variant="contained" color="error" onClick={doDeleteBlock}>
+            Toda la serie
+          </Button>
+          <Button fullWidth onClick={() => setDeleteDialogOpen(false)}>
+            Cancelar
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

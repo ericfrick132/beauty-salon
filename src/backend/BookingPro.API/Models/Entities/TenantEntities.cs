@@ -304,6 +304,7 @@ namespace BookingPro.API.Models.Entities
         public bool IsRecurring { get; set; } = false;
         public DateTime? RecurrenceStart { get; set; } // Local date: first day of recurrence
         public DateTime? RecurrenceEnd { get; set; }   // Local date: last day of recurrence (null = indefinite)
+        public string? Exclusions { get; set; } // JSON array of excluded local dates: ["2026-03-30","2026-04-02"]
 
         // Navigation
         public Employee Employee { get; set; } = null!;
@@ -335,6 +336,14 @@ namespace BookingPro.API.Models.Entities
             var days = pattern.daysOfWeek?.ToHashSet() ?? new HashSet<int>();
             if (days.Count == 0) return result;
 
+            // Parse excluded dates
+            var excludedDates = new HashSet<string>();
+            if (!string.IsNullOrEmpty(Exclusions))
+            {
+                var parsed = System.Text.Json.JsonSerializer.Deserialize<List<string>>(Exclusions);
+                if (parsed != null) excludedDates = parsed.ToHashSet();
+            }
+
             // Convert range to local dates
             var localRangeStart = rangeStartUtc.AddHours(tzOffsetHours).Date;
             var localRangeEnd = rangeEndUtc.AddHours(tzOffsetHours).Date;
@@ -348,6 +357,7 @@ namespace BookingPro.API.Models.Entities
             for (var d = iterStart; d <= iterEnd; d = d.AddDays(1))
             {
                 if (!days.Contains((int)d.DayOfWeek)) continue;
+                if (excludedDates.Contains(d.ToString("yyyy-MM-dd"))) continue;
 
                 var localStart = d.Add(startTod);
                 var localEnd = d.Add(endTod);
