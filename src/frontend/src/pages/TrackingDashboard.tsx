@@ -71,7 +71,7 @@ export default function TrackingDashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/api/admin/tracking/stats?days=${days}`);
+      const res = await api.get(`/admin/tracking/stats?days=${days}`);
       setData(res.data);
     } catch {
       setData(null);
