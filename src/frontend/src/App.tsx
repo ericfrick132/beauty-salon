@@ -18,6 +18,7 @@ import Login from './pages/Login';
 import SuperAdminLogin from './pages/SuperAdminLogin';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import SuperAdminPlans from './pages/SuperAdminPlans';
+import TrackingDashboard from './pages/TrackingDashboard';
 import MessagePackagesAdmin from './pages/admin/MessagePackagesAdmin';
 import NewBooking from './pages/NewBooking';
 import Calendar from './pages/Calendar';
@@ -253,7 +254,8 @@ function App() {
                 <Route path="/super-admin/message-packages" element={<MessagePackagesAdmin />} />
                 <Route path="/super-admin/tenants" element={<TenantsManagement />} />
                 <Route path="/super-admin/plans" element={<SuperAdminPlans />} />
-                
+                <Route path="/super-admin/marketing" element={<TrackingDashboard />} />
+
                 {/* Main Domain Routes - Landing Page */}
                 {isMainDomain() ? (
                   <>

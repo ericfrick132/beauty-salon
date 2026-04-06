@@ -38,6 +38,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 'https://connect.facebook.net/en_US/fbevents.js');
                 fbq('init', '${pixelId}');
                 fbq('track', 'PageView');
+
+                // Track PageView in our DB
+                try {
+                  var p = new URLSearchParams(window.location.search);
+                  var utms = {};
+                  if (p.get('utm_source')) { utms.utmSource = p.get('utm_source'); sessionStorage.setItem('utm_source', p.get('utm_source')); }
+                  if (p.get('utm_medium')) { utms.utmMedium = p.get('utm_medium'); sessionStorage.setItem('utm_medium', p.get('utm_medium')); }
+                  if (p.get('utm_campaign')) { utms.utmCampaign = p.get('utm_campaign'); sessionStorage.setItem('utm_campaign', p.get('utm_campaign')); }
+                  fetch('/api/tracking/event', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(Object.assign({ eventType: 'PageView', url: window.location.href, device: window.innerWidth < 768 ? 'mobile' : 'desktop', referrer: document.referrer || undefined }, utms))
+                  }).catch(function(){});
+                } catch(e) {}
               `}
             </Script>
             <noscript>

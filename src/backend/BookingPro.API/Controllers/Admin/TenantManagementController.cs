@@ -200,4 +200,76 @@ namespace BookingPro.API.Controllers.Admin
         public string? AdminFirstName { get; set; }
         public string? AdminLastName { get; set; }
     }
+
+    [ApiController]
+    [Route("api/admin/tracking")]
+    [Authorize(Roles = "super_admin")]
+    public class TrackingStatsController : ControllerBase
+    {
+        private readonly ApplicationDbContext _context;
+
+        public TrackingStatsController(ApplicationDbContext context)
+        {
+            _context = context;
+        }
+
+        [HttpGet("stats")]
+        public async Task<IActionResult> GetTrackingStats([FromQuery] int days = 30)
+        {
+            var since = DateTime.UtcNow.AddDays(-days);
+
+            var events = await _context.TrackingEvents
+                .Where(e => e.CreatedAt >= since)
+                .ToListAsync();
+
+            var dailyStats = events
+                .GroupBy(e => e.CreatedAt.Date)
+                .OrderByDescending(g => g.Key)
+                .Select(g => new
+                {
+                    date = g.Key.ToString("yyyy-MM-dd"),
+                    pageViews = g.Count(e => e.EventType == "PageView"),
+                    leads = g.Count(e => e.EventType == "Lead"),
+                    checkouts = g.Count(e => e.EventType == "InitiateCheckout"),
+                    registrations = g.Count(e => e.EventType == "CompleteRegistration")
+                })
+                .ToList();
+
+            var byCampaign = events
+                .Where(e => !string.IsNullOrEmpty(e.UtmCampaign))
+                .GroupBy(e => e.UtmCampaign)
+                .Select(g => new
+                {
+                    campaign = g.Key,
+                    pageViews = g.Count(e => e.EventType == "PageView"),
+                    leads = g.Count(e => e.EventType == "Lead"),
+                    checkouts = g.Count(e => e.EventType == "InitiateCheckout"),
+                    registrations = g.Count(e => e.EventType == "CompleteRegistration")
+                })
+                .OrderByDescending(x => x.registrations)
+                .ToList();
+
+            var bySource = events
+                .Where(e => !string.IsNullOrEmpty(e.UtmSource))
+                .GroupBy(e => e.UtmSource)
+                .Select(g => new
+                {
+                    source = g.Key,
+                    pageViews = g.Count(e => e.EventType == "PageView"),
+                    registrations = g.Count(e => e.EventType == "CompleteRegistration")
+                })
+                .OrderByDescending(x => x.pageViews)
+                .ToList();
+
+            var totals = new
+            {
+                pageViews = events.Count(e => e.EventType == "PageView"),
+                leads = events.Count(e => e.EventType == "Lead"),
+                checkouts = events.Count(e => e.EventType == "InitiateCheckout"),
+                registrations = events.Count(e => e.EventType == "CompleteRegistration")
+            };
+
+            return Ok(new { totals, daily = dailyStats, byCampaign, bySource });
+        }
+    }
 }

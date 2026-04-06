@@ -116,6 +116,23 @@ function SignupModalInner() {
       if (typeof window !== 'undefined' && (window as any).fbq) {
         (window as any).fbq('track', 'CompleteRegistration');
       }
+
+      // Track in our DB
+      try {
+        const params = new URLSearchParams(window.location.search);
+        fetch('/api/tracking/event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            eventType: 'CompleteRegistration',
+            url: window.location.href,
+            utmSource: params.get('utm_source') || sessionStorage.getItem('utm_source') || undefined,
+            utmMedium: params.get('utm_medium') || sessionStorage.getItem('utm_medium') || undefined,
+            utmCampaign: params.get('utm_campaign') || sessionStorage.getItem('utm_campaign') || undefined,
+            device: window.innerWidth < 768 ? 'mobile' : 'desktop',
+          }),
+        }).catch(() => {});
+      } catch {}
     } catch (err: any) {
       set({ error: err.message || 'Error inesperado', busy: false });
     }
