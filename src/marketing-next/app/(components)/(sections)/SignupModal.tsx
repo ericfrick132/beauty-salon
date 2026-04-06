@@ -111,6 +111,11 @@ function SignupModalInner() {
         busy: false,
         devConfirmUrl: body.devConfirmUrl || '',
       });
+
+      // Track registration with Meta Pixel
+      if (typeof window !== 'undefined' && (window as any).fbq) {
+        (window as any).fbq('track', 'CompleteRegistration');
+      }
     } catch (err: any) {
       set({ error: err.message || 'Error inesperado', busy: false });
     }
@@ -249,6 +254,15 @@ export function SignupModalProvider({ children }: { children: ReactNode }) {
   const open = useCallback(() => {
     setIsOpen(true);
   }, []);
+
+  // Auto-open modal if ?register=true in URL
+  useState(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('register') === 'true') {
+      setIsOpen(true);
+    }
+  });
 
   const close = useCallback(() => {
     setIsOpen(false);
