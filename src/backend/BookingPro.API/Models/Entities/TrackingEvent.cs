@@ -46,6 +46,21 @@ namespace BookingPro.API.Models.Entities
         [MaxLength(200)]
         public string? PlanName { get; set; }
 
+        [MaxLength(200)]
+        public string? Fbclid { get; set; }
+
+        [MaxLength(100)]
+        public string? SessionId { get; set; }
+
+        [MaxLength(50)]
+        public string? ScreenResolution { get; set; }
+
+        [MaxLength(10)]
+        public string? Language { get; set; }
+
+        [MaxLength(200)]
+        public string? PageTitle { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }

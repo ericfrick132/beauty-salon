@@ -41,6 +41,11 @@ namespace BookingPro.API.Controllers
             public string? Email { get; set; }
             public string? Phone { get; set; }
             public string? PlanName { get; set; }
+            public string? Fbclid { get; set; }
+            public string? SessionId { get; set; }
+            public string? ScreenResolution { get; set; }
+            public string? Language { get; set; }
+            public string? PageTitle { get; set; }
         }
 
         [HttpPost("event")]
@@ -67,14 +72,21 @@ namespace BookingPro.API.Controllers
                 Email = request.Email?.Length > 200 ? request.Email[..200] : request.Email,
                 Phone = request.Phone?.Length > 50 ? request.Phone[..50] : request.Phone,
                 PlanName = request.PlanName?.Length > 200 ? request.PlanName[..200] : request.PlanName,
+                Fbclid = request.Fbclid?.Length > 200 ? request.Fbclid[..200] : request.Fbclid,
+                SessionId = request.SessionId?.Length > 100 ? request.SessionId[..100] : request.SessionId,
+                ScreenResolution = request.ScreenResolution?.Length > 50 ? request.ScreenResolution[..50] : request.ScreenResolution,
+                Language = request.Language?.Length > 10 ? request.Language[..10] : request.Language,
+                PageTitle = request.PageTitle?.Length > 200 ? request.PageTitle[..200] : request.PageTitle,
                 CreatedAt = DateTime.UtcNow
             };
 
             _context.TrackingEvents.Add(ev);
             await _context.SaveChangesAsync();
 
-            // Notify via WhatsApp on new leads and registrations
-            if (request.EventType is "Lead" or "CompleteRegistration")
+            // Notify via WhatsApp based on configured events
+            var notifyEvents = (_config["AdminNotifyEvents"] ?? "PageView,OpenRegister,Lead,InitiateCheckout,CompleteRegistration")
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (notifyEvents.Contains(request.EventType))
             {
                 _ = Task.Run(async () =>
                 {

@@ -46,10 +46,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   if (p.get('utm_source')) { utms.utmSource = p.get('utm_source'); sessionStorage.setItem('utm_source', p.get('utm_source')); }
                   if (p.get('utm_medium')) { utms.utmMedium = p.get('utm_medium'); sessionStorage.setItem('utm_medium', p.get('utm_medium')); }
                   if (p.get('utm_campaign')) { utms.utmCampaign = p.get('utm_campaign'); sessionStorage.setItem('utm_campaign', p.get('utm_campaign')); }
+                  var fbclid = p.get('fbclid'); if (fbclid) sessionStorage.setItem('fbclid', fbclid);
+                  var sid = sessionStorage.getItem('_track_sid');
+                  if (!sid) { sid = Math.random().toString(36).slice(2) + Date.now().toString(36); sessionStorage.setItem('_track_sid', sid); }
                   fetch('/api/tracking/event', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(Object.assign({ eventType: 'PageView', url: window.location.href, device: window.innerWidth < 768 ? 'mobile' : 'desktop', referrer: document.referrer || undefined }, utms))
+                    body: JSON.stringify(Object.assign({ eventType: 'PageView', url: window.location.href, device: window.innerWidth < 768 ? 'mobile' : 'desktop', referrer: document.referrer || undefined, sessionId: sid, fbclid: fbclid || sessionStorage.getItem('fbclid') || undefined, screenResolution: window.screen.width+'x'+window.screen.height, language: navigator.language, pageTitle: document.title }, utms))
                   }).catch(function(){});
                 } catch(e) {}
               `}
