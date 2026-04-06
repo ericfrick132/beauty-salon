@@ -4,6 +4,7 @@ using BookingPro.API.Data;
 using BookingPro.API.Models.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace BookingPro.API.Controllers
 {
@@ -83,10 +84,11 @@ namespace BookingPro.API.Controllers
             _context.TrackingEvents.Add(ev);
             await _context.SaveChangesAsync();
 
-            // Notify via WhatsApp based on configured events
-            var notifyEvents = (_config["AdminNotifyEvents"] ?? "PageView,OpenRegister,Lead,InitiateCheckout,CompleteRegistration")
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (notifyEvents.Contains(request.EventType))
+            // Check DB for notification preferences
+            var notifSetting = await _context.NotificationSettings
+                .FirstOrDefaultAsync(s => s.EventType == request.EventType);
+            var shouldNotify = notifSetting?.WhatsAppEnabled ?? (request.EventType is "Lead" or "CompleteRegistration");
+            if (shouldNotify)
             {
                 _ = Task.Run(async () =>
                 {

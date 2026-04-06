@@ -2,14 +2,15 @@ import React, { useEffect, useState } from 'react';
 import {
   Box, Card, CardContent, CardHeader, Grid, Typography, CircularProgress,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  ToggleButton, ToggleButtonGroup, Chip
+  ToggleButton, ToggleButtonGroup, Chip, Switch, FormControlLabel, Divider
 } from '@mui/material';
 import {
   Visibility as ViewsIcon,
   PersonAdd as LeadIcon,
   ShoppingCart as CheckoutIcon,
   CheckCircle as RegIcon,
-  TrendingUp as TrendIcon
+  TrendingUp as TrendIcon,
+  WhatsApp as WhatsAppIcon
 } from '@mui/icons-material';
 import api from '../services/api';
 
@@ -77,14 +78,44 @@ function StatCard({ title, value, icon, color }: { title: string; value: number;
   );
 }
 
+interface NotifSetting {
+  eventType: string;
+  whatsAppEnabled: boolean;
+}
+
+const EVENT_LABELS: Record<string, string> = {
+  PageView: 'Visita a la página',
+  OpenRegister: 'Abre formulario de registro',
+  Lead: 'Completa datos (Lead)',
+  InitiateCheckout: 'Inicia checkout',
+  CompleteRegistration: 'Completa registro',
+};
+
 export default function TrackingDashboard() {
   const [data, setData] = useState<TrackingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
+  const [notifSettings, setNotifSettings] = useState<NotifSetting[]>([]);
 
   useEffect(() => {
     loadData();
+    loadNotifSettings();
   }, [days]);
+
+  const loadNotifSettings = async () => {
+    try {
+      const res = await api.get('/admin/tracking/notifications');
+      setNotifSettings(res.data);
+    } catch {}
+  };
+
+  const toggleNotif = async (eventType: string, enabled: boolean) => {
+    const updated = notifSettings.map(s => s.eventType === eventType ? { ...s, whatsAppEnabled: enabled } : s);
+    setNotifSettings(updated);
+    try {
+      await api.post('/admin/tracking/notifications', updated);
+    } catch {}
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -134,14 +165,44 @@ export default function TrackingDashboard() {
       </Grid>
 
       {/* Conversion rate */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <TrendIcon sx={{ color: '#10B981' }} />
-          <Typography>
-            Tasa de conversión: <strong>{convRate}%</strong> (visitas → registros)
-          </Typography>
-        </CardContent>
-      </Card>
+      <Grid container spacing={2} mb={3}>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <TrendIcon sx={{ color: '#10B981' }} />
+              <Typography>
+                Tasa de conversión: <strong>{convRate}%</strong> (visitas → registros)
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" gap={1} mb={1}>
+                <WhatsAppIcon sx={{ color: '#25D366' }} />
+                <Typography fontWeight={600}>Notificaciones WhatsApp</Typography>
+              </Box>
+              <Box display="flex" flexWrap="wrap" gap={1}>
+                {notifSettings.map((s) => (
+                  <FormControlLabel
+                    key={s.eventType}
+                    control={
+                      <Switch
+                        size="small"
+                        checked={s.whatsAppEnabled}
+                        onChange={(_, checked) => toggleNotif(s.eventType, checked)}
+                        color="success"
+                      />
+                    }
+                    label={<Typography variant="body2">{EVENT_LABELS[s.eventType] || s.eventType}</Typography>}
+                  />
+                ))}
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       <Grid container spacing={3}>
         {/* Daily breakdown */}

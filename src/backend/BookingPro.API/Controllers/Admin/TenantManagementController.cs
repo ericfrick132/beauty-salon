@@ -290,5 +290,49 @@ namespace BookingPro.API.Controllers.Admin
 
             return Ok(new { totals, daily = dailyStats, byCampaign, bySource, recentLeads });
         }
+
+        private static readonly string[] AllEventTypes = { "PageView", "OpenRegister", "Lead", "InitiateCheckout", "CompleteRegistration" };
+
+        [HttpGet("notifications")]
+        public async Task<IActionResult> GetNotificationSettings()
+        {
+            var settings = await _context.NotificationSettings.ToListAsync();
+            var result = AllEventTypes.Select(et => new
+            {
+                eventType = et,
+                whatsAppEnabled = settings.FirstOrDefault(s => s.EventType == et)?.WhatsAppEnabled ?? (et is "Lead" or "CompleteRegistration")
+            });
+            return Ok(result);
+        }
+
+        [HttpPost("notifications")]
+        public async Task<IActionResult> UpdateNotificationSettings([FromBody] List<NotifSettingsDto> updates)
+        {
+            foreach (var u in updates)
+            {
+                var existing = await _context.NotificationSettings.FirstOrDefaultAsync(s => s.EventType == u.EventType);
+                if (existing != null)
+                {
+                    existing.WhatsAppEnabled = u.WhatsAppEnabled;
+                    existing.UpdatedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    _context.NotificationSettings.Add(new NotificationSettings
+                    {
+                        EventType = u.EventType,
+                        WhatsAppEnabled = u.WhatsAppEnabled
+                    });
+                }
+            }
+            await _context.SaveChangesAsync();
+            return Ok(new { success = true });
+        }
+
+        public class NotifSettingsDto
+        {
+            public string EventType { get; set; } = string.Empty;
+            public bool WhatsAppEnabled { get; set; }
+        }
     }
 }

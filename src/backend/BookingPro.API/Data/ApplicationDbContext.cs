@@ -76,6 +76,7 @@ namespace BookingPro.API.Data
         public DbSet<EmployeeTimeBlock> EmployeeTimeBlocks { get; set; }
         public DbSet<TenantWhatsAppConnection> TenantWhatsAppConnections { get; set; }
         public DbSet<TrackingEvent> TrackingEvents { get; set; }
+        public DbSet<NotificationSettings> NotificationSettings { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
