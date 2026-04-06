@@ -269,7 +269,26 @@ namespace BookingPro.API.Controllers.Admin
                 registrations = events.Count(e => e.EventType == "CompleteRegistration")
             };
 
-            return Ok(new { totals, daily = dailyStats, byCampaign, bySource });
+            var recentLeads = events
+                .Where(e => e.EventType is "Lead" or "CompleteRegistration" or "InitiateCheckout")
+                .OrderByDescending(e => e.CreatedAt)
+                .Take(50)
+                .Select(e => new
+                {
+                    id = e.Id,
+                    eventType = e.EventType,
+                    name = e.Name,
+                    email = e.Email,
+                    phone = e.Phone,
+                    planName = e.PlanName,
+                    campaign = e.UtmCampaign,
+                    source = e.UtmSource,
+                    device = e.Device,
+                    createdAt = e.CreatedAt
+                })
+                .ToList();
+
+            return Ok(new { totals, daily = dailyStats, byCampaign, bySource, recentLeads });
         }
     }
 }

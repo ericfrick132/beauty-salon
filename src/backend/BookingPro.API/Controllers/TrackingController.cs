@@ -37,6 +37,10 @@ namespace BookingPro.API.Controllers
             public string? UtmCampaign { get; set; }
             public string? Referrer { get; set; }
             public string? Device { get; set; }
+            public string? Name { get; set; }
+            public string? Email { get; set; }
+            public string? Phone { get; set; }
+            public string? PlanName { get; set; }
         }
 
         [HttpPost("event")]
@@ -59,6 +63,10 @@ namespace BookingPro.API.Controllers
                 UserAgent = Request.Headers.UserAgent.ToString().Length > 500
                     ? Request.Headers.UserAgent.ToString()[..500]
                     : Request.Headers.UserAgent.ToString(),
+                Name = request.Name?.Length > 200 ? request.Name[..200] : request.Name,
+                Email = request.Email?.Length > 200 ? request.Email[..200] : request.Email,
+                Phone = request.Phone?.Length > 50 ? request.Phone[..50] : request.Phone,
+                PlanName = request.PlanName?.Length > 200 ? request.PlanName[..200] : request.PlanName,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -86,7 +94,14 @@ namespace BookingPro.API.Controllers
                         var source = request.UtmSource ?? "directo";
                         var device = request.Device ?? "?";
 
+                        var name = request.Name ?? "—";
+                        var email = request.Email ?? "—";
+                        var reqPhone = request.Phone ?? "—";
+
                         var msg = $"{emoji} *{label} - TurnosPro*\n\n" +
+                                  $"Nombre: {name}\n" +
+                                  $"Email: {email}\n" +
+                                  $"Tel: {reqPhone}\n" +
                                   $"Campa\u00f1a: {campaign}\n" +
                                   $"Fuente: {source}\n" +
                                   $"Dispositivo: {device}\n" +

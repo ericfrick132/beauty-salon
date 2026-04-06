@@ -126,6 +126,7 @@ function SignupModalInner() {
           body: JSON.stringify({
             eventType: 'CompleteRegistration',
             url: window.location.href,
+            email: state.email,
             utmSource: params.get('utm_source') || sessionStorage.getItem('utm_source') || undefined,
             utmMedium: params.get('utm_medium') || sessionStorage.getItem('utm_medium') || undefined,
             utmCampaign: params.get('utm_campaign') || sessionStorage.getItem('utm_campaign') || undefined,
