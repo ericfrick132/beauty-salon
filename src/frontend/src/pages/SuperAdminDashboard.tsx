@@ -38,6 +38,7 @@ import {
   FormControl,
   InputLabel,
   Select,
+  CircularProgress,
 } from '@mui/material';
 import {
   Logout,
@@ -57,10 +58,13 @@ import {
   Save,
   PersonAdd as PersonImpersonateIcon,
   CardMembership,
+  WhatsApp as WhatsAppIcon,
+  TrendingUp as TrendIcon,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import TenantsManagement from './TenantsManagement';
 import SuperAdminPlans from './SuperAdminPlans';
+import TrackingDashboard from './TrackingDashboard';
 import { useNavigate } from 'react-router-dom';
 import { superAdminApi } from '../services/api';
 import { superAdminService } from '../services/superAdminService';
@@ -134,6 +138,89 @@ interface CreateInvitationData {
   isDemo: boolean;
   demoDays: number;
   expiresInDays: number;
+}
+
+function WhatsAppPanel() {
+  const [status, setStatus] = useState<{ connected: boolean; state?: string; instance?: string; message?: string } | null>(null);
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const token = localStorage.getItem('superAdminToken');
+  const headers = { Authorization: `Bearer ${token}` };
+
+  const fetchStatus = async () => {
+    try {
+      const res = await fetch('/api/admin/TenantManagement/whatsapp/status', { headers });
+      const data = await res.json();
+      setStatus(data);
+    } catch { setStatus({ connected: false, message: 'Error al conectar' }); }
+    finally { setLoading(false); }
+  };
+
+  const handleConnect = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/admin/TenantManagement/whatsapp/connect', { method: 'POST', headers });
+      const data = await res.json();
+      if (data?.base64) setQrCode(data.base64);
+      else if (data?.code) setQrCode(data.code);
+      setTimeout(fetchStatus, 10000);
+    } catch { }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetchStatus(); }, []);
+
+  return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h5" gutterBottom>WhatsApp SuperAdmin</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        Conexión para notificaciones de leads y seguimiento automático.
+      </Typography>
+
+      {loading && <CircularProgress />}
+
+      {!loading && status && (
+        <Card sx={{ maxWidth: 500 }}>
+          <CardContent>
+            <Box display="flex" alignItems="center" gap={1} mb={2}>
+              <Chip
+                label={status.connected ? 'Conectado' : 'Desconectado'}
+                color={status.connected ? 'success' : 'error'}
+              />
+              {status.instance && (
+                <Typography variant="caption" color="text.secondary">
+                  Instancia: {status.instance}
+                </Typography>
+              )}
+            </Box>
+
+            {!status.connected && (
+              <>
+                <Button variant="contained" onClick={handleConnect} sx={{ mb: 2 }}>
+                  Conectar WhatsApp
+                </Button>
+                {qrCode && (
+                  <Box mt={2}>
+                    <Typography variant="body2" sx={{ mb: 1 }}>Escaneá este QR con WhatsApp:</Typography>
+                    <img
+                      src={qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`}
+                      alt="QR Code"
+                      style={{ maxWidth: 300, border: '1px solid #ddd', borderRadius: 8 }}
+                    />
+                  </Box>
+                )}
+              </>
+            )}
+
+            {status.connected && (
+              <Typography color="success.main">WhatsApp conectado y funcionando.</Typography>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
 }
 
 const SuperAdminDashboard: React.FC = () => {
@@ -803,10 +890,12 @@ const SuperAdminDashboard: React.FC = () => {
             <Tab icon={<Dashboard />} label="Dashboard" />
             <Tab icon={<Email />} label="Crear Invitación" />
             <Tab icon={<Email />} label="Invitaciones Enviadas" />
-            <Tab icon={<People />} label="Negocios Registrados" />
+            <Tab icon={<People />} label="Tenants" />
             <Tab icon={<CardMembership />} label="Planes" />
             <Tab icon={<Subscriptions />} label="Suscripciones" />
             <Tab icon={<AttachMoney />} label="Facturación" />
+            <Tab icon={<WhatsAppIcon />} label="WhatsApp" />
+            <Tab icon={<TrendIcon />} label="Marketing" />
             <Tab icon={<Settings />} label="Configuración" />
           </Tabs>
 
@@ -853,7 +942,19 @@ const SuperAdminDashboard: React.FC = () => {
           </div>
 
           <div role="tabpanel" hidden={currentTab !== 7}>
-            {currentTab === 7 && (
+            {currentTab === 7 && <WhatsAppPanel />}
+          </div>
+
+          <div role="tabpanel" hidden={currentTab !== 8}>
+            {currentTab === 8 && (
+              <Box sx={{ p: 0 }}>
+                <TrackingDashboard />
+              </Box>
+            )}
+          </div>
+
+          <div role="tabpanel" hidden={currentTab !== 9}>
+            {currentTab === 9 && (
               <Box sx={{ p: 3 }}>
                 <Typography variant="h5">Configuración</Typography>
                 <Typography color="text.secondary">Próximamente...</Typography>

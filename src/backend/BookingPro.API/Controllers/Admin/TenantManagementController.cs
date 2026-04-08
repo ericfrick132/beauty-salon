@@ -17,15 +17,21 @@ namespace BookingPro.API.Controllers.Admin
         private readonly ApplicationDbContext _context;
         private readonly ITenantProvisioningService _tenantProvisioning;
         private readonly IAuthService _authService;
+        private readonly IConfiguration _config;
+        private readonly IHttpClientFactory _httpClientFactory;
 
         public TenantManagementController(
             ApplicationDbContext context,
             ITenantProvisioningService tenantProvisioning,
-            IAuthService authService)
+            IAuthService authService,
+            IConfiguration config,
+            IHttpClientFactory httpClientFactory)
         {
             _context = context;
             _tenantProvisioning = tenantProvisioning;
             _authService = authService;
+            _config = config;
+            _httpClientFactory = httpClientFactory;
         }
 
         [HttpPost("provision")]
@@ -346,6 +352,55 @@ namespace BookingPro.API.Controllers.Admin
             }
             await _context.SaveChangesAsync();
             return Ok(new { success = true });
+        }
+
+        // ── SuperAdmin WhatsApp (Evolution API) ─────────────────────────
+
+        private string EvolutionUrl => (_config["EVOLUTION_API_BASE_URL"] ?? "http://64.227.3.140:8080").TrimEnd('/');
+        private string? EvolutionKey => _config["EVOLUTION_API_KEY"];
+        private string? EvolutionInstance => _config["EVOLUTION_API_INSTANCE"];
+
+        [HttpGet("whatsapp/status")]
+        public async Task<IActionResult> GetWhatsAppStatus()
+        {
+            if (string.IsNullOrEmpty(EvolutionKey) || string.IsNullOrEmpty(EvolutionInstance))
+                return Ok(new { connected = false, message = "Evolution API not configured" });
+            try
+            {
+                var client = _httpClientFactory.CreateClient();
+                client.DefaultRequestHeaders.Add("apikey", EvolutionKey);
+                var res = await client.GetAsync($"{EvolutionUrl}/instance/connectionState/{EvolutionInstance}");
+                var body = await res.Content.ReadAsStringAsync();
+                var json = System.Text.Json.JsonDocument.Parse(body);
+                var state = json.RootElement.TryGetProperty("instance", out var inst)
+                    ? inst.GetProperty("state").GetString()
+                    : json.RootElement.GetProperty("state").GetString();
+                return Ok(new { connected = state == "open", state, instance = EvolutionInstance });
+            }
+            catch (Exception ex)
+            {
+                return Ok(new { connected = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("whatsapp/connect")]
+        public async Task<IActionResult> ConnectWhatsApp()
+        {
+            if (string.IsNullOrEmpty(EvolutionKey) || string.IsNullOrEmpty(EvolutionInstance))
+                return BadRequest(new { error = "Evolution API not configured" });
+            try
+            {
+                var client = _httpClientFactory.CreateClient();
+                client.DefaultRequestHeaders.Add("apikey", EvolutionKey);
+                // Try to get QR code for existing instance
+                var res = await client.GetAsync($"{EvolutionUrl}/instance/connect/{EvolutionInstance}");
+                var body = await res.Content.ReadAsStringAsync();
+                return Content(body, "application/json");
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
         }
 
         public class NotifSettingsDto
