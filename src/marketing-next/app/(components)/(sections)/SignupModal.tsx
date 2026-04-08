@@ -1,5 +1,5 @@
 'use client';
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -76,10 +76,62 @@ const initialState: ModalState = {
 function SignupModalInner() {
   const { isOpen, close } = useSignupModalInternal();
   const [state, setState] = useState<ModalState>(initialState);
+  const regFlowRef = useCallback(() => {
+    // stored on window to survive re-renders
+    if (typeof window !== 'undefined' && !(window as any).__regFlow) {
+      (window as any).__regFlow = null;
+    }
+  }, []);
+  regFlowRef();
+
+  const startRegFlow = () => {
+    (window as any).__regFlow = { started: Date.now(), actions: ['0s OPEN'], fieldTimes: {} as Record<string, number>, currentField: null as string | null, fieldStart: 0 };
+  };
+  const trackAction = (action: string) => {
+    const f = (window as any).__regFlow; if (!f) return;
+    const t = Math.round((Date.now() - f.started) / 1000);
+    f.actions.push(`${t}s ${action}`);
+  };
+  const trackFocus = (field: string) => {
+    const f = (window as any).__regFlow; if (!f) return;
+    if (f.currentField) { f.fieldTimes[f.currentField] = (f.fieldTimes[f.currentField] || 0) + Math.round((Date.now() - f.fieldStart) / 1000); }
+    f.currentField = field; f.fieldStart = Date.now();
+    trackAction(`FOCUS ${field}`);
+  };
+  const trackBlur = (field: string) => {
+    const f = (window as any).__regFlow; if (!f) return;
+    if (f.currentField === field) { f.fieldTimes[field] = (f.fieldTimes[field] || 0) + Math.round((Date.now() - f.fieldStart) / 1000); f.currentField = null; }
+    trackAction(`BLUR ${field}`);
+  };
+  const sendRegFlow = (outcome: string) => {
+    const f = (window as any).__regFlow; if (!f) return;
+    (window as any).__regFlow = null;
+    const total = Math.round((Date.now() - f.started) / 1000);
+    if (f.currentField) { f.fieldTimes[f.currentField] = (f.fieldTimes[f.currentField] || 0) + Math.round((Date.now() - f.fieldStart) / 1000); }
+    f.actions.push(`${total}s ${outcome}`);
+    const fields = Object.entries(f.fieldTimes).map(([k, v]) => `${k}:${v}s`).join(', ');
+    const summary = `[${outcome}] ${total}s total | Campos: ${fields || 'ninguno'} | ${f.actions.join(' → ')}`;
+    const sid = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('_track_sid') || '' : '';
+    navigator.sendBeacon('/api/tracking/event', new Blob([JSON.stringify({
+      eventType: 'RegisterFlow', url: window.location.href, name: summary.slice(0, 500),
+      device: window.innerWidth < 768 ? 'mobile' : 'desktop', sessionId: sid,
+      utmSource: sessionStorage.getItem('utm_source') || undefined,
+      utmMedium: sessionStorage.getItem('utm_medium') || undefined,
+      utmCampaign: sessionStorage.getItem('utm_campaign') || undefined,
+      referrer: document.referrer || undefined,
+    })], { type: 'application/json' }));
+  };
 
   const set = useCallback((patch: Partial<ModalState>) => setState((s) => ({ ...s, ...patch })), []);
 
+  // Start flow tracking when modal opens
+  useEffect(() => {
+    if (isOpen) startRegFlow();
+  }, [isOpen]);
+
   const handleClose = () => {
+    trackAction('CLOSE');
+    sendRegFlow('ABANDONED');
     setState(initialState);
     close();
   };
@@ -88,6 +140,7 @@ function SignupModalInner() {
     emailValid(state.email) && passwordValid(state.password) && state.password === state.confirmPassword;
 
   const handleSubmit = async () => {
+    trackAction('TAP submit');
     set({ busy: true, error: '' });
     try {
       const res = await fetch(apiUrl('/registration/start'), {
@@ -106,6 +159,8 @@ function SignupModalInner() {
         throw new Error(body.message || 'Error al registrar. Intenta de nuevo.');
       }
 
+      trackAction('SUBMIT_OK');
+      sendRegFlow('COMPLETED');
       set({
         step: 'sent',
         busy: false,
@@ -135,6 +190,7 @@ function SignupModalInner() {
         }).catch(() => {});
       } catch {}
     } catch (err: any) {
+      trackAction(`SUBMIT_ERROR ${(err as Error).message?.slice(0, 30)}`);
       set({ error: err.message || 'Error inesperado', busy: false });
     }
   };
@@ -168,6 +224,8 @@ function SignupModalInner() {
               placeholder="tu@email.com"
               value={state.email}
               onChange={(e) => set({ email: e.target.value })}
+              onFocus={() => trackFocus('email')}
+              onBlur={() => trackBlur('email')}
               fullWidth
               size="small"
               autoFocus
@@ -177,6 +235,8 @@ function SignupModalInner() {
               type="password"
               value={state.password}
               onChange={(e) => set({ password: e.target.value })}
+              onFocus={() => trackFocus('password')}
+              onBlur={() => trackBlur('password')}
               fullWidth
               size="small"
               helperText="Mínimo 8 caracteres"
@@ -186,6 +246,8 @@ function SignupModalInner() {
               type="password"
               value={state.confirmPassword}
               onChange={(e) => set({ confirmPassword: e.target.value })}
+              onFocus={() => trackFocus('confirmPassword')}
+              onBlur={() => trackBlur('confirmPassword')}
               fullWidth
               size="small"
               error={state.confirmPassword.length > 0 && state.password !== state.confirmPassword}

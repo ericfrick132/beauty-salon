@@ -55,6 +55,45 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     body: JSON.stringify(Object.assign({ eventType: 'PageView', url: window.location.href, device: window.innerWidth < 768 ? 'mobile' : 'desktop', referrer: document.referrer || undefined, sessionId: sid, fbclid: fbclid || sessionStorage.getItem('fbclid') || undefined, screenResolution: window.screen.width+'x'+window.screen.height, language: navigator.language, pageTitle: document.title }, utms))
                   }).catch(function(){});
                 } catch(e) {}
+
+                // Session interaction tracking
+                try {
+                  var _sess = { start: Date.now(), maxScroll: 0, clicks: [], sections: {} };
+                  var _sessSent = false;
+                  window.addEventListener('scroll', function() {
+                    var pct = Math.round((window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100);
+                    if (pct > _sess.maxScroll) _sess.maxScroll = pct;
+                    document.querySelectorAll('section[id]').forEach(function(el) {
+                      var r = el.getBoundingClientRect();
+                      if (r.top < window.innerHeight && r.bottom > 0) _sess.sections[el.id] = 1;
+                    });
+                  }, { passive: true });
+                  document.addEventListener('click', function(e) {
+                    var el = e.target.closest('button, a, .faq-item');
+                    if (!el) return;
+                    var label = el.matches('button') ? 'CTA: ' + (el.textContent || '').trim().slice(0,30) : el.matches('a') ? 'Link: ' + (el.textContent || '').trim().slice(0,25) : (el.textContent || '').trim().slice(0,30);
+                    if (label && _sess.clicks.indexOf(label) === -1) _sess.clicks.push(label);
+                  });
+                  function _sendExit() {
+                    if (_sessSent) return; _sessSent = true;
+                    var dur = Math.round((Date.now() - _sess.start) / 1000);
+                    if (dur < 3) return;
+                    var sects = Object.keys(_sess.sections).join(', ') || 'Solo hero';
+                    var clicks = _sess.clicks.length > 0 ? _sess.clicks.slice(0,5).join(' | ') : 'Ninguno';
+                    var summary = dur + 's | Scroll ' + _sess.maxScroll + '% | Vio: ' + sects + ' | Clicks: ' + clicks;
+                    var sid = sessionStorage.getItem('_track_sid') || '';
+                    navigator.sendBeacon('/api/tracking/event', new Blob([JSON.stringify({
+                      eventType: 'SessionExit', url: window.location.href, name: summary,
+                      device: window.innerWidth < 768 ? 'mobile' : 'desktop', sessionId: sid,
+                      utmSource: sessionStorage.getItem('utm_source') || undefined,
+                      utmMedium: sessionStorage.getItem('utm_medium') || undefined,
+                      utmCampaign: sessionStorage.getItem('utm_campaign') || undefined,
+                      referrer: document.referrer || undefined
+                    })], { type: 'application/json' }));
+                  }
+                  window.addEventListener('beforeunload', _sendExit);
+                  document.addEventListener('visibilitychange', function() { if (document.visibilityState === 'hidden') _sendExit(); });
+                } catch(e) {}
               `}
             </Script>
             <noscript>

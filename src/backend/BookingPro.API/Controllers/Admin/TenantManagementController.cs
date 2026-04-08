@@ -297,10 +297,19 @@ namespace BookingPro.API.Controllers.Admin
         public async Task<IActionResult> GetNotificationSettings()
         {
             var settings = await _context.NotificationSettings.ToListAsync();
-            var result = AllEventTypes.Select(et => new
+            var result = AllEventTypes.Select(et =>
             {
-                eventType = et,
-                whatsAppEnabled = settings.FirstOrDefault(s => s.EventType == et)?.WhatsAppEnabled ?? (et is "Lead" or "CompleteRegistration")
+                var s = settings.FirstOrDefault(x => x.EventType == et);
+                return new
+                {
+                    eventType = et,
+                    whatsAppEnabled = s?.WhatsAppEnabled ?? (et is "Lead" or "CompleteRegistration"),
+                    followUpWhatsAppEnabled = s?.FollowUpWhatsAppEnabled ?? false,
+                    followUpWhatsAppMessage = s?.FollowUpWhatsAppMessage,
+                    followUpEmailEnabled = s?.FollowUpEmailEnabled ?? false,
+                    followUpEmailTemplateKey = s?.FollowUpEmailTemplateKey,
+                    followUpDelayMinutes = s?.FollowUpDelayMinutes ?? 0
+                };
             });
             return Ok(result);
         }
@@ -314,6 +323,11 @@ namespace BookingPro.API.Controllers.Admin
                 if (existing != null)
                 {
                     existing.WhatsAppEnabled = u.WhatsAppEnabled;
+                    existing.FollowUpWhatsAppEnabled = u.FollowUpWhatsAppEnabled;
+                    existing.FollowUpWhatsAppMessage = u.FollowUpWhatsAppMessage;
+                    existing.FollowUpEmailEnabled = u.FollowUpEmailEnabled;
+                    existing.FollowUpEmailTemplateKey = u.FollowUpEmailTemplateKey;
+                    existing.FollowUpDelayMinutes = u.FollowUpDelayMinutes;
                     existing.UpdatedAt = DateTime.UtcNow;
                 }
                 else
@@ -321,7 +335,12 @@ namespace BookingPro.API.Controllers.Admin
                     _context.NotificationSettings.Add(new NotificationSettings
                     {
                         EventType = u.EventType,
-                        WhatsAppEnabled = u.WhatsAppEnabled
+                        WhatsAppEnabled = u.WhatsAppEnabled,
+                        FollowUpWhatsAppEnabled = u.FollowUpWhatsAppEnabled,
+                        FollowUpWhatsAppMessage = u.FollowUpWhatsAppMessage,
+                        FollowUpEmailEnabled = u.FollowUpEmailEnabled,
+                        FollowUpEmailTemplateKey = u.FollowUpEmailTemplateKey,
+                        FollowUpDelayMinutes = u.FollowUpDelayMinutes
                     });
                 }
             }
@@ -333,6 +352,11 @@ namespace BookingPro.API.Controllers.Admin
         {
             public string EventType { get; set; } = string.Empty;
             public bool WhatsAppEnabled { get; set; }
+            public bool FollowUpWhatsAppEnabled { get; set; }
+            public string? FollowUpWhatsAppMessage { get; set; }
+            public bool FollowUpEmailEnabled { get; set; }
+            public string? FollowUpEmailTemplateKey { get; set; }
+            public int FollowUpDelayMinutes { get; set; }
         }
     }
 }
