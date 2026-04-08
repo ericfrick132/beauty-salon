@@ -2,6 +2,8 @@
 FROM node:18-alpine AS marketing-build
 WORKDIR /marketing
 ENV NEXT_TELEMETRY_DISABLED=1
+ARG NEXT_PUBLIC_META_PIXEL_ID
+ENV NEXT_PUBLIC_META_PIXEL_ID=${NEXT_PUBLIC_META_PIXEL_ID}
 
 COPY src/marketing-next/package.json ./
 RUN npm install
