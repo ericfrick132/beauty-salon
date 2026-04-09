@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using BookingPro.API.Data;
 using BookingPro.API.Models.Entities;
+using BookingPro.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -16,17 +17,20 @@ namespace BookingPro.API.Controllers
         private readonly IConfiguration _config;
         private readonly ILogger<TrackingController> _logger;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IMetaCapiService _capi;
 
         public TrackingController(
             ApplicationDbContext context,
             IConfiguration config,
             ILogger<TrackingController> logger,
-            IHttpClientFactory httpClientFactory)
+            IHttpClientFactory httpClientFactory,
+            IMetaCapiService capi)
         {
             _context = context;
             _config = config;
             _logger = logger;
             _httpClientFactory = httpClientFactory;
+            _capi = capi;
         }
 
         public class TrackEventRequest
@@ -48,6 +52,20 @@ namespace BookingPro.API.Controllers
             public string? Language { get; set; }
             public string? PageTitle { get; set; }
         }
+
+        /// <summary>
+        /// Maps internal event types to standard Meta event names.
+        /// Returns null for events we DON'T want to mirror (internal-only).
+        /// OpenRegister is intentionally NOT mirrored — frontend already fires "Lead" on form submit.
+        /// </summary>
+        private static string? MapToMetaEventName(string eventType) => eventType switch
+        {
+            "PageView" => "PageView",
+            "Lead" => "Lead",
+            "InitiateCheckout" => "InitiateCheckout",
+            "CompleteRegistration" => "CompleteRegistration",
+            _ => null
+        };
 
         private static string ClassifyReferrer(string? referrer)
         {
@@ -106,6 +124,34 @@ namespace BookingPro.API.Controllers
 
             _context.TrackingEvents.Add(ev);
             await _context.SaveChangesAsync();
+
+            // Mirror conversion events to Meta Conversions API (server-side).
+            // Browser pixel is suppressed by iOS/adblockers, so we send the same event from the
+            // backend with hashed PII + fbclid. Fire-and-forget so the endpoint stays fast.
+            var metaEventName = MapToMetaEventName(request.EventType);
+            if (metaEventName != null)
+            {
+                var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+                var ua = Request.Headers.UserAgent.ToString();
+                var capiEvent = new MetaCapiEvent
+                {
+                    EventName = metaEventName,
+                    EventId = !string.IsNullOrEmpty(ev.SessionId) ? $"{ev.SessionId}-{ev.EventType}" : ev.Id.ToString(),
+                    EventTime = ev.CreatedAt,
+                    EventSourceUrl = ev.Url,
+                    Email = ev.Email,
+                    Phone = ev.Phone,
+                    Fbclid = ev.Fbclid,
+                    ClientIpAddress = clientIp,
+                    ClientUserAgent = ua,
+                };
+                var capiSvc = _capi;
+                _ = Task.Run(async () =>
+                {
+                    try { await capiSvc.SendEventAsync(capiEvent); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Background CAPI send failed for {Event}", request.EventType); }
+                });
+            }
 
             // SessionExit: send behavior summary to admin
             if (request.EventType == "SessionExit")

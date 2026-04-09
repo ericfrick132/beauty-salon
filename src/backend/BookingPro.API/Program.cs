@@ -138,6 +138,8 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IEmailAutomationSe
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ISuperAdminService, BookingPro.API.Services.SuperAdminService>();
 builder.Services.AddScoped<BookingPro.API.Services.IPreapprovalService, BookingPro.API.Services.PreapprovalService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IEmailService, BookingPro.API.Services.EmailService>();
+// Meta Conversions API (server-side pixel mirror) — singleton, no per-request state.
+builder.Services.AddSingleton<BookingPro.API.Services.IMetaCapiService, BookingPro.API.Services.MetaCapiService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();

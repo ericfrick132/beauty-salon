@@ -324,6 +324,148 @@ namespace BookingPro.API.Controllers
         }
 
         /// <summary>
+        /// One-step registration: creates Tenant + admin User + trial Subscription in a single
+        /// transaction, returns a JWT for auto-login. Confirmation email is sent ASYNC after the
+        /// fact and is purely informational — it does NOT gate dashboard access.
+        ///
+        /// This is the GymHero-style funnel: low friction, instant access. The legacy
+        /// /start → /verify → /complete endpoints are kept for backward compatibility with
+        /// users that already received an email link from the old flow.
+        /// </summary>
+        [HttpPost("quick")]
+        public async Task<IActionResult> Quick([FromBody] RegistrationQuickDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(new { success = false, message = "Datos inválidos", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
+
+            try
+            {
+                var emailLower = dto.Email.Trim().ToLowerInvariant();
+
+                // Email uniqueness — must not collide with any existing user.
+                var emailExists = await _context.Users
+                    .IgnoreQueryFilters()
+                    .AnyAsync(u => u.Email.ToLower() == emailLower);
+                if (emailExists)
+                    return BadRequest(new { success = false, message = "Ya existe una cuenta con este email." });
+
+                // Auto-generate subdomain from business name. Sanitize and ensure uniqueness
+                // by appending an incrementing suffix when taken (max 100 attempts to be safe).
+                var baseSubdomain = SanitizeSubdomain(dto.BusinessName);
+                if (string.IsNullOrEmpty(baseSubdomain) || baseSubdomain.Length < 3)
+                    return BadRequest(new { success = false, message = "El nombre del negocio no es válido para generar un subdominio." });
+
+                var subdomain = baseSubdomain;
+                if (_reservedSubdomains.Contains(subdomain))
+                    subdomain = baseSubdomain + "1";
+
+                var attempt = 1;
+                while (await _context.Tenants.AnyAsync(t => t.Subdomain.ToLower() == subdomain.ToLower()))
+                {
+                    attempt++;
+                    if (attempt > 100)
+                        return StatusCode(500, new { success = false, message = "No pudimos generar un subdominio único. Probá con otro nombre." });
+                    subdomain = baseSubdomain + attempt;
+                }
+
+                using var transaction = await _context.Database.BeginTransactionAsync();
+
+                var tenantId = Guid.NewGuid();
+                var tenant = new Tenant
+                {
+                    Id = tenantId,
+                    VerticalId = null, // Vertical chosen later in onboarding/template picker
+                    Subdomain = subdomain,
+                    BusinessName = dto.BusinessName.Trim(),
+                    OwnerEmail = emailLower,
+                    OwnerPhone = dto.Mobile,
+                    SchemaName = $"tenant_{subdomain.Replace("-", "_")}",
+                    TimeZone = "America/Argentina/Buenos_Aires",
+                    Currency = "ARS",
+                    Language = "es",
+                    Status = "trial",
+                    IsDemo = true,
+                    DemoDays = 7,
+                    DemoExpiresAt = DateTime.UtcNow.AddDays(7),
+                    TrialEndsAt = DateTime.UtcNow.AddDays(7),
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _context.Tenants.Add(tenant);
+                await _context.SaveChangesAsync();
+
+                var adminUser = new User
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenant.Id,
+                    Email = emailLower,
+                    FirstName = dto.BusinessName.Trim(),
+                    LastName = "",
+                    Phone = dto.Mobile,
+                    PasswordHash = Services.Security.PasswordHasher.Hash(dto.Password),
+                    Role = "admin",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    LastLogin = DateTime.UtcNow
+                };
+                _context.Users.Add(adminUser);
+                await _context.SaveChangesAsync();
+
+                var subscription = new Subscription
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenant.Id,
+                    PlanType = "demo",
+                    MonthlyAmount = 0,
+                    Status = "trial",
+                    IsTrialPeriod = true,
+                    TrialEndsAt = DateTime.UtcNow.AddDays(7),
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _context.Subscriptions.Add(subscription);
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+
+                var token = _authService.GenerateJwtToken(adminUser);
+                var host = HttpContext.Request.Host.Host;
+                var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");
+                var tenantUrl = isLocal
+                    ? $"http://{subdomain}.localhost:3001"
+                    : $"https://{subdomain}.turnos-pro.com";
+                var redirectUrl = $"{tenantUrl}/dashboard?impersonationToken={token}";
+
+                // Fire-and-forget welcome email. Reuses SendConfirmationEmailAsync but points
+                // to the auto-login dashboard URL instead of a gating confirmation page.
+                // If sending fails the registration still succeeds — email is informational only.
+                var emailSvc = _emailService;
+                var welcomeUrl = redirectUrl;
+                _ = Task.Run(async () =>
+                {
+                    try { await emailSvc.SendConfirmationEmailAsync(emailLower, welcomeUrl); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Failed to send welcome email to {Email}", emailLower); }
+                });
+
+                _logger.LogInformation("Quick registration completed for {Email}, tenant {TenantId}, subdomain {Subdomain}", emailLower, tenant.Id, subdomain);
+
+                return Ok(new
+                {
+                    success = true,
+                    tenantId = tenant.Id,
+                    tenantUrl,
+                    token,
+                    redirectUrl
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in quick registration for {Email}", dto.Email);
+                return StatusCode(500, new { success = false, message = "Error interno. Por favor intentá nuevamente." });
+            }
+        }
+
+        /// <summary>
         /// Check subdomain availability.
         /// </summary>
         [HttpGet("check-subdomain/{subdomain}")]
@@ -375,6 +517,24 @@ namespace BookingPro.API.Controllers
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Confirmá la contraseña")]
         [System.ComponentModel.DataAnnotations.Compare("Password", ErrorMessage = "Las contraseñas no coinciden")]
         public string ConfirmPassword { get; set; } = string.Empty;
+    }
+
+    public class RegistrationQuickDto
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El email es requerido")]
+        [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "Email inválido")]
+        public string Email { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "La contraseña es requerida")]
+        [System.ComponentModel.DataAnnotations.MinLength(8, ErrorMessage = "La contraseña debe tener al menos 8 caracteres")]
+        public string Password { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El nombre del negocio es requerido")]
+        [System.ComponentModel.DataAnnotations.MinLength(2, ErrorMessage = "El nombre del negocio es muy corto")]
+        public string BusinessName { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El celular es requerido")]
+        public string Mobile { get; set; } = string.Empty;
     }
 
     public class RegistrationCompleteDto

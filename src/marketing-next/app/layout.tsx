@@ -37,7 +37,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 s.parentNode.insertBefore(t,s)}(window, document,'script',
                 'https://connect.facebook.net/en_US/fbevents.js');
                 fbq('init', '${pixelId}');
-                fbq('track', 'PageView');
 
                 // Track PageView in our DB
                 try {
@@ -49,6 +48,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   var fbclid = p.get('fbclid'); if (fbclid) sessionStorage.setItem('fbclid', fbclid);
                   var sid = sessionStorage.getItem('_track_sid');
                   if (!sid) { sid = Math.random().toString(36).slice(2) + Date.now().toString(36); sessionStorage.setItem('_track_sid', sid); }
+
+                  // Browser pixel PageView with eventID matching MetaCapiService backend format
+                  // ({sessionId}-{eventType}). Meta dedupes the pixel hit with the CAPI hit
+                  // within 48h instead of double-counting.
+                  fbq('track', 'PageView', {}, { eventID: sid + '-PageView' });
                   fetch('/api/tracking/event', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
