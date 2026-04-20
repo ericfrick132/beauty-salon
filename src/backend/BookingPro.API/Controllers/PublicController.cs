@@ -261,25 +261,12 @@ namespace BookingPro.API.Controllers
                     }
                 }
 
-                // Check if the slot is still available (bookings or blocks)
-                var existingBooking = await _context.Bookings
-                    .AnyAsync(b => b.EmployeeId == dto.EmployeeId &&
-                                  b.StartTime < dto.EndTime &&
-                                  b.EndTime > dto.StartTime &&
-                                  b.Status != "cancelled");
-
-                var tenantTz = _tenantService.GetCurrentTenant()?.TimeZone ?? "-3";
-                int blockTzOffset = int.TryParse(tenantTz, out var btz) ? btz : -3;
-                var employeeBlocks = await _context.EmployeeTimeBlocks
-                    .Where(bl => bl.EmployeeId == dto.EmployeeId)
-                    .ToListAsync();
-                var hasBlock = employeeBlocks
-                    .SelectMany(bl => bl.ExpandOccurrences(dto.StartTime, dto.EndTime, blockTzOffset))
-                    .Any(occ => occ.Start < dto.EndTime && occ.End > dto.StartTime);
-
-                if (existingBooking || hasBlock)
+                // Validate business hours, employee schedule, blocks and conflicts
+                var validation = await _bookingService.ValidateBookingAsync(
+                    dto.EmployeeId, dto.StartTime, dto.EndTime, dto.ServiceId);
+                if (!validation.Success)
                 {
-                    return BadRequest(new { message = "Este horario ya no está disponible" });
+                    return BadRequest(new { message = validation.Message ?? "Este horario no está disponible" });
                 }
 
                 // Check if customer exists or create new one

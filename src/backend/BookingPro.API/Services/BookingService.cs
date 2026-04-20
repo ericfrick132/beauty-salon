@@ -388,8 +388,37 @@ namespace BookingPro.API.Services
                     .ToList();
 
                 var availableSlots = new List<string>();
-                var employeeHours = GetEmployeeBusinessHoursForDate(professionalId, localDate);
-                var businessHours = employeeHours ?? (businessConfig.Opening, businessConfig.Closing);
+
+                // Business is closed that day
+                if (businessConfig.ClosedDays.Contains((int)localDate.DayOfWeek))
+                {
+                    return ServiceResult<IEnumerable<string>>.Ok(availableSlots);
+                }
+
+                var ctxSched = _bookingRepository.GetContext();
+                var dowLocal = (int)localDate.DayOfWeek;
+                var employeeSchedules = await ctxSched.Set<Schedule>()
+                    .AsNoTracking()
+                    .Where(s => s.EmployeeId == professionalId && s.IsActive)
+                    .Select(s => new { s.DayOfWeek, s.StartTime, s.EndTime })
+                    .ToListAsync();
+
+                var todaySchedules = employeeSchedules.Where(s => s.DayOfWeek == dowLocal).ToList();
+                (TimeSpan start, TimeSpan end) businessHours;
+                if (todaySchedules.Any())
+                {
+                    businessHours = (todaySchedules.Min(s => s.StartTime), todaySchedules.Max(s => s.EndTime));
+                }
+                else if (employeeSchedules.Any())
+                {
+                    // Employee has a schedule regime but not for this weekday → closed
+                    return ServiceResult<IEnumerable<string>>.Ok(availableSlots);
+                }
+                else
+                {
+                    businessHours = (businessConfig.Opening, businessConfig.Closing);
+                }
+
                 var startWindow = businessHours.start < businessConfig.Opening ? businessConfig.Opening : businessHours.start;
                 var endWindow = businessHours.end > businessConfig.Closing ? businessConfig.Closing : businessHours.end;
                 if (startWindow >= endWindow)
@@ -434,6 +463,16 @@ namespace BookingPro.API.Services
             {
                 return ServiceResult<IEnumerable<string>>.Fail($"Error getting available slots: {ex.Message}");
             }
+        }
+
+        public async Task<ServiceResult> ValidateBookingAsync(Guid employeeId, DateTime startTime, DateTime endTime, Guid serviceId)
+        {
+            var service = await _serviceRepository.GetByIdAsync(serviceId);
+            if (service == null)
+            {
+                return ServiceResult.Fail("Servicio no encontrado");
+            }
+            return await ValidateBookingBusinessRules(employeeId, startTime, endTime, service, null);
         }
 
         // Convert UTC times to tenant local time for business-hours / schedule validation

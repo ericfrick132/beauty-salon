@@ -170,6 +170,11 @@ const CalendarView: React.FC = () => {
   const [employees, setEmployees] = useState<any[]>([]);
   const [blocks, setBlocks] = useState<Array<{ id: string; start: string; end: string; employeeId: string }>>([]);
   const [viewRange, setViewRange] = useState<{ start: string; end: string } | null>(null);
+  const [businessHoursCfg, setBusinessHoursCfg] = useState<{ opening: string; closing: string; closedDays: number[] }>({
+    opening: '09:00',
+    closing: '22:00',
+    closedDays: [],
+  });
   const [paymentForm, setPaymentForm] = useState({
     bookingId: '',
     employeeId: '',
@@ -212,6 +217,7 @@ const CalendarView: React.FC = () => {
   useEffect(() => {
     dispatch(fetchBookings());
     fetchEmployees();
+    fetchBusinessHours();
   }, [dispatch]);
 
   const fetchEmployees = async () => {
@@ -220,6 +226,21 @@ const CalendarView: React.FC = () => {
       setEmployees(response.data);
     } catch (error) {
       console.error('Error fetching employees:', error);
+    }
+  };
+
+  const fetchBusinessHours = async () => {
+    try {
+      const res = await api.get('/settings/business-hours');
+      if (res?.data) {
+        setBusinessHoursCfg({
+          opening: res.data.openingTime || '09:00',
+          closing: res.data.closingTime || '22:00',
+          closedDays: Array.isArray(res.data.closedDays) ? res.data.closedDays : [],
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching business hours:', error);
     }
   };
 
@@ -607,11 +628,12 @@ const CalendarView: React.FC = () => {
           headerToolbar={false}
           nowIndicator={true}
           businessHours={{
-            startTime: '09:00',
-            endTime: '18:00',
+            daysOfWeek: [0,1,2,3,4,5,6].filter(d => !businessHoursCfg.closedDays.includes(d)),
+            startTime: businessHoursCfg.opening,
+            endTime: businessHoursCfg.closing,
           }}
-          slotMinTime="08:00"
-          slotMaxTime="19:00"
+          slotMinTime={businessHoursCfg.opening}
+          slotMaxTime={businessHoursCfg.closing}
           scrollTime={initialScrollTime}
           editable={true}
           selectable={true}

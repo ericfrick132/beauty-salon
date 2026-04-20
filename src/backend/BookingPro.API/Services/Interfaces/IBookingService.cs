@@ -14,5 +14,6 @@ namespace BookingPro.API.Services.Interfaces
         Task<ServiceResult> DeleteBookingAsync(Guid id);
         Task<ServiceResult<IEnumerable<string>>> GetAvailableTimeSlotsAsync(Guid professionalId, DateTime date, Guid serviceId);
         Task<ServiceResult<bool>> HasSuccessfulPaymentAsync(Guid bookingId);
+        Task<ServiceResult> ValidateBookingAsync(Guid employeeId, DateTime startTime, DateTime endTime, Guid serviceId);
     }
 }

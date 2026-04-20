@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using BookingPro.API.Services;
 using BookingPro.API.Data;
+using System.Text.Json;
 
 namespace BookingPro.API.Controllers
 {
@@ -56,30 +57,131 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpGet("info")]
-        public IActionResult GetTenantInfo()
+        public async Task<IActionResult> GetTenantInfo()
         {
             try
             {
-                var tenant = _tenantService.GetCurrentTenant();
-                
+                var tenantInfo = _tenantService.GetCurrentTenant();
+
+                if (tenantInfo == null)
+                {
+                    return NotFound(new { message = "Tenant not found" });
+                }
+
+                var tenant = await _context.Tenants
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(t => t.Id == tenantInfo.Id);
+
                 if (tenant == null)
                 {
                     return NotFound(new { message = "Tenant not found" });
                 }
+
+                var settings = ParseSettingsSafe(tenant.Settings);
 
                 return Ok(new
                 {
                     id = tenant.Id,
                     subdomain = tenant.Subdomain,
                     businessName = tenant.BusinessName,
-                    vertical = tenant.VerticalCode,
-                    domain = tenant.Domain
+                    vertical = tenantInfo.VerticalCode,
+                    domain = tenantInfo.Domain,
+                    address = tenant.BusinessAddress,
+                    phone = tenant.OwnerPhone,
+                    email = tenant.OwnerEmail,
+                    timezone = tenant.TimeZone ?? "-3",
+                    currency = tenant.Currency ?? "ARS",
+                    language = tenant.Language ?? "es",
+                    description = GetStringSetting(settings, "description"),
+                    website = GetStringSetting(settings, "website"),
+                    taxId = GetStringSetting(settings, "taxId")
                 });
             }
             catch (Exception ex)
             {
                 return BadRequest(new { message = ex.Message });
             }
+        }
+
+        [Authorize]
+        [HttpPut("settings")]
+        public async Task<IActionResult> UpdateTenantSettings([FromBody] UpdateTenantSettingsRequest request)
+        {
+            try
+            {
+                var tenantInfo = _tenantService.GetCurrentTenant();
+                if (tenantInfo == null)
+                    return NotFound(new { message = "Tenant not found" });
+
+                var tenant = await _context.Tenants.FirstOrDefaultAsync(t => t.Id == tenantInfo.Id);
+                if (tenant == null)
+                    return NotFound(new { message = "Tenant not found" });
+
+                if (!string.IsNullOrWhiteSpace(request.BusinessName))
+                    tenant.BusinessName = request.BusinessName.Trim();
+
+                if (request.Address != null)
+                    tenant.BusinessAddress = string.IsNullOrWhiteSpace(request.Address) ? null : request.Address.Trim();
+
+                if (request.Phone != null)
+                    tenant.OwnerPhone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
+
+                if (!string.IsNullOrWhiteSpace(request.Email))
+                    tenant.OwnerEmail = request.Email.Trim();
+
+                if (!string.IsNullOrWhiteSpace(request.Timezone))
+                    tenant.TimeZone = request.Timezone.Trim();
+
+                if (!string.IsNullOrWhiteSpace(request.Currency))
+                    tenant.Currency = request.Currency.Trim();
+
+                if (!string.IsNullOrWhiteSpace(request.Language))
+                    tenant.Language = request.Language.Trim();
+
+                var settings = ParseSettingsSafe(tenant.Settings);
+                if (request.Description != null) settings["description"] = request.Description.Trim();
+                if (request.Website != null) settings["website"] = request.Website.Trim();
+                if (request.TaxId != null) settings["taxId"] = request.TaxId.Trim();
+                tenant.Settings = JsonSerializer.Serialize(settings);
+
+                tenant.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                var host = HttpContext.Request.Host.Value;
+                _cache.Remove($"tenant_header_{tenant.Subdomain}");
+                _cache.Remove($"tenant_qs_{tenant.Subdomain}");
+                _cache.Remove($"tenant_{host}");
+
+                return Ok(new { message = "Configuración guardada correctamente" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        private static Dictionary<string, object> ParseSettingsSafe(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return new Dictionary<string, object>();
+            try
+            {
+                return JsonSerializer.Deserialize<Dictionary<string, object>>(json)
+                       ?? new Dictionary<string, object>();
+            }
+            catch
+            {
+                return new Dictionary<string, object>();
+            }
+        }
+
+        private static string? GetStringSetting(Dictionary<string, object> settings, string key)
+        {
+            if (!settings.TryGetValue(key, out var value) || value == null) return null;
+            if (value is JsonElement je)
+            {
+                return je.ValueKind == JsonValueKind.String ? je.GetString() : je.ToString();
+            }
+            return value.ToString();
         }
 
         [HttpPut("timezone")]
@@ -172,5 +274,19 @@ namespace BookingPro.API.Controllers
     public class UpdateTimezoneRequest
     {
         public string Timezone { get; set; } = string.Empty;
+    }
+
+    public class UpdateTenantSettingsRequest
+    {
+        public string? BusinessName { get; set; }
+        public string? Description { get; set; }
+        public string? Address { get; set; }
+        public string? Phone { get; set; }
+        public string? Email { get; set; }
+        public string? Website { get; set; }
+        public string? Timezone { get; set; }
+        public string? Currency { get; set; }
+        public string? Language { get; set; }
+        public string? TaxId { get; set; }
     }
 }
