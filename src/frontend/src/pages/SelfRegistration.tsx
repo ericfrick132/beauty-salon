@@ -1,17 +1,15 @@
 /**
- * /register — full-page split-screen signup (Harbiz pattern).
+ * /register — "Editorial Gazette" signup page (multi-phase).
  *
- * Replaces the old centered multi-step modal with a full-page AuthShell.
- * The backend signup API is **unchanged**:
+ * Backend API is unchanged:
  *   1. POST /registration/start        → sends confirmation email
  *   2. GET  /register/confirm?token=x  → verify token, reveal URL form
  *   3. POST /registration/check-subdomain
  *   4. POST /registration/complete OR /registration/google-register
  *
- * The UX is compressed visually (each phase is shown inside the right
- * panel of the AuthShell; the left panel never changes), so the user
- * always sees the same editorial testimonials + headline regardless of
- * which phase they're in.
+ * All 5 UI phases (signup, email-sent, url, business, success) are
+ * rendered inside the AuthShell's right panel; the left editorial cover
+ * never changes, so the reader always sees testimonials + masthead.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -19,7 +17,6 @@ import { useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
-  Button,
   Checkbox,
   CircularProgress,
   FormControlLabel,
@@ -38,33 +35,88 @@ import { registrationApi } from '../services/api';
 import GoogleSignInButton from '../components/auth/GoogleSignInButton';
 import AuthShell, { authPalette, authFonts } from '../components/auth/AuthShell';
 
-type FlowStep =
-  | 'signup' // Google + email/password/business name + terms (entry)
-  | 'email-sent' // waiting for email confirmation
-  | 'url' // post-verify: pick subdomain
-  | 'business' // mobile + address + etc.
-  | 'success';
+type FlowStep = 'signup' | 'email-sent' | 'url' | 'business' | 'success';
 
+// ────────────────────── Editorial field style ──────────────────────
+// Underline-only inputs: 1px ink border-bottom, forest-green glow on focus.
+const underlineFieldSx = {
+  '& .MuiFilledInput-root': {
+    backgroundColor: 'transparent !important',
+    fontFamily: authFonts.body,
+    fontSize: 16,
+    paddingLeft: 0,
+    paddingRight: 0,
+    borderRadius: 0,
+    '&::before': {
+      borderBottom: `1px solid ${authPalette.ink}`,
+    },
+    '&:hover::before': {
+      borderBottom: `1px solid ${authPalette.ink} !important`,
+    },
+    '&::after': {
+      borderBottom: `2px solid ${authPalette.primary}`,
+    },
+    '&.Mui-focused': {
+      boxShadow: `0 6px 20px -14px ${authPalette.primary}`,
+    },
+    '&.Mui-error::after': {
+      borderBottom: `2px solid ${authPalette.secondary}`,
+    },
+  },
+  '& .MuiFilledInput-input': {
+    paddingLeft: 0,
+    paddingRight: 0,
+    paddingTop: '22px',
+    paddingBottom: '8px',
+    color: authPalette.ink,
+    caretColor: authPalette.primary,
+  },
+  '& .MuiInputLabel-root': {
+    fontFamily: authFonts.mono,
+    fontSize: 11,
+    letterSpacing: '0.18em',
+    textTransform: 'uppercase',
+    color: authPalette.inkFaint,
+    transform: 'translate(0, 20px) scale(1)',
+    '&.Mui-focused': { color: authPalette.primary },
+    '&.Mui-error': { color: authPalette.secondary },
+    '&.MuiInputLabel-shrink': {
+      transform: 'translate(0, -2px) scale(0.9)',
+      letterSpacing: '0.22em',
+    },
+  },
+  '& .MuiFormHelperText-root': {
+    fontFamily: authFonts.mono,
+    fontSize: 10.5,
+    letterSpacing: '0.08em',
+    color: authPalette.inkSoft,
+    marginLeft: 0,
+    textTransform: 'uppercase',
+    '&.Mui-error': { color: authPalette.secondary },
+  },
+};
+
+// ────────────────────── Editorial divider ──────────────────────
 const Divider: React.FC<{ label: string }> = ({ label }) => (
   <Box
     sx={{
       display: 'flex',
       alignItems: 'center',
       gap: 1.5,
-      my: 2.5,
+      my: 3,
       '&::before, &::after': {
         content: '""',
         flex: 1,
         height: 1,
-        backgroundColor: 'rgba(23, 20, 16, 0.14)',
+        backgroundColor: authPalette.rule,
       },
     }}
   >
     <Typography
       sx={{
         fontFamily: authFonts.mono,
-        fontSize: 11,
-        letterSpacing: '0.12em',
+        fontSize: 10.5,
+        letterSpacing: '0.22em',
         textTransform: 'uppercase',
         color: authPalette.inkFaint,
       }}
@@ -74,46 +126,185 @@ const Divider: React.FC<{ label: string }> = ({ label }) => (
   </Box>
 );
 
-const primaryButtonSx = {
-  height: 48,
-  fontFamily: authFonts.body,
-  fontWeight: 600,
-  fontSize: 15,
-  textTransform: 'none' as const,
-  borderRadius: 1.5,
-  backgroundColor: authPalette.primary,
-  color: authPalette.paper,
-  '&:hover': { backgroundColor: '#174a32' },
-  '&.Mui-disabled': {
-    backgroundColor: 'rgba(23, 20, 16, 0.08)',
-    color: 'rgba(23, 20, 16, 0.35)',
-  },
+// ────────────────────── Pill CTA with coral slide accent ──────────────────────
+const PillCTA: React.FC<{
+  children: React.ReactNode;
+  onClick?: () => void;
+  type?: 'button' | 'submit';
+  disabled?: boolean;
+  loading?: boolean;
+  variant?: 'primary' | 'outline';
+  fullWidth?: boolean;
+  flex?: number;
+}> = ({
+  children,
+  onClick,
+  type = 'button',
+  disabled,
+  loading,
+  variant = 'primary',
+  fullWidth = true,
+  flex,
+}) => {
+  const isOutline = variant === 'outline';
+  return (
+    <Box
+      component="button"
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      sx={{
+        position: 'relative',
+        overflow: 'hidden',
+        width: fullWidth ? '100%' : 'auto',
+        flex,
+        height: 52,
+        padding: isOutline ? '0 28px' : 0,
+        border: isOutline ? `1px solid ${authPalette.ink}` : 'none',
+        outline: 'none',
+        borderRadius: 999,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        backgroundColor: disabled
+          ? 'rgba(23, 20, 16, 0.08)'
+          : isOutline
+          ? 'transparent'
+          : authPalette.primary,
+        color: disabled
+          ? 'rgba(23, 20, 16, 0.4)'
+          : isOutline
+          ? authPalette.ink
+          : '#F4EFE6',
+        fontFamily: authFonts.body,
+        fontWeight: 600,
+        fontSize: 14.5,
+        letterSpacing: '0.04em',
+        textTransform: 'uppercase',
+        transition:
+          'transform 240ms cubic-bezier(0.22, 0.61, 0.36, 1), background-color 200ms ease, border-color 200ms ease, color 200ms ease',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 1,
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 0,
+          backgroundColor: authPalette.secondary,
+          transition: 'width 220ms cubic-bezier(0.22, 0.61, 0.36, 1)',
+          zIndex: 0,
+        },
+        '&:not(:disabled):hover::before': {
+          width: isOutline ? 8 : 14,
+        },
+        '&:not(:disabled):hover': {
+          backgroundColor: isOutline
+            ? 'rgba(30, 94, 63, 0.04)'
+            : authPalette.primaryDeep,
+          borderColor: isOutline ? authPalette.primary : undefined,
+        },
+        '& > span': {
+          position: 'relative',
+          zIndex: 1,
+        },
+      }}
+    >
+      <span>
+        {loading ? (
+          <CircularProgress
+            size={18}
+            sx={{ color: isOutline ? authPalette.primary : '#F4EFE6' }}
+          />
+        ) : (
+          children
+        )}
+      </span>
+    </Box>
+  );
 };
 
-const outlinedButtonSx = {
-  height: 48,
-  fontFamily: authFonts.body,
-  fontWeight: 500,
-  fontSize: 15,
-  textTransform: 'none' as const,
-  borderRadius: 1.5,
-  color: authPalette.ink,
-  borderColor: 'rgba(23, 20, 16, 0.2)',
-  backgroundColor: 'transparent',
-  '&:hover': {
-    borderColor: authPalette.primary,
-    backgroundColor: 'rgba(30, 94, 63, 0.05)',
-  },
-};
+// ────────────────────── Header block (kicker + display + italic caption) ──────────────────────
+const EditorialHeader: React.FC<{
+  kicker: string;
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  delay?: number;
+}> = ({ kicker, title, subtitle, delay = 0 }) => (
+  <Box sx={{ mb: 4 }}>
+    <Typography
+      component={motion.p}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.35 + delay }}
+      sx={{
+        fontFamily: authFonts.mono,
+        fontSize: 10.5,
+        fontWeight: 500,
+        letterSpacing: '0.24em',
+        textTransform: 'uppercase',
+        color: authPalette.secondary,
+        mb: 1.5,
+        '&::before': {
+          content: '""',
+          display: 'inline-block',
+          width: 20,
+          height: 1,
+          backgroundColor: authPalette.secondary,
+          verticalAlign: 'middle',
+          mr: 1.25,
+        },
+      }}
+    >
+      {kicker}
+    </Typography>
+    <Typography
+      component={motion.h1}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.42 + delay }}
+      sx={{
+        fontFamily: authFonts.display,
+        fontWeight: 400,
+        fontStyle: 'italic',
+        fontSize: { xs: 40, sm: 52 },
+        lineHeight: 0.98,
+        letterSpacing: '-0.025em',
+        color: authPalette.ink,
+        mb: subtitle ? 1.5 : 0,
+        fontVariationSettings: '"opsz" 144, "SOFT" 30',
+        '& .upright': {
+          fontStyle: 'normal',
+          fontWeight: 500,
+        },
+      }}
+    >
+      {title}
+    </Typography>
+    {subtitle && (
+      <Typography
+        component={motion.p}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.5 + delay }}
+        sx={{
+          fontFamily: authFonts.display,
+          fontStyle: 'italic',
+          fontWeight: 400,
+          fontSize: 16,
+          lineHeight: 1.5,
+          color: authPalette.inkSoft,
+          maxWidth: 420,
+        }}
+      >
+        {subtitle}
+      </Typography>
+    )}
+  </Box>
+);
 
-const textFieldSx = {
-  '& .MuiOutlinedInput-root': {
-    fontFamily: authFonts.body,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 1.5,
-  },
-};
-
+// ────────────────────── Page ──────────────────────
 const SelfRegistration: React.FC = () => {
   const [searchParams] = useSearchParams();
   const tokenFromUrl = searchParams.get('token');
@@ -140,7 +331,9 @@ const SelfRegistration: React.FC = () => {
 
   // ----- URL step -----
   const [subdomain, setSubdomain] = useState('');
-  const [subdomainAvailable, setSubdomainAvailable] = useState<boolean | null>(null);
+  const [subdomainAvailable, setSubdomainAvailable] = useState<boolean | null>(
+    null
+  );
   const [checkingSubdomain, setCheckingSubdomain] = useState(false);
 
   // ----- Business step -----
@@ -205,7 +398,10 @@ const SelfRegistration: React.FC = () => {
   }, [subdomain, checkSubdomain]);
 
   const handleSubdomainChange = (value: string) => {
-    const sanitized = value.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30);
+    const sanitized = value
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '')
+      .slice(0, 30);
     setSubdomain(sanitized);
   };
 
@@ -330,7 +526,9 @@ const SelfRegistration: React.FC = () => {
           'Ya existe una cuenta con este email. Iniciá sesión con Google desde la página de login.'
         );
       } else {
-        setError(err.response?.data?.message || 'Error al completar el registro');
+        setError(
+          err.response?.data?.message || 'Error al completar el registro'
+        );
       }
     } finally {
       setLoading(false);
@@ -341,83 +539,59 @@ const SelfRegistration: React.FC = () => {
 
   const item = (delay: number) =>
     prefersReducedMotion
-      ? { initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { duration: 0.2, delay } }
+      ? {
+          initial: { opacity: 0 },
+          animate: { opacity: 1 },
+          transition: { duration: 0.2, delay },
+        }
       : {
-          initial: { opacity: 0, y: 8 },
+          initial: { opacity: 0, y: 10 },
           animate: { opacity: 1, y: 0 },
-          transition: { duration: 0.4, delay, ease: [0.22, 0.61, 0.36, 1] as [number, number, number, number] },
+          transition: {
+            duration: 0.5,
+            delay: 0.55 + delay,
+            ease: [0.22, 0.61, 0.36, 1] as [number, number, number, number],
+          },
         };
 
-  // ---------------- Step renderers ----------------
+  // ────────────────────── Step renderers ──────────────────────
 
-  const Header: React.FC<{
-    kicker: string;
-    title: string;
-    subtitle?: string;
-  }> = ({ kicker, title, subtitle }) => (
-    <Box component={motion.div} {...item(0.2)} sx={{ mb: 4 }}>
-      <Typography
+  const renderError = () =>
+    error && (
+      <Alert
+        severity="error"
+        onClose={() => setError('')}
         sx={{
-          fontFamily: authFonts.mono,
-          fontSize: 11,
-          fontWeight: 500,
-          letterSpacing: '0.14em',
-          textTransform: 'uppercase',
-          color: authPalette.primary,
-          mb: 1.25,
-        }}
-      >
-        {kicker}
-      </Typography>
-      <Typography
-        component="h1"
-        sx={{
-          fontFamily: authFonts.display,
-          fontWeight: 500,
-          fontSize: { xs: 30, sm: 36 },
-          lineHeight: 1.08,
-          letterSpacing: '-0.02em',
+          mb: 3,
+          borderRadius: 0,
+          fontFamily: authFonts.body,
+          border: `1px solid ${authPalette.secondary}`,
+          backgroundColor: 'rgba(232, 89, 60, 0.08)',
           color: authPalette.ink,
-          mb: subtitle ? 1 : 0,
-          fontVariationSettings: '"opsz" 144, "SOFT" 30',
+          '& .MuiAlert-icon': { color: authPalette.secondary },
         }}
       >
-        {title}
-      </Typography>
-      {subtitle && (
-        <Typography
-          sx={{
-            fontFamily: authFonts.body,
-            fontSize: 15,
-            lineHeight: 1.5,
-            color: authPalette.inkSoft,
-          }}
-        >
-          {subtitle}
-        </Typography>
-      )}
-    </Box>
-  );
+        {error}
+      </Alert>
+    );
 
   const renderSignup = () => (
     <>
-      <Header
-        kicker="7 días gratis"
-        title="Creá tu cuenta"
-        subtitle="Llevá la relación con tus clientes al siguiente nivel."
+      <EditorialHeader
+        kicker="Crónica · 7 días gratis"
+        title={
+          <>
+            <span className="upright">Creá</span> tu cuenta,
+            <br />
+            dejá el papel.
+          </>
+        }
+        subtitle="Llevá la relación con tus clientes al siguiente nivel — sin instalar nada."
       />
 
-      {error && (
-        <Alert
-          severity="error"
-          onClose={() => setError('')}
-          sx={{ mb: 2, borderRadius: 1.5 }}
-        >
-          {error}
-        </Alert>
-      )}
+      {renderError()}
 
-      <Box component={motion.div} {...item(0.26)}>
+      <Box component={motion.div} {...item(0)}>
         <GoogleSignInButton
           text="signup_with"
           onSuccess={handleGoogleSignup}
@@ -425,42 +599,44 @@ const SelfRegistration: React.FC = () => {
         />
       </Box>
 
-      <Box component={motion.div} {...item(0.32)}>
-        <Divider label="o con email" />
+      <Box component={motion.div} {...item(0.06)}>
+        <Divider label="— o con email —" />
       </Box>
 
       <Box component="form" onSubmit={handleSignupSubmit}>
-        <Box component={motion.div} {...item(0.38)} sx={{ mb: 1.75 }}>
+        <Box component={motion.div} {...item(0.12)} sx={{ mb: 2.5 }}>
           <TextField
             fullWidth
+            variant="filled"
             label="Nombre del negocio"
             placeholder="Estudio Luli"
             value={businessName}
             onChange={(e) => setBusinessName(e.target.value)}
             required
             autoFocus
-            InputLabelProps={{ sx: { fontFamily: authFonts.body } }}
-            sx={textFieldSx}
+            sx={underlineFieldSx}
           />
         </Box>
 
-        <Box component={motion.div} {...item(0.44)} sx={{ mb: 1.75 }}>
+        <Box component={motion.div} {...item(0.18)} sx={{ mb: 2.5 }}>
           <TextField
             fullWidth
+            variant="filled"
             type="email"
             label="Email"
+            placeholder="vos@ejemplo.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
             autoComplete="email"
-            InputLabelProps={{ sx: { fontFamily: authFonts.body } }}
-            sx={textFieldSx}
+            sx={underlineFieldSx}
           />
         </Box>
 
-        <Box component={motion.div} {...item(0.5)} sx={{ mb: 1.5 }}>
+        <Box component={motion.div} {...item(0.24)} sx={{ mb: 2 }}>
           <TextField
             fullWidth
+            variant="filled"
             type={showPassword ? 'text' : 'password'}
             label="Contraseña"
             value={password}
@@ -468,7 +644,6 @@ const SelfRegistration: React.FC = () => {
             required
             autoComplete="new-password"
             helperText="Mínimo 8 caracteres"
-            InputLabelProps={{ sx: { fontFamily: authFonts.body } }}
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
@@ -476,17 +651,25 @@ const SelfRegistration: React.FC = () => {
                     onClick={() => setShowPassword((v) => !v)}
                     edge="end"
                     size="small"
+                    sx={{
+                      color: authPalette.inkFaint,
+                      '&:hover': { color: authPalette.secondary },
+                    }}
                   >
-                    {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                    {showPassword ? (
+                      <VisibilityOffIcon fontSize="small" />
+                    ) : (
+                      <VisibilityIcon fontSize="small" />
+                    )}
                   </IconButton>
                 </InputAdornment>
               ),
             }}
-            sx={textFieldSx}
+            sx={underlineFieldSx}
           />
         </Box>
 
-        <Box component={motion.div} {...item(0.56)} sx={{ mb: 2.5 }}>
+        <Box component={motion.div} {...item(0.3)} sx={{ mb: 3.5, mt: 1 }}>
           <FormControlLabel
             control={
               <Checkbox
@@ -495,6 +678,9 @@ const SelfRegistration: React.FC = () => {
                 size="small"
                 sx={{
                   color: 'rgba(23, 20, 16, 0.35)',
+                  padding: '4px',
+                  borderRadius: 0,
+                  '& .MuiSvgIcon-root': { borderRadius: 0 },
                   '&.Mui-checked': { color: authPalette.primary },
                 }}
               />
@@ -505,6 +691,7 @@ const SelfRegistration: React.FC = () => {
                   fontFamily: authFonts.body,
                   fontSize: 13.5,
                   color: authPalette.inkSoft,
+                  ml: 0.5,
                 }}
               >
                 Acepto los{' '}
@@ -513,7 +700,13 @@ const SelfRegistration: React.FC = () => {
                   href="/terms"
                   target="_blank"
                   rel="noreferrer"
-                  sx={{ color: authPalette.primary, textDecoration: 'none' }}
+                  sx={{
+                    color: authPalette.secondary,
+                    textDecoration: 'none',
+                    borderBottom: `1px solid ${authPalette.secondary}`,
+                    paddingBottom: '1px',
+                    '&:hover': { color: authPalette.primary, borderColor: authPalette.primary },
+                  }}
                 >
                   términos y condiciones
                 </Box>
@@ -522,24 +715,15 @@ const SelfRegistration: React.FC = () => {
           />
         </Box>
 
-        <Box component={motion.div} {...item(0.62)}>
-          <Button
-            type="submit"
-            fullWidth
-            disabled={loading}
-            sx={primaryButtonSx}
-          >
-            {loading ? (
-              <CircularProgress size={20} sx={{ color: authPalette.paper }} />
-            ) : (
-              'Crear cuenta'
-            )}
-          </Button>
+        <Box component={motion.div} {...item(0.36)}>
+          <PillCTA type="submit" disabled={loading} loading={loading}>
+            Crear cuenta
+          </PillCTA>
         </Box>
 
         <Box
           component={motion.div}
-          {...item(0.68)}
+          {...item(0.42)}
           sx={{ textAlign: 'center', mt: 3 }}
         >
           <Typography
@@ -554,10 +738,19 @@ const SelfRegistration: React.FC = () => {
               component="a"
               href="/login"
               sx={{
-                color: authPalette.primary,
-                fontWeight: 600,
+                color: authPalette.secondary,
+                fontFamily: authFonts.display,
+                fontStyle: 'italic',
+                fontWeight: 500,
+                fontSize: 15,
                 textDecoration: 'none',
-                '&:hover': { textDecoration: 'underline' },
+                borderBottom: `1px solid ${authPalette.secondary}`,
+                paddingBottom: '1px',
+                transition: 'color 150ms ease, border-color 150ms ease',
+                '&:hover': {
+                  color: authPalette.primary,
+                  borderBottomColor: authPalette.primary,
+                },
               }}
             >
               Iniciá sesión →
@@ -569,55 +762,108 @@ const SelfRegistration: React.FC = () => {
   );
 
   const renderEmailSent = () => (
-    <>
+    <Box component={motion.div} {...item(0)} sx={{ textAlign: 'center' }}>
       <Box
-        component={motion.div}
-        {...item(0.2)}
-        sx={{ textAlign: 'center', mb: 3 }}
+        sx={{
+          width: 72,
+          height: 72,
+          border: `1.5px solid ${authPalette.ink}`,
+          borderRadius: '50%',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          mb: 3,
+          position: 'relative',
+          '&::after': {
+            content: '""',
+            position: 'absolute',
+            inset: -10,
+            border: `1px dashed ${authPalette.secondary}`,
+            borderRadius: '50%',
+          },
+        }}
       >
-        <EmailIcon
-          sx={{ fontSize: 56, color: authPalette.primary, mb: 2 }}
-        />
-        <Typography
-          component="h1"
-          sx={{
-            fontFamily: authFonts.display,
-            fontWeight: 500,
-            fontSize: { xs: 28, sm: 34 },
-            letterSpacing: '-0.02em',
-            color: authPalette.ink,
-            mb: 1,
-            fontVariationSettings: '"opsz" 144, "SOFT" 30',
-          }}
-        >
-          Revisá tu email
-        </Typography>
-        <Typography
-          sx={{
-            fontFamily: authFonts.body,
-            fontSize: 15,
-            color: authPalette.inkSoft,
-            lineHeight: 1.5,
-          }}
-        >
-          Te enviamos un link de confirmación a{' '}
-          <Box
-            component="strong"
-            sx={{ color: authPalette.ink, fontWeight: 600 }}
-          >
-            {email}
-          </Box>
-          . Hacé click para continuar. Si no lo ves, revisá la carpeta de spam.
-        </Typography>
+        <EmailIcon sx={{ fontSize: 32, color: authPalette.primary }} />
       </Box>
+      <Typography
+        sx={{
+          fontFamily: authFonts.mono,
+          fontSize: 10.5,
+          letterSpacing: '0.24em',
+          color: authPalette.secondary,
+          textTransform: 'uppercase',
+          mb: 1.5,
+        }}
+      >
+        Correspondencia · Enviada
+      </Typography>
+      <Typography
+        component="h1"
+        sx={{
+          fontFamily: authFonts.display,
+          fontStyle: 'italic',
+          fontWeight: 400,
+          fontSize: { xs: 40, sm: 48 },
+          lineHeight: 0.98,
+          letterSpacing: '-0.02em',
+          color: authPalette.ink,
+          mb: 2,
+          fontVariationSettings: '"opsz" 144, "SOFT" 30',
+          '& .upright': { fontStyle: 'normal', fontWeight: 500 },
+        }}
+      >
+        <span className="upright">Revisá</span> tu email.
+      </Typography>
+      <Typography
+        sx={{
+          fontFamily: authFonts.display,
+          fontStyle: 'italic',
+          fontSize: 16,
+          lineHeight: 1.5,
+          color: authPalette.inkSoft,
+          maxWidth: 380,
+          mx: 'auto',
+        }}
+      >
+        Te enviamos un link de confirmación a{' '}
+        <Box
+          component="span"
+          sx={{
+            color: authPalette.ink,
+            fontStyle: 'normal',
+            fontWeight: 500,
+            fontFamily: authFonts.body,
+          }}
+        >
+          {email}
+        </Box>
+        . Hacé click para continuar — revisá spam si no aparece.
+      </Typography>
 
       {devConfirmUrl && (
-        <Alert severity="info" sx={{ mt: 2, borderRadius: 1.5 }}>
+        <Alert
+          severity="info"
+          sx={{
+            mt: 3,
+            borderRadius: 0,
+            textAlign: 'left',
+            border: `1px solid ${authPalette.rule}`,
+            backgroundColor: 'rgba(30, 94, 63, 0.06)',
+            '& .MuiAlert-icon': { color: authPalette.primary },
+          }}
+        >
           <Typography
             variant="body2"
-            sx={{ fontWeight: 600, mb: 0.5, fontFamily: authFonts.body }}
+            sx={{
+              fontWeight: 600,
+              mb: 0.5,
+              fontFamily: authFonts.mono,
+              fontSize: 11,
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+            }}
           >
-            Modo desarrollo — link de confirmación:
+            Modo desarrollo — link de confirmación
           </Typography>
           <Box
             component="a"
@@ -633,34 +879,33 @@ const SelfRegistration: React.FC = () => {
           </Box>
         </Alert>
       )}
-    </>
+    </Box>
   );
 
   const renderUrlStep = () => (
     <>
-      <Header
-        kicker="Paso 1 de 2"
-        title="Elegí tu URL"
+      <EditorialHeader
+        kicker="Paso 1 · 2 — Dirección"
+        title={
+          <>
+            <span className="upright">Elegí</span>
+            <br />
+            tu URL.
+          </>
+        }
         subtitle={
           verifiedEmail
-            ? `Tu cuenta: ${verifiedEmail}`
-            : 'Donde tus clientes van a reservar.'
+            ? `Verificada: ${verifiedEmail}`
+            : 'El lugar donde tus clientes van a reservar.'
         }
       />
 
-      {error && (
-        <Alert
-          severity="error"
-          onClose={() => setError('')}
-          sx={{ mb: 2, borderRadius: 1.5 }}
-        >
-          {error}
-        </Alert>
-      )}
+      {renderError()}
 
-      <Box component={motion.div} {...item(0.3)} sx={{ mb: 1.5 }}>
+      <Box component={motion.div} {...item(0)} sx={{ mb: 2 }}>
         <TextField
           fullWidth
+          variant="filled"
           label="Subdominio"
           placeholder="mi-peluqueria"
           value={subdomain}
@@ -670,48 +915,65 @@ const SelfRegistration: React.FC = () => {
           error={subdomainAvailable === false}
           helperText={
             checkingSubdomain
-              ? 'Verificando disponibilidad...'
+              ? 'Verificando...'
               : subdomainAvailable === true
-              ? 'Subdominio disponible'
+              ? '✓ Disponible'
               : subdomainAvailable === false
-              ? 'Subdominio no disponible'
+              ? 'No disponible'
               : 'Solo letras minúsculas, números y guiones'
           }
-          InputLabelProps={{ sx: { fontFamily: authFonts.body } }}
           InputProps={{
             endAdornment: (
               <InputAdornment position="end">
-                {checkingSubdomain && <CircularProgress size={18} />}
+                {checkingSubdomain && (
+                  <CircularProgress
+                    size={16}
+                    sx={{ color: authPalette.inkFaint }}
+                  />
+                )}
                 {subdomainAvailable === true && (
-                  <CheckCircleIcon sx={{ color: authPalette.primary }} />
+                  <CheckCircleIcon
+                    sx={{ color: authPalette.primary, fontSize: 20 }}
+                  />
                 )}
               </InputAdornment>
             ),
           }}
-          sx={textFieldSx}
+          sx={underlineFieldSx}
         />
       </Box>
 
+      {/* Preview card — looks like a printed ticket stub */}
       <Box
         component={motion.div}
-        {...item(0.36)}
+        {...item(0.08)}
         sx={{
-          border: '1px dashed rgba(23, 20, 16, 0.22)',
-          borderRadius: 1.5,
-          p: 2,
-          textAlign: 'center',
-          mb: 3,
+          mt: 3,
+          mb: 4,
+          position: 'relative',
+          border: `1px solid ${authPalette.ink}`,
           backgroundColor: 'rgba(255, 255, 255, 0.4)',
+          padding: '18px 22px',
+          // ticket-stub perforated left edge
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            left: -1,
+            top: 14,
+            bottom: 14,
+            width: 2,
+            borderLeft: `1px dashed ${authPalette.ink}`,
+          },
         }}
       >
         <Typography
           sx={{
             fontFamily: authFonts.mono,
-            fontSize: 11,
-            letterSpacing: '0.12em',
+            fontSize: 10,
+            letterSpacing: '0.24em',
             textTransform: 'uppercase',
             color: authPalette.inkFaint,
-            mb: 0.5,
+            mb: 0.75,
           }}
         >
           Tu URL será
@@ -719,19 +981,27 @@ const SelfRegistration: React.FC = () => {
         <Typography
           sx={{
             fontFamily: authFonts.display,
-            fontSize: 20,
+            fontStyle: 'italic',
+            fontSize: 22,
             fontWeight: 500,
             color: authPalette.primary,
             letterSpacing: '-0.01em',
+            fontVariationSettings: '"opsz" 144',
+            wordBreak: 'break-all',
           }}
         >
-          {subdomain || 'tu-negocio'}.turnos-pro.com
+          {subdomain || 'tu-negocio'}
+          <Box
+            component="span"
+            sx={{ color: authPalette.ink, fontStyle: 'normal', fontWeight: 400 }}
+          >
+            .turnos-pro.com
+          </Box>
         </Typography>
       </Box>
 
-      <Box component={motion.div} {...item(0.42)}>
-        <Button
-          fullWidth
+      <Box component={motion.div} {...item(0.14)}>
+        <PillCTA
           onClick={handleUrlNext}
           disabled={
             loading ||
@@ -739,135 +1009,173 @@ const SelfRegistration: React.FC = () => {
             !subdomain ||
             subdomain.length < 3
           }
-          sx={primaryButtonSx}
         >
-          Continuar
-        </Button>
+          Continuar →
+        </PillCTA>
       </Box>
     </>
   );
 
   const renderBusinessStep = () => (
     <>
-      <Header
-        kicker="Paso 2 de 2"
-        title="Últimos datos"
+      <EditorialHeader
+        kicker="Paso 2 · 2 — Últimos datos"
+        title={
+          <>
+            <span className="upright">Contanos</span>
+            <br />
+            del negocio.
+          </>
+        }
         subtitle="Solo para terminar de armar tu cuenta."
       />
 
-      {error && (
-        <Alert
-          severity="error"
-          onClose={() => setError('')}
-          sx={{ mb: 2, borderRadius: 1.5 }}
-        >
-          {error}
-        </Alert>
-      )}
+      {renderError()}
 
       <Box component="form" onSubmit={handleCompleteSubmit}>
-        <Box component={motion.div} {...item(0.3)} sx={{ mb: 1.75 }}>
+        <Box component={motion.div} {...item(0)} sx={{ mb: 2.5 }}>
           <TextField
             fullWidth
+            variant="filled"
             label="Nombre del negocio"
             value={businessName}
             onChange={(e) => setBusinessName(e.target.value)}
             required
             autoFocus
-            InputLabelProps={{ sx: { fontFamily: authFonts.body } }}
-            sx={textFieldSx}
+            sx={underlineFieldSx}
           />
         </Box>
 
-        <Box component={motion.div} {...item(0.36)} sx={{ mb: 1.75 }}>
+        <Box component={motion.div} {...item(0.06)} sx={{ mb: 2.5 }}>
           <TextField
             fullWidth
+            variant="filled"
             label="Celular"
             placeholder="+54 9 11 ..."
             value={mobile}
             onChange={(e) => setMobile(e.target.value)}
             required
-            InputLabelProps={{ sx: { fontFamily: authFonts.body } }}
-            sx={textFieldSx}
+            sx={underlineFieldSx}
           />
         </Box>
 
-        <Box component={motion.div} {...item(0.42)} sx={{ mb: 2.5 }}>
+        <Box component={motion.div} {...item(0.12)} sx={{ mb: 4 }}>
           <TextField
             fullWidth
+            variant="filled"
             label="Dirección (opcional)"
             value={businessAddress}
             onChange={(e) => setBusinessAddress(e.target.value)}
-            InputLabelProps={{ sx: { fontFamily: authFonts.body } }}
-            sx={textFieldSx}
+            sx={underlineFieldSx}
           />
         </Box>
 
         <Box
           component={motion.div}
-          {...item(0.48)}
+          {...item(0.18)}
           sx={{ display: 'flex', gap: 1.5 }}
         >
-          <Button
-            variant="outlined"
+          <PillCTA
+            variant="outline"
             onClick={() => setCurrentStep('url')}
-            sx={{ ...outlinedButtonSx, flex: 1 }}
+            flex={1}
+            fullWidth={false}
           >
             Atrás
-          </Button>
-          <Button
+          </PillCTA>
+          <PillCTA
             type="submit"
             disabled={loading}
-            sx={{ ...primaryButtonSx, flex: 2 }}
+            loading={loading}
+            flex={2}
+            fullWidth={false}
           >
-            {loading ? (
-              <CircularProgress size={20} sx={{ color: authPalette.paper }} />
-            ) : (
-              'Completar el registro'
-            )}
-          </Button>
+            Completar el registro
+          </PillCTA>
         </Box>
       </Box>
     </>
   );
 
   const renderSuccess = () => (
-    <Box component={motion.div} {...item(0.15)} sx={{ textAlign: 'center' }}>
-      <CheckCircleIcon
-        sx={{ fontSize: 72, color: authPalette.primary, mb: 2 }}
-      />
+    <Box component={motion.div} {...item(0)} sx={{ textAlign: 'center' }}>
+      <Box
+        sx={{
+          width: 84,
+          height: 84,
+          borderRadius: '50%',
+          backgroundColor: authPalette.primary,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          mb: 3,
+          position: 'relative',
+          '&::after': {
+            content: '""',
+            position: 'absolute',
+            inset: -10,
+            border: `1px solid ${authPalette.ink}`,
+            borderRadius: '50%',
+          },
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            inset: -20,
+            border: `1px dashed ${authPalette.secondary}`,
+            borderRadius: '50%',
+          },
+        }}
+      >
+        <CheckCircleIcon sx={{ fontSize: 44, color: '#F4EFE6' }} />
+      </Box>
+      <Typography
+        sx={{
+          fontFamily: authFonts.mono,
+          fontSize: 10.5,
+          letterSpacing: '0.24em',
+          color: authPalette.secondary,
+          textTransform: 'uppercase',
+          mb: 1.5,
+        }}
+      >
+        Edición especial · Cuenta activada
+      </Typography>
       <Typography
         component="h1"
         sx={{
           fontFamily: authFonts.display,
-          fontWeight: 500,
-          fontSize: { xs: 32, sm: 38 },
-          letterSpacing: '-0.02em',
+          fontStyle: 'italic',
+          fontWeight: 400,
+          fontSize: { xs: 48, sm: 64 },
+          lineHeight: 0.95,
+          letterSpacing: '-0.025em',
           color: authPalette.ink,
-          mb: 1,
+          mb: 2,
           fontVariationSettings: '"opsz" 144, "SOFT" 30',
+          '& .upright': { fontStyle: 'normal', fontWeight: 500 },
         }}
       >
-        ¡Listo!
+        ¡<span className="upright">Listo</span>!
       </Typography>
       <Typography
         sx={{
-          fontFamily: authFonts.body,
-          fontSize: 16,
+          fontFamily: authFonts.display,
+          fontStyle: 'italic',
+          fontSize: 17,
           color: authPalette.inkSoft,
           mb: 4,
+          maxWidth: 380,
+          mx: 'auto',
+          lineHeight: 1.5,
         }}
       >
-        Tu TurnosPro está armado. Entrá y cargá tus primeros turnos.
+        Tu TurnosPro está armado. Entrá y cargá los primeros turnos.
       </Typography>
-      <Button
-        onClick={() => {
-          window.location.href = redirectUrl;
-        }}
-        sx={{ ...primaryButtonSx, px: 5 }}
-      >
-        Ir al panel
-      </Button>
+      <Box sx={{ display: 'inline-block', minWidth: 260 }}>
+        <PillCTA onClick={() => (window.location.href = redirectUrl)}>
+          Ir al panel →
+        </PillCTA>
+      </Box>
     </Box>
   );
 
@@ -879,8 +1187,11 @@ const SelfRegistration: React.FC = () => {
           <Typography
             sx={{
               mt: 2,
-              fontFamily: authFonts.body,
-              color: authPalette.inkSoft,
+              fontFamily: authFonts.mono,
+              fontSize: 11,
+              letterSpacing: '0.22em',
+              textTransform: 'uppercase',
+              color: authPalette.inkFaint,
             }}
           >
             Verificando token...

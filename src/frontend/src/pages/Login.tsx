@@ -1,13 +1,12 @@
 /**
- * /login — tenant-subdomain login page.
+ * /login — "Editorial Gazette" login page.
  *
- * Rendered on subdomains like `cliente.turnos-pro.com`. Uses the shared
- * AuthShell (split-screen editorial layout, Harbiz pattern). The main
- * domain (`turnos-pro.com/login`) uses LoginRedirect instead which
- * looks up the tenant by email.
+ * Part of TurnosPro's weekly-fashion-magazine auth flow: cream paper,
+ * dramatic typographic hierarchy, grain overlay, underline-only inputs,
+ * pill CTA with coral accent.
  *
- * Auth flow (Google OAuth + email/password) is unchanged — we only
- * reskin the UI here.
+ * Auth logic (authApi.login, registrationApi.googleLogin,
+ * resolvePostLoginRoute) is preserved verbatim — only the UI changes.
  */
 
 import React, { useState } from 'react';
@@ -15,7 +14,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   Alert,
   Box,
-  Button,
   CircularProgress,
   IconButton,
   InputAdornment,
@@ -43,32 +41,156 @@ async function resolvePostLoginRoute(): Promise<string> {
   return '/dashboard';
 }
 
+// ─── Shared editorial field style: underline-only, forest glow on focus ───
+const underlineFieldSx = {
+  '& .MuiFilledInput-root': {
+    backgroundColor: 'transparent !important',
+    fontFamily: authFonts.body,
+    fontSize: 16,
+    paddingLeft: 0,
+    paddingRight: 0,
+    borderRadius: 0,
+    '&::before': {
+      borderBottom: `1px solid ${authPalette.ink}`,
+    },
+    '&:hover::before': {
+      borderBottom: `1px solid ${authPalette.ink} !important`,
+    },
+    '&::after': {
+      borderBottom: `2px solid ${authPalette.primary}`,
+    },
+    '&.Mui-focused': {
+      boxShadow: `0 6px 20px -14px ${authPalette.primary}`,
+    },
+  },
+  '& .MuiFilledInput-input': {
+    paddingLeft: 0,
+    paddingRight: 0,
+    paddingTop: '22px',
+    paddingBottom: '8px',
+    color: authPalette.ink,
+    caretColor: authPalette.primary,
+  },
+  '& .MuiInputLabel-root': {
+    fontFamily: authFonts.mono,
+    fontSize: 11,
+    letterSpacing: '0.18em',
+    textTransform: 'uppercase',
+    color: authPalette.inkFaint,
+    transform: 'translate(0, 20px) scale(1)',
+    '&.Mui-focused': { color: authPalette.primary },
+    '&.MuiInputLabel-shrink': {
+      transform: 'translate(0, -2px) scale(0.9)',
+      letterSpacing: '0.22em',
+    },
+  },
+  '& .MuiFormHelperText-root': {
+    fontFamily: authFonts.mono,
+    fontSize: 10.5,
+    letterSpacing: '0.1em',
+    color: authPalette.inkSoft,
+    marginLeft: 0,
+    textTransform: 'uppercase',
+  },
+};
+
+// ─── Editorial divider with mono label ───
 const Divider: React.FC<{ label: string }> = ({ label }) => (
   <Box
     sx={{
       display: 'flex',
       alignItems: 'center',
       gap: 1.5,
-      my: 2.5,
+      my: 3,
       '&::before, &::after': {
         content: '""',
         flex: 1,
         height: 1,
-        backgroundColor: 'rgba(23, 20, 16, 0.14)',
+        backgroundColor: authPalette.rule,
       },
     }}
   >
     <Typography
       sx={{
         fontFamily: authFonts.mono,
-        fontSize: 11,
-        letterSpacing: '0.12em',
+        fontSize: 10.5,
+        letterSpacing: '0.22em',
         textTransform: 'uppercase',
         color: authPalette.inkFaint,
       }}
     >
       {label}
     </Typography>
+  </Box>
+);
+
+// ─── Pill CTA with coral bar that slides in from left on hover ───
+const PillCTA: React.FC<{
+  children: React.ReactNode;
+  onClick?: () => void;
+  type?: 'button' | 'submit';
+  disabled?: boolean;
+  loading?: boolean;
+}> = ({ children, onClick, type = 'button', disabled, loading }) => (
+  <Box
+    component="button"
+    type={type}
+    onClick={onClick}
+    disabled={disabled}
+    sx={{
+      position: 'relative',
+      overflow: 'hidden',
+      width: '100%',
+      height: 52,
+      border: 'none',
+      outline: 'none',
+      borderRadius: 999,
+      cursor: disabled ? 'not-allowed' : 'pointer',
+      backgroundColor: disabled
+        ? 'rgba(23, 20, 16, 0.12)'
+        : authPalette.primary,
+      color: disabled ? 'rgba(23, 20, 16, 0.4)' : '#F4EFE6',
+      fontFamily: authFonts.body,
+      fontWeight: 600,
+      fontSize: 15,
+      letterSpacing: '0.04em',
+      textTransform: 'uppercase',
+      transition:
+        'transform 240ms cubic-bezier(0.22, 0.61, 0.36, 1), background-color 200ms ease',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 1,
+      '&::before': {
+        content: '""',
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        bottom: 0,
+        width: 0,
+        backgroundColor: authPalette.secondary,
+        transition: 'width 220ms cubic-bezier(0.22, 0.61, 0.36, 1)',
+        zIndex: 0,
+      },
+      '&:not(:disabled):hover::before': {
+        width: 14,
+      },
+      '&:not(:disabled):hover': {
+        backgroundColor: authPalette.primaryDeep,
+      },
+      '& > span': {
+        position: 'relative',
+        zIndex: 1,
+      },
+    }}
+  >
+    <span>
+      {loading ? (
+        <CircularProgress size={18} sx={{ color: '#F4EFE6' }} />
+      ) : (
+        children
+      )}
+    </span>
   </Box>
 );
 
@@ -126,63 +248,93 @@ const Login: React.FC = () => {
           'No encontramos una cuenta con este email. Registrate primero.'
         );
       } else {
-        setError(err.response?.data?.message || 'Error al iniciar sesión con Google');
+        setError(
+          err.response?.data?.message || 'Error al iniciar sesión con Google'
+        );
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // Staggered reveal for form children (60ms between).
+  // Staggered reveal for form children.
   const item = (delay: number) =>
     prefersReducedMotion
-      ? { initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { duration: 0.2, delay } }
+      ? {
+          initial: { opacity: 0 },
+          animate: { opacity: 1 },
+          transition: { duration: 0.2, delay },
+        }
       : {
-          initial: { opacity: 0, y: 8 },
+          initial: { opacity: 0, y: 10 },
           animate: { opacity: 1, y: 0 },
-          transition: { duration: 0.4, delay, ease: [0.22, 0.61, 0.36, 1] as [number, number, number, number] },
+          transition: {
+            duration: 0.5,
+            delay: 0.35 + delay,
+            ease: [0.22, 0.61, 0.36, 1] as [number, number, number, number],
+          },
         };
 
   return (
     <AuthShell>
-      <Box component={motion.div} {...item(0.2)} sx={{ mb: 4 }}>
+      {/* ───── Editorial header: mono kicker → display headline → italic caption ───── */}
+      <Box component={motion.div} {...item(0)} sx={{ mb: 4 }}>
         <Typography
           sx={{
             fontFamily: authFonts.mono,
-            fontSize: 11,
+            fontSize: 10.5,
             fontWeight: 500,
-            letterSpacing: '0.14em',
+            letterSpacing: '0.24em',
             textTransform: 'uppercase',
-            color: authPalette.primary,
-            mb: 1.25,
+            color: authPalette.secondary,
+            mb: 1.5,
+            '&::before': {
+              content: '""',
+              display: 'inline-block',
+              width: 20,
+              height: 1,
+              backgroundColor: authPalette.secondary,
+              verticalAlign: 'middle',
+              mr: 1.25,
+            },
           }}
         >
-          Iniciar sesión
+          Editorial · Iniciar sesión
         </Typography>
         <Typography
           component="h1"
           sx={{
             fontFamily: authFonts.display,
-            fontWeight: 500,
-            fontSize: { xs: 32, sm: 38 },
-            lineHeight: 1.08,
-            letterSpacing: '-0.02em',
+            fontWeight: 400,
+            fontStyle: 'italic',
+            fontSize: { xs: 44, sm: 56 },
+            lineHeight: 0.98,
+            letterSpacing: '-0.025em',
             color: authPalette.ink,
-            mb: 1,
+            mb: 1.5,
             fontVariationSettings: '"opsz" 144, "SOFT" 30',
+            '& .upright': {
+              fontStyle: 'normal',
+              fontWeight: 500,
+            },
           }}
         >
-          Bienvenido de nuevo
+          <span className="upright">Bienvenido</span>
+          <br />
+          de nuevo.
         </Typography>
         <Typography
           sx={{
-            fontFamily: authFonts.body,
-            fontSize: 15,
+            fontFamily: authFonts.display,
+            fontStyle: 'italic',
+            fontWeight: 400,
+            fontSize: 16,
             lineHeight: 1.5,
             color: authPalette.inkSoft,
+            maxWidth: 420,
           }}
         >
-          Ingresá para seguir con tu agenda.
+          Ingresá para seguir con tu agenda — tus turnos te esperan.
         </Typography>
       </Box>
 
@@ -190,13 +342,22 @@ const Login: React.FC = () => {
         <Alert
           severity="error"
           onClose={() => setError('')}
-          sx={{ mb: 2, borderRadius: 1.5 }}
+          sx={{
+            mb: 3,
+            borderRadius: 0,
+            fontFamily: authFonts.body,
+            border: `1px solid ${authPalette.secondary}`,
+            backgroundColor: 'rgba(232, 89, 60, 0.08)',
+            color: authPalette.ink,
+            '& .MuiAlert-icon': { color: authPalette.secondary },
+          }}
         >
           {error}
         </Alert>
       )}
 
-      <Box component={motion.div} {...item(0.26)}>
+      {/* ───── Google button FIRST (above email/password) ───── */}
+      <Box component={motion.div} {...item(0.08)}>
         <GoogleSignInButton
           text="signin_with"
           onSuccess={handleGoogleLogin}
@@ -204,14 +365,15 @@ const Login: React.FC = () => {
         />
       </Box>
 
-      <Box component={motion.div} {...item(0.32)}>
-        <Divider label="o con email" />
+      <Box component={motion.div} {...item(0.14)}>
+        <Divider label="— o con email —" />
       </Box>
 
       <Box component="form" onSubmit={handleSubmit}>
-        <Box component={motion.div} {...item(0.38)} sx={{ mb: 1.75 }}>
+        <Box component={motion.div} {...item(0.2)} sx={{ mb: 2.5 }}>
           <TextField
             fullWidth
+            variant="filled"
             name="email"
             type="email"
             label="Email"
@@ -224,20 +386,14 @@ const Login: React.FC = () => {
             required
             disabled={loading}
             autoComplete="email"
-            InputLabelProps={{ sx: { fontFamily: authFonts.body } }}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                fontFamily: authFonts.body,
-                backgroundColor: '#FFFFFF',
-                borderRadius: 1.5,
-              },
-            }}
+            sx={underlineFieldSx}
           />
         </Box>
 
-        <Box component={motion.div} {...item(0.44)} sx={{ mb: 2.5 }}>
+        <Box component={motion.div} {...item(0.26)} sx={{ mb: 3.5 }}>
           <TextField
             fullWidth
+            variant="filled"
             name="password"
             type={showPassword ? 'text' : 'password'}
             label="Contraseña"
@@ -249,7 +405,6 @@ const Login: React.FC = () => {
             required
             disabled={loading}
             autoComplete="current-password"
-            InputLabelProps={{ sx: { fontFamily: authFonts.body } }}
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
@@ -257,58 +412,42 @@ const Login: React.FC = () => {
                     onClick={() => setShowPassword((v) => !v)}
                     edge="end"
                     size="small"
-                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    aria-label={
+                      showPassword
+                        ? 'Ocultar contraseña'
+                        : 'Mostrar contraseña'
+                    }
+                    sx={{
+                      color: authPalette.inkFaint,
+                      '&:hover': { color: authPalette.secondary },
+                    }}
                   >
-                    {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                    {showPassword ? (
+                      <VisibilityOffIcon fontSize="small" />
+                    ) : (
+                      <VisibilityIcon fontSize="small" />
+                    )}
                   </IconButton>
                 </InputAdornment>
               ),
             }}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                fontFamily: authFonts.body,
-                backgroundColor: '#FFFFFF',
-                borderRadius: 1.5,
-              },
-            }}
+            sx={underlineFieldSx}
           />
         </Box>
 
-        <Box component={motion.div} {...item(0.5)}>
-          <Button
+        <Box component={motion.div} {...item(0.32)}>
+          <PillCTA
             type="submit"
-            fullWidth
             disabled={loading || !email.trim() || !password.trim()}
-            sx={{
-              height: 48,
-              fontFamily: authFonts.body,
-              fontWeight: 600,
-              fontSize: 15,
-              letterSpacing: '0.01em',
-              textTransform: 'none',
-              borderRadius: 1.5,
-              backgroundColor: authPalette.primary,
-              color: authPalette.paper,
-              '&:hover': {
-                backgroundColor: '#174a32',
-              },
-              '&.Mui-disabled': {
-                backgroundColor: 'rgba(23, 20, 16, 0.08)',
-                color: 'rgba(23, 20, 16, 0.35)',
-              },
-            }}
+            loading={loading}
           >
-            {loading ? (
-              <CircularProgress size={20} sx={{ color: authPalette.paper }} />
-            ) : (
-              'Iniciar sesión'
-            )}
-          </Button>
+            Iniciar sesión
+          </PillCTA>
         </Box>
 
         <Box
           component={motion.div}
-          {...item(0.56)}
+          {...item(0.38)}
           sx={{ textAlign: 'center', mt: 3 }}
         >
           <Typography
@@ -323,10 +462,19 @@ const Login: React.FC = () => {
               component="a"
               href="/register"
               sx={{
-                color: authPalette.primary,
-                fontWeight: 600,
+                color: authPalette.secondary,
+                fontFamily: authFonts.display,
+                fontStyle: 'italic',
+                fontWeight: 500,
+                fontSize: 15,
                 textDecoration: 'none',
-                '&:hover': { textDecoration: 'underline' },
+                borderBottom: `1px solid ${authPalette.secondary}`,
+                paddingBottom: '1px',
+                transition: 'color 150ms ease, border-color 150ms ease',
+                '&:hover': {
+                  color: authPalette.primary,
+                  borderBottomColor: authPalette.primary,
+                },
               }}
             >
               Registrate gratis →
