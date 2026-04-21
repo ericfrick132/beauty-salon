@@ -1,22 +1,41 @@
+/**
+ * /login on the main domain (turnos-pro.com) — looks up the tenant by
+ * email and redirects to the corresponding subdomain login. Uses the
+ * shared AuthShell so it matches Login.tsx visually.
+ *
+ * The API contract is unchanged: GET /public/tenant-by-email → { loginUrl }.
+ */
+
 import React, { useState } from 'react';
-import { Box, Typography, TextField, Button, Paper, CircularProgress, Alert } from '@mui/material';
-import { Login as LoginIcon } from '@mui/icons-material';
+import {
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  TextField,
+  Typography,
+} from '@mui/material';
+import { motion, useReducedMotion } from 'framer-motion';
+
 import api from '../services/api';
+import AuthShell, { authPalette, authFonts } from '../components/auth/AuthShell';
 
 const LoginRedirect: React.FC = () => {
+  const prefersReducedMotion = useReducedMotion();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleLookup = async () => {
+  const handleLookup = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     const trimmed = email.trim().toLowerCase();
     if (!trimmed) return;
-
     setLoading(true);
     setError('');
-
     try {
-      const res = await api.get('/public/tenant-by-email', { params: { email: trimmed } });
+      const res = await api.get('/public/tenant-by-email', {
+        params: { email: trimmed },
+      });
       const { loginUrl } = res.data;
       if (loginUrl) {
         window.location.href = loginUrl;
@@ -24,78 +43,161 @@ const LoginRedirect: React.FC = () => {
         setError('No se encontró una cuenta asociada a ese email.');
       }
     } catch (err: any) {
-      const msg = err?.response?.data?.error || 'No se encontró una cuenta asociada a ese email.';
+      const msg =
+        err?.response?.data?.error ||
+        'No se encontró una cuenta asociada a ese email.';
       setError(msg);
     } finally {
       setLoading(false);
     }
   };
 
+  const item = (delay: number) =>
+    prefersReducedMotion
+      ? { initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { duration: 0.2, delay } }
+      : {
+          initial: { opacity: 0, y: 8 },
+          animate: { opacity: 1, y: 0 },
+          transition: { duration: 0.4, delay, ease: [0.22, 0.61, 0.36, 1] as [number, number, number, number] },
+        };
+
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#FAF7F2',
-        p: 2,
-      }}
-    >
-      <Paper
-        sx={{
-          p: 4,
-          maxWidth: 440,
-          width: '100%',
-          textAlign: 'center',
-          border: '1px solid #E5E7EB',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-          borderRadius: 2,
-        }}
-      >
-        <LoginIcon sx={{ fontSize: 48, color: '#1E40AF', mb: 2 }} />
-        <Typography variant="h5" sx={{ fontWeight: 700, color: '#111827', mb: 1 }}>
-          Iniciar sesion
-        </Typography>
-        <Typography variant="body1" sx={{ color: '#6B7280', mb: 3 }}>
-          Ingresa tu email para encontrar tu negocio y redirigirte al login.
-        </Typography>
-
-        {error && (
-          <Alert severity="error" sx={{ mb: 2, textAlign: 'left' }}>
-            {error}
-          </Alert>
-        )}
-
-        <TextField
-          fullWidth
-          size="small"
-          type="email"
-          placeholder="tu@email.com"
-          value={email}
-          onChange={(e) => { setEmail(e.target.value); setError(''); }}
-          onKeyDown={(e) => e.key === 'Enter' && handleLookup()}
-          sx={{ mb: 2, '& .MuiOutlinedInput-root': { backgroundColor: '#FFFFFF' } }}
-        />
-
-        <Button
-          fullWidth
-          variant="contained"
-          onClick={handleLookup}
-          disabled={!email.trim() || loading}
-          sx={{ backgroundColor: '#1E40AF', '&:hover': { backgroundColor: '#1D4ED8' }, mb: 2 }}
+    <AuthShell>
+      <Box component={motion.div} {...item(0.2)} sx={{ mb: 4 }}>
+        <Typography
+          sx={{
+            fontFamily: authFonts.mono,
+            fontSize: 11,
+            fontWeight: 500,
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            color: authPalette.primary,
+            mb: 1.25,
+          }}
         >
-          {loading ? <CircularProgress size={22} color="inherit" /> : 'Continuar'}
-        </Button>
-
-        <Typography variant="body2" sx={{ color: '#9CA3AF' }}>
-          ¿No tenes cuenta?{' '}
-          <a href="/register" style={{ color: '#1E40AF', textDecoration: 'none', fontWeight: 600 }}>
-            Registrate gratis
-          </a>
+          Iniciar sesión
         </Typography>
-      </Paper>
-    </Box>
+        <Typography
+          component="h1"
+          sx={{
+            fontFamily: authFonts.display,
+            fontWeight: 500,
+            fontSize: { xs: 32, sm: 38 },
+            lineHeight: 1.08,
+            letterSpacing: '-0.02em',
+            color: authPalette.ink,
+            mb: 1,
+            fontVariationSettings: '"opsz" 144, "SOFT" 30',
+          }}
+        >
+          Bienvenido de nuevo
+        </Typography>
+        <Typography
+          sx={{
+            fontFamily: authFonts.body,
+            fontSize: 15,
+            lineHeight: 1.5,
+            color: authPalette.inkSoft,
+          }}
+        >
+          Ingresá tu email y te llevamos al panel de tu negocio.
+        </Typography>
+      </Box>
+
+      {error && (
+        <Alert
+          severity="error"
+          onClose={() => setError('')}
+          sx={{ mb: 2, borderRadius: 1.5 }}
+        >
+          {error}
+        </Alert>
+      )}
+
+      <Box component="form" onSubmit={handleLookup}>
+        <Box component={motion.div} {...item(0.3)} sx={{ mb: 2 }}>
+          <TextField
+            fullWidth
+            type="email"
+            label="Email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setError('');
+            }}
+            placeholder="tu@email.com"
+            required
+            autoFocus
+            autoComplete="email"
+            InputLabelProps={{ sx: { fontFamily: authFonts.body } }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                fontFamily: authFonts.body,
+                backgroundColor: '#FFFFFF',
+                borderRadius: 1.5,
+              },
+            }}
+          />
+        </Box>
+
+        <Box component={motion.div} {...item(0.38)}>
+          <Button
+            type="submit"
+            fullWidth
+            disabled={!email.trim() || loading}
+            sx={{
+              height: 48,
+              fontFamily: authFonts.body,
+              fontWeight: 600,
+              fontSize: 15,
+              textTransform: 'none',
+              borderRadius: 1.5,
+              backgroundColor: authPalette.primary,
+              color: authPalette.paper,
+              '&:hover': { backgroundColor: '#174a32' },
+              '&.Mui-disabled': {
+                backgroundColor: 'rgba(23, 20, 16, 0.08)',
+                color: 'rgba(23, 20, 16, 0.35)',
+              },
+            }}
+          >
+            {loading ? (
+              <CircularProgress size={20} sx={{ color: authPalette.paper }} />
+            ) : (
+              'Continuar'
+            )}
+          </Button>
+        </Box>
+
+        <Box
+          component={motion.div}
+          {...item(0.46)}
+          sx={{ textAlign: 'center', mt: 3 }}
+        >
+          <Typography
+            sx={{
+              fontFamily: authFonts.body,
+              fontSize: 14,
+              color: authPalette.inkSoft,
+            }}
+          >
+            ¿No tenés cuenta?{' '}
+            <Box
+              component="a"
+              href="/register"
+              sx={{
+                color: authPalette.primary,
+                fontWeight: 600,
+                textDecoration: 'none',
+                '&:hover': { textDecoration: 'underline' },
+              }}
+            >
+              Registrate gratis →
+            </Box>
+          </Typography>
+        </Box>
+      </Box>
+    </AuthShell>
   );
 };
 

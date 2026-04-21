@@ -1,361 +1,97 @@
-import React, { useState, useEffect } from 'react';
+/**
+ * /login — tenant-subdomain login page.
+ *
+ * Rendered on subdomains like `cliente.turnos-pro.com`. Uses the shared
+ * AuthShell (split-screen editorial layout, Harbiz pattern). The main
+ * domain (`turnos-pro.com/login`) uses LoginRedirect instead which
+ * looks up the tenant by email.
+ *
+ * Auth flow (Google OAuth + email/password) is unchanged — we only
+ * reskin the UI here.
+ */
+
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Box,
-  Card,
-  CardContent,
-  TextField,
-  Button,
-  Typography,
   Alert,
-  Container,
-  Paper,
+  Box,
+  Button,
   CircularProgress,
-  InputAdornment,
   IconButton,
-  Avatar,
-  Grid
+  InputAdornment,
+  TextField,
+  Typography,
 } from '@mui/material';
-import { styled, useTheme } from '@mui/material/styles';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ContentCut,
-  Face,
-  Spa,
-  Email,
-  Lock,
-  Visibility,
-  VisibilityOff,
-  EventAvailable,
-  Stars,
-  Groups,
-  WorkspacePremium,
-  Healing,
-  LocalOffer
-} from '@mui/icons-material';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import { motion, useReducedMotion } from 'framer-motion';
 
-import { useTenant } from '../contexts/TenantContext';
 import { authApi, registrationApi, tenantApi } from '../services/api';
 import { useAppDispatch } from '../store';
 import { loginSuccess } from '../store/slices/authSlice';
 import GoogleSignInButton from '../components/auth/GoogleSignInButton';
-import Divider from '@mui/material/Divider';
+import AuthShell, { authPalette, authFonts } from '../components/auth/AuthShell';
 
-/**
- * Decide where to go after a successful login. If the tenant hasn't completed
- * the onboarding wizard yet, we route to /completar-perfil — otherwise /dashboard.
- */
+/** Decide where to go after login — onboarding if incomplete, else dashboard. */
 async function resolvePostLoginRoute(): Promise<string> {
   try {
     const config = await tenantApi.getConfig();
     if (!config?.onboardingCompletedAt) return '/completar-perfil';
   } catch {
-    // If config endpoint is unavailable, fall through to dashboard — the
-    // tenant layout will recover from missing config on its own.
+    // If config endpoint is unavailable, fall through to dashboard.
   }
   return '/dashboard';
 }
 
-// Styled components con tema adaptativo
-const LoginContainer = styled(Container)(({ theme }) => ({
-  minHeight: '100vh',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: theme.spacing(2),
-  position: 'relative',
-  overflow: 'hidden',
-  [theme.breakpoints.down('sm')]: {
-    padding: theme.spacing(1),
-  },
-  '&::before': {
-    content: '""',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    opacity: 0.03,
-    animation: 'float 20s ease-in-out infinite',
-  },
-  '@keyframes float': {
-    '0%, 100%': {
-      transform: 'translateY(0px)',
-    },
-    '50%': {
-      transform: 'translateY(-20px)',
-    },
-  },
-}));
-
-const LoginCard = styled(Card)(({ theme }) => ({
-  maxWidth: 480,
-  width: '100%',
-  backdropFilter: 'blur(20px)',
-  borderRadius: '32px',
-  overflow: 'hidden',
-  transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-  position: 'relative',
-  zIndex: 1,
-  [theme.breakpoints.down('sm')]: {
-    borderRadius: '24px',
-  },
-  '&:hover': {
-    transform: 'translateY(-8px) scale(1.02)',
-    [theme.breakpoints.down('sm')]: {
-      transform: 'translateY(-4px) scale(1.01)',
-    },
-  },
-  '&::before': {
-    content: '""',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '4px',
-    backgroundSize: '400% 400%',
-    animation: 'gradientShift 8s ease infinite',
-  },
-  '@keyframes gradientShift': {
-    '0%': {
-      backgroundPosition: '0% 50%',
-    },
-    '50%': {
-      backgroundPosition: '100% 50%',
-    },
-    '100%': {
-      backgroundPosition: '0% 50%',
-    },
-  },
-}));
-
-const LogoSection = styled(Box)(({ theme }) => ({
-  padding: theme.spacing(5, 4),
-  textAlign: 'center',
-  position: 'relative',
-  '&::before': {
-    content: '""',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    animation: 'shine 3s ease-in-out infinite',
-  },
-  '@keyframes shine': {
-    '0%': {
-      transform: 'translateX(-100%)',
-    },
-    '100%': {
-      transform: 'translateX(100%)',
-    },
-  },
-}));
-
-const FormSection = styled(CardContent)(({ theme }) => ({
-  padding: theme.spacing(4, 4, 5),
-}));
-
-const FeatureCard = styled(Paper)(({ theme }) => ({
-  backdropFilter: 'blur(10px)',
-  borderRadius: '20px',
-  padding: theme.spacing(3),
-  textAlign: 'center',
-  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-  '&:hover': {
-    transform: 'translateY(-5px)',
-  },
-}));
-
-const FloatingElement = styled(Box)(({ theme }) => ({
-  position: 'absolute',
-  borderRadius: '50%',
-  animation: 'float 6s ease-in-out infinite',
-  '&.element-1': {
-    width: 80,
-    height: 80,
-    top: '10%',
-    left: '10%',
-    animationDelay: '0s',
-  },
-  '&.element-2': {
-    width: 60,
-    height: 60,
-    top: '20%',
-    right: '15%',
-    animationDelay: '2s',
-  },
-  '&.element-3': {
-    width: 100,
-    height: 100,
-    bottom: '15%',
-    left: '5%',
-    animationDelay: '4s',
-  },
-  '&.element-4': {
-    width: 40,
-    height: 40,
-    bottom: '30%',
-    right: '10%',
-    animationDelay: '1s',
-  },
-}));
-
-const StyledTextField = styled(TextField)(({ theme }) => ({
-  marginBottom: theme.spacing(3),
-  '& .MuiOutlinedInput-root': {
-    borderRadius: '16px',
-    fontSize: '1.1rem',
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-    '& fieldset': {
-      borderWidth: 2,
-    },
-    '&:hover': {
-      transform: 'translateY(-2px)',
-    },
-    '&.Mui-focused': {
-      transform: 'translateY(-2px)',
-    },
-  },
-  '& .MuiInputLabel-root': {
-    fontWeight: 500,
-  },
-}));
-
-const StyledButton = styled(Button)(({ theme }) => ({
-  borderRadius: '16px',
-  padding: theme.spacing(2, 4),
-  fontSize: '1.1rem',
-  [theme.breakpoints.down('sm')]: {
-    padding: theme.spacing(1.5, 3),
-    fontSize: '1rem',
-    borderRadius: '12px',
-  },
-  fontWeight: 600,
-  textTransform: 'none',
-  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-  position: 'relative',
-  overflow: 'hidden',
-  marginBottom: theme.spacing(2),
-  '&::before': {
-    content: '""',
-    position: 'absolute',
-    top: 0,
-    left: '-100%',
-    width: '100%',
-    height: '100%',
-    background: 'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent)',
-    transition: 'left 0.5s',
-  },
-  '&:hover': {
-    transform: 'translateY(-3px)',
-    filter: 'brightness(1.1)',
-    '&::before': {
-      left: '100%',
-    },
-  },
-  '&:disabled': {
-    transform: 'none',
-    boxShadow: 'none',
-  },
-}));
+const Divider: React.FC<{ label: string }> = ({ label }) => (
+  <Box
+    sx={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 1.5,
+      my: 2.5,
+      '&::before, &::after': {
+        content: '""',
+        flex: 1,
+        height: 1,
+        backgroundColor: 'rgba(23, 20, 16, 0.14)',
+      },
+    }}
+  >
+    <Typography
+      sx={{
+        fontFamily: authFonts.mono,
+        fontSize: 11,
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase',
+        color: authPalette.inkFaint,
+      }}
+    >
+      {label}
+    </Typography>
+  </Box>
+);
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const theme = useTheme();
   const dispatch = useAppDispatch();
-  const { config } = useTenant();
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-  });
+  const prefersReducedMotion = useReducedMotion();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // Determinar colores y estilos según el vertical
-  const getThemeStyles = () => {
-    const vertical = config?.vertical || 'beautysalon';
-    const primaryColor = config?.theme?.primaryColor || '#e91e63';
-    const secondaryColor = config?.theme?.secondaryColor || '#ffffff';
-    const accentColor = config?.theme?.accentColor || '#ffc107';
-    
-    switch(vertical) {
-      case 'barbershop':
-        return {
-          primaryColor: primaryColor || '#8B4513',
-          accentColor: accentColor || '#DAA520',
-          backgroundGradient: 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #0f0f0f 100%)',
-          cardBackground: 'rgba(20, 20, 20, 0.95)',
-          borderColor: 'rgba(218, 165, 32, 0.3)',
-          icon: <ContentCut />,
-          features: [
-            { icon: <ContentCut />, title: 'Cortes Premium', description: 'Técnicas modernas y clásicas' },
-            { icon: <EventAvailable />, title: 'Reserva Online', description: 'Agenda tu cita 24/7' },
-            { icon: <Groups />, title: 'Barberos Expertos', description: 'Profesionales certificados' },
-            { icon: <WorkspacePremium />, title: 'Experiencia VIP', description: 'Atención personalizada' }
-          ]
-        };
-      case 'aesthetics':
-        return {
-          primaryColor: primaryColor || '#26a69a',
-          accentColor: accentColor || '#80cbc4',
-          backgroundGradient: 'linear-gradient(135deg, #f5f5f5 0%, #e0f2f1 50%, #b2dfdb 100%)',
-          cardBackground: 'rgba(255, 255, 255, 0.95)',
-          borderColor: 'rgba(38, 166, 154, 0.3)',
-          icon: <Healing />,
-          features: [
-            { icon: <Healing />, title: 'Tratamientos Avanzados', description: 'Tecnología de última generación' },
-            { icon: <EventAvailable />, title: 'Consultas Online', description: 'Agenda y seguimiento digital' },
-            { icon: <Spa />, title: 'Profesionales Médicos', description: 'Especialistas certificados' },
-            { icon: <Stars />, title: 'Resultados Garantizados', description: 'Tratamientos personalizados' }
-          ]
-        };
-      default: // beautysalon
-        return {
-          primaryColor: primaryColor || '#e91e63',
-          accentColor: accentColor || '#f8bbd0',
-          backgroundGradient: 'linear-gradient(135deg, #fce4ec 0%, #f8bbd0 50%, #f48fb1 100%)',
-          cardBackground: 'rgba(255, 255, 255, 0.95)',
-          borderColor: 'rgba(233, 30, 99, 0.3)',
-          icon: <Face />,
-          features: [
-            { icon: <Face />, title: 'Belleza Integral', description: 'Servicios de cabello y maquillaje' },
-            { icon: <EventAvailable />, title: 'Citas Flexibles', description: 'Horarios que se adaptan a ti' },
-            { icon: <Spa />, title: 'Estilistas Profesionales', description: 'Expertos en tendencias' },
-            { icon: <LocalOffer />, title: 'Ofertas Exclusivas', description: 'Programa de fidelidad' }
-          ]
-        };
-    }
-  };
-
-  const themeStyles = getThemeStyles();
-  const isDarkTheme = config?.vertical === 'barbershop';
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-    setError('');
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-
     try {
-      const response = await authApi.login(formData.email, formData.password);
-
-      // Guardar token y usuario en localStorage
+      const response = await authApi.login(email, password);
       localStorage.setItem('authToken', response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
-
-      // Actualizar Redux store
       dispatch(loginSuccess({ user: response.user, token: response.token }));
-
-      // Redirigir al dashboard o al wizard si aún no lo completaron.
       const target = await resolvePostLoginRoute();
       navigate(target);
     } catch (err: any) {
@@ -369,11 +105,13 @@ const Login: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      // Cache the Google ID token so the onboarding wizard can prefill name/picture.
-      try { localStorage.setItem('googleIdTokenForOnboarding', idToken); } catch {}
+      try {
+        localStorage.setItem('googleIdTokenForOnboarding', idToken);
+      } catch {
+        /* ignore quota errors */
+      }
       const response = await registrationApi.googleLogin(idToken);
       if (response.success && response.redirectUrl) {
-        // If we received a tenant URL, follow it (cross-subdomain redirect)
         window.location.href = response.redirectUrl;
       } else if (response.success && response.token) {
         localStorage.setItem('authToken', response.token);
@@ -384,7 +122,9 @@ const Login: React.FC = () => {
       }
     } catch (err: any) {
       if (err.response?.data?.code === 'NO_ACCOUNT') {
-        setError('No encontramos una cuenta con este email. Registrate primero en /register.');
+        setError(
+          'No encontramos una cuenta con este email. Registrate primero.'
+        );
       } else {
         setError(err.response?.data?.message || 'Error al iniciar sesión con Google');
       }
@@ -393,427 +133,208 @@ const Login: React.FC = () => {
     }
   };
 
+  // Staggered reveal for form children (60ms between).
+  const item = (delay: number) =>
+    prefersReducedMotion
+      ? { initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { duration: 0.2, delay } }
+      : {
+          initial: { opacity: 0, y: 8 },
+          animate: { opacity: 1, y: 0 },
+          transition: { duration: 0.4, delay, ease: [0.22, 0.61, 0.36, 1] as [number, number, number, number] },
+        };
+
   return (
-    <LoginContainer 
-      maxWidth={false} 
-      sx={{ background: themeStyles.backgroundGradient }}
-    >
-      {/* Elementos flotantes decorativos */}
-      <FloatingElement 
-        className="element-1" 
-        sx={{ background: `linear-gradient(135deg, ${themeStyles.primaryColor}20, ${themeStyles.accentColor}10)` }}
-      />
-      <FloatingElement 
-        className="element-2"
-        sx={{ background: `linear-gradient(135deg, ${themeStyles.accentColor}20, ${themeStyles.primaryColor}10)` }}
-      />
-      <FloatingElement 
-        className="element-3"
-        sx={{ background: `linear-gradient(135deg, ${themeStyles.primaryColor}15, ${themeStyles.accentColor}15)` }}
-      />
-      <FloatingElement 
-        className="element-4"
-        sx={{ background: `linear-gradient(135deg, ${themeStyles.accentColor}25, ${themeStyles.primaryColor}05)` }}
-      />
+    <AuthShell>
+      <Box component={motion.div} {...item(0.2)} sx={{ mb: 4 }}>
+        <Typography
+          sx={{
+            fontFamily: authFonts.mono,
+            fontSize: 11,
+            fontWeight: 500,
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            color: authPalette.primary,
+            mb: 1.25,
+          }}
+        >
+          Iniciar sesión
+        </Typography>
+        <Typography
+          component="h1"
+          sx={{
+            fontFamily: authFonts.display,
+            fontWeight: 500,
+            fontSize: { xs: 32, sm: 38 },
+            lineHeight: 1.08,
+            letterSpacing: '-0.02em',
+            color: authPalette.ink,
+            mb: 1,
+            fontVariationSettings: '"opsz" 144, "SOFT" 30',
+          }}
+        >
+          Bienvenido de nuevo
+        </Typography>
+        <Typography
+          sx={{
+            fontFamily: authFonts.body,
+            fontSize: 15,
+            lineHeight: 1.5,
+            color: authPalette.inkSoft,
+          }}
+        >
+          Ingresá para seguir con tu agenda.
+        </Typography>
+      </Box>
 
-      <Grid container spacing={{ xs: 2, sm: 3, md: 4 }} alignItems="center" sx={{ width: '100%', maxWidth: 1400 }}>
-        {/* Panel izquierdo con características */}
-        <Grid item xs={12} lg={7} sx={{ display: { xs: 'none', lg: 'block' } }}>
-          <motion.div
-            initial={{ opacity: 0, x: -50 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
-          >
-            <Box sx={{ textAlign: 'center', mb: 4 }}>
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.2, duration: 0.6, type: 'spring', stiffness: 200 }}
-              >
-                <Avatar
-                  sx={{
-                    width: 80,
-                    height: 80,
-                    margin: '0 auto 24px',
-                    background: `linear-gradient(135deg, ${themeStyles.primaryColor}30, ${themeStyles.accentColor}20)`,
-                    backdropFilter: 'blur(10px)',
-                    border: `2px solid ${themeStyles.primaryColor}50`,
-                  }}
-                >
-                  {React.cloneElement(themeStyles.icon, { 
-                    sx: { fontSize: 40, color: themeStyles.primaryColor } 
-                  })}
-                </Avatar>
-              </motion.div>
-              
-              <Typography 
-                variant="h2" 
-                component="h1" 
-                fontWeight="bold" 
-                sx={{ 
-                  color: isDarkTheme ? '#fff' : themeStyles.primaryColor, 
-                  mb: 2,
-                  textShadow: isDarkTheme ? '0 4px 8px rgba(0, 0, 0, 0.3)' : '0 2px 4px rgba(0, 0, 0, 0.1)',
-                  fontSize: { xs: '2.5rem', md: '3.5rem' },
-                  fontFamily: config?.theme?.fontFamily || 'inherit',
-                }}
-              >
-                {config?.businessName || 'Turnos Pro'}
-              </Typography>
-              
-              <Typography 
-                variant="h5" 
-                sx={{ 
-                  color: isDarkTheme ? 'rgba(255, 255, 255, 0.9)' : themeStyles.primaryColor + '99', 
-                  mb: 4,
-                  textShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-                  fontWeight: 300
-                }}
-              >
-                Sistema de Gestión de Reservas
-              </Typography>
-            </Box>
+      {error && (
+        <Alert
+          severity="error"
+          onClose={() => setError('')}
+          sx={{ mb: 2, borderRadius: 1.5 }}
+        >
+          {error}
+        </Alert>
+      )}
 
-            {/* Tarjetas de características */}
-            <Grid container spacing={3}>
-              {themeStyles.features.map((feature, index) => (
-                <Grid item md={6} key={index}>
-                  <motion.div
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 + index * 0.1, duration: 0.5 }}
+      <Box component={motion.div} {...item(0.26)}>
+        <GoogleSignInButton
+          text="signin_with"
+          onSuccess={handleGoogleLogin}
+          onError={(msg) => setError(msg)}
+        />
+      </Box>
+
+      <Box component={motion.div} {...item(0.32)}>
+        <Divider label="o con email" />
+      </Box>
+
+      <Box component="form" onSubmit={handleSubmit}>
+        <Box component={motion.div} {...item(0.38)} sx={{ mb: 1.75 }}>
+          <TextField
+            fullWidth
+            name="email"
+            type="email"
+            label="Email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setError('');
+            }}
+            placeholder="ejemplo@correo.com"
+            required
+            disabled={loading}
+            autoComplete="email"
+            InputLabelProps={{ sx: { fontFamily: authFonts.body } }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                fontFamily: authFonts.body,
+                backgroundColor: '#FFFFFF',
+                borderRadius: 1.5,
+              },
+            }}
+          />
+        </Box>
+
+        <Box component={motion.div} {...item(0.44)} sx={{ mb: 2.5 }}>
+          <TextField
+            fullWidth
+            name="password"
+            type={showPassword ? 'text' : 'password'}
+            label="Contraseña"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setError('');
+            }}
+            required
+            disabled={loading}
+            autoComplete="current-password"
+            InputLabelProps={{ sx: { fontFamily: authFonts.body } }}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => setShowPassword((v) => !v)}
+                    edge="end"
+                    size="small"
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                   >
-                    <FeatureCard
-                      sx={{
-                        background: isDarkTheme ? 'rgba(30, 30, 30, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-                        border: `1px solid ${themeStyles.borderColor}`,
-                        '&:hover': {
-                          boxShadow: `0 20px 40px ${themeStyles.primaryColor}20`,
-                          background: isDarkTheme ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                          border: `1px solid ${themeStyles.primaryColor}40`,
-                        },
-                      }}
-                    >
-                      {React.cloneElement(feature.icon, { 
-                        sx: { fontSize: 40, color: themeStyles.primaryColor, mb: 2 } 
-                      })}
-                      <Typography 
-                        variant="h6" 
-                        fontWeight="bold" 
-                        gutterBottom 
-                        sx={{ color: isDarkTheme ? '#ffffff' : themeStyles.primaryColor }}
-                      >
-                        {feature.title}
-                      </Typography>
-                      <Typography 
-                        variant="body2" 
-                        sx={{ color: isDarkTheme ? 'rgba(255, 255, 255, 0.7)' : 'text.secondary' }}
-                      >
-                        {feature.description}
-                      </Typography>
-                    </FeatureCard>
-                  </motion.div>
-                </Grid>
-              ))}
-            </Grid>
-          </motion.div>
-        </Grid>
+                    {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                fontFamily: authFonts.body,
+                backgroundColor: '#FFFFFF',
+                borderRadius: 1.5,
+              },
+            }}
+          />
+        </Box>
 
-        {/* Panel derecho con formulario de login */}
-        <Grid item xs={12} lg={5}>
-          <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
+        <Box component={motion.div} {...item(0.5)}>
+          <Button
+            type="submit"
+            fullWidth
+            disabled={loading || !email.trim() || !password.trim()}
+            sx={{
+              height: 48,
+              fontFamily: authFonts.body,
+              fontWeight: 600,
+              fontSize: 15,
+              letterSpacing: '0.01em',
+              textTransform: 'none',
+              borderRadius: 1.5,
+              backgroundColor: authPalette.primary,
+              color: authPalette.paper,
+              '&:hover': {
+                backgroundColor: '#174a32',
+              },
+              '&.Mui-disabled': {
+                backgroundColor: 'rgba(23, 20, 16, 0.08)',
+                color: 'rgba(23, 20, 16, 0.35)',
+              },
+            }}
           >
-            <LoginCard
+            {loading ? (
+              <CircularProgress size={20} sx={{ color: authPalette.paper }} />
+            ) : (
+              'Iniciar sesión'
+            )}
+          </Button>
+        </Box>
+
+        <Box
+          component={motion.div}
+          {...item(0.56)}
+          sx={{ textAlign: 'center', mt: 3 }}
+        >
+          <Typography
+            sx={{
+              fontFamily: authFonts.body,
+              fontSize: 14,
+              color: authPalette.inkSoft,
+            }}
+          >
+            ¿No tenés cuenta?{' '}
+            <Box
+              component="a"
+              href="/register"
               sx={{
-                background: themeStyles.cardBackground,
-                border: `1px solid ${themeStyles.borderColor}`,
-                boxShadow: `0 32px 64px ${isDarkTheme ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.1)'}, 0 0 0 1px ${themeStyles.borderColor}`,
-                '&::before': {
-                  background: `linear-gradient(90deg, ${themeStyles.primaryColor}, ${themeStyles.accentColor}, ${themeStyles.primaryColor})`,
-                },
-                '&:hover': {
-                  boxShadow: `0 40px 80px ${themeStyles.primaryColor}20, 0 0 0 1px ${themeStyles.primaryColor}40`,
-                },
+                color: authPalette.primary,
+                fontWeight: 600,
+                textDecoration: 'none',
+                '&:hover': { textDecoration: 'underline' },
               }}
             >
-              <LogoSection
-                sx={{
-                  background: `linear-gradient(135deg, ${themeStyles.primaryColor}10 0%, ${themeStyles.accentColor}10 100%)`,
-                  '&::before': {
-                    background: `linear-gradient(45deg, transparent 30%, ${themeStyles.primaryColor}10 50%, transparent 70%)`,
-                  },
-                }}
-              >
-                <motion.div
-                  initial={{ scale: 0, rotate: -180 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ delay: 0.4, duration: 0.6, type: 'spring', stiffness: 200 }}
-                >
-                  {React.cloneElement(themeStyles.icon, { 
-                    sx: { fontSize: { xs: 36, sm: 48 }, mb: 2, color: themeStyles.primaryColor }
-                  })}
-                </motion.div>
-                <Typography 
-                  variant="h4" 
-                  component="h2" 
-                  fontWeight="bold" 
-                  sx={{ 
-                    color: isDarkTheme ? '#ffffff' : themeStyles.primaryColor, 
-                    mb: 1,
-                    fontSize: { xs: '1.75rem', sm: '2.125rem' },
-                    fontFamily: config?.theme?.fontFamily || 'inherit',
-                  }}
-                >
-                  ¡Bienvenido!
-                </Typography>
-                <Typography 
-                  variant="body1" 
-                  sx={{ 
-                    color: isDarkTheme ? 'rgba(255, 255, 255, 0.8)' : 'text.secondary', 
-                    fontWeight: 300 
-                  }}
-                >
-                  Accede a tu cuenta para continuar
-                </Typography>
-              </LogoSection>
-
-              <FormSection>
-                <AnimatePresence>
-                  {error && (
-                    <motion.div
-                      initial={{ opacity: 0, x: -20, scale: 0.9 }}
-                      animate={{ opacity: 1, x: 0, scale: 1 }}
-                      exit={{ opacity: 0, x: 20, scale: 0.9 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <Alert 
-                        severity="error" 
-                        sx={{ 
-                          mb: 3, 
-                          borderRadius: '16px',
-                          backgroundColor: 'rgba(211, 47, 47, 0.1)',
-                          border: '1px solid rgba(211, 47, 47, 0.2)',
-                        }}
-                      >
-                        {error}
-                      </Alert>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <GoogleSignInButton
-                  text="signin_with"
-                  onSuccess={handleGoogleLogin}
-                  onError={(msg) => setError(msg)}
-                />
-
-                <Divider sx={{ my: 2 }}>o</Divider>
-
-                <form onSubmit={handleSubmit}>
-                  <motion.div
-                    initial={{ opacity: 0, x: -30 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.5, duration: 0.5 }}
-                  >
-                    <StyledTextField
-                      fullWidth
-                      name="email"
-                      type="email"
-                      label="Correo electrónico"
-                      value={formData.email}
-                      onChange={handleChange}
-                      placeholder="ejemplo@correo.com"
-                      required
-                      disabled={loading}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <Email sx={{ color: themeStyles.primaryColor }} />
-                          </InputAdornment>
-                        ),
-                      }}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          backgroundColor: isDarkTheme ? 'rgba(40, 40, 40, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-                          backdropFilter: 'blur(10px)',
-                          color: isDarkTheme ? '#ffffff' : 'inherit',
-                          '& fieldset': {
-                            borderColor: themeStyles.borderColor,
-                          },
-                          '&:hover': {
-                            backgroundColor: isDarkTheme ? 'rgba(50, 50, 50, 0.9)' : 'rgba(255, 255, 255, 0.9)',
-                            boxShadow: `0 8px 25px ${themeStyles.primaryColor}20`,
-                            '& fieldset': {
-                              borderColor: `${themeStyles.primaryColor}50`,
-                            },
-                          },
-                          '&.Mui-focused': {
-                            backgroundColor: isDarkTheme ? 'rgba(50, 50, 50, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                            boxShadow: `0 12px 35px ${themeStyles.primaryColor}30`,
-                            '& fieldset': {
-                              borderColor: themeStyles.primaryColor,
-                              boxShadow: `0 0 0 4px ${themeStyles.primaryColor}10`,
-                            },
-                          },
-                        },
-                        '& .MuiInputLabel-root': {
-                          color: isDarkTheme ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)',
-                          '&.Mui-focused': {
-                            color: themeStyles.primaryColor,
-                          },
-                        },
-                      }}
-                    />
-                  </motion.div>
-
-                  <motion.div
-                    initial={{ opacity: 0, x: -30 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.6, duration: 0.5 }}
-                  >
-                    <StyledTextField
-                      fullWidth
-                      name="password"
-                      type={showPassword ? 'text' : 'password'}
-                      label="Contraseña"
-                      value={formData.password}
-                      onChange={handleChange}
-                      placeholder="Ingresa tu contraseña"
-                      required
-                      disabled={loading}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <Lock sx={{ color: themeStyles.primaryColor }} />
-                          </InputAdornment>
-                        ),
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <IconButton
-                              onClick={() => setShowPassword(!showPassword)}
-                              edge="end"
-                              sx={{ color: themeStyles.primaryColor }}
-                            >
-                              {showPassword ? <VisibilityOff /> : <Visibility />}
-                            </IconButton>
-                          </InputAdornment>
-                        ),
-                      }}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          backgroundColor: isDarkTheme ? 'rgba(40, 40, 40, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-                          backdropFilter: 'blur(10px)',
-                          color: isDarkTheme ? '#ffffff' : 'inherit',
-                          '& fieldset': {
-                            borderColor: themeStyles.borderColor,
-                          },
-                          '&:hover': {
-                            backgroundColor: isDarkTheme ? 'rgba(50, 50, 50, 0.9)' : 'rgba(255, 255, 255, 0.9)',
-                            boxShadow: `0 8px 25px ${themeStyles.primaryColor}20`,
-                            '& fieldset': {
-                              borderColor: `${themeStyles.primaryColor}50`,
-                            },
-                          },
-                          '&.Mui-focused': {
-                            backgroundColor: isDarkTheme ? 'rgba(50, 50, 50, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                            boxShadow: `0 12px 35px ${themeStyles.primaryColor}30`,
-                            '& fieldset': {
-                              borderColor: themeStyles.primaryColor,
-                              boxShadow: `0 0 0 4px ${themeStyles.primaryColor}10`,
-                            },
-                          },
-                        },
-                        '& .MuiInputLabel-root': {
-                          color: isDarkTheme ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)',
-                          '&.Mui-focused': {
-                            color: themeStyles.primaryColor,
-                          },
-                        },
-                      }}
-                    />
-                  </motion.div>
-
-                  <motion.div
-                    initial={{ opacity: 0, x: -30 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.7, duration: 0.5 }}
-                  >
-                    <StyledButton
-                      type="submit"
-                      fullWidth
-                      size="large"
-                      disabled={loading || !formData.email.trim() || !formData.password.trim()}
-                      sx={{
-                        background: `linear-gradient(135deg, ${themeStyles.primaryColor} 0%, ${themeStyles.accentColor} 100%)`,
-                        color: '#ffffff',
-                        boxShadow: `0 12px 35px ${themeStyles.primaryColor}50`,
-                        '&:hover': {
-                          boxShadow: `0 12px 35px ${themeStyles.primaryColor}50`,
-                          background: `linear-gradient(135deg, ${themeStyles.accentColor} 0%, ${themeStyles.primaryColor} 100%)`,
-                        },
-                        '&:disabled': {
-                          background: 'rgba(60, 60, 60, 0.5)',
-                          color: 'rgba(255, 255, 255, 0.3)',
-                        },
-                      }}
-                    >
-                      {loading ? (
-                        <>
-                          <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} />
-                          Iniciando sesión...
-                        </>
-                      ) : (
-                        'Iniciar Sesión'
-                      )}
-                    </StyledButton>
-                  </motion.div>
-
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.8, duration: 0.5 }}
-                  >
-                    <Box sx={{ textAlign: 'center', mt: 2 }}>
-                      <Typography 
-                        variant="body2" 
-                        sx={{ 
-                          color: isDarkTheme ? 'rgba(255, 255, 255, 0.5)' : 'text.secondary',
-                          cursor: 'pointer',
-                          '&:hover': {
-                            color: themeStyles.primaryColor,
-                            textDecoration: 'underline',
-                          }
-                        }}
-                      >
-                        ¿Olvidaste tu contraseña?
-                      </Typography>
-                    </Box>
-                  </motion.div>
-                </form>
-              </FormSection>
-            </LoginCard>
-
-            {/* Información del tenant */}
-            <Box sx={{ textAlign: 'center', mt: 3 }}>
-              <Typography 
-                variant="caption" 
-                sx={{ 
-                  color: isDarkTheme ? 'rgba(255, 255, 255, 0.5)' : 'text.secondary'
-                }}
-              >
-                {config?.vertical === 'barbershop' && 'Barbería Profesional'} 
-                {config?.vertical === 'beautysalon' && 'Salón de Belleza'} 
-                {config?.vertical === 'aesthetics' && 'Centro de Estética'} 
-                {' | Powered by Turnos Pro'}
-              </Typography>
+              Registrate gratis →
             </Box>
-          </motion.div>
-        </Grid>
-      </Grid>
-    </LoginContainer>
+          </Typography>
+        </Box>
+      </Box>
+    </AuthShell>
   );
 };
 

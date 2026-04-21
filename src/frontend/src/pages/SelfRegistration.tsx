@@ -1,149 +1,184 @@
-import React, { useState, useEffect, useCallback } from 'react';
+/**
+ * /register — full-page split-screen signup (Harbiz pattern).
+ *
+ * Replaces the old centered multi-step modal with a full-page AuthShell.
+ * The backend signup API is **unchanged**:
+ *   1. POST /registration/start        → sends confirmation email
+ *   2. GET  /register/confirm?token=x  → verify token, reveal URL form
+ *   3. POST /registration/check-subdomain
+ *   4. POST /registration/complete OR /registration/google-register
+ *
+ * The UX is compressed visually (each phase is shown inside the right
+ * panel of the AuthShell; the left panel never changes), so the user
+ * always sees the same editorial testimonials + headline regardless of
+ * which phase they're in.
+ */
+
+import React, { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Box,
-  Container,
-  Paper,
-  Typography,
-  Stepper,
-  Step,
-  StepLabel,
-  Button,
-  TextField,
-  Grid,
   Alert,
+  Box,
+  Button,
+  Checkbox,
   CircularProgress,
-  InputAdornment,
+  FormControlLabel,
   IconButton,
+  InputAdornment,
+  TextField,
+  Typography,
 } from '@mui/material';
-import {
-  Email,
-  Security,
-  Visibility,
-  VisibilityOff,
-  CheckCircle,
-  Language,
-  Business,
-  Phone,
-  PhoneAndroid,
-} from '@mui/icons-material';
-import { motion } from 'framer-motion';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import EmailIcon from '@mui/icons-material/Email';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import { motion, useReducedMotion } from 'framer-motion';
+
 import { registrationApi } from '../services/api';
-import api from '../services/api';
 import GoogleSignInButton from '../components/auth/GoogleSignInButton';
-import Divider from '@mui/material/Divider';
-import Card from '@mui/material/Card';
-import Chip from '@mui/material/Chip';
-import Stack from '@mui/material/Stack';
+import AuthShell, { authPalette, authFonts } from '../components/auth/AuthShell';
 
-type FlowStep = 'plan' | 'email' | 'email-sent' | 'url' | 'business' | 'success';
+type FlowStep =
+  | 'signup' // Google + email/password/business name + terms (entry)
+  | 'email-sent' // waiting for email confirmation
+  | 'url' // post-verify: pick subdomain
+  | 'business' // mobile + address + etc.
+  | 'success';
 
-interface PublicPlan {
-  code: string;
-  name: string;
-  description?: string;
-  price: number;
-  currency: string;
-  trialDays: number;
-  isPopular?: boolean;
-}
+const Divider: React.FC<{ label: string }> = ({ label }) => (
+  <Box
+    sx={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 1.5,
+      my: 2.5,
+      '&::before, &::after': {
+        content: '""',
+        flex: 1,
+        height: 1,
+        backgroundColor: 'rgba(23, 20, 16, 0.14)',
+      },
+    }}
+  >
+    <Typography
+      sx={{
+        fontFamily: authFonts.mono,
+        fontSize: 11,
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase',
+        color: authPalette.inkFaint,
+      }}
+    >
+      {label}
+    </Typography>
+  </Box>
+);
+
+const primaryButtonSx = {
+  height: 48,
+  fontFamily: authFonts.body,
+  fontWeight: 600,
+  fontSize: 15,
+  textTransform: 'none' as const,
+  borderRadius: 1.5,
+  backgroundColor: authPalette.primary,
+  color: authPalette.paper,
+  '&:hover': { backgroundColor: '#174a32' },
+  '&.Mui-disabled': {
+    backgroundColor: 'rgba(23, 20, 16, 0.08)',
+    color: 'rgba(23, 20, 16, 0.35)',
+  },
+};
+
+const outlinedButtonSx = {
+  height: 48,
+  fontFamily: authFonts.body,
+  fontWeight: 500,
+  fontSize: 15,
+  textTransform: 'none' as const,
+  borderRadius: 1.5,
+  color: authPalette.ink,
+  borderColor: 'rgba(23, 20, 16, 0.2)',
+  backgroundColor: 'transparent',
+  '&:hover': {
+    borderColor: authPalette.primary,
+    backgroundColor: 'rgba(30, 94, 63, 0.05)',
+  },
+};
+
+const textFieldSx = {
+  '& .MuiOutlinedInput-root': {
+    fontFamily: authFonts.body,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 1.5,
+  },
+};
 
 const SelfRegistration: React.FC = () => {
   const [searchParams] = useSearchParams();
   const tokenFromUrl = searchParams.get('token');
+  const prefersReducedMotion = useReducedMotion();
 
-  // Determine initial step based on URL
-  const [currentStep, setCurrentStep] = useState<FlowStep>(tokenFromUrl ? 'url' : 'plan');
+  // ----- Flow state -----
+  const [currentStep, setCurrentStep] = useState<FlowStep>(
+    tokenFromUrl ? 'url' : 'signup'
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Step 0a: Plan selection
-  const [availablePlans, setAvailablePlans] = useState<PublicPlan[]>([]);
-  const [selectedPlanCode, setSelectedPlanCode] = useState<string>('');
-  const [loadingPlans, setLoadingPlans] = useState(false);
-
-  // Step 0: Email + Password
+  // ----- Signup step -----
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [businessName, setBusinessName] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [googleIdToken, setGoogleIdToken] = useState<string>('');
 
-  // Token from verification
+  // ----- Verification bridge -----
   const [rememberToken, setRememberToken] = useState(tokenFromUrl || '');
   const [verifiedEmail, setVerifiedEmail] = useState('');
 
-  // Google OAuth signup — if set, skip email verification flow
-  const [googleIdToken, setGoogleIdToken] = useState<string>('');
-
-  // Step 1: URL
+  // ----- URL step -----
   const [subdomain, setSubdomain] = useState('');
   const [subdomainAvailable, setSubdomainAvailable] = useState<boolean | null>(null);
   const [checkingSubdomain, setCheckingSubdomain] = useState(false);
 
-  // Step 2: Business Data
-  const [businessName, setBusinessName] = useState('');
-  const [businessAddress, setBusinessAddress] = useState('');
-  const [phone, setPhone] = useState('');
-  const [website, setWebsite] = useState('');
+  // ----- Business step -----
   const [mobile, setMobile] = useState('');
+  const [businessAddress, setBusinessAddress] = useState('');
 
-  // Step 3: Success
+  // ----- Final -----
   const [redirectUrl, setRedirectUrl] = useState('');
-
-  // Dev helpers
-  const [devToken, setDevToken] = useState('');
   const [devConfirmUrl, setDevConfirmUrl] = useState('');
 
-  // Verify token when arriving from /register/confirm?token=xxx
+  // ---------------- Effects ----------------
+
   useEffect(() => {
     if (tokenFromUrl) {
-      verifyToken(tokenFromUrl);
+      (async () => {
+        setLoading(true);
+        setError('');
+        try {
+          const response = await registrationApi.verify(tokenFromUrl);
+          if (response.success) {
+            setRememberToken(tokenFromUrl);
+            setVerifiedEmail(response.email);
+            setCurrentStep('url');
+          } else {
+            setError(response.message || 'Token inválido');
+          }
+        } catch (err: any) {
+          setError(
+            err.response?.data?.message ||
+              'Error verificando el token. El link puede haber expirado.'
+          );
+        } finally {
+          setLoading(false);
+        }
+      })();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokenFromUrl]);
 
-  // Fetch available plans on mount (public endpoint)
-  useEffect(() => {
-    const fetchPlans = async () => {
-      setLoadingPlans(true);
-      try {
-        const res = await api.get('/subscription/plans');
-        const plans: PublicPlan[] = res.data || [];
-        setAvailablePlans(plans);
-        // Default selection: the "popular" plan or the first one
-        const popular = plans.find((p) => p.isPopular);
-        setSelectedPlanCode(popular?.code ?? plans[0]?.code ?? '');
-      } catch {
-        // Graceful fallback — skip plan step if backend is unreachable
-        setAvailablePlans([]);
-      } finally {
-        setLoadingPlans(false);
-      }
-    };
-    fetchPlans();
-  }, []);
-
-  const verifyToken = async (token: string) => {
-    setLoading(true);
-    setError('');
-    try {
-      const response = await registrationApi.verify(token);
-      if (response.success) {
-        setRememberToken(token);
-        setVerifiedEmail(response.email);
-        setCurrentStep('url');
-      } else {
-        setError(response.message || 'Token inválido');
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Error verificando el token. El link puede haber expirado.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Subdomain availability check with debounce
   const checkSubdomain = useCallback(async (value: string) => {
     if (!value || value.length < 3) {
       setSubdomainAvailable(null);
@@ -174,12 +209,12 @@ const SelfRegistration: React.FC = () => {
     setSubdomain(sanitized);
   };
 
-  // ---- STEP HANDLERS ----
+  // ---------------- Handlers ----------------
 
-  const handleStartSubmit = async () => {
+  const handleSignupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError('');
-
-    if (!email || !password || !confirmPassword) {
+    if (!email || !password) {
       setError('Completá todos los campos');
       return;
     }
@@ -191,17 +226,26 @@ const SelfRegistration: React.FC = () => {
       setError('La contraseña debe tener al menos 8 caracteres');
       return;
     }
-    if (password !== confirmPassword) {
-      setError('Las contraseñas no coinciden');
+    if (!businessName.trim()) {
+      setError('Ingresá el nombre de tu negocio');
+      return;
+    }
+    if (!acceptedTerms) {
+      setError('Tenés que aceptar los términos y condiciones');
       return;
     }
 
     setLoading(true);
     try {
-      const response = await registrationApi.start({ email, password, confirmPassword });
+      // Backend still drives the email-confirmation flow. We only send
+      // email+password; business name is kept in local state and used
+      // later in /registration/complete.
+      const response = await registrationApi.start({
+        email,
+        password,
+        confirmPassword: password,
+      });
       if (response.success) {
-        // Save dev helpers if present
-        if (response.devToken) setDevToken(response.devToken);
         if (response.devConfirmUrl) setDevConfirmUrl(response.devConfirmUrl);
         setCurrentStep('email-sent');
       } else {
@@ -212,6 +256,23 @@ const SelfRegistration: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoogleSignup = (idToken: string) => {
+    setError('');
+    setGoogleIdToken(idToken);
+    try {
+      localStorage.setItem('googleIdTokenForOnboarding', idToken);
+    } catch {
+      /* ignore quota errors */
+    }
+    try {
+      const payload = JSON.parse(atob(idToken.split('.')[1]));
+      if (payload.email) setVerifiedEmail(payload.email);
+    } catch {
+      /* decode failure is non-fatal */
+    }
+    setCurrentStep('url');
   };
 
   const handleUrlNext = () => {
@@ -227,56 +288,35 @@ const SelfRegistration: React.FC = () => {
     setCurrentStep('business');
   };
 
-  const handleGoogleSignupSuccess = (idToken: string) => {
+  const handleCompleteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError('');
-    setGoogleIdToken(idToken);
-    // Cache for the onboarding wizard (name + picture prefill after first login).
-    try { localStorage.setItem('googleIdTokenForOnboarding', idToken); } catch {}
-    // Decode to pre-fill verifiedEmail for display
-    try {
-      const payload = JSON.parse(atob(idToken.split('.')[1]));
-      if (payload.email) setVerifiedEmail(payload.email);
-    } catch {
-      // ignore decode failures
-    }
-    setCurrentStep('url');
-  };
-
-  const handleCompleteSubmit = async () => {
-    setError('');
-    if (!businessName) {
+    if (!businessName.trim()) {
       setError('El nombre del negocio es requerido');
       return;
     }
-    if (!mobile) {
+    if (!mobile.trim()) {
       setError('El celular es requerido');
       return;
     }
 
     setLoading(true);
     try {
-      let response: any;
-      if (googleIdToken) {
-        response = await registrationApi.googleRegister({
-          idToken: googleIdToken,
-          subdomain,
-          businessName,
-          businessAddress: businessAddress || undefined,
-          mobile,
-          planCode: selectedPlanCode || undefined,
-        });
-      } else {
-        response = await registrationApi.complete({
-          rememberToken,
-          subdomain,
-          businessName,
-          businessAddress: businessAddress || undefined,
-          phone: phone || undefined,
-          website: website || undefined,
-          mobile,
-          planCode: selectedPlanCode || undefined,
-        });
-      }
+      const response = googleIdToken
+        ? await registrationApi.googleRegister({
+            idToken: googleIdToken,
+            subdomain,
+            businessName,
+            businessAddress: businessAddress || undefined,
+            mobile,
+          })
+        : await registrationApi.complete({
+            rememberToken,
+            subdomain,
+            businessName,
+            businessAddress: businessAddress || undefined,
+            mobile,
+          });
 
       if (response.success) {
         setRedirectUrl(response.redirectUrl);
@@ -286,7 +326,9 @@ const SelfRegistration: React.FC = () => {
       }
     } catch (err: any) {
       if (err.response?.data?.code === 'EMAIL_EXISTS') {
-        setError('Ya existe una cuenta con este email. Iniciá sesión con Google desde la página de login.');
+        setError(
+          'Ya existe una cuenta con este email. Iniciá sesión con Google desde la página de login.'
+        );
       } else {
         setError(err.response?.data?.message || 'Error al completar el registro');
       }
@@ -295,487 +337,575 @@ const SelfRegistration: React.FC = () => {
     }
   };
 
-  // ---- STEP RENDERERS ----
+  // ---------------- Motion helpers ----------------
 
-  const getStepperIndex = (): number => {
-    switch (currentStep) {
-      case 'plan': return 0;
-      case 'email':
-      case 'email-sent': return 1;
-      case 'url': return 2;
-      case 'business': return 3;
-      case 'success': return 4;
-      default: return 0;
-    }
-  };
+  const item = (delay: number) =>
+    prefersReducedMotion
+      ? { initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { duration: 0.2, delay } }
+      : {
+          initial: { opacity: 0, y: 8 },
+          animate: { opacity: 1, y: 0 },
+          transition: { duration: 0.4, delay, ease: [0.22, 0.61, 0.36, 1] as [number, number, number, number] },
+        };
 
-  const stepLabels = ['Plan', 'Cuenta', 'URL', 'Negocio', 'Listo'];
+  // ---------------- Step renderers ----------------
 
-  const renderPlanStep = () => (
-    <Box sx={{ py: 3 }}>
-      <Typography variant="h5" sx={{ mb: 1, textAlign: 'center', fontWeight: 600 }}>
-        Elegí tu plan
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3, textAlign: 'center' }}>
-        Prueba gratis {availablePlans[0]?.trialDays || 7} días sin tarjeta. Después, el plan que elijas se cobra mensualmente por Mercado Pago.
-      </Typography>
-
-      {loadingPlans && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-          <CircularProgress />
-        </Box>
-      )}
-
-      {!loadingPlans && availablePlans.length === 0 && (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          Arrancá con el período de prueba gratuito. Vas a poder elegir plan más adelante desde tu panel.
-        </Alert>
-      )}
-
-      <Stack spacing={2} sx={{ mb: 3 }}>
-        {availablePlans.map((plan) => {
-          const isSelected = selectedPlanCode === plan.code;
-          return (
-            <Card
-              key={plan.code}
-              onClick={() => setSelectedPlanCode(plan.code)}
-              sx={{
-                p: 2,
-                cursor: 'pointer',
-                border: '2px solid',
-                borderColor: isSelected ? 'primary.main' : 'divider',
-                transition: 'border-color 0.2s',
-                position: 'relative',
-              }}
-            >
-              {plan.isPopular && (
-                <Chip
-                  label="Más elegido"
-                  color="primary"
-                  size="small"
-                  sx={{ position: 'absolute', top: 8, right: 8 }}
-                />
-              )}
-              <Typography variant="h6" fontWeight={700}>
-                {plan.name}
-              </Typography>
-              {plan.description && (
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  {plan.description}
-                </Typography>
-              )}
-              <Typography variant="h5" color="primary.main">
-                ${plan.price.toLocaleString('es-AR')} {plan.currency}
-                <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
-                  /mes
-                </Typography>
-              </Typography>
-              {plan.trialDays > 0 && (
-                <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.5 }}>
-                  {plan.trialDays} días de prueba gratis
-                </Typography>
-              )}
-            </Card>
-          );
-        })}
-      </Stack>
-
-      <Button
-        fullWidth
-        variant="contained"
-        size="large"
-        onClick={() => setCurrentStep('email')}
-        disabled={loadingPlans}
-        sx={{ py: 1.5 }}
+  const Header: React.FC<{
+    kicker: string;
+    title: string;
+    subtitle?: string;
+  }> = ({ kicker, title, subtitle }) => (
+    <Box component={motion.div} {...item(0.2)} sx={{ mb: 4 }}>
+      <Typography
+        sx={{
+          fontFamily: authFonts.mono,
+          fontSize: 11,
+          fontWeight: 500,
+          letterSpacing: '0.14em',
+          textTransform: 'uppercase',
+          color: authPalette.primary,
+          mb: 1.25,
+        }}
       >
-        Continuar
-      </Button>
+        {kicker}
+      </Typography>
+      <Typography
+        component="h1"
+        sx={{
+          fontFamily: authFonts.display,
+          fontWeight: 500,
+          fontSize: { xs: 30, sm: 36 },
+          lineHeight: 1.08,
+          letterSpacing: '-0.02em',
+          color: authPalette.ink,
+          mb: subtitle ? 1 : 0,
+          fontVariationSettings: '"opsz" 144, "SOFT" 30',
+        }}
+      >
+        {title}
+      </Typography>
+      {subtitle && (
+        <Typography
+          sx={{
+            fontFamily: authFonts.body,
+            fontSize: 15,
+            lineHeight: 1.5,
+            color: authPalette.inkSoft,
+          }}
+        >
+          {subtitle}
+        </Typography>
+      )}
     </Box>
   );
 
-  const renderEmailStep = () => (
-    <Box sx={{ py: 3 }}>
-      <Typography variant="h5" sx={{ mb: 1, textAlign: 'center', fontWeight: 600 }}>
-        Creá tu cuenta
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3, textAlign: 'center' }}>
-        Registrate con Google o usá tu email
-      </Typography>
-
-      <GoogleSignInButton
-        text="signup_with"
-        onSuccess={handleGoogleSignupSuccess}
-        onError={(msg) => setError(msg)}
+  const renderSignup = () => (
+    <>
+      <Header
+        kicker="7 días gratis"
+        title="Creá tu cuenta"
+        subtitle="Llevá la relación con tus clientes al siguiente nivel."
       />
 
-      <Divider sx={{ my: 3 }}>o</Divider>
-
-      <Grid container spacing={2}>
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoFocus
-            InputProps={{
-              startAdornment: <InputAdornment position="start"><Email /></InputAdornment>,
-            }}
-          />
-        </Grid>
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Contraseña"
-            type={showPassword ? 'text' : 'password'}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            helperText="Mínimo 8 caracteres"
-            InputProps={{
-              startAdornment: <InputAdornment position="start"><Security /></InputAdornment>,
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small">
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
-        </Grid>
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Confirmar contraseña"
-            type={showConfirmPassword ? 'text' : 'password'}
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-            error={confirmPassword !== '' && password !== confirmPassword}
-            helperText={confirmPassword !== '' && password !== confirmPassword ? 'Las contraseñas no coinciden' : ''}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)} edge="end" size="small">
-                    {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
-        </Grid>
-        <Grid item xs={12}>
-          <Button
-            fullWidth
-            variant="contained"
-            size="large"
-            onClick={handleStartSubmit}
-            disabled={loading}
-            sx={{ mt: 1, py: 1.5 }}
-          >
-            {loading ? <CircularProgress size={24} /> : 'Continuar'}
-          </Button>
-        </Grid>
-      </Grid>
-    </Box>
-  );
-
-  const renderEmailSentStep = () => (
-    <Box sx={{ py: 4, textAlign: 'center' }}>
-      <Email sx={{ fontSize: 64, color: 'primary.main', mb: 2 }} />
-      <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
-        Revisá tu email
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-        Te enviamos un email de confirmación a <strong>{email}</strong>.
-        <br />
-        Hacé click en el link para continuar con el registro.
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        Si no lo ves, revisá la carpeta de spam.
-      </Typography>
-
-      {/* Dev helper - only shown in development */}
-      {devConfirmUrl && (
-        <Alert severity="info" sx={{ mt: 3, textAlign: 'left' }}>
-          <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-            Modo desarrollo - Link de confirmación:
-          </Typography>
-          <Typography
-            variant="body2"
-            component="a"
-            href={devConfirmUrl}
-            sx={{ wordBreak: 'break-all', color: 'primary.main' }}
-          >
-            {devConfirmUrl}
-          </Typography>
+      {error && (
+        <Alert
+          severity="error"
+          onClose={() => setError('')}
+          sx={{ mb: 2, borderRadius: 1.5 }}
+        >
+          {error}
         </Alert>
       )}
-    </Box>
-  );
 
-  const renderUrlStep = () => (
-    <Box sx={{ py: 3 }}>
-      <Typography variant="h5" sx={{ mb: 1, textAlign: 'center', fontWeight: 600 }}>
-        Elegí tu URL
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 4, textAlign: 'center' }}>
-        Paso 1 de 2 {verifiedEmail && `- ${verifiedEmail}`}
-      </Typography>
+      <Box component={motion.div} {...item(0.26)}>
+        <GoogleSignInButton
+          text="signup_with"
+          onSuccess={handleGoogleSignup}
+          onError={(msg) => setError(msg)}
+        />
+      </Box>
 
-      <Grid container spacing={2}>
-        <Grid item xs={12}>
+      <Box component={motion.div} {...item(0.32)}>
+        <Divider label="o con email" />
+      </Box>
+
+      <Box component="form" onSubmit={handleSignupSubmit}>
+        <Box component={motion.div} {...item(0.38)} sx={{ mb: 1.75 }}>
           <TextField
             fullWidth
-            label="Subdominio"
-            placeholder="ej: mi-peluqueria"
-            value={subdomain}
-            onChange={(e) => handleSubdomainChange(e.target.value)}
-            required
-            autoFocus
-            error={subdomainAvailable === false}
-            helperText={
-              checkingSubdomain ? 'Verificando disponibilidad...' :
-              subdomainAvailable === true ? 'Subdominio disponible' :
-              subdomainAvailable === false ? 'Subdominio no disponible' :
-              'Solo letras minúsculas, números y guiones'
-            }
-            InputProps={{
-              startAdornment: <InputAdornment position="start"><Language /></InputAdornment>,
-              endAdornment: (
-                <InputAdornment position="end">
-                  {checkingSubdomain && <CircularProgress size={20} />}
-                  {subdomainAvailable === true && <CheckCircle color="success" />}
-                </InputAdornment>
-              ),
-            }}
-          />
-        </Grid>
-        <Grid item xs={12}>
-          <Paper
-            variant="outlined"
-            sx={{
-              p: 2,
-              textAlign: 'center',
-              bgcolor: 'grey.50',
-              borderStyle: 'dashed',
-            }}
-          >
-            <Typography variant="body2" color="text.secondary">
-              Tu URL será:
-            </Typography>
-            <Typography variant="h6" color="primary.main" sx={{ fontWeight: 600 }}>
-              {subdomain || 'tu-negocio'}.turnos-pro.com
-            </Typography>
-          </Paper>
-        </Grid>
-        <Grid item xs={12}>
-          <Button
-            fullWidth
-            variant="contained"
-            size="large"
-            onClick={handleUrlNext}
-            disabled={loading || subdomainAvailable === false || !subdomain || subdomain.length < 3}
-            sx={{ mt: 1, py: 1.5 }}
-          >
-            Continuar
-          </Button>
-        </Grid>
-      </Grid>
-    </Box>
-  );
-
-  const renderBusinessStep = () => (
-    <Box sx={{ py: 3 }}>
-      <Typography variant="h5" sx={{ mb: 1, textAlign: 'center', fontWeight: 600 }}>
-        Datos del negocio
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 4, textAlign: 'center' }}>
-        Paso 2 de 2
-      </Typography>
-
-      <Grid container spacing={2}>
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Nombre de la empresa"
+            label="Nombre del negocio"
+            placeholder="Estudio Luli"
             value={businessName}
             onChange={(e) => setBusinessName(e.target.value)}
             required
             autoFocus
-            InputProps={{
-              startAdornment: <InputAdornment position="start"><Business /></InputAdornment>,
-            }}
+            InputLabelProps={{ sx: { fontFamily: authFonts.body } }}
+            sx={textFieldSx}
           />
-        </Grid>
-        <Grid item xs={12}>
+        </Box>
+
+        <Box component={motion.div} {...item(0.44)} sx={{ mb: 1.75 }}>
           <TextField
             fullWidth
-            label="Dirección"
-            value={businessAddress}
-            onChange={(e) => setBusinessAddress(e.target.value)}
+            type="email"
+            label="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="email"
+            InputLabelProps={{ sx: { fontFamily: authFonts.body } }}
+            sx={textFieldSx}
           />
-        </Grid>
-        <Grid item xs={12} sm={6}>
+        </Box>
+
+        <Box component={motion.div} {...item(0.5)} sx={{ mb: 1.5 }}>
           <TextField
             fullWidth
-            label="Teléfono"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            type={showPassword ? 'text' : 'password'}
+            label="Contraseña"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="new-password"
+            helperText="Mínimo 8 caracteres"
+            InputLabelProps={{ sx: { fontFamily: authFonts.body } }}
             InputProps={{
-              startAdornment: <InputAdornment position="start"><Phone /></InputAdornment>,
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => setShowPassword((v) => !v)}
+                    edge="end"
+                    size="small"
+                  >
+                    {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                  </IconButton>
+                </InputAdornment>
+              ),
             }}
+            sx={textFieldSx}
           />
-        </Grid>
-        <Grid item xs={12} sm={6}>
+        </Box>
+
+        <Box component={motion.div} {...item(0.56)} sx={{ mb: 2.5 }}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+                size="small"
+                sx={{
+                  color: 'rgba(23, 20, 16, 0.35)',
+                  '&.Mui-checked': { color: authPalette.primary },
+                }}
+              />
+            }
+            label={
+              <Typography
+                sx={{
+                  fontFamily: authFonts.body,
+                  fontSize: 13.5,
+                  color: authPalette.inkSoft,
+                }}
+              >
+                Acepto los{' '}
+                <Box
+                  component="a"
+                  href="/terms"
+                  target="_blank"
+                  rel="noreferrer"
+                  sx={{ color: authPalette.primary, textDecoration: 'none' }}
+                >
+                  términos y condiciones
+                </Box>
+              </Typography>
+            }
+          />
+        </Box>
+
+        <Box component={motion.div} {...item(0.62)}>
+          <Button
+            type="submit"
+            fullWidth
+            disabled={loading}
+            sx={primaryButtonSx}
+          >
+            {loading ? (
+              <CircularProgress size={20} sx={{ color: authPalette.paper }} />
+            ) : (
+              'Crear cuenta'
+            )}
+          </Button>
+        </Box>
+
+        <Box
+          component={motion.div}
+          {...item(0.68)}
+          sx={{ textAlign: 'center', mt: 3 }}
+        >
+          <Typography
+            sx={{
+              fontFamily: authFonts.body,
+              fontSize: 14,
+              color: authPalette.inkSoft,
+            }}
+          >
+            ¿Ya tenés cuenta?{' '}
+            <Box
+              component="a"
+              href="/login"
+              sx={{
+                color: authPalette.primary,
+                fontWeight: 600,
+                textDecoration: 'none',
+                '&:hover': { textDecoration: 'underline' },
+              }}
+            >
+              Iniciá sesión →
+            </Box>
+          </Typography>
+        </Box>
+      </Box>
+    </>
+  );
+
+  const renderEmailSent = () => (
+    <>
+      <Box
+        component={motion.div}
+        {...item(0.2)}
+        sx={{ textAlign: 'center', mb: 3 }}
+      >
+        <EmailIcon
+          sx={{ fontSize: 56, color: authPalette.primary, mb: 2 }}
+        />
+        <Typography
+          component="h1"
+          sx={{
+            fontFamily: authFonts.display,
+            fontWeight: 500,
+            fontSize: { xs: 28, sm: 34 },
+            letterSpacing: '-0.02em',
+            color: authPalette.ink,
+            mb: 1,
+            fontVariationSettings: '"opsz" 144, "SOFT" 30',
+          }}
+        >
+          Revisá tu email
+        </Typography>
+        <Typography
+          sx={{
+            fontFamily: authFonts.body,
+            fontSize: 15,
+            color: authPalette.inkSoft,
+            lineHeight: 1.5,
+          }}
+        >
+          Te enviamos un link de confirmación a{' '}
+          <Box
+            component="strong"
+            sx={{ color: authPalette.ink, fontWeight: 600 }}
+          >
+            {email}
+          </Box>
+          . Hacé click para continuar. Si no lo ves, revisá la carpeta de spam.
+        </Typography>
+      </Box>
+
+      {devConfirmUrl && (
+        <Alert severity="info" sx={{ mt: 2, borderRadius: 1.5 }}>
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: 600, mb: 0.5, fontFamily: authFonts.body }}
+          >
+            Modo desarrollo — link de confirmación:
+          </Typography>
+          <Box
+            component="a"
+            href={devConfirmUrl}
+            sx={{
+              wordBreak: 'break-all',
+              color: authPalette.primary,
+              fontSize: 13,
+              fontFamily: authFonts.mono,
+            }}
+          >
+            {devConfirmUrl}
+          </Box>
+        </Alert>
+      )}
+    </>
+  );
+
+  const renderUrlStep = () => (
+    <>
+      <Header
+        kicker="Paso 1 de 2"
+        title="Elegí tu URL"
+        subtitle={
+          verifiedEmail
+            ? `Tu cuenta: ${verifiedEmail}`
+            : 'Donde tus clientes van a reservar.'
+        }
+      />
+
+      {error && (
+        <Alert
+          severity="error"
+          onClose={() => setError('')}
+          sx={{ mb: 2, borderRadius: 1.5 }}
+        >
+          {error}
+        </Alert>
+      )}
+
+      <Box component={motion.div} {...item(0.3)} sx={{ mb: 1.5 }}>
+        <TextField
+          fullWidth
+          label="Subdominio"
+          placeholder="mi-peluqueria"
+          value={subdomain}
+          onChange={(e) => handleSubdomainChange(e.target.value)}
+          required
+          autoFocus
+          error={subdomainAvailable === false}
+          helperText={
+            checkingSubdomain
+              ? 'Verificando disponibilidad...'
+              : subdomainAvailable === true
+              ? 'Subdominio disponible'
+              : subdomainAvailable === false
+              ? 'Subdominio no disponible'
+              : 'Solo letras minúsculas, números y guiones'
+          }
+          InputLabelProps={{ sx: { fontFamily: authFonts.body } }}
+          InputProps={{
+            endAdornment: (
+              <InputAdornment position="end">
+                {checkingSubdomain && <CircularProgress size={18} />}
+                {subdomainAvailable === true && (
+                  <CheckCircleIcon sx={{ color: authPalette.primary }} />
+                )}
+              </InputAdornment>
+            ),
+          }}
+          sx={textFieldSx}
+        />
+      </Box>
+
+      <Box
+        component={motion.div}
+        {...item(0.36)}
+        sx={{
+          border: '1px dashed rgba(23, 20, 16, 0.22)',
+          borderRadius: 1.5,
+          p: 2,
+          textAlign: 'center',
+          mb: 3,
+          backgroundColor: 'rgba(255, 255, 255, 0.4)',
+        }}
+      >
+        <Typography
+          sx={{
+            fontFamily: authFonts.mono,
+            fontSize: 11,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: authPalette.inkFaint,
+            mb: 0.5,
+          }}
+        >
+          Tu URL será
+        </Typography>
+        <Typography
+          sx={{
+            fontFamily: authFonts.display,
+            fontSize: 20,
+            fontWeight: 500,
+            color: authPalette.primary,
+            letterSpacing: '-0.01em',
+          }}
+        >
+          {subdomain || 'tu-negocio'}.turnos-pro.com
+        </Typography>
+      </Box>
+
+      <Box component={motion.div} {...item(0.42)}>
+        <Button
+          fullWidth
+          onClick={handleUrlNext}
+          disabled={
+            loading ||
+            subdomainAvailable === false ||
+            !subdomain ||
+            subdomain.length < 3
+          }
+          sx={primaryButtonSx}
+        >
+          Continuar
+        </Button>
+      </Box>
+    </>
+  );
+
+  const renderBusinessStep = () => (
+    <>
+      <Header
+        kicker="Paso 2 de 2"
+        title="Últimos datos"
+        subtitle="Solo para terminar de armar tu cuenta."
+      />
+
+      {error && (
+        <Alert
+          severity="error"
+          onClose={() => setError('')}
+          sx={{ mb: 2, borderRadius: 1.5 }}
+        >
+          {error}
+        </Alert>
+      )}
+
+      <Box component="form" onSubmit={handleCompleteSubmit}>
+        <Box component={motion.div} {...item(0.3)} sx={{ mb: 1.75 }}>
+          <TextField
+            fullWidth
+            label="Nombre del negocio"
+            value={businessName}
+            onChange={(e) => setBusinessName(e.target.value)}
+            required
+            autoFocus
+            InputLabelProps={{ sx: { fontFamily: authFonts.body } }}
+            sx={textFieldSx}
+          />
+        </Box>
+
+        <Box component={motion.div} {...item(0.36)} sx={{ mb: 1.75 }}>
           <TextField
             fullWidth
             label="Celular"
+            placeholder="+54 9 11 ..."
             value={mobile}
             onChange={(e) => setMobile(e.target.value)}
             required
-            InputProps={{
-              startAdornment: <InputAdornment position="start"><PhoneAndroid /></InputAdornment>,
-            }}
+            InputLabelProps={{ sx: { fontFamily: authFonts.body } }}
+            sx={textFieldSx}
           />
-        </Grid>
-        <Grid item xs={12}>
+        </Box>
+
+        <Box component={motion.div} {...item(0.42)} sx={{ mb: 2.5 }}>
           <TextField
             fullWidth
-            label="Sitio web"
-            value={website}
-            onChange={(e) => setWebsite(e.target.value)}
-            placeholder="https://www.ejemplo.com"
+            label="Dirección (opcional)"
+            value={businessAddress}
+            onChange={(e) => setBusinessAddress(e.target.value)}
+            InputLabelProps={{ sx: { fontFamily: authFonts.body } }}
+            sx={textFieldSx}
           />
-        </Grid>
-        <Grid item xs={12}>
-          <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
-            <Button
-              variant="outlined"
-              size="large"
-              onClick={() => setCurrentStep('url')}
-              sx={{ flex: 1, py: 1.5 }}
-            >
-              Atrás
-            </Button>
-            <Button
-              variant="contained"
-              size="large"
-              onClick={handleCompleteSubmit}
-              disabled={loading}
-              sx={{ flex: 2, py: 1.5 }}
-            >
-              {loading ? <CircularProgress size={24} /> : 'Completar el registro'}
-            </Button>
-          </Box>
-        </Grid>
-      </Grid>
-    </Box>
+        </Box>
+
+        <Box
+          component={motion.div}
+          {...item(0.48)}
+          sx={{ display: 'flex', gap: 1.5 }}
+        >
+          <Button
+            variant="outlined"
+            onClick={() => setCurrentStep('url')}
+            sx={{ ...outlinedButtonSx, flex: 1 }}
+          >
+            Atrás
+          </Button>
+          <Button
+            type="submit"
+            disabled={loading}
+            sx={{ ...primaryButtonSx, flex: 2 }}
+          >
+            {loading ? (
+              <CircularProgress size={20} sx={{ color: authPalette.paper }} />
+            ) : (
+              'Completar el registro'
+            )}
+          </Button>
+        </Box>
+      </Box>
+    </>
   );
 
-  const renderSuccessStep = () => (
-    <Box sx={{ py: 4, textAlign: 'center' }}>
-      <CheckCircle sx={{ fontSize: 80, color: 'success.main', mb: 2 }} />
-      <Typography variant="h4" sx={{ mb: 2, fontWeight: 600, color: 'success.main' }}>
-        Felicidades!
+  const renderSuccess = () => (
+    <Box component={motion.div} {...item(0.15)} sx={{ textAlign: 'center' }}>
+      <CheckCircleIcon
+        sx={{ fontSize: 72, color: authPalette.primary, mb: 2 }}
+      />
+      <Typography
+        component="h1"
+        sx={{
+          fontFamily: authFonts.display,
+          fontWeight: 500,
+          fontSize: { xs: 32, sm: 38 },
+          letterSpacing: '-0.02em',
+          color: authPalette.ink,
+          mb: 1,
+          fontVariationSettings: '"opsz" 144, "SOFT" 30',
+        }}
+      >
+        ¡Listo!
       </Typography>
-      <Typography variant="h6" sx={{ mb: 1 }}>
-        Te has registrado correctamente.
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        Tu negocio ya está listo en Turnos Pro.
+      <Typography
+        sx={{
+          fontFamily: authFonts.body,
+          fontSize: 16,
+          color: authPalette.inkSoft,
+          mb: 4,
+        }}
+      >
+        Tu TurnosPro está armado. Entrá y cargá tus primeros turnos.
       </Typography>
       <Button
-        variant="contained"
-        size="large"
-        onClick={() => { window.location.href = redirectUrl; }}
-        sx={{ px: 6, py: 1.5 }}
+        onClick={() => {
+          window.location.href = redirectUrl;
+        }}
+        sx={{ ...primaryButtonSx, px: 5 }}
       >
-        Ir al panel de control
+        Ir al panel
       </Button>
     </Box>
   );
 
-  const renderCurrentStep = () => {
+  const renderStep = () => {
+    if (loading && currentStep === 'url' && !verifiedEmail) {
+      return (
+        <Box sx={{ textAlign: 'center', py: 4 }}>
+          <CircularProgress sx={{ color: authPalette.primary }} />
+          <Typography
+            sx={{
+              mt: 2,
+              fontFamily: authFonts.body,
+              color: authPalette.inkSoft,
+            }}
+          >
+            Verificando token...
+          </Typography>
+        </Box>
+      );
+    }
+
     switch (currentStep) {
-      case 'plan': return renderPlanStep();
-      case 'email': return renderEmailStep();
-      case 'email-sent': return renderEmailSentStep();
-      case 'url': return renderUrlStep();
-      case 'business': return renderBusinessStep();
-      case 'success': return renderSuccessStep();
-      default: return null;
+      case 'signup':
+        return renderSignup();
+      case 'email-sent':
+        return renderEmailSent();
+      case 'url':
+        return renderUrlStep();
+      case 'business':
+        return renderBusinessStep();
+      case 'success':
+        return renderSuccess();
+      default:
+        return renderSignup();
     }
   };
 
-  return (
-    <Box sx={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
-      display: 'flex',
-      alignItems: 'center',
-      py: 4,
-    }}>
-      <Container maxWidth="sm">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <Paper elevation={8} sx={{ overflow: 'hidden', borderRadius: 3 }}>
-            {/* Header */}
-            <Box sx={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: 'white',
-              p: 3,
-              textAlign: 'center',
-            }}>
-              <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                Turnos Pro
-              </Typography>
-              <Typography variant="subtitle1" sx={{ opacity: 0.9 }}>
-                Creá tu cuenta gratis - 7 días de prueba
-              </Typography>
-            </Box>
-
-            {/* Stepper - only show for url/business/success steps */}
-            {(currentStep === 'plan' || currentStep === 'email' || currentStep === 'url' || currentStep === 'business' || currentStep === 'success') && (
-              <Box sx={{ px: 3, pt: 3 }}>
-                <Stepper activeStep={getStepperIndex() - 1} alternativeLabel>
-                  {['URL', 'Negocio'].map((label) => (
-                    <Step key={label}>
-                      <StepLabel>{label}</StepLabel>
-                    </Step>
-                  ))}
-                </Stepper>
-              </Box>
-            )}
-
-            {/* Content */}
-            <Box sx={{ p: 3 }}>
-              {error && (
-                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-                  {error}
-                </Alert>
-              )}
-
-              {loading && currentStep === 'url' && !error ? (
-                <Box sx={{ textAlign: 'center', py: 4 }}>
-                  <CircularProgress />
-                  <Typography sx={{ mt: 2 }}>Verificando token...</Typography>
-                </Box>
-              ) : (
-                renderCurrentStep()
-              )}
-            </Box>
-          </Paper>
-        </motion.div>
-      </Container>
-    </Box>
-  );
+  return <AuthShell>{renderStep()}</AuthShell>;
 };
 
 export default SelfRegistration;
