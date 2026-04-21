@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using BookingPro.API.Services;
 using BookingPro.API.DTOs;
+using BookingPro.API.Models.DTOs;
 using BookingPro.API.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
 using BookingPro.API.Data;
@@ -14,14 +15,23 @@ namespace BookingPro.API.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
+        private readonly IGoogleAuthService _googleAuthService;
         private readonly ApplicationDbContext _context;
         private readonly ITenantService _tenantService;
+        private readonly ILogger<AuthController> _logger;
 
-        public AuthController(IAuthService authService, ApplicationDbContext context, ITenantService tenantService)
+        public AuthController(
+            IAuthService authService,
+            IGoogleAuthService googleAuthService,
+            ApplicationDbContext context,
+            ITenantService tenantService,
+            ILogger<AuthController> logger)
         {
             _authService = authService;
+            _googleAuthService = googleAuthService;
             _context = context;
             _tenantService = tenantService;
+            _logger = logger;
         }
 
         [HttpPost("login")]
@@ -58,6 +68,66 @@ namespace BookingPro.API.Controllers
             }
 
             return Ok(result);
+        }
+
+        [HttpPost("google-login")]
+        public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var googleUser = await _googleAuthService.VerifyIdTokenAsync(dto.IdToken);
+            if (googleUser == null || string.IsNullOrEmpty(googleUser.Email))
+                return Unauthorized(new { success = false, message = "Token de Google inválido" });
+
+            var email = googleUser.Email.ToLowerInvariant();
+
+            // Look up the user by email across all tenants. Bookkeeping: Users table is NOT
+            // multi-tenant-scoped by default query filter on this lookup.
+            var user = await _context.Users
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == email && u.IsActive);
+
+            if (user == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    code = "NO_ACCOUNT",
+                    message = "No encontramos cuenta con este email. Registrate primero."
+                });
+            }
+
+            user.LastLogin = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            var token = _authService.GenerateJwtToken(user);
+
+            // Build tenant URL for redirect (matches RegistrationController behavior)
+            var tenant = await _context.Tenants
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(t => t.Id == user.TenantId);
+
+            string? redirectUrl = null;
+            if (tenant != null)
+            {
+                var host = HttpContext.Request.Host.Host;
+                var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");
+                var tenantUrl = isLocal
+                    ? $"http://{tenant.Subdomain}.localhost:3001"
+                    : $"https://{tenant.Subdomain}.turnos-pro.com";
+                redirectUrl = $"{tenantUrl}/dashboard?impersonationToken={token}";
+            }
+
+            _logger.LogInformation("Google login for {Email} (tenant {TenantId})", email, user.TenantId);
+
+            return Ok(new
+            {
+                success = true,
+                token,
+                tenantId = user.TenantId,
+                redirectUrl
+            });
         }
 
         [HttpPost("validate")]

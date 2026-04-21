@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56" role="img" aria-label="Avatar Diego">
+  <defs>
+    <linearGradient id="g5" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#1e293b" />
+      <stop offset="1" stop-color="#475569" />
+    </linearGradient>
+  </defs>
+  <circle cx="28" cy="28" r="25" fill="url(#g5)" />
+  <circle cx="28" cy="28" r="23" fill="none" stroke="#cbd5e1" stroke-width="2" />
+  <text x="28" y="34" text-anchor="middle" font-size="20" font-family="'Inter', system-ui, -apple-system, sans-serif" fill="#cbd5e1" font-weight="700">D</text>
+</svg>

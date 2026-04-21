@@ -16,6 +16,7 @@ namespace BookingPro.API.Controllers
         private readonly ApplicationDbContext _context;
         private readonly ITenantService _tenantService;
         private readonly IAuthService _authService;
+        private readonly IGoogleAuthService _googleAuthService;
         private readonly IEmailService _emailService;
         private readonly ILogger<RegistrationController> _logger;
 
@@ -33,12 +34,14 @@ namespace BookingPro.API.Controllers
             ApplicationDbContext context,
             ITenantService tenantService,
             IAuthService authService,
+            IGoogleAuthService googleAuthService,
             IEmailService emailService,
             ILogger<RegistrationController> logger)
         {
             _context = context;
             _tenantService = tenantService;
             _authService = authService;
+            _googleAuthService = googleAuthService;
             _emailService = emailService;
             _logger = logger;
         }
@@ -274,16 +277,20 @@ namespace BookingPro.API.Controllers
                 _context.Users.Add(adminUser);
                 await _context.SaveChangesAsync();
 
-                // Create trial subscription
+                // Resolve chosen plan (if any). Default to trial demo otherwise.
+                var chosenPlan = !string.IsNullOrWhiteSpace(dto.PlanCode)
+                    ? await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Code == dto.PlanCode && p.IsActive)
+                    : null;
+
                 var subscription = new Subscription
                 {
                     Id = Guid.NewGuid(),
                     TenantId = tenant.Id,
-                    PlanType = "demo",
-                    MonthlyAmount = 0,
+                    PlanType = chosenPlan?.Code ?? "demo",
+                    MonthlyAmount = chosenPlan?.Price ?? 0,
                     Status = "trial",
                     IsTrialPeriod = true,
-                    TrialEndsAt = DateTime.UtcNow.AddDays(7),
+                    TrialEndsAt = DateTime.UtcNow.AddDays(chosenPlan?.TrialDays > 0 ? chosenPlan.TrialDays : 7),
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
@@ -411,15 +418,19 @@ namespace BookingPro.API.Controllers
                 _context.Users.Add(adminUser);
                 await _context.SaveChangesAsync();
 
+                var chosenPlan = !string.IsNullOrWhiteSpace(dto.PlanCode)
+                    ? await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Code == dto.PlanCode && p.IsActive)
+                    : null;
+
                 var subscription = new Subscription
                 {
                     Id = Guid.NewGuid(),
                     TenantId = tenant.Id,
-                    PlanType = "demo",
-                    MonthlyAmount = 0,
+                    PlanType = chosenPlan?.Code ?? "demo",
+                    MonthlyAmount = chosenPlan?.Price ?? 0,
                     Status = "trial",
                     IsTrialPeriod = true,
-                    TrialEndsAt = DateTime.UtcNow.AddDays(7),
+                    TrialEndsAt = DateTime.UtcNow.AddDays(chosenPlan?.TrialDays > 0 ? chosenPlan.TrialDays : 7),
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
@@ -501,6 +512,139 @@ namespace BookingPro.API.Controllers
             if (string.IsNullOrEmpty(subdomain)) return string.Empty;
             return Regex.Replace(subdomain.ToLowerInvariant(), @"[^a-z0-9-]", "");
         }
+
+        /// <summary>
+        /// Signup con Google: verifica el ID token, crea tenant + admin user + trial subscription
+        /// en una sola transacción. Retorna JWT para auto-login.
+        /// </summary>
+        [HttpPost("google-register")]
+        public async Task<IActionResult> GoogleRegister([FromBody] GoogleRegisterDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(new { success = false, message = "Datos inválidos", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
+
+            var googleUser = await _googleAuthService.VerifyIdTokenAsync(dto.IdToken);
+            if (googleUser == null || string.IsNullOrEmpty(googleUser.Email) || !googleUser.EmailVerified)
+                return BadRequest(new { success = false, message = "Token de Google inválido o email no verificado" });
+
+            var email = googleUser.Email.ToLowerInvariant();
+
+            // Reject if the email already has an account anywhere.
+            var existingUser = await _context.Users
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == email);
+            if (existingUser != null)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = "EMAIL_EXISTS",
+                    message = "Ya existe una cuenta con este email. Inicia sesión con Google.",
+                });
+            }
+
+            // Subdomain checks
+            var subdomain = SanitizeSubdomain(dto.Subdomain);
+            if (string.IsNullOrEmpty(subdomain) || subdomain.Length < 3)
+                return BadRequest(new { success = false, message = "El subdominio debe tener al menos 3 caracteres." });
+            if (_reservedSubdomains.Contains(subdomain))
+                return BadRequest(new { success = false, message = "Este subdominio está reservado." });
+            var subdomainExists = await _context.Tenants.AnyAsync(t => t.Subdomain.ToLower() == subdomain.ToLower());
+            if (subdomainExists)
+                return BadRequest(new { success = false, message = "Este subdominio ya está en uso." });
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var tenantId = Guid.NewGuid();
+                var tenant = new Tenant
+                {
+                    Id = tenantId,
+                    VerticalId = null,
+                    Subdomain = subdomain,
+                    BusinessName = dto.BusinessName,
+                    BusinessAddress = dto.BusinessAddress,
+                    OwnerEmail = email,
+                    OwnerPhone = dto.Mobile,
+                    SchemaName = $"tenant_{subdomain.Replace("-", "_")}",
+                    TimeZone = "America/Argentina/Buenos_Aires",
+                    Currency = "ARS",
+                    Language = "es",
+                    Status = "trial",
+                    IsDemo = true,
+                    DemoDays = 7,
+                    DemoExpiresAt = DateTime.UtcNow.AddDays(7),
+                    TrialEndsAt = DateTime.UtcNow.AddDays(7),
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _context.Tenants.Add(tenant);
+                await _context.SaveChangesAsync();
+
+                // Random unusable password — Google-only login
+                var randomPassword = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+                var adminUser = new User
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenant.Id,
+                    Email = email,
+                    FirstName = string.IsNullOrWhiteSpace(googleUser.GivenName) ? dto.BusinessName : googleUser.GivenName,
+                    LastName = googleUser.FamilyName ?? string.Empty,
+                    Phone = dto.Mobile,
+                    PasswordHash = BookingPro.API.Services.Security.PasswordHasher.Hash(randomPassword),
+                    Role = "admin",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    LastLogin = DateTime.UtcNow
+                };
+                _context.Users.Add(adminUser);
+                await _context.SaveChangesAsync();
+
+                var chosenPlan = !string.IsNullOrWhiteSpace(dto.PlanCode)
+                    ? await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Code == dto.PlanCode && p.IsActive)
+                    : null;
+
+                var subscription = new Subscription
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenant.Id,
+                    PlanType = chosenPlan?.Code ?? "demo",
+                    MonthlyAmount = chosenPlan?.Price ?? 0,
+                    Status = "trial",
+                    IsTrialPeriod = true,
+                    TrialEndsAt = DateTime.UtcNow.AddDays(chosenPlan?.TrialDays > 0 ? chosenPlan.TrialDays : 7),
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _context.Subscriptions.Add(subscription);
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+
+                var token = _authService.GenerateJwtToken(adminUser);
+                var host = HttpContext.Request.Host.Host;
+                var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");
+                var tenantUrl = isLocal ? $"http://{subdomain}.localhost:3001" : $"https://{subdomain}.turnos-pro.com";
+                var redirectUrl = $"{tenantUrl}/dashboard?impersonationToken={token}";
+
+                _logger.LogInformation("Google registration completed for {Email}, tenant {TenantId}, subdomain {Subdomain}", email, tenant.Id, subdomain);
+
+                return Ok(new
+                {
+                    success = true,
+                    tenantId = tenant.Id,
+                    tenantUrl,
+                    token,
+                    redirectUrl
+                });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Error during google-register for {Email}", email);
+                return StatusCode(500, new { success = false, message = "Error interno. Por favor intentá nuevamente." });
+            }
+        }
     }
 
     // DTOs for the new registration flow
@@ -535,6 +679,8 @@ namespace BookingPro.API.Controllers
 
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El celular es requerido")]
         public string Mobile { get; set; } = string.Empty;
+
+        public string? PlanCode { get; set; }
     }
 
     public class RegistrationCompleteDto
@@ -555,5 +701,8 @@ namespace BookingPro.API.Controllers
 
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El celular es requerido")]
         public string Mobile { get; set; } = string.Empty;
+
+        // Plan elegido por el usuario en el signup flow. Si es null, se usa "demo" con 7 días trial.
+        public string? PlanCode { get; set; }
     }
 }

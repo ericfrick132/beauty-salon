@@ -298,8 +298,19 @@ namespace BookingPro.API.Services
                 var paymentClient = new PaymentClient();
                 MercadoPago.Resource.Payment.Payment payment = await paymentClient.GetAsync(paymentId, requestOptions);
 
+                // Skip subscription payments — handled separately by SubscriptionService.
+                if (!string.IsNullOrEmpty(payment.ExternalReference) && payment.ExternalReference.StartsWith("SUB-"))
+                {
+                    _logger.LogInformation("Skipping subscription payment {PaymentId} in booking webhook handler", paymentId);
+                    return;
+                }
+
                 // Buscar la transacción por external_reference (booking ID)
-                var bookingId = Guid.Parse(payment.ExternalReference);
+                if (!Guid.TryParse(payment.ExternalReference, out var bookingId))
+                {
+                    _logger.LogWarning("Payment {PaymentId} has non-Guid external_reference '{Ref}' — cannot map to booking", paymentId, payment.ExternalReference);
+                    return;
+                }
                 var transaction = await _context.Set<PaymentTransaction>()
                     .FirstOrDefaultAsync(t => t.BookingId == bookingId && t.TenantId == tenantId);
 

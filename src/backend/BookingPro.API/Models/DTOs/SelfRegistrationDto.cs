@@ -82,4 +82,35 @@ namespace BookingPro.API.Models.DTOs
         public string? Message { get; set; }
         public string[] Suggestions { get; set; } = Array.Empty<string>();
     }
+
+    public class GoogleRegisterDto
+    {
+        [Required]
+        public string IdToken { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(100)]
+        [RegularExpression(@"^[a-z0-9-]+$", ErrorMessage = "El subdominio solo puede contener letras minúsculas, números y guiones")]
+        [MinLength(3)]
+        public string Subdomain { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(255)]
+        public string BusinessName { get; set; } = string.Empty;
+
+        [MaxLength(500)]
+        public string? BusinessAddress { get; set; }
+
+        [MaxLength(50)]
+        public string? Mobile { get; set; }
+
+        // Plan elegido por el usuario en el signup flow. Si es null, se usa "demo" con 7 días trial.
+        public string? PlanCode { get; set; }
+    }
+
+    public class GoogleLoginDto
+    {
+        [Required]
+        public string IdToken { get; set; } = string.Empty;
+    }
 }

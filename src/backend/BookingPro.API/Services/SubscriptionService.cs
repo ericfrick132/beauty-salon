@@ -23,17 +23,52 @@ namespace BookingPro.API.Services
         private readonly IConfiguration _configuration;
         private readonly ILogger<SubscriptionService> _logger;
         private readonly HttpClient _httpClient;
+        private readonly IEmailService _emailService;
 
         public SubscriptionService(
             ApplicationDbContext context,
             IConfiguration configuration,
             ILogger<SubscriptionService> logger,
-            IHttpClientFactory httpClientFactory)
+            IHttpClientFactory httpClientFactory,
+            IEmailService emailService)
         {
             _context = context;
             _configuration = configuration;
             _logger = logger;
             _httpClient = httpClientFactory.CreateClient();
+            _emailService = emailService;
+        }
+
+        private string BuildUpgradeUrl()
+        {
+            var frontend = (_configuration["FrontendUrl"] ?? "https://turnos-pro.com").TrimEnd('/');
+            return $"{frontend}/subscription/upgrade";
+        }
+
+        private async Task TrySendPaymentEmailAsync(Guid tenantId, string paymentStatus, decimal amount, string currency)
+        {
+            try
+            {
+                var tenant = await _context.Tenants.FindAsync(tenantId);
+                if (tenant == null || string.IsNullOrWhiteSpace(tenant.OwnerEmail)) return;
+
+                var recipient = !string.IsNullOrWhiteSpace(tenant.BusinessName) ? tenant.BusinessName : tenant.OwnerEmail;
+
+                if (paymentStatus == "approved" || paymentStatus == "active")
+                {
+                    await _emailService.SendPaymentSucceededAsync(
+                        tenant.OwnerEmail, recipient, amount, currency, tenantId);
+                }
+                else if (paymentStatus == "rejected" || paymentStatus == "cancelled" || paymentStatus == "failed")
+                {
+                    await _emailService.SendPaymentFailedAsync(
+                        tenant.OwnerEmail, recipient, BuildUpgradeUrl(), tenantId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send payment lifecycle email for tenant {TenantId}", tenantId);
+            }
         }
 
         public async Task<ServiceResult<SubscriptionResponseDto>> CreateTrialSubscriptionAsync(Guid tenantId)
@@ -296,6 +331,7 @@ namespace BookingPro.API.Services
         {
             try
             {
+                var backendBaseUrl = _configuration["BackendUrl"] ?? _configuration["ApiUrl"] ?? string.Empty;
                 var requestBody = new
                 {
                     preapproval_plan_id = plan.MercadoPagoPreapprovalPlanId,
@@ -303,6 +339,9 @@ namespace BookingPro.API.Services
                     external_reference = $"SUB-{tenant.Id}-{DateTime.UtcNow:yyyyMMdd}",
                     payer_email = tenant.OwnerEmail,
                     back_url = $"{_configuration["FrontendUrl"]}/subscription/success",
+                    notification_url = string.IsNullOrEmpty(backendBaseUrl)
+                        ? null
+                        : $"{backendBaseUrl.TrimEnd('/')}/api/webhooks/mercadopago/subscription",
                     auto_recurring = new
                     {
                         frequency = 1,
@@ -645,7 +684,7 @@ namespace BookingPro.API.Services
                                     subscription.IsTrialPeriod = false;
                                     subscription.ActivatedAt = DateTime.UtcNow;
                                     subscription.NextPaymentDate = DateTime.UtcNow.AddMonths(1);
-                                    
+
                                     // Update tenant
                                     var tenant = await _context.Tenants.FindAsync(tenantId);
                                     if (tenant != null)
@@ -653,8 +692,16 @@ namespace BookingPro.API.Services
                                         tenant.Status = "active";
                                     }
                                 }
-                                
+
                                 await _context.SaveChangesAsync();
+
+                                // Fire-and-log payment lifecycle email outside the save path
+                                var paymentCurrency = "ARS";
+                                if (payment != null && payment.TryGetValue("currency_id", out var curEl))
+                                {
+                                    paymentCurrency = curEl.GetString() ?? "ARS";
+                                }
+                                await TrySendPaymentEmailAsync(tenantId, subPayment.Status, subPayment.Amount, paymentCurrency);
                             }
                         }
                     }
@@ -690,24 +737,40 @@ namespace BookingPro.API.Services
                     var preapproval = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
                     
                     var mpStatus = preapproval?["status"].GetString();
+                    var previousStatus = subscription.Status;
                     subscription.Status = MapMercadoPagoStatusToLocal(mpStatus);
-                    
+
                     if (preapproval?["next_payment_date"].TryGetDateTime(out var nextPayment) == true)
                     {
                         subscription.NextPaymentDate = nextPayment;
                     }
-                    
+
                     subscription.UpdatedAt = DateTime.UtcNow;
-                    
+
                     // Update tenant status
                     var tenant = await _context.Tenants.FindAsync(subscription.TenantId);
                     if (tenant != null)
                     {
-                        tenant.Status = subscription.Status == "active" ? "active" : 
+                        tenant.Status = subscription.Status == "active" ? "active" :
                                        subscription.Status == "cancelled" ? "cancelled" : "suspended";
                     }
-                    
+
                     await _context.SaveChangesAsync();
+
+                    // Notify owner on state transitions
+                    if (previousStatus != subscription.Status)
+                    {
+                        if (subscription.Status == "active")
+                        {
+                            await TrySendPaymentEmailAsync(subscription.TenantId, "approved",
+                                subscription.MonthlyAmount, "ARS");
+                        }
+                        else if (subscription.Status == "cancelled" || subscription.Status == "paused")
+                        {
+                            await TrySendPaymentEmailAsync(subscription.TenantId, "failed",
+                                subscription.MonthlyAmount, "ARS");
+                        }
+                    }
                 }
             }
             catch (Exception ex)

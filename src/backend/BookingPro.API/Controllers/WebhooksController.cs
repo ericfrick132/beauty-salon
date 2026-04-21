@@ -12,15 +12,18 @@ namespace BookingPro.API.Controllers
     public class WebhooksController : ControllerBase
     {
         private readonly IMercadoPagoService _mercadoPagoService;
+        private readonly ISubscriptionService _subscriptionService;
         private readonly ApplicationDbContext _context;
         private readonly ILogger<WebhooksController> _logger;
 
         public WebhooksController(
             IMercadoPagoService mercadoPagoService,
+            ISubscriptionService subscriptionService,
             ApplicationDbContext context,
             ILogger<WebhooksController> logger)
         {
             _mercadoPagoService = mercadoPagoService;
+            _subscriptionService = subscriptionService;
             _context = context;
             _logger = logger;
         }
@@ -44,23 +47,29 @@ namespace BookingPro.API.Controllers
                     return BadRequest();
                 }
 
-                // Process the webhook notification
-                var result = await _mercadoPagoService.ProcessWebhookNotificationAsync(tenantId, data);
+                // Route based on notification type. Subscription events (type "subscription_preapproval"
+                // or payments with "SUB-" external_reference) go to the subscription handler;
+                // booking payments go to the MercadoPago service handler. Both handlers are idempotent
+                // and safely ignore notifications they do not own.
+                var subResult = await _subscriptionService.ProcessSubscriptionWebhookAsync(data);
+                if (!subResult.Success)
+                {
+                    _logger.LogWarning("Subscription webhook handler reported: {Error}", subResult.Message);
+                }
 
-                if (result.Success)
+                var result = await _mercadoPagoService.ProcessWebhookNotificationAsync(tenantId, data);
+                if (!result.Success)
                 {
-                    return Ok();
+                    _logger.LogWarning("Booking webhook handler reported: {Error}", result.Message);
                 }
-                else
-                {
-                    _logger.LogWarning("Failed to process webhook: {Error}", result.Message);
-                    return StatusCode(500);
-                }
+
+                // Always return 200 to MercadoPago to avoid aggressive retry storms.
+                return Ok();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing MercadoPago webhook for tenant {TenantId}", tenantId);
-                return StatusCode(500);
+                return Ok(); // Return 200 even on error — retries would compound the problem.
             }
         }
 

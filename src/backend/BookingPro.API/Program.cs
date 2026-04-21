@@ -108,6 +108,9 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Register Services
 builder.Services.AddScoped<ITenantService, TenantService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IGoogleAuthService, GoogleAuthService>();
+builder.Services.AddHttpClient<PlatformPaymentConnectionService>();
+builder.Services.AddScoped<IPlatformPaymentConnectionService>(sp => sp.GetRequiredService<PlatformPaymentConnectionService>());
 builder.Services.AddScoped<ITenantProvisioningService, TenantProvisioningService>();
 builder.Services.AddScoped<ITenantProvider, TenantProvider>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IInvitationService, InvitationService>();
@@ -147,6 +150,8 @@ builder.Services.AddHttpClient();
 // Add MercadoPago token refresh background service
 builder.Services.AddHostedService<BookingPro.API.Services.MercadoPagoTokenRefreshService>();
 builder.Services.AddHostedService<BookingPro.API.Services.WhatsAppReminderService>();
+// Daily-ish scan that emails trial_ending_2d / trial_expired warnings
+builder.Services.AddHostedService<BookingPro.API.Services.TrialReminderBackgroundService>();
 
 // Configure Swagger with JWT support
 builder.Services.AddEndpointsApiExplorer();
