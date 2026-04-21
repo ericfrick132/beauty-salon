@@ -18,6 +18,8 @@ import Login from './pages/Login';
 import SuperAdminLogin from './pages/SuperAdminLogin';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import SuperAdminPlans from './pages/SuperAdminPlans';
+import SuperAdminPayments from './pages/admin/SuperAdminPayments';
+import SuperAdminEmails from './pages/admin/SuperAdminEmails';
 import TrackingDashboard from './pages/TrackingDashboard';
 import MessagePackagesAdmin from './pages/admin/MessagePackagesAdmin';
 import NewBooking from './pages/NewBooking';
@@ -37,6 +39,7 @@ import ThemeSettings from './pages/ThemeSettings';
 import MercadoPagoSettings from './pages/MercadoPagoSettings';
 import Settings from './pages/Settings';
 import SubscriptionPlans from './pages/SubscriptionPlans';
+import SubscriptionSuccess from './pages/SubscriptionSuccess';
 import SubscriptionManagement from './pages/SubscriptionManagement';
 import PlatformSubscriptionStatus from './pages/PlatformSubscriptionStatus';
 import SalesPOS from './pages/SalesPOS';
@@ -254,6 +257,8 @@ function App() {
                 <Route path="/super-admin/message-packages" element={<MessagePackagesAdmin />} />
                 <Route path="/super-admin/tenants" element={<TenantsManagement />} />
                 <Route path="/super-admin/plans" element={<SuperAdminPlans />} />
+                <Route path="/super-admin/payments" element={<SuperAdminPayments />} />
+                <Route path="/super-admin/emails" element={<SuperAdminEmails />} />
                 <Route path="/super-admin/marketing" element={<TrackingDashboard />} />
 
                 {/* Main Domain Routes - Landing Page */}
@@ -263,6 +268,7 @@ function App() {
                     <Route path="/register" element={<SelfRegistration />} />
                     <Route path="/register/confirm" element={<SelfRegistration />} />
                     <Route path="/invitation/:token" element={<InvitationPage />} />
+                    <Route path="/subscription/success" element={<SubscriptionSuccess />} />
                   </>
                 ) : (
                   <>
@@ -272,6 +278,7 @@ function App() {
                     <Route path="/login" element={<Login />} />
                     <Route path="/invitation/:token" element={<InvitationPage />} />
                     <Route path="/subscription/plans" element={<SubscriptionPlans />} />
+                    <Route path="/subscription/success" element={<SubscriptionSuccess />} />
                   </>
                 )}
                 

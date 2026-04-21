@@ -29,17 +29,38 @@ import {
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { registrationApi } from '../services/api';
+import api from '../services/api';
+import GoogleSignInButton from '../components/auth/GoogleSignInButton';
+import Divider from '@mui/material/Divider';
+import Card from '@mui/material/Card';
+import Chip from '@mui/material/Chip';
+import Stack from '@mui/material/Stack';
 
-type FlowStep = 'email' | 'email-sent' | 'url' | 'business' | 'success';
+type FlowStep = 'plan' | 'email' | 'email-sent' | 'url' | 'business' | 'success';
+
+interface PublicPlan {
+  code: string;
+  name: string;
+  description?: string;
+  price: number;
+  currency: string;
+  trialDays: number;
+  isPopular?: boolean;
+}
 
 const SelfRegistration: React.FC = () => {
   const [searchParams] = useSearchParams();
   const tokenFromUrl = searchParams.get('token');
 
   // Determine initial step based on URL
-  const [currentStep, setCurrentStep] = useState<FlowStep>(tokenFromUrl ? 'url' : 'email');
+  const [currentStep, setCurrentStep] = useState<FlowStep>(tokenFromUrl ? 'url' : 'plan');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Step 0a: Plan selection
+  const [availablePlans, setAvailablePlans] = useState<PublicPlan[]>([]);
+  const [selectedPlanCode, setSelectedPlanCode] = useState<string>('');
+  const [loadingPlans, setLoadingPlans] = useState(false);
 
   // Step 0: Email + Password
   const [email, setEmail] = useState('');
@@ -51,6 +72,9 @@ const SelfRegistration: React.FC = () => {
   // Token from verification
   const [rememberToken, setRememberToken] = useState(tokenFromUrl || '');
   const [verifiedEmail, setVerifiedEmail] = useState('');
+
+  // Google OAuth signup — if set, skip email verification flow
+  const [googleIdToken, setGoogleIdToken] = useState<string>('');
 
   // Step 1: URL
   const [subdomain, setSubdomain] = useState('');
@@ -78,6 +102,27 @@ const SelfRegistration: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokenFromUrl]);
+
+  // Fetch available plans on mount (public endpoint)
+  useEffect(() => {
+    const fetchPlans = async () => {
+      setLoadingPlans(true);
+      try {
+        const res = await api.get('/subscription/plans');
+        const plans: PublicPlan[] = res.data || [];
+        setAvailablePlans(plans);
+        // Default selection: the "popular" plan or the first one
+        const popular = plans.find((p) => p.isPopular);
+        setSelectedPlanCode(popular?.code ?? plans[0]?.code ?? '');
+      } catch {
+        // Graceful fallback — skip plan step if backend is unreachable
+        setAvailablePlans([]);
+      } finally {
+        setLoadingPlans(false);
+      }
+    };
+    fetchPlans();
+  }, []);
 
   const verifyToken = async (token: string) => {
     setLoading(true);
@@ -182,6 +227,19 @@ const SelfRegistration: React.FC = () => {
     setCurrentStep('business');
   };
 
+  const handleGoogleSignupSuccess = (idToken: string) => {
+    setError('');
+    setGoogleIdToken(idToken);
+    // Decode to pre-fill verifiedEmail for display
+    try {
+      const payload = JSON.parse(atob(idToken.split('.')[1]));
+      if (payload.email) setVerifiedEmail(payload.email);
+    } catch {
+      // ignore decode failures
+    }
+    setCurrentStep('url');
+  };
+
   const handleCompleteSubmit = async () => {
     setError('');
     if (!businessName) {
@@ -195,15 +253,28 @@ const SelfRegistration: React.FC = () => {
 
     setLoading(true);
     try {
-      const response = await registrationApi.complete({
-        rememberToken,
-        subdomain,
-        businessName,
-        businessAddress: businessAddress || undefined,
-        phone: phone || undefined,
-        website: website || undefined,
-        mobile,
-      });
+      let response: any;
+      if (googleIdToken) {
+        response = await registrationApi.googleRegister({
+          idToken: googleIdToken,
+          subdomain,
+          businessName,
+          businessAddress: businessAddress || undefined,
+          mobile,
+          planCode: selectedPlanCode || undefined,
+        });
+      } else {
+        response = await registrationApi.complete({
+          rememberToken,
+          subdomain,
+          businessName,
+          businessAddress: businessAddress || undefined,
+          phone: phone || undefined,
+          website: website || undefined,
+          mobile,
+          planCode: selectedPlanCode || undefined,
+        });
+      }
 
       if (response.success) {
         setRedirectUrl(response.redirectUrl);
@@ -212,7 +283,11 @@ const SelfRegistration: React.FC = () => {
         setError(response.message || 'Error al completar el registro');
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Error al completar el registro');
+      if (err.response?.data?.code === 'EMAIL_EXISTS') {
+        setError('Ya existe una cuenta con este email. Iniciá sesión con Google desde la página de login.');
+      } else {
+        setError(err.response?.data?.message || 'Error al completar el registro');
+      }
     } finally {
       setLoading(false);
     }
@@ -222,25 +297,116 @@ const SelfRegistration: React.FC = () => {
 
   const getStepperIndex = (): number => {
     switch (currentStep) {
+      case 'plan': return 0;
       case 'email':
-      case 'email-sent': return 0;
-      case 'url': return 1;
-      case 'business': return 2;
-      case 'success': return 3;
+      case 'email-sent': return 1;
+      case 'url': return 2;
+      case 'business': return 3;
+      case 'success': return 4;
       default: return 0;
     }
   };
 
-  const stepLabels = ['Cuenta', 'URL', 'Negocio', 'Listo'];
+  const stepLabels = ['Plan', 'Cuenta', 'URL', 'Negocio', 'Listo'];
+
+  const renderPlanStep = () => (
+    <Box sx={{ py: 3 }}>
+      <Typography variant="h5" sx={{ mb: 1, textAlign: 'center', fontWeight: 600 }}>
+        Elegí tu plan
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3, textAlign: 'center' }}>
+        Prueba gratis {availablePlans[0]?.trialDays || 7} días sin tarjeta. Después, el plan que elijas se cobra mensualmente por Mercado Pago.
+      </Typography>
+
+      {loadingPlans && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+          <CircularProgress />
+        </Box>
+      )}
+
+      {!loadingPlans && availablePlans.length === 0 && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          Arrancá con el período de prueba gratuito. Vas a poder elegir plan más adelante desde tu panel.
+        </Alert>
+      )}
+
+      <Stack spacing={2} sx={{ mb: 3 }}>
+        {availablePlans.map((plan) => {
+          const isSelected = selectedPlanCode === plan.code;
+          return (
+            <Card
+              key={plan.code}
+              onClick={() => setSelectedPlanCode(plan.code)}
+              sx={{
+                p: 2,
+                cursor: 'pointer',
+                border: '2px solid',
+                borderColor: isSelected ? 'primary.main' : 'divider',
+                transition: 'border-color 0.2s',
+                position: 'relative',
+              }}
+            >
+              {plan.isPopular && (
+                <Chip
+                  label="Más elegido"
+                  color="primary"
+                  size="small"
+                  sx={{ position: 'absolute', top: 8, right: 8 }}
+                />
+              )}
+              <Typography variant="h6" fontWeight={700}>
+                {plan.name}
+              </Typography>
+              {plan.description && (
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  {plan.description}
+                </Typography>
+              )}
+              <Typography variant="h5" color="primary.main">
+                ${plan.price.toLocaleString('es-AR')} {plan.currency}
+                <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
+                  /mes
+                </Typography>
+              </Typography>
+              {plan.trialDays > 0 && (
+                <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.5 }}>
+                  {plan.trialDays} días de prueba gratis
+                </Typography>
+              )}
+            </Card>
+          );
+        })}
+      </Stack>
+
+      <Button
+        fullWidth
+        variant="contained"
+        size="large"
+        onClick={() => setCurrentStep('email')}
+        disabled={loadingPlans}
+        sx={{ py: 1.5 }}
+      >
+        Continuar
+      </Button>
+    </Box>
+  );
 
   const renderEmailStep = () => (
     <Box sx={{ py: 3 }}>
       <Typography variant="h5" sx={{ mb: 1, textAlign: 'center', fontWeight: 600 }}>
         Creá tu cuenta
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 4, textAlign: 'center' }}>
-        Empezá con tu email y una contraseña
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3, textAlign: 'center' }}>
+        Registrate con Google o usá tu email
       </Typography>
+
+      <GoogleSignInButton
+        text="signup_with"
+        onSuccess={handleGoogleSignupSuccess}
+        onError={(msg) => setError(msg)}
+      />
+
+      <Divider sx={{ my: 3 }}>o</Divider>
 
       <Grid container spacing={2}>
         <Grid item xs={12}>
@@ -533,6 +699,7 @@ const SelfRegistration: React.FC = () => {
 
   const renderCurrentStep = () => {
     switch (currentStep) {
+      case 'plan': return renderPlanStep();
       case 'email': return renderEmailStep();
       case 'email-sent': return renderEmailSentStep();
       case 'url': return renderUrlStep();
@@ -573,7 +740,7 @@ const SelfRegistration: React.FC = () => {
             </Box>
 
             {/* Stepper - only show for url/business/success steps */}
-            {(currentStep === 'url' || currentStep === 'business' || currentStep === 'success') && (
+            {(currentStep === 'plan' || currentStep === 'email' || currentStep === 'url' || currentStep === 'business' || currentStep === 'success') && (
               <Box sx={{ px: 3, pt: 3 }}>
                 <Stepper activeStep={getStepperIndex() - 1} alternativeLabel>
                   {['URL', 'Negocio'].map((label) => (

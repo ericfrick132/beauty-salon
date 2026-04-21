@@ -617,6 +617,14 @@ const SuperAdminDashboard: React.FC = () => {
                 </Button>
                 <Button
                   variant="outlined"
+                  startIcon={<Email />}
+                  onClick={() => navigate('/super-admin/emails')}
+                  size="large"
+                >
+                  Verificación de Emails
+                </Button>
+                <Button
+                  variant="outlined"
                   startIcon={<People />}
                   onClick={() => setCurrentTab(3)}
                 >

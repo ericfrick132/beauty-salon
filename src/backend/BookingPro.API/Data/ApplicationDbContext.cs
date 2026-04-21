@@ -42,6 +42,7 @@ namespace BookingPro.API.Data
         public DbSet<MercadoPagoConfiguration> MercadoPagoConfigurations { get; set; }
         public DbSet<SubscriptionPayment> SubscriptionPayments { get; set; }
         public DbSet<SubscriptionPlan> SubscriptionPlans { get; set; }
+        public DbSet<PlatformPaymentConnection> PlatformPaymentConnections { get; set; }
         public DbSet<TenantMessagingSettings> TenantMessagingSettings { get; set; }
         public DbSet<TenantMessageWallet> TenantMessageWallets { get; set; }
         public DbSet<MessagePurchase> MessagePurchases { get; set; }
@@ -77,6 +78,9 @@ namespace BookingPro.API.Data
         public DbSet<TenantWhatsAppConnection> TenantWhatsAppConnections { get; set; }
         public DbSet<TrackingEvent> TrackingEvents { get; set; }
         public DbSet<NotificationSettings> NotificationSettings { get; set; }
+
+        // Auditoría de emails enviados (plataforma, NO filtrada por tenant)
+        public DbSet<EmailLog> EmailLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -247,6 +251,17 @@ namespace BookingPro.API.Data
                 entity.HasIndex(p => p.Quantity);
                 entity.Property(p => p.Currency).HasMaxLength(10);
                 entity.Property(p => p.Name).HasMaxLength(100);
+            });
+
+            // Email audit log (plataforma — sin filtro multi-tenant)
+            modelBuilder.Entity<EmailLog>(entity =>
+            {
+                entity.ToTable("email_logs");
+                entity.HasIndex(e => e.CreatedAt);
+                entity.HasIndex(e => e.TemplateKey);
+                entity.HasIndex(e => e.Status);
+                entity.HasIndex(e => e.TenantId);
+                entity.HasIndex(e => e.ToEmail);
             });
         }
 

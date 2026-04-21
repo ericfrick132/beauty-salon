@@ -297,10 +297,23 @@ export const registrationApi = {
     phone?: string;
     website?: string;
     mobile: string;
+    planCode?: string;
   }) => api.post('/registration/complete', data).then(res => res.data),
 
   checkSubdomain: (subdomain: string) =>
     api.get(`/registration/check-subdomain/${subdomain}`).then(res => res.data),
+
+  googleRegister: (data: {
+    idToken: string;
+    subdomain: string;
+    businessName: string;
+    businessAddress?: string;
+    mobile?: string;
+    planCode?: string;
+  }) => api.post('/registration/google-register', data).then(res => res.data),
+
+  googleLogin: (idToken: string) =>
+    api.post('/auth/google-login', { idToken }).then(res => res.data),
 };
 
 // Templates API

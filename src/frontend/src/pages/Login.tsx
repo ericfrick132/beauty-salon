@@ -35,9 +35,11 @@ import {
 } from '@mui/icons-material';
 
 import { useTenant } from '../contexts/TenantContext';
-import { authApi } from '../services/api';
+import { authApi, registrationApi } from '../services/api';
 import { useAppDispatch } from '../store';
 import { loginSuccess } from '../store/slices/authSlice';
+import GoogleSignInButton from '../components/auth/GoogleSignInButton';
+import Divider from '@mui/material/Divider';
 
 // Styled components con tema adaptativo
 const LoginContainer = styled(Container)(({ theme }) => ({
@@ -347,6 +349,31 @@ const Login: React.FC = () => {
     }
   };
 
+  const handleGoogleLogin = async (idToken: string) => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await registrationApi.googleLogin(idToken);
+      if (response.success && response.redirectUrl) {
+        // If we received a tenant URL, follow it (cross-subdomain redirect)
+        window.location.href = response.redirectUrl;
+      } else if (response.success && response.token) {
+        localStorage.setItem('authToken', response.token);
+        navigate('/dashboard');
+      } else {
+        setError(response.message || 'Error al iniciar sesión con Google');
+      }
+    } catch (err: any) {
+      if (err.response?.data?.code === 'NO_ACCOUNT') {
+        setError('No encontramos una cuenta con este email. Registrate primero en /register.');
+      } else {
+        setError(err.response?.data?.message || 'Error al iniciar sesión con Google');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <LoginContainer 
       maxWidth={false} 
@@ -557,6 +584,14 @@ const Login: React.FC = () => {
                     </motion.div>
                   )}
                 </AnimatePresence>
+
+                <GoogleSignInButton
+                  text="signin_with"
+                  onSuccess={handleGoogleLogin}
+                  onError={(msg) => setError(msg)}
+                />
+
+                <Divider sx={{ my: 2 }}>o</Divider>
 
                 <form onSubmit={handleSubmit}>
                   <motion.div
