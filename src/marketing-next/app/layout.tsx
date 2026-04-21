@@ -4,9 +4,27 @@ import { brand } from '@/app/(lib)/brand';
 import ThemeRegistry from '@/app/(components)/ThemeRegistry';
 import { CssBaseline, ThemeProvider } from '@mui/material';
 import theme from '@/app/(lib)/theme';
-import { Space_Grotesk } from 'next/font/google';
+import { Space_Grotesk, Fraunces, JetBrains_Mono } from 'next/font/google';
 
-const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], display: 'swap' });
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-grotesk',
+});
+const fraunces = Fraunces({
+  subsets: ['latin'],
+  display: 'swap',
+  // Variable font — weight + opsz/SOFT axes controlled via font-variation-settings inline.
+  axes: ['SOFT', 'opsz'],
+  variable: '--font-fraunces',
+});
+const mono = JetBrains_Mono({
+  subsets: ['latin'],
+  display: 'swap',
+  weight: ['400', '500'],
+  variable: '--font-mono',
+});
+
 const pixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
 
 export const metadata: Metadata = {
@@ -16,7 +34,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang={brand.lang}>
+    <html
+      lang={brand.lang}
+      className={`${spaceGrotesk.variable} ${fraunces.variable} ${mono.variable}`}
+    >
       <body className={spaceGrotesk.className}>
         <ThemeRegistry>
           <ThemeProvider theme={theme}>
@@ -110,4 +131,3 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
-

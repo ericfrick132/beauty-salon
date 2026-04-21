@@ -1,81 +1,109 @@
 'use client';
 import { Box, Container, Grid, Typography } from '@mui/material';
 import AnimatedSection from './AnimatedSection';
+import SectionLabel from './SectionLabel';
 import { solutionContent } from '@/app/(lib)/content';
-
-function PlaceholderVisual({ variant }: { variant: 'main' | 'catalog' | 'share' }) {
-  const colors: Record<string, string[]> = {
-    main: ['#2563EB', '#7C3AED'],
-    catalog: ['#10B981', '#2563EB'],
-    share: ['#EC4899', '#F97316'],
-  };
-  const [c1, c2] = colors[variant];
-  return (
-    <Box
-      sx={{
-        width: '100%',
-        aspectRatio: '4/3',
-        borderRadius: 3,
-        background: `linear-gradient(135deg, ${c1}22, ${c2}22)`,
-        border: `1px solid ${c1}33`,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <svg width="120" height="80" viewBox="0 0 120 80" fill="none">
-        <rect x="10" y="10" width="100" height="60" rx="8" stroke={c1} strokeWidth="2" opacity="0.4" />
-        <rect x="20" y="22" width="40" height="4" rx="2" fill={c1} opacity="0.3" />
-        <rect x="20" y="32" width="60" height="4" rx="2" fill={c2} opacity="0.2" />
-        <rect x="20" y="42" width="30" height="4" rx="2" fill={c1} opacity="0.2" />
-        <circle cx="90" cy="45" r="12" fill={c2} opacity="0.15" />
-      </svg>
-    </Box>
-  );
-}
+import { palette } from '@/app/(lib)/theme';
 
 export default function SolutionSection() {
   return (
-    <Box component="section" sx={{ py: { xs: 8, md: 12 } }}>
+    <Box component="section" sx={{ py: { xs: 9, md: 14 } }}>
       <Container maxWidth="lg">
         <AnimatedSection>
-          <Grid container spacing={6} alignItems="center">
-            <Grid item xs={12} md={6}>
-              <PlaceholderVisual variant="main" />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <Typography variant="h3" sx={{ fontWeight: 700, mb: 2, letterSpacing: '-0.02em' }}>
-                {solutionContent.headline}
-              </Typography>
-              <Typography variant="body1" sx={{ color: 'text.secondary', fontSize: '1.1rem', lineHeight: 1.7 }}>
-                {solutionContent.description}
-              </Typography>
-            </Grid>
-          </Grid>
+          <SectionLabel number="01" label="La solución" />
         </AnimatedSection>
 
-        <Box sx={{ mt: { xs: 8, md: 12 } }}>
-          {solutionContent.blocks.map((block, i) => (
-            <AnimatedSection key={block.title} delay={i * 0.15}>
-              <Grid
-                container
-                spacing={6}
-                alignItems="center"
-                direction={i % 2 === 0 ? 'row' : 'row-reverse'}
-                sx={{ mb: i < solutionContent.blocks.length - 1 ? 8 : 0 }}
+        <Grid container spacing={{ xs: 5, md: 8 }} alignItems="flex-end">
+          <Grid item xs={12} md={7}>
+            <AnimatedSection>
+              <Typography
+                variant="h2"
+                sx={{
+                  fontSize: { xs: '2.2rem', md: '3.4rem', lg: '4rem' },
+                  fontVariationSettings: '"opsz" 144',
+                  color: palette.ink,
+                  maxWidth: 720,
+                }}
               >
-                <Grid item xs={12} md={6}>
-                  <PlaceholderVisual variant={i === 0 ? 'catalog' : 'share'} />
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <Typography variant="h4" sx={{ fontWeight: 700, mb: 1.5, letterSpacing: '-0.01em' }}>
+                Una solución integral{' '}
+                <Box
+                  component="span"
+                  sx={{ fontStyle: 'italic', color: palette.coral, fontWeight: 500 }}
+                >
+                  para tu negocio.
+                </Box>
+              </Typography>
+            </AnimatedSection>
+          </Grid>
+          <Grid item xs={12} md={5}>
+            <AnimatedSection delay={0.1}>
+              <Typography
+                sx={{
+                  fontSize: { xs: '1rem', md: '1.05rem' },
+                  color: palette.inkSoft,
+                  lineHeight: 1.7,
+                  borderLeft: `2px solid ${palette.ink}`,
+                  pl: 2.5,
+                }}
+              >
+                {solutionContent.description}
+              </Typography>
+            </AnimatedSection>
+          </Grid>
+        </Grid>
+
+        {/* Two horizontal "agenda entry" blocks instead of generic stacked images */}
+        <Box sx={{ mt: { xs: 7, md: 10 } }}>
+          {solutionContent.blocks.map((block, i) => (
+            <AnimatedSection key={block.title} delay={i * 0.12}>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', md: '88px 1fr 1fr' },
+                  gap: { xs: 3, md: 6 },
+                  alignItems: 'flex-start',
+                  py: { xs: 4, md: 5 },
+                  borderTop: `1.5px solid ${palette.ink}`,
+                  ...(i === solutionContent.blocks.length - 1 && {
+                    borderBottom: `1.5px solid ${palette.ink}`,
+                  }),
+                }}
+              >
+                <Box
+                  sx={{
+                    fontFamily: 'var(--font-mono), monospace',
+                    fontSize: '0.78rem',
+                    letterSpacing: '0.14em',
+                    color: palette.inkSoft,
+                    pt: { md: 1 },
+                  }}
+                >
+                  PASO {String(i + 1).padStart(2, '0')}
+                </Box>
+                <Box>
+                  <Typography
+                    variant="h3"
+                    sx={{
+                      fontSize: { xs: '1.6rem', md: '2.1rem' },
+                      color: palette.ink,
+                      mb: { xs: 1.5, md: 0 },
+                    }}
+                  >
                     {block.title}
                   </Typography>
-                  <Typography variant="body1" sx={{ color: 'text.secondary', lineHeight: 1.7 }}>
+                </Box>
+                <Box>
+                  <Typography
+                    sx={{
+                      fontSize: { xs: '1rem', md: '1.05rem' },
+                      color: palette.inkSoft,
+                      lineHeight: 1.65,
+                    }}
+                  >
                     {block.description}
                   </Typography>
-                </Grid>
-              </Grid>
+                </Box>
+              </Box>
             </AnimatedSection>
           ))}
         </Box>

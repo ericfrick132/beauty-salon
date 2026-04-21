@@ -1,70 +1,150 @@
 'use client';
-import { Box, Container, Grid, Typography, Chip, Stack } from '@mui/material';
+import { Box, Container, Grid, Typography } from '@mui/material';
 import AnimatedSection from './AnimatedSection';
+import SectionLabel from './SectionLabel';
 import { businessTypesContent } from '@/app/(lib)/content';
-
-function BusinessVisual() {
-  return (
-    <Box
-      sx={{
-        width: '100%',
-        aspectRatio: '4/3',
-        borderRadius: 3,
-        background: 'linear-gradient(135deg, #7C3AED08, #EC489915)',
-        border: '1px solid #7C3AED22',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <svg width="200" height="140" viewBox="0 0 200 140" fill="none">
-        {/* Store front */}
-        <rect x="30" y="40" width="140" height="80" rx="8" stroke="#7C3AED" strokeWidth="1.5" opacity="0.4" />
-        <rect x="30" y="40" width="140" height="24" rx="8" fill="#7C3AED" opacity="0.1" />
-        <text x="100" y="57" textAnchor="middle" fill="#7C3AED" fontSize="10" fontWeight="600" opacity="0.6">
-          Tu Negocio
-        </text>
-        {/* Window panes */}
-        <rect x="42" y="74" width="50" height="36" rx="4" fill="#2563EB" opacity="0.08" />
-        <rect x="108" y="74" width="50" height="36" rx="4" fill="#10B981" opacity="0.08" />
-        {/* Door */}
-        <rect x="80" y="90" width="20" height="30" rx="3" fill="#7C3AED" opacity="0.12" />
-        <circle cx="96" cy="105" r="2" fill="#7C3AED" opacity="0.3" />
-        {/* Awning */}
-        <path d="M25 40 L100 20 L175 40" stroke="#EC4899" strokeWidth="2" opacity="0.3" fill="none" />
-      </svg>
-    </Box>
-  );
-}
+import { palette } from '@/app/(lib)/theme';
 
 export default function BusinessTypes() {
+  const types = businessTypesContent.types;
+
   return (
-    <Box component="section" sx={{ py: { xs: 8, md: 12 }, bgcolor: '#F8FAFC' }}>
-      <Container maxWidth="lg">
-        <Grid container spacing={6} alignItems="center">
-          <Grid item xs={12} md={6}>
-            <AnimatedSection direction="left">
-              <Typography variant="h3" sx={{ fontWeight: 700, mb: 2, letterSpacing: '-0.02em' }}>
-                {businessTypesContent.headline}
+    <Box
+      component="section"
+      sx={{
+        position: 'relative',
+        py: { xs: 9, md: 14 },
+        bgcolor: palette.rose,
+        borderTop: `1.5px solid ${palette.ink}`,
+        borderBottom: `1.5px solid ${palette.ink}`,
+        overflow: 'hidden',
+      }}
+    >
+      <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
+        <AnimatedSection>
+          <SectionLabel number="04" label="Verticales" />
+        </AnimatedSection>
+
+        <Grid container spacing={{ xs: 5, md: 8 }} alignItems="flex-start">
+          <Grid item xs={12} md={5}>
+            <AnimatedSection>
+              <Typography
+                variant="h2"
+                sx={{
+                  fontSize: { xs: '2rem', md: '2.6rem' },
+                  fontVariationSettings: '"opsz" 144',
+                  color: palette.ink,
+                  mb: 3,
+                }}
+              >
+                Ideal para todo negocio{' '}
+                <Box component="span" sx={{ fontStyle: 'italic', color: palette.forestDeep }}>
+                  que trabaja con turnos.
+                </Box>
               </Typography>
-              <Typography variant="body1" sx={{ color: 'text.secondary', mb: 3, lineHeight: 1.7 }}>
+
+              <Typography
+                sx={{
+                  fontSize: '1.05rem',
+                  color: palette.ink,
+                  opacity: 0.75,
+                  lineHeight: 1.65,
+                  mb: 4,
+                  maxWidth: 460,
+                }}
+              >
                 {businessTypesContent.description}
               </Typography>
-              <Stack direction="row" flexWrap="wrap" gap={1}>
-                {businessTypesContent.types.map((type) => (
-                  <Chip
-                    key={type}
-                    label={type}
-                    variant="outlined"
-                    sx={{ borderColor: 'primary.main', color: 'primary.main' }}
-                  />
+
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 1,
+                }}
+              >
+                {types.map((t) => (
+                  <Box
+                    key={t}
+                    sx={{
+                      px: 1.6,
+                      py: 0.6,
+                      border: `1.5px solid ${palette.ink}`,
+                      borderRadius: 999,
+                      bgcolor: palette.paperSoft,
+                      fontFamily: 'var(--font-mono), monospace',
+                      fontSize: '0.7rem',
+                      letterSpacing: '0.12em',
+                      textTransform: 'uppercase',
+                      color: palette.ink,
+                      transition: 'transform 0.18s',
+                      '&:hover': {
+                        transform: 'translate(-1px,-1px)',
+                        bgcolor: palette.ink,
+                        color: palette.paperSoft,
+                      },
+                    }}
+                  >
+                    {t}
+                  </Box>
                 ))}
-              </Stack>
+              </Box>
             </AnimatedSection>
           </Grid>
-          <Grid item xs={12} md={6}>
-            <AnimatedSection direction="right">
-              <BusinessVisual />
+
+          <Grid item xs={12} md={7}>
+            <AnimatedSection delay={0.15}>
+              {/* Editorial vertical typographic display of business types */}
+              <Box
+                sx={{
+                  position: 'relative',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: { xs: 'center', md: 'flex-end' },
+                  gap: { xs: 1.2, md: 1.6 },
+                }}
+              >
+                {types.map((t, i) => (
+                  <Typography
+                    key={t}
+                    component="div"
+                    sx={{
+                      fontFamily: 'var(--font-fraunces), serif',
+                      fontWeight: i % 3 === 0 ? 600 : 500,
+                      fontStyle: i % 2 === 1 ? 'italic' : 'normal',
+                      fontVariationSettings: '"opsz" 144, "SOFT" 80',
+                      fontSize: { xs: '2.4rem', sm: '3.4rem', md: '4.8rem', lg: '5.6rem' },
+                      lineHeight: 0.95,
+                      letterSpacing: '-0.035em',
+                      color: i === 0 || i === 3 ? palette.ink : palette.forestDeep,
+                      WebkitTextStroke: i === 2 ? `1.5px ${palette.ink}` : undefined,
+                      WebkitTextFillColor: i === 2 ? 'transparent' : undefined,
+                      textAlign: { xs: 'center', md: 'right' },
+                      transition: 'transform 240ms ease, color 240ms ease',
+                      '&:hover': {
+                        transform: 'translateX(-6px)',
+                        color: palette.coral,
+                      },
+                    }}
+                  >
+                    {t}
+                    <Box
+                      component="span"
+                      sx={{
+                        ml: 1,
+                        fontFamily: 'var(--font-mono), monospace',
+                        fontSize: '0.85rem',
+                        letterSpacing: '0.16em',
+                        verticalAlign: 'super',
+                        color: palette.ink,
+                        opacity: 0.55,
+                      }}
+                    >
+                      0{i + 1}
+                    </Box>
+                  </Typography>
+                ))}
+              </Box>
             </AnimatedSection>
           </Grid>
         </Grid>
