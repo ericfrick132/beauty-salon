@@ -64,7 +64,7 @@ export default function SuperAdminPayments() {
   };
 
   const disconnect = async (code: string) => {
-    if (!confirm(`Desvincular ${code}?`)) return;
+    if (!window.confirm(`Desvincular ${code}?`)) return;
     try { await api.post(`/super-admin/payments/${code}/disconnect`); await load(); }
     catch { setBanner({ tone: 'error', text: 'Error al desvincular' }); }
   };
