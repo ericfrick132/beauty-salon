@@ -197,7 +197,22 @@ export const AdminLayout: React.FC = () => {
   
   const { config, getTerm } = useTenant();
   const user = useAppSelector(state => state.auth.user);
-  
+
+  // If the tenant hasn't completed the post-register onboarding wizard, force-
+  // redirect to /completar-perfil. We require `onboardingCompletedAt` to be
+  // literally `null` (not `undefined`) so older backends that don't ship the
+  // field are treated as "already completed" — preventing existing tenants from
+  // being sent through the wizard on first deploy.
+  useEffect(() => {
+    if (
+      config &&
+      config.onboardingCompletedAt === null &&
+      location.pathname !== '/completar-perfil'
+    ) {
+      navigate('/completar-perfil', { replace: true });
+    }
+  }, [config, location.pathname, navigate]);
+
   const [drawerOpen, setDrawerOpen] = useState(!isMobile);
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
   const [notificationMenuAnchor, setNotificationMenuAnchor] = useState<null | HTMLElement>(null);

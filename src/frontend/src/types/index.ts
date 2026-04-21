@@ -35,6 +35,11 @@ export interface TenantConfig {
     service: string;
     booking: string;
   };
+  /** Set once the user finishes /completar-perfil. Null = redirect to wizard. */
+  onboardingCompletedAt?: string | null;
+  /** Prefill from previous wizard runs; null before onboarding. */
+  ownerName?: string | null;
+  logoUrl?: string | null;
 }
 
 export interface User {

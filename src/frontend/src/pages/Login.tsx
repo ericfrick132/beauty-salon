@@ -35,11 +35,26 @@ import {
 } from '@mui/icons-material';
 
 import { useTenant } from '../contexts/TenantContext';
-import { authApi, registrationApi } from '../services/api';
+import { authApi, registrationApi, tenantApi } from '../services/api';
 import { useAppDispatch } from '../store';
 import { loginSuccess } from '../store/slices/authSlice';
 import GoogleSignInButton from '../components/auth/GoogleSignInButton';
 import Divider from '@mui/material/Divider';
+
+/**
+ * Decide where to go after a successful login. If the tenant hasn't completed
+ * the onboarding wizard yet, we route to /completar-perfil — otherwise /dashboard.
+ */
+async function resolvePostLoginRoute(): Promise<string> {
+  try {
+    const config = await tenantApi.getConfig();
+    if (!config?.onboardingCompletedAt) return '/completar-perfil';
+  } catch {
+    // If config endpoint is unavailable, fall through to dashboard — the
+    // tenant layout will recover from missing config on its own.
+  }
+  return '/dashboard';
+}
 
 // Styled components con tema adaptativo
 const LoginContainer = styled(Container)(({ theme }) => ({
@@ -340,8 +355,9 @@ const Login: React.FC = () => {
       // Actualizar Redux store
       dispatch(loginSuccess({ user: response.user, token: response.token }));
 
-      // Redirigir al dashboard
-      navigate('/dashboard');
+      // Redirigir al dashboard o al wizard si aún no lo completaron.
+      const target = await resolvePostLoginRoute();
+      navigate(target);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Error al iniciar sesión');
     } finally {
@@ -353,13 +369,16 @@ const Login: React.FC = () => {
     setLoading(true);
     setError('');
     try {
+      // Cache the Google ID token so the onboarding wizard can prefill name/picture.
+      try { localStorage.setItem('googleIdTokenForOnboarding', idToken); } catch {}
       const response = await registrationApi.googleLogin(idToken);
       if (response.success && response.redirectUrl) {
         // If we received a tenant URL, follow it (cross-subdomain redirect)
         window.location.href = response.redirectUrl;
       } else if (response.success && response.token) {
         localStorage.setItem('authToken', response.token);
-        navigate('/dashboard');
+        const target = await resolvePostLoginRoute();
+        navigate(target);
       } else {
         setError(response.message || 'Error al iniciar sesión con Google');
       }

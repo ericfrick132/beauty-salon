@@ -52,6 +52,7 @@ import RecurringSubscription from './pages/RecurringSubscription';
 import TenantsManagement from './pages/TenantsManagement';
 import Blocks from './pages/Blocks';
 import LoginRedirect from './pages/LoginRedirect';
+import CompletarPerfil from './pages/CompletarPerfil';
 import { AdminLayout } from './components/layouts/AdminLayout';
 import SubscriptionVerification from './components/SubscriptionVerification';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
@@ -282,6 +283,10 @@ function App() {
                   </>
                 )}
                 
+                {/* Onboarding wizard: full-screen, NO admin layout.
+                    Authenticated but shown before the user sees the dashboard. */}
+                <Route path="/completar-perfil" element={<CompletarPerfil />} />
+
                 {/* Rutas Admin con Layout */}
                 <Route element={<AdminLayout />}>
                   <Route path="/dashboard" element={<Dashboard />} />

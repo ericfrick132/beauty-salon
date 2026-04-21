@@ -223,6 +223,10 @@ if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Ena
 }
 
 app.UseHttpsRedirection();
+
+// Serve uploaded tenant logos (wwwroot/uploads/tenant-logos)
+app.UseStaticFiles();
+
 app.UseCors("AllowFrontend");
 
 // Rate limiting middleware before tenant resolution

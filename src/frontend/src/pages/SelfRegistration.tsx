@@ -230,6 +230,8 @@ const SelfRegistration: React.FC = () => {
   const handleGoogleSignupSuccess = (idToken: string) => {
     setError('');
     setGoogleIdToken(idToken);
+    // Cache for the onboarding wizard (name + picture prefill after first login).
+    try { localStorage.setItem('googleIdTokenForOnboarding', idToken); } catch {}
     // Decode to pre-fill verifiedEmail for display
     try {
       const payload = JSON.parse(atob(idToken.split('.')[1]));

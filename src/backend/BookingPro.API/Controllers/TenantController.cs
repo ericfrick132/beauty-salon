@@ -26,16 +26,37 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpGet("config")]
-        public IActionResult GetTenantConfig()
+        public async Task<IActionResult> GetTenantConfig()
         {
             try
             {
                 var tenant = _tenantService.GetCurrentTenant();
-                
+
                 if (tenant == null)
                 {
                     return NotFound(new { message = "Tenant not found" });
                 }
+
+                // Pull onboarding marker + owner name/logo straight from DB — not cached in
+                // TenantInfo, and the wizard redirect depends on this value being fresh.
+                DateTime? onboardingCompletedAt = null;
+                string? ownerName = null;
+                string? logoUrl = null;
+                try
+                {
+                    var row = await _context.Tenants
+                        .AsNoTracking()
+                        .Where(t => t.Id == tenant.Id)
+                        .Select(t => new { t.OnboardingCompletedAt, t.OwnerName, t.LogoUrl })
+                        .FirstOrDefaultAsync();
+                    if (row != null)
+                    {
+                        onboardingCompletedAt = row.OnboardingCompletedAt;
+                        ownerName = row.OwnerName;
+                        logoUrl = row.LogoUrl;
+                    }
+                }
+                catch { /* column may not exist pre-migration; stay graceful */ }
 
                 var config = new
                 {
@@ -45,7 +66,10 @@ namespace BookingPro.API.Controllers
                     timezone = tenant.TimeZone ?? "-3",
                     theme = tenant.Theme,
                     features = tenant.Features,
-                    terminology = tenant.Terminology
+                    terminology = tenant.Terminology,
+                    onboardingCompletedAt,
+                    ownerName,
+                    logoUrl,
                 };
 
                 return Ok(config);

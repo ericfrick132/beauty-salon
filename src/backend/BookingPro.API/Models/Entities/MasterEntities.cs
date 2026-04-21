@@ -102,7 +102,42 @@ namespace BookingPro.API.Models.Entities
         public DateTime? SuspendedAt { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-        
+
+        // Onboarding wizard (post-register, /completar-perfil)
+        [MaxLength(120)]
+        public string? OwnerName { get; set; }
+
+        public DateTime? OwnerBirthday { get; set; }
+
+        [MaxLength(80)]
+        public string? OwnerInstagram { get; set; }
+
+        [MaxLength(200)]
+        public string? OwnerWeb { get; set; }
+
+        [MaxLength(80)]
+        public string? BusinessKind { get; set; }          // step 2 — activity
+
+        [MaxLength(40)]
+        public string? BusinessVolume { get; set; }        // step 2 — volume
+
+        [MaxLength(80)]
+        public string? BusinessWorkMode { get; set; }      // step 2 — work mode
+
+        [MaxLength(20)]
+        public string? ThemeCode { get; set; }             // vibrant|inspiring|light|dark|custom
+
+        [MaxLength(10)]
+        public string? PrimaryColor { get; set; }
+
+        [MaxLength(10)]
+        public string? SecondaryColor { get; set; }
+
+        [MaxLength(400)]
+        public string? LogoUrl { get; set; }
+
+        public DateTime? OnboardingCompletedAt { get; set; }
+
         // Navigation properties
         public Vertical? Vertical { get; set; }
         public Plan? Plan { get; set; }
