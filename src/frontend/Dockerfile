@@ -17,6 +17,15 @@ WORKDIR /app
 COPY src/frontend/package*.json ./
 RUN npm install
 COPY src/frontend ./
+
+# CRA inlines process.env.REACT_APP_* into the bundle at `npm run build`,
+# so every env consumed by the frontend must be declared as ARG+ENV here —
+# DO's RUN_AND_BUILD_TIME scope alone is not enough without the explicit ARG.
+ARG REACT_APP_API_URL
+ARG REACT_APP_GOOGLE_CLIENT_ID
+ENV REACT_APP_API_URL=${REACT_APP_API_URL} \
+    REACT_APP_GOOGLE_CLIENT_ID=${REACT_APP_GOOGLE_CLIENT_ID}
+
 RUN npm run build
 
 # Production stage with nginx
