@@ -1,15 +1,16 @@
 /**
- * /register — "Editorial Gazette" signup page (multi-phase).
+ * /register — "Editorial Gazette" signup page.
  *
  * Backend API is unchanged:
  *   1. POST /registration/start        → sends confirmation email
- *   2. GET  /register/confirm?token=x  → verify token, reveal URL form
+ *   2. GET  /register/confirm?token=x  → verify token, reveal business form
  *   3. POST /registration/check-subdomain
  *   4. POST /registration/complete OR /registration/google-register
  *
- * All 5 UI phases (signup, email-sent, url, business, success) are
- * rendered inside the AuthShell's right panel; the left editorial cover
- * never changes, so the reader always sees testimonials + masthead.
+ * UX note — the word "subdominio" never reaches the end user; we call it a
+ * "link" throughout. The URL step from the earlier design is merged into
+ * the business step: the slug auto-derives from the business name, and an
+ * optional "Personalizar" affordance lets power users tweak it.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -35,7 +36,19 @@ import { registrationApi } from '../services/api';
 import GoogleSignInButton from '../components/auth/GoogleSignInButton';
 import AuthShell, { authPalette, authFonts } from '../components/auth/AuthShell';
 
-type FlowStep = 'signup' | 'email-sent' | 'url' | 'business' | 'success';
+type FlowStep = 'signup' | 'email-sent' | 'business' | 'success';
+
+// Turn a business name into a URL slug (lowercase, hyphen-separated, ASCII-
+// safe). Used to auto-derive the tenant link so end users never have to
+// think about "subdomains".
+const slugify = (s: string): string =>
+  s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 30);
 
 // ────────────────────── Editorial field style ──────────────────────
 // Underline-only inputs: 1px ink border-bottom, forest-green glow on focus.
@@ -312,8 +325,11 @@ const SelfRegistration: React.FC = () => {
 
   // ----- Flow state -----
   const [currentStep, setCurrentStep] = useState<FlowStep>(
-    tokenFromUrl ? 'url' : 'signup'
+    tokenFromUrl ? 'business' : 'signup'
   );
+  // "Personalizar" toggle — when false, the link slug tracks the business
+  // name automatically; when true, the user has overridden it.
+  const [customizingLink, setCustomizingLink] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -363,7 +379,7 @@ const SelfRegistration: React.FC = () => {
           if (response.success) {
             setRememberToken(tokenFromUrl);
             setVerifiedEmail(response.email);
-            setCurrentStep('url');
+            setCurrentStep('business');
           } else {
             setError(response.message || 'Token inválido');
           }
@@ -475,21 +491,17 @@ const SelfRegistration: React.FC = () => {
     } catch {
       /* decode failure is non-fatal */
     }
-    setCurrentStep('url');
-  };
-
-  const handleUrlNext = () => {
-    setError('');
-    if (!subdomain || subdomain.length < 3) {
-      setError('El subdominio debe tener al menos 3 caracteres');
-      return;
-    }
-    if (subdomainAvailable === false) {
-      setError('El subdominio no está disponible');
-      return;
-    }
     setCurrentStep('business');
   };
+
+  // Auto-derive the link slug from the business name unless the user has
+  // manually personalized it. Keeps the "subdomain" concept out of the
+  // happy path while still letting power users tweak.
+  useEffect(() => {
+    if (customizingLink) return;
+    const derived = slugify(businessName);
+    if (derived !== subdomain) setSubdomain(derived);
+  }, [businessName, customizingLink, subdomain]);
 
   const handleCompleteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -500,6 +512,14 @@ const SelfRegistration: React.FC = () => {
     }
     if (!mobile.trim()) {
       setError('El celular es requerido');
+      return;
+    }
+    if (!subdomain || subdomain.length < 3) {
+      setError('Elegí un nombre de negocio un poco más largo para generar tu link.');
+      return;
+    }
+    if (subdomainAvailable === false) {
+      setError('Ese link ya está en uso — personalizalo desde el campo de arriba.');
       return;
     }
 
@@ -889,144 +909,10 @@ const SelfRegistration: React.FC = () => {
     </Box>
   );
 
-  const renderUrlStep = () => (
-    <>
-      <EditorialHeader
-        kicker="Paso 1 · 2 — Dirección"
-        title={
-          <>
-            <span className="upright">Elegí</span>
-            <br />
-            tu URL.
-          </>
-        }
-        subtitle={
-          verifiedEmail
-            ? `Verificada: ${verifiedEmail}`
-            : 'El lugar donde tus clientes van a reservar.'
-        }
-      />
-
-      {renderError()}
-
-      <Box component={motion.div} {...item(0)} sx={{ mb: 2 }}>
-        <TextField
-          fullWidth
-          variant="filled"
-          label="Subdominio"
-          placeholder="mi-peluqueria"
-          value={subdomain}
-          onChange={(e) => handleSubdomainChange(e.target.value)}
-          required
-          autoFocus
-          error={subdomainAvailable === false}
-          helperText={
-            checkingSubdomain
-              ? 'Verificando...'
-              : subdomainAvailable === true
-              ? '✓ Disponible'
-              : subdomainAvailable === false
-              ? 'No disponible'
-              : 'Solo letras minúsculas, números y guiones'
-          }
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                {checkingSubdomain && (
-                  <CircularProgress
-                    size={16}
-                    sx={{ color: authPalette.inkFaint }}
-                  />
-                )}
-                {subdomainAvailable === true && (
-                  <CheckCircleIcon
-                    sx={{ color: authPalette.primary, fontSize: 20 }}
-                  />
-                )}
-              </InputAdornment>
-            ),
-          }}
-          sx={underlineFieldSx}
-        />
-      </Box>
-
-      {/* Preview card — looks like a printed ticket stub */}
-      <Box
-        component={motion.div}
-        {...item(0.08)}
-        sx={{
-          mt: 3,
-          mb: 4,
-          position: 'relative',
-          border: `1px solid ${authPalette.ink}`,
-          backgroundColor: 'rgba(255, 255, 255, 0.4)',
-          padding: '18px 22px',
-          // ticket-stub perforated left edge
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            left: -1,
-            top: 14,
-            bottom: 14,
-            width: 2,
-            borderLeft: `1px dashed ${authPalette.ink}`,
-          },
-        }}
-      >
-        <Typography
-          sx={{
-            fontFamily: authFonts.mono,
-            fontSize: 10,
-            letterSpacing: '0.24em',
-            textTransform: 'uppercase',
-            color: authPalette.inkFaint,
-            mb: 0.75,
-          }}
-        >
-          Tu URL será
-        </Typography>
-        <Typography
-          sx={{
-            fontFamily: authFonts.display,
-            fontStyle: 'italic',
-            fontSize: 22,
-            fontWeight: 500,
-            color: authPalette.primary,
-            letterSpacing: '-0.01em',
-            fontVariationSettings: '"opsz" 144',
-            wordBreak: 'break-all',
-          }}
-        >
-          {subdomain || 'tu-negocio'}
-          <Box
-            component="span"
-            sx={{ color: authPalette.ink, fontStyle: 'normal', fontWeight: 400 }}
-          >
-            .turnos-pro.com
-          </Box>
-        </Typography>
-      </Box>
-
-      <Box component={motion.div} {...item(0.14)}>
-        <PillCTA
-          onClick={handleUrlNext}
-          disabled={
-            loading ||
-            subdomainAvailable === false ||
-            !subdomain ||
-            subdomain.length < 3
-          }
-        >
-          Continuar →
-        </PillCTA>
-      </Box>
-    </>
-  );
-
   const renderBusinessStep = () => (
     <>
       <EditorialHeader
-        kicker="Paso 2 · 2 — Últimos datos"
+        kicker="Último paso — Tu negocio"
         title={
           <>
             <span className="upright">Contanos</span>
@@ -1034,7 +920,11 @@ const SelfRegistration: React.FC = () => {
             del negocio.
           </>
         }
-        subtitle="Solo para terminar de armar tu cuenta."
+        subtitle={
+          verifiedEmail
+            ? `Verificada: ${verifiedEmail}`
+            : 'Solo unos datos para dejarte lista la cuenta.'
+        }
       />
 
       {renderError()}
@@ -1053,7 +943,125 @@ const SelfRegistration: React.FC = () => {
           />
         </Box>
 
-        <Box component={motion.div} {...item(0.06)} sx={{ mb: 2.5 }}>
+        {/* Ticket-stub preview of the auto-derived link + optional manual edit */}
+        <Box
+          component={motion.div}
+          {...item(0.06)}
+          sx={{
+            mt: 1,
+            mb: 3,
+            position: 'relative',
+            border: `1px solid ${authPalette.ink}`,
+            backgroundColor: 'rgba(255, 255, 255, 0.4)',
+            padding: '16px 20px',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              left: -1,
+              top: 12,
+              bottom: 12,
+              width: 2,
+              borderLeft: `1px dashed ${authPalette.ink}`,
+            },
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'baseline',
+              justifyContent: 'space-between',
+              gap: 2,
+              mb: 0.75,
+            }}
+          >
+            <Typography
+              sx={{
+                fontFamily: authFonts.mono,
+                fontSize: 10,
+                letterSpacing: '0.24em',
+                textTransform: 'uppercase',
+                color: authPalette.inkFaint,
+              }}
+            >
+              Tu link de reservas
+            </Typography>
+            <Box
+              component="button"
+              type="button"
+              onClick={() => setCustomizingLink((v) => !v)}
+              sx={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                fontFamily: authFonts.mono,
+                fontSize: 10,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: authPalette.secondary,
+                '&:hover': { color: authPalette.primary },
+              }}
+            >
+              {customizingLink ? 'Usar el nombre' : 'Personalizar'}
+            </Box>
+          </Box>
+          {customizingLink ? (
+            <TextField
+              fullWidth
+              variant="filled"
+              label="Link"
+              placeholder="mi-negocio"
+              value={subdomain}
+              onChange={(e) => handleSubdomainChange(e.target.value)}
+              error={subdomainAvailable === false}
+              helperText={
+                checkingSubdomain
+                  ? 'Verificando...'
+                  : subdomainAvailable === true
+                  ? `✓ ${subdomain}.turnos-pro.com está disponible`
+                  : subdomainAvailable === false
+                  ? 'Ese link ya está en uso — probá otro'
+                  : 'Solo minúsculas, números y guiones'
+              }
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    {checkingSubdomain && (
+                      <CircularProgress size={16} sx={{ color: authPalette.inkFaint }} />
+                    )}
+                    {subdomainAvailable === true && (
+                      <CheckCircleIcon sx={{ color: authPalette.primary, fontSize: 20 }} />
+                    )}
+                  </InputAdornment>
+                ),
+              }}
+              sx={underlineFieldSx}
+            />
+          ) : (
+            <Typography
+              sx={{
+                fontFamily: authFonts.display,
+                fontStyle: 'italic',
+                fontSize: 20,
+                fontWeight: 500,
+                color: authPalette.primary,
+                letterSpacing: '-0.01em',
+                fontVariationSettings: '"opsz" 144',
+                wordBreak: 'break-all',
+              }}
+            >
+              {subdomain || 'tu-negocio'}
+              <Box
+                component="span"
+                sx={{ color: authPalette.ink, fontStyle: 'normal', fontWeight: 400 }}
+              >
+                .turnos-pro.com
+              </Box>
+            </Typography>
+          )}
+        </Box>
+
+        <Box component={motion.div} {...item(0.12)} sx={{ mb: 2.5 }}>
           <TextField
             fullWidth
             variant="filled"
@@ -1066,7 +1074,7 @@ const SelfRegistration: React.FC = () => {
           />
         </Box>
 
-        <Box component={motion.div} {...item(0.12)} sx={{ mb: 4 }}>
+        <Box component={motion.div} {...item(0.18)} sx={{ mb: 4 }}>
           <TextField
             fullWidth
             variant="filled"
@@ -1077,27 +1085,20 @@ const SelfRegistration: React.FC = () => {
           />
         </Box>
 
-        <Box
-          component={motion.div}
-          {...item(0.18)}
-          sx={{ display: 'flex', gap: 1.5 }}
-        >
-          <PillCTA
-            variant="outline"
-            onClick={() => setCurrentStep('url')}
-            flex={1}
-            fullWidth={false}
-          >
-            Atrás
-          </PillCTA>
+        <Box component={motion.div} {...item(0.24)}>
           <PillCTA
             type="submit"
-            disabled={loading}
+            disabled={
+              loading ||
+              !businessName.trim() ||
+              !mobile.trim() ||
+              !subdomain ||
+              subdomain.length < 3 ||
+              subdomainAvailable === false
+            }
             loading={loading}
-            flex={2}
-            fullWidth={false}
           >
-            Completar el registro
+            Activar mi cuenta →
           </PillCTA>
         </Box>
       </Box>
@@ -1187,7 +1188,7 @@ const SelfRegistration: React.FC = () => {
   );
 
   const renderStep = () => {
-    if (loading && currentStep === 'url' && !verifiedEmail) {
+    if (loading && currentStep === 'business' && !verifiedEmail) {
       return (
         <Box sx={{ textAlign: 'center', py: 4 }}>
           <CircularProgress sx={{ color: authPalette.primary }} />
@@ -1212,8 +1213,6 @@ const SelfRegistration: React.FC = () => {
         return renderSignup();
       case 'email-sent':
         return renderEmailSent();
-      case 'url':
-        return renderUrlStep();
       case 'business':
         return renderBusinessStep();
       case 'success':

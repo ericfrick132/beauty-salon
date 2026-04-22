@@ -807,7 +807,11 @@ const AuthShell: React.FC<AuthShellProps> = ({
             mx: 'auto',
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'center',
+            // Anchor to the top (with a small pt) instead of vertically
+            // centering: short forms were floating in the middle of the
+            // viewport and left a huge gap under the masthead strip.
+            justifyContent: 'flex-start',
+            pt: { xs: 1, md: 3 },
             position: 'relative',
             zIndex: 1,
           }}
