@@ -203,7 +203,7 @@ export default function FinalCta() {
             />
             <Button
               variant="contained"
-              onClick={() => open(subdomain || undefined)}
+              href={subdomain ? `/register?subdomain=${encodeURIComponent(subdomain)}` : '/register'}
               sx={{
                 whiteSpace: 'nowrap',
                 bgcolor: palette.amber,

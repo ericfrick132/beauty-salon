@@ -330,7 +330,14 @@ const SelfRegistration: React.FC = () => {
   const [verifiedEmail, setVerifiedEmail] = useState('');
 
   // ----- URL step -----
-  const [subdomain, setSubdomain] = useState('');
+  // Prefill subdomain from `?subdomain=XYZ` query param (landing FinalCta passes it
+  // when the user typed a slug before clicking "Comenzar"). Sanitize to match the
+  // allowed charset the CRA uses elsewhere (lowercase a-z0-9 + hyphen).
+  const subdomainFromUrl = (searchParams.get('subdomain') || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '')
+    .slice(0, 40);
+  const [subdomain, setSubdomain] = useState(subdomainFromUrl);
   const [subdomainAvailable, setSubdomainAvailable] = useState<boolean | null>(
     null
   );
