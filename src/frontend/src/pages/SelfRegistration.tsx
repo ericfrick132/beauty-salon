@@ -490,14 +490,15 @@ const SelfRegistration: React.FC = () => {
         return;
       }
     } catch (err: any) {
+      const status = err.response?.status;
       const code = err.response?.data?.code;
-      if (code !== 'NO_ACCOUNT') {
-        // Unexpected error — surface it and bail
+      const isNoAccount = status === 404 || code === 'NO_ACCOUNT';
+      if (!isNoAccount) {
         setError(err.response?.data?.message || 'Error al verificar cuenta con Google');
         setLoading(false);
         return;
       }
-      // NO_ACCOUNT → new user, continue to registration
+      // 404 / NO_ACCOUNT → new user, continue to registration
     } finally {
       setLoading(false);
     }

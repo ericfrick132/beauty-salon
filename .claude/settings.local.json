@@ -45,7 +45,8 @@
       "Bash(cd /mnt/d/code/efcloud/projects/TurnosPro/src/marketing-next/public/landing/assets/img/logos && curl -sO \"https://agendoro.com/wp-content/uploads/2025/07/mercado_pago.png\" && curl -sO \"https://agendoro.com/wp-content/uploads/2025/07/whatsapp.png\" && curl -sO \"https://agendoro.com/wp-content/uploads/2025/07/google_calendar.png\" && curl -sO \"https://agendoro.com/wp-content/uploads/2025/07/zoom.png\" && curl -sO \"https://agendoro.com/wp-content/uploads/2025/07/paypal.png\" && curl -sO \"https://agendoro.com/wp-content/uploads/2025/07/google-meet-logo-1-scaled.png\" && ls -la *.png)",
       "Bash(cd /mnt/d/code/efcloud/projects/TurnosPro/src/frontend/public/templates/ && file *)",
       "Bash(file /mnt/d/code/efcloud/projects/TurnosPro/src/frontend/public/images/templates/*.jpg)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Skill(update-config)"
     ],
     "deny": [],
     "ask": []
