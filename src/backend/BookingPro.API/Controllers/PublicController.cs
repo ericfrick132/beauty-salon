@@ -91,11 +91,17 @@ namespace BookingPro.API.Controllers
                     domain = tenant.Vertical.Domain;
                 }
 
+                var host = HttpContext.Request.Host.Host;
+                var isLocal = host.Contains("localhost") || host.StartsWith("127.");
+                var loginUrl = isLocal
+                    ? $"http://{subdomain}.localhost:3001/login"
+                    : $"https://{subdomain}.turnos-pro.com/login";
+
                 return Ok(new
                 {
                     subdomain,
                     domain,
-                    loginUrl = $"https://{subdomain}.{domain}/login"
+                    loginUrl
                 });
             }
             catch (Exception ex)
