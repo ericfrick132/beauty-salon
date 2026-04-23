@@ -140,9 +140,13 @@ namespace BookingPro.API.Utilities
             if (parts.Length >= 3)
             {
                 var subdomain = parts[0];
-                var verticalDomain = string.Join(".", parts.Skip(1));
-                
-                return await service.GetTenantBySubdomain(subdomain, verticalDomain);
+                var baseDomain = string.Join(".", parts.Skip(1));
+
+                // Platform domain — resolve by subdomain only (vertical domain is metadata, not the real host)
+                if (baseDomain == "turnos-pro.com")
+                    return await service.GetTenantBySubdomainOnly(subdomain);
+
+                return await service.GetTenantBySubdomain(subdomain, baseDomain);
             }
             
             // Dominio custom
