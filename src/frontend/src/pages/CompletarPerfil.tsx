@@ -132,7 +132,11 @@ const CompletarPerfil: React.FC = () => {
 
     // Clear any cached Google ID token — single-use.
     localStorage.removeItem('googleIdTokenForOnboarding');
-    navigate('/dashboard');
+
+    // Hard reload so App re-fetches tenant config with the new
+    // onboardingCompletedAt — otherwise AdminLayout's guard sees the stale
+    // `null` value and bounces us right back to /completar-perfil.
+    window.location.href = '/dashboard';
   };
 
   // NOTE: we intentionally do NOT pass `onLogoUpload` — the upload is done
