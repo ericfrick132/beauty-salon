@@ -57,7 +57,10 @@ namespace BookingPro.API.Controllers
 
             try
             {
-                // Buscar usuario admin con ese email
+                string? subdomain = null;
+                string? domain = null;
+
+                // Primary: look up via the Users table
                 var user = await _context.Users
                     .Include(u => u.Tenant)
                     .ThenInclude(t => t.Vertical)
@@ -65,13 +68,28 @@ namespace BookingPro.API.Controllers
                     .OrderByDescending(u => u.CreatedAt)
                     .FirstOrDefaultAsync();
 
-                if (user == null || user.Tenant == null || user.Tenant.Vertical == null)
+                if (user?.Tenant?.Vertical != null)
                 {
-                    return NotFound(new { error = "No se encontró una cuenta para ese email" });
+                    subdomain = user.Tenant.Subdomain;
+                    domain = user.Tenant.Vertical.Domain;
                 }
+                else
+                {
+                    // Fallback: match directly on Tenant.OwnerEmail
+                    var tenant = await _context.Tenants
+                        .Include(t => t.Vertical)
+                        .Where(t => t.OwnerEmail == email)
+                        .OrderByDescending(t => t.CreatedAt)
+                        .FirstOrDefaultAsync();
 
-                var subdomain = user.Tenant.Subdomain;
-                var domain = user.Tenant.Vertical.Domain;
+                    if (tenant?.Vertical == null)
+                    {
+                        return NotFound(new { error = "No se encontró una cuenta para ese email" });
+                    }
+
+                    subdomain = tenant.Subdomain;
+                    domain = tenant.Vertical.Domain;
+                }
 
                 return Ok(new
                 {
