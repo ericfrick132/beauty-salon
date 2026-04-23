@@ -170,6 +170,10 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
   const [creditsForm, setCreditsForm] = useState({ amount: 100, reason: '' });
   const [creditsWallet, setCreditsWallet] = useState<{ balance: number; totalPurchased: number; totalSent: number } | null>(null);
   const [creditsLoading, setCreditsLoading] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState(false);
+  const [deleteTenant, setDeleteTenant] = useState<Tenant | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -333,6 +337,23 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
         type: 'error', 
         text: error.message || 'Error al impersonar tenant' 
       });
+    }
+  };
+
+  const handleDeleteTenant = async () => {
+    if (!deleteTenant) return;
+    setDeleteLoading(true);
+    try {
+      await api.delete(`/super-admin/tenants/${deleteTenant.id}`);
+      setTenants(prev => prev.filter(t => t.id !== deleteTenant.id));
+      setMessage({ type: 'success', text: `Tenant '${deleteTenant.businessName}' eliminado permanentemente` });
+      setDeleteDialog(false);
+      setDeleteTenant(null);
+      setDeleteConfirmText('');
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.response?.data?.message || 'Error al eliminar tenant' });
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -931,6 +952,12 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
           <MenuItem onClick={() => { if (actionMenuTenant) handleOpenCreditsDialog(actionMenuTenant); setActionMenuAnchor(null); }}>
             Cargar créditos WhatsApp
           </MenuItem>
+          <MenuItem
+            onClick={() => { if (actionMenuTenant) { setDeleteTenant(actionMenuTenant); setDeleteConfirmText(''); setDeleteDialog(true); } setActionMenuAnchor(null); }}
+            sx={{ color: 'error.main' }}
+          >
+            Eliminar permanentemente
+          </MenuItem>
         </Menu>
         {/* Manual Payment Dialog */}
         <Dialog open={manualPaymentDialog} onClose={() => setManualPaymentDialog(false)} maxWidth="sm" fullWidth>
@@ -1063,6 +1090,45 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
             </Button>
           </DialogActions>
         </Dialog>
+        {/* Delete Tenant Dialog */}
+        <Dialog open={deleteDialog} onClose={() => { setDeleteDialog(false); setDeleteConfirmText(''); }} maxWidth="sm" fullWidth>
+          <DialogTitle sx={{ color: 'error.main' }}>
+            ⚠️ Eliminar tenant permanentemente
+          </DialogTitle>
+          <DialogContent>
+            <Alert severity="error" sx={{ mb: 2 }}>
+              Esta acción es <strong>irreversible</strong>. Se eliminarán todos los datos del negocio: turnos, clientes, empleados, pagos y configuración.
+            </Alert>
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              Estás por eliminar: <strong>{deleteTenant?.businessName}</strong> ({deleteTenant?.subdomain}.turnos-pro.com)
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              Escribí <strong>{deleteTenant?.subdomain}</strong> para confirmar:
+            </Typography>
+            <TextField
+              fullWidth
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder={deleteTenant?.subdomain}
+              size="small"
+              autoComplete="off"
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => { setDeleteDialog(false); setDeleteConfirmText(''); }} disabled={deleteLoading}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleDeleteTenant}
+              color="error"
+              variant="contained"
+              disabled={deleteConfirmText !== deleteTenant?.subdomain || deleteLoading}
+            >
+              {deleteLoading ? <CircularProgress size={20} /> : 'Eliminar para siempre'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
       </motion.div>
     </Container>
   );

@@ -308,6 +308,30 @@ namespace BookingPro.API.Controllers
             }
         }
 
+        [HttpDelete("tenants/{tenantId}")]
+        public async Task<IActionResult> DeleteTenant(Guid tenantId)
+        {
+            var adminEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? "unknown";
+
+            var tenant = await _context.Tenants
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(t => t.Id == tenantId);
+
+            if (tenant == null)
+                return NotFound(new { success = false, message = "Tenant no encontrado" });
+
+            // Hard delete — remove tenant row; FK cascades handle related data via DB constraints.
+            // Tables without FK cascade are cleaned explicitly below.
+            _context.Tenants.Remove(tenant);
+            await _context.SaveChangesAsync();
+
+            _logger.LogWarning(
+                "SuperAdmin {Admin} permanently deleted tenant {TenantId} ({Subdomain})",
+                adminEmail, tenantId, tenant.Subdomain);
+
+            return Ok(new { success = true, message = $"Tenant '{tenant.BusinessName}' eliminado permanentemente" });
+        }
+
         [HttpGet("tenants/list")]
         public async Task<IActionResult> GetTenantsForImpersonation()
         {
