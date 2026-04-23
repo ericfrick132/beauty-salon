@@ -340,6 +340,7 @@ const SelfRegistration: React.FC = () => {
   const [businessName, setBusinessName] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [googleIdToken, setGoogleIdToken] = useState<string>('');
+  const [showEmailForm, setShowEmailForm] = useState(false);
 
   // ----- Verification bridge -----
   const [rememberToken, setRememberToken] = useState(tokenFromUrl || '');
@@ -477,8 +478,30 @@ const SelfRegistration: React.FC = () => {
     }
   };
 
-  const handleGoogleSignup = (idToken: string) => {
+  const handleGoogleSignup = async (idToken: string) => {
     setError('');
+    setLoading(true);
+    try {
+      // Check if this Google account already has a TurnosPro account.
+      // If it does, skip registration entirely and send them to their dashboard.
+      const result = await registrationApi.googleLogin(idToken);
+      if (result.success && result.redirectUrl) {
+        window.location.href = result.redirectUrl;
+        return;
+      }
+    } catch (err: any) {
+      const code = err.response?.data?.code;
+      if (code !== 'NO_ACCOUNT') {
+        // Unexpected error — surface it and bail
+        setError(err.response?.data?.message || 'Error al verificar cuenta con Google');
+        setLoading(false);
+        return;
+      }
+      // NO_ACCOUNT → new user, continue to registration
+    } finally {
+      setLoading(false);
+    }
+
     setGoogleIdToken(idToken);
     try {
       localStorage.setItem('googleIdTokenForOnboarding', idToken);
@@ -626,164 +649,188 @@ const SelfRegistration: React.FC = () => {
         />
       </Box>
 
-      <Box component={motion.div} {...item(0.06)}>
-        <Divider label="— o con email —" />
+      <Box component={motion.div} {...item(0.06)} sx={{ textAlign: 'center', mt: 2.5 }}>
+        <Box
+          component="button"
+          type="button"
+          onClick={() => setShowEmailForm((v) => !v)}
+          sx={{
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            fontFamily: authFonts.mono,
+            fontSize: 11,
+            letterSpacing: '0.2em',
+            textTransform: 'uppercase',
+            color: authPalette.inkFaint,
+            transition: 'color 150ms ease',
+            '&:hover': { color: authPalette.inkSoft },
+          }}
+        >
+          {showEmailForm ? '— ocultar formulario —' : '— o registrarse con email —'}
+        </Box>
       </Box>
 
-      <Box component="form" onSubmit={handleSignupSubmit}>
-        <Box component={motion.div} {...item(0.12)} sx={{ mb: 2.5 }}>
-          <TextField
-            fullWidth
-            variant="filled"
-            label="Nombre del negocio"
-            placeholder="Estudio Luli"
-            value={businessName}
-            onChange={(e) => setBusinessName(e.target.value)}
-            required
-            autoFocus
-            sx={underlineFieldSx}
-          />
-        </Box>
-
-        <Box component={motion.div} {...item(0.18)} sx={{ mb: 2.5 }}>
-          <TextField
-            fullWidth
-            variant="filled"
-            type="email"
-            label="Email"
-            placeholder="vos@ejemplo.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoComplete="email"
-            sx={underlineFieldSx}
-          />
-        </Box>
-
-        <Box component={motion.div} {...item(0.24)} sx={{ mb: 2 }}>
-          <TextField
-            fullWidth
-            variant="filled"
-            type={showPassword ? 'text' : 'password'}
-            label="Contraseña"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="new-password"
-            helperText="Mínimo 8 caracteres"
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => setShowPassword((v) => !v)}
-                    edge="end"
-                    size="small"
-                    sx={{
-                      color: authPalette.inkFaint,
-                      '&:hover': { color: authPalette.secondary },
-                    }}
-                  >
-                    {showPassword ? (
-                      <VisibilityOffIcon fontSize="small" />
-                    ) : (
-                      <VisibilityIcon fontSize="small" />
-                    )}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-            sx={underlineFieldSx}
-          />
-        </Box>
-
-        <Box component={motion.div} {...item(0.3)} sx={{ mb: 3.5, mt: 1 }}>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={acceptedTerms}
-                onChange={(e) => setAcceptedTerms(e.target.checked)}
-                size="small"
-                sx={{
-                  color: 'rgba(23, 20, 16, 0.35)',
-                  padding: '4px',
-                  borderRadius: 0,
-                  '& .MuiSvgIcon-root': { borderRadius: 0 },
-                  '&.Mui-checked': { color: authPalette.primary },
-                }}
-              />
-            }
-            label={
-              <Typography
-                sx={{
-                  fontFamily: authFonts.body,
-                  fontSize: 13.5,
-                  color: authPalette.inkSoft,
-                  ml: 0.5,
-                }}
-              >
-                Acepto los{' '}
-                <Box
-                  component="a"
-                  href="/terms"
-                  target="_blank"
-                  rel="noreferrer"
-                  sx={{
-                    color: authPalette.secondary,
-                    textDecoration: 'none',
-                    borderBottom: `1px solid ${authPalette.secondary}`,
-                    paddingBottom: '1px',
-                    '&:hover': { color: authPalette.primary, borderColor: authPalette.primary },
-                  }}
-                >
-                  términos y condiciones
-                </Box>
-              </Typography>
-            }
-          />
-        </Box>
-
-        <Box component={motion.div} {...item(0.36)}>
-          <PillCTA type="submit" disabled={loading} loading={loading}>
-            Crear cuenta
-          </PillCTA>
-        </Box>
-
+      {showEmailForm && (
         <Box
           component={motion.div}
-          {...item(0.42)}
-          sx={{ textAlign: 'center', mt: 3 }}
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: [0.22, 0.61, 0.36, 1] }}
         >
-          <Typography
+          <Box sx={{ my: 2.5, height: 1, backgroundColor: authPalette.rule }} />
+
+          <Box component="form" onSubmit={handleSignupSubmit}>
+            <Box sx={{ mb: 2.5 }}>
+              <TextField
+                fullWidth
+                variant="filled"
+                label="Nombre del negocio"
+                placeholder="Estudio Luli"
+                value={businessName}
+                onChange={(e) => setBusinessName(e.target.value)}
+                required
+                autoFocus
+                sx={underlineFieldSx}
+              />
+            </Box>
+
+            <Box sx={{ mb: 2.5 }}>
+              <TextField
+                fullWidth
+                variant="filled"
+                type="email"
+                label="Email"
+                placeholder="vos@ejemplo.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                sx={underlineFieldSx}
+              />
+            </Box>
+
+            <Box sx={{ mb: 2 }}>
+              <TextField
+                fullWidth
+                variant="filled"
+                type={showPassword ? 'text' : 'password'}
+                label="Contraseña"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="new-password"
+                helperText="Mínimo 8 caracteres"
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowPassword((v) => !v)}
+                        edge="end"
+                        size="small"
+                        sx={{
+                          color: authPalette.inkFaint,
+                          '&:hover': { color: authPalette.secondary },
+                        }}
+                      >
+                        {showPassword ? (
+                          <VisibilityOffIcon fontSize="small" />
+                        ) : (
+                          <VisibilityIcon fontSize="small" />
+                        )}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+                sx={underlineFieldSx}
+              />
+            </Box>
+
+            <Box sx={{ mb: 3.5, mt: 1 }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={acceptedTerms}
+                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                    size="small"
+                    sx={{
+                      color: 'rgba(23, 20, 16, 0.35)',
+                      padding: '4px',
+                      borderRadius: 0,
+                      '& .MuiSvgIcon-root': { borderRadius: 0 },
+                      '&.Mui-checked': { color: authPalette.primary },
+                    }}
+                  />
+                }
+                label={
+                  <Typography
+                    sx={{
+                      fontFamily: authFonts.body,
+                      fontSize: 13.5,
+                      color: authPalette.inkSoft,
+                      ml: 0.5,
+                    }}
+                  >
+                    Acepto los{' '}
+                    <Box
+                      component="a"
+                      href="/terms"
+                      target="_blank"
+                      rel="noreferrer"
+                      sx={{
+                        color: authPalette.secondary,
+                        textDecoration: 'none',
+                        borderBottom: `1px solid ${authPalette.secondary}`,
+                        paddingBottom: '1px',
+                        '&:hover': { color: authPalette.primary, borderColor: authPalette.primary },
+                      }}
+                    >
+                      términos y condiciones
+                    </Box>
+                  </Typography>
+                }
+              />
+            </Box>
+
+            <PillCTA type="submit" disabled={loading} loading={loading}>
+              Crear cuenta
+            </PillCTA>
+          </Box>
+        </Box>
+      )}
+
+      <Box sx={{ textAlign: 'center', mt: 3 }}>
+        <Typography
+          sx={{
+            fontFamily: authFonts.body,
+            fontSize: 14,
+            color: authPalette.inkSoft,
+          }}
+        >
+          ¿Ya tenés cuenta?{' '}
+          <Box
+            component="a"
+            href="/login"
             sx={{
-              fontFamily: authFonts.body,
-              fontSize: 14,
-              color: authPalette.inkSoft,
+              color: authPalette.secondary,
+              fontFamily: authFonts.display,
+              fontStyle: 'italic',
+              fontWeight: 500,
+              fontSize: 15,
+              textDecoration: 'none',
+              borderBottom: `1px solid ${authPalette.secondary}`,
+              paddingBottom: '1px',
+              transition: 'color 150ms ease, border-color 150ms ease',
+              '&:hover': {
+                color: authPalette.primary,
+                borderBottomColor: authPalette.primary,
+              },
             }}
           >
-            ¿Ya tenés cuenta?{' '}
-            <Box
-              component="a"
-              href="/login"
-              sx={{
-                color: authPalette.secondary,
-                fontFamily: authFonts.display,
-                fontStyle: 'italic',
-                fontWeight: 500,
-                fontSize: 15,
-                textDecoration: 'none',
-                borderBottom: `1px solid ${authPalette.secondary}`,
-                paddingBottom: '1px',
-                transition: 'color 150ms ease, border-color 150ms ease',
-                '&:hover': {
-                  color: authPalette.primary,
-                  borderBottomColor: authPalette.primary,
-                },
-              }}
-            >
-              Iniciá sesión →
-            </Box>
-          </Typography>
-        </Box>
+            Iniciá sesión →
+          </Box>
+        </Typography>
       </Box>
     </>
   );
@@ -1088,14 +1135,7 @@ const SelfRegistration: React.FC = () => {
         <Box component={motion.div} {...item(0.24)}>
           <PillCTA
             type="submit"
-            disabled={
-              loading ||
-              !businessName.trim() ||
-              !mobile.trim() ||
-              !subdomain ||
-              subdomain.length < 3 ||
-              subdomainAvailable === false
-            }
+            disabled={loading}
             loading={loading}
           >
             Activar mi cuenta →
