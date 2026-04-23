@@ -27,7 +27,6 @@ namespace BookingPro.API.Utilities
             if (path.StartsWith("/api/super-admin") ||
                 path.StartsWith("/api/admin") ||
                 path.StartsWith("/api/platform") ||
-                path.StartsWith("/api/auth") ||
                 path.StartsWith("/api/invitation") ||
                 path.StartsWith("/api/self-registration") ||
                 path.StartsWith("/api/registration") ||
