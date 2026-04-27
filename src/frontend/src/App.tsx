@@ -7,6 +7,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { es } from 'date-fns/locale';
 import { store } from './store';
+import { setUser } from './store/slices/authSlice';
 import { TenantProvider } from './contexts/TenantContext';
 import { createTurnosProTheme } from './theme/theme';
 import { TenantConfig, ThemeConfiguration } from './types';
@@ -72,11 +73,43 @@ function App() {
   const handleImpersonationToken = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const impersonationToken = urlParams.get('impersonationToken');
-    
+
     if (impersonationToken) {
       // Store the impersonation token as the auth token
       localStorage.setItem('authToken', impersonationToken);
-      
+
+      // Build a minimal `user` from the JWT so role-aware UI gating works
+      // (sin esto, el sidebar trata al impersonado como sin rol y oculta items admin).
+      try {
+        const payload = JSON.parse(atob(impersonationToken.split('.')[1]));
+        const role =
+          payload.role ||
+          payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] ||
+          '';
+        const email =
+          payload.email ||
+          payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'] ||
+          '';
+        const id =
+          payload.sub ||
+          payload.nameid ||
+          payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ||
+          '';
+        const impersonatedUser = {
+          id,
+          email,
+          firstName: payload.first_name || '',
+          lastName: payload.last_name || '',
+          role,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+        };
+        localStorage.setItem('user', JSON.stringify(impersonatedUser));
+        store.dispatch(setUser(impersonatedUser as any));
+      } catch (e) {
+        console.warn('Could not decode impersonation JWT', e);
+      }
+
       // Clean up the URL by removing the token parameter
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.delete('impersonationToken');

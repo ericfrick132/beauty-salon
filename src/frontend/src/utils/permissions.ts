@@ -5,14 +5,20 @@ export const ROLE_ADMIN = 'admin';
 export const ROLE_EMPLOYEE = 'employee';
 export const ROLE_SUPER_ADMIN = 'super_admin';
 
-const ADMIN_LIKE = new Set([ROLE_ADMIN, ROLE_SUPER_ADMIN]);
+// Tolerante: case-insensitive + acepta sinónimos históricos ("owner", "Admin", etc.).
+// El backend ya enforce con strings exactos, esto es solo gating de UI.
+const ADMIN_LIKE = new Set(['admin', 'super_admin', 'superadmin', 'owner']);
+
+function normalize(role?: string | null): string {
+  return (role || '').trim().toLowerCase();
+}
 
 export function isAdminLike(role?: string | null): boolean {
-  return !!role && ADMIN_LIKE.has(role);
+  return ADMIN_LIKE.has(normalize(role));
 }
 
 export function isEmployee(role?: string | null): boolean {
-  return role === ROLE_EMPLOYEE;
+  return normalize(role) === ROLE_EMPLOYEE;
 }
 
 export const ROLE_LABELS: Record<string, string> = {
