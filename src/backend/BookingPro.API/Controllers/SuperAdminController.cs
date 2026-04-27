@@ -308,6 +308,59 @@ namespace BookingPro.API.Controllers
             }
         }
 
+        [HttpPost("tenants/{tenantId}/assign-plan")]
+        public async Task<IActionResult> AssignTenantPlan(Guid tenantId, [FromBody] AssignTenantPlanDto dto)
+        {
+            if (dto == null || dto.SubscriptionPlanId == Guid.Empty)
+                return BadRequest(new { success = false, message = "subscriptionPlanId es requerido" });
+
+            var adminEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? "unknown";
+
+            var tenant = await _context.Tenants
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(t => t.Id == tenantId);
+            if (tenant == null)
+                return NotFound(new { success = false, message = "Tenant no encontrado" });
+
+            var plan = await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Id == dto.SubscriptionPlanId);
+            if (plan == null)
+                return NotFound(new { success = false, message = "Plan no encontrado" });
+
+            tenant.SubscriptionPlanId = plan.Id;
+            tenant.UpdatedAt = DateTime.UtcNow;
+
+            // Update the latest Subscription record to reflect the new plan, but do NOT
+            // change its status — no payment is being recorded, the tenant must still pay.
+            var subscription = await _context.Subscriptions
+                .Where(s => s.TenantId == tenantId)
+                .OrderByDescending(s => s.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            if (subscription != null)
+            {
+                subscription.PlanType = plan.Code;
+                subscription.MonthlyAmount = plan.Price;
+                subscription.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation(
+                "SuperAdmin {Admin} assigned plan {PlanCode} to tenant {TenantId} ({Subdomain}) without recording a payment",
+                adminEmail, plan.Code, tenantId, tenant.Subdomain);
+
+            return Ok(new
+            {
+                success = true,
+                message = $"Plan '{plan.Name}' asignado. El tenant deberá pagar para activar el período.",
+                planId = plan.Id,
+                planCode = plan.Code,
+                planName = plan.Name,
+                planPrice = plan.Price,
+                planCurrency = plan.Currency
+            });
+        }
+
         [HttpPost("tenants/{tenantId}/reset-password")]
         public async Task<IActionResult> ResetTenantAdminPassword(Guid tenantId, [FromBody] ResetTenantPasswordDto? dto)
         {
@@ -454,5 +507,10 @@ namespace BookingPro.API.Controllers
     {
         public string? Email { get; set; }
         public string? NewPassword { get; set; }
+    }
+
+    public class AssignTenantPlanDto
+    {
+        public Guid SubscriptionPlanId { get; set; }
     }
 }

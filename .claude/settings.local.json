@@ -50,7 +50,8 @@
       "Bash(doctl version *)",
       "Bash(doctl apps *)",
       "Bash(awk '/Theme Configuration Dialog/,/^      <\\\\/Dialog>/' /mnt/d/code/efcloud/projects/TurnosPro/src/frontend/src/pages/SuperAdminDashboard.tsx)",
-      "Bash(awk 'NR==1015,NR==1379' /mnt/d/code/efcloud/projects/TurnosPro/src/frontend/src/pages/SuperAdminDashboard.tsx)"
+      "Bash(awk 'NR==1015,NR==1379' /mnt/d/code/efcloud/projects/TurnosPro/src/frontend/src/pages/SuperAdminDashboard.tsx)",
+      "Bash(git check-ignore *)"
     ],
     "deny": [],
     "ask": []

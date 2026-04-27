@@ -56,6 +56,7 @@ import {
   LockReset as LockResetIcon,
   ContentCopy as ContentCopyIcon,
   Palette as PaletteIcon,
+  CardMembership as CardMembershipIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -185,6 +186,10 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
   const [resetPasswordResult, setResetPasswordResult] = useState<{ email: string; password?: string | null } | null>(null);
   const [themeDialogOpen, setThemeDialogOpen] = useState(false);
   const [themeDialogTenant, setThemeDialogTenant] = useState<Tenant | null>(null);
+  const [assignPlanDialog, setAssignPlanDialog] = useState(false);
+  const [assignPlanTenant, setAssignPlanTenant] = useState<Tenant | null>(null);
+  const [assignPlanId, setAssignPlanId] = useState('');
+  const [assignPlanLoading, setAssignPlanLoading] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -365,6 +370,34 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
       setMessage({ type: 'error', text: error.response?.data?.message || 'Error al eliminar tenant' });
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const handleOpenAssignPlanDialog = (tenant: Tenant) => {
+    setAssignPlanTenant(tenant);
+    setAssignPlanId(tenant.planId || '');
+    setAssignPlanDialog(true);
+  };
+
+  const handleAssignPlan = async () => {
+    if (!assignPlanTenant || !assignPlanId) return;
+    setAssignPlanLoading(true);
+    try {
+      const response = await api.post(`/super-admin/tenants/${assignPlanTenant.id}/assign-plan`, {
+        subscriptionPlanId: assignPlanId,
+      });
+      if (response.data?.success) {
+        setMessage({ type: 'success', text: response.data.message || 'Plan asignado correctamente' });
+        setAssignPlanDialog(false);
+        setAssignPlanTenant(null);
+        await fetchData();
+      } else {
+        setMessage({ type: 'error', text: response.data?.message || 'Error al asignar plan' });
+      }
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.response?.data?.message || 'Error al asignar plan' });
+    } finally {
+      setAssignPlanLoading(false);
     }
   };
 
@@ -983,6 +1016,10 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
           <MenuItem onClick={() => { if (actionMenuTenant) handleImpersonateTenant(actionMenuTenant.id, actionMenuTenant.subdomain); setActionMenuAnchor(null); }}>
             Impersonar
           </MenuItem>
+          <MenuItem onClick={() => { if (actionMenuTenant) handleOpenAssignPlanDialog(actionMenuTenant); setActionMenuAnchor(null); }}>
+            <CardMembershipIcon fontSize="small" sx={{ mr: 1 }} />
+            Cambiar plan (sin pago)
+          </MenuItem>
           <MenuItem onClick={() => { if (actionMenuTenant) handleCreateTenantPayment(actionMenuTenant.id); setActionMenuAnchor(null); }}>
             Crear link de pago
           </MenuItem>
@@ -1129,6 +1166,64 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
           onSuccess={(text) => setMessage({ type: 'success', text })}
           onError={(text) => setMessage({ type: 'error', text })}
         />
+
+        {/* Assign Plan (without payment) Dialog */}
+        <Dialog
+          open={assignPlanDialog}
+          onClose={() => setAssignPlanDialog(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>
+            Cambiar plan
+            {assignPlanTenant && (
+              <Typography variant="body2" color="text.secondary">
+                {assignPlanTenant.businessName} ({assignPlanTenant.subdomain})
+              </Typography>
+            )}
+          </DialogTitle>
+          <DialogContent>
+            <Grid container spacing={2} sx={{ mt: 1 }}>
+              <Grid item xs={12}>
+                <Alert severity="info">
+                  Esta acción asigna el plan al tenant pero <b>no registra ningún pago</b>.
+                  El tenant deberá pagar el nuevo plan a través del flujo normal de suscripción.
+                </Alert>
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  select
+                  label="Plan"
+                  value={assignPlanId}
+                  onChange={(e) => setAssignPlanId(e.target.value)}
+                  required
+                >
+                  {plans.length === 0 ? (
+                    <MenuItem value="" disabled>No hay planes disponibles</MenuItem>
+                  ) : (
+                    plans.map((plan) => (
+                      <MenuItem key={plan.id} value={plan.id}>
+                        {plan.name} — ${plan.price.toLocaleString()} {plan.currency}/mes
+                      </MenuItem>
+                    ))
+                  )}
+                </TextField>
+              </Grid>
+            </Grid>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setAssignPlanDialog(false)}>Cancelar</Button>
+            <Button
+              variant="contained"
+              onClick={handleAssignPlan}
+              disabled={!assignPlanId || assignPlanLoading}
+              startIcon={assignPlanLoading ? <CircularProgress size={16} /> : <CardMembershipIcon />}
+            >
+              Asignar plan
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {/* Manual Payment Dialog */}
         <Dialog open={manualPaymentDialog} onClose={() => setManualPaymentDialog(false)} maxWidth="sm" fullWidth>
