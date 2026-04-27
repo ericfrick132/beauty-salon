@@ -59,6 +59,7 @@ import {
   Inventory2Outlined,
   Storefront,
   WhatsApp,
+  VpnKey,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useAppDispatch, useAppSelector } from '../../store';
@@ -75,6 +76,7 @@ import {
 import ImpersonationBanner from '../common/ImpersonationBanner';
 import MercadoPagoIcon from '../icons/MercadoPagoIcon';
 import { isAdminLike } from '../../utils/permissions';
+import ChangePasswordDialog from '../auth/ChangePasswordDialog';
 
 const drawerWidth = 280;
 const mobileDrawerWidth = 260;
@@ -237,6 +239,7 @@ export const AdminLayout: React.FC = () => {
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(0);
   const [notificationList] = useState<any[]>([]);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   
   // Colores específicos del vertical
   const primaryColor = config?.theme?.primaryColor || '#1E40AF';
@@ -824,12 +827,20 @@ export const AdminLayout: React.FC = () => {
           </ListItemIcon>
           <ListItemText primary="Mi Perfil" />
         </MenuItem>
-        <MenuItem onClick={() => { handleNavigation('/settings'); handleUserMenuClose(); }}>
+        <MenuItem onClick={() => { setChangePasswordOpen(true); handleUserMenuClose(); }}>
           <ListItemIcon>
-            <Settings sx={{ color: 'primary.main' }} />
+            <VpnKey sx={{ color: 'primary.main' }} />
           </ListItemIcon>
-          <ListItemText primary="Configuración" />
+          <ListItemText primary="Cambiar contraseña" />
         </MenuItem>
+        {canSeeAdmin && (
+          <MenuItem onClick={() => { handleNavigation('/settings'); handleUserMenuClose(); }}>
+            <ListItemIcon>
+              <Settings sx={{ color: 'primary.main' }} />
+            </ListItemIcon>
+            <ListItemText primary="Configuración" />
+          </MenuItem>
+        )}
         <Divider sx={{ borderColor: 'divider' }} />
         <MenuItem onClick={handleLogout}>
           <ListItemIcon>
@@ -838,6 +849,8 @@ export const AdminLayout: React.FC = () => {
           <ListItemText primary="Cerrar Sesión" />
         </MenuItem>
       </Menu>
+
+      <ChangePasswordDialog open={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />
     </Box>
   );
 };
