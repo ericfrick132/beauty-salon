@@ -308,6 +308,89 @@ namespace BookingPro.API.Controllers
             }
         }
 
+        [HttpPost("tenants/{tenantId}/reset-password")]
+        public async Task<IActionResult> ResetTenantAdminPassword(Guid tenantId, [FromBody] ResetTenantPasswordDto? dto)
+        {
+            var adminEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? "unknown";
+
+            var tenant = await _context.Tenants
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(t => t.Id == tenantId);
+
+            if (tenant == null)
+                return NotFound(new { success = false, message = "Tenant no encontrado" });
+
+            var query = _context.Users
+                .IgnoreQueryFilters()
+                .Where(u => u.TenantId == tenantId);
+
+            User? user = null;
+            if (!string.IsNullOrWhiteSpace(dto?.Email))
+            {
+                var emailNorm = dto!.Email!.Trim().ToLower();
+                user = await query.FirstOrDefaultAsync(u => u.Email.ToLower() == emailNorm);
+            }
+            else
+            {
+                user = await query.FirstOrDefaultAsync(u => u.Role == "admin")
+                    ?? await query.FirstOrDefaultAsync(u => u.Email.ToLower() == (tenant.OwnerEmail ?? string.Empty).ToLower())
+                    ?? await query.OrderBy(u => u.CreatedAt).FirstOrDefaultAsync();
+            }
+
+            if (user == null)
+                return NotFound(new { success = false, message = "Usuario admin del tenant no encontrado" });
+
+            string newPassword;
+            bool generated = false;
+            if (string.IsNullOrWhiteSpace(dto?.NewPassword))
+            {
+                newPassword = GenerateTemporaryPassword();
+                generated = true;
+            }
+            else
+            {
+                newPassword = dto!.NewPassword!;
+                if (newPassword.Length < 6)
+                    return BadRequest(new { success = false, message = "La contraseña debe tener al menos 6 caracteres" });
+            }
+
+            user.PasswordHash = BookingPro.API.Services.Security.PasswordHasher.Hash(newPassword);
+            user.IsActive = true;
+            await _context.SaveChangesAsync();
+
+            _logger.LogWarning(
+                "SuperAdmin {Admin} reset password for user {UserEmail} of tenant {TenantId} ({Subdomain})",
+                adminEmail, user.Email, tenantId, tenant.Subdomain);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Contraseña actualizada correctamente",
+                email = user.Email,
+                generated,
+                password = generated ? newPassword : null
+            });
+        }
+
+        private static string GenerateTemporaryPassword()
+        {
+            const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$";
+            var random = new Random();
+            var password = new string(Enumerable.Repeat(chars, 12)
+                .Select(s => s[random.Next(s.Length)]).ToArray());
+
+            if (!password.Any(char.IsUpper))
+                password = "A" + password.Substring(1);
+            if (!password.Any(char.IsLower))
+                password = password.Substring(0, 1) + "a" + password.Substring(2);
+            if (!password.Any(char.IsDigit))
+                password = password.Substring(0, 2) + "2" + password.Substring(3);
+            if (!password.Any(c => "!@#$".Contains(c)))
+                password = password.Substring(0, 3) + "!" + password.Substring(4);
+
+            return password;
+        }
+
         [HttpDelete("tenants/{tenantId}")]
         public async Task<IActionResult> DeleteTenant(Guid tenantId)
         {
@@ -365,5 +448,11 @@ namespace BookingPro.API.Controllers
     {
         public int Amount { get; set; }
         public string? Reason { get; set; }
+    }
+
+    public class ResetTenantPasswordDto
+    {
+        public string? Email { get; set; }
+        public string? NewPassword { get; set; }
     }
 }

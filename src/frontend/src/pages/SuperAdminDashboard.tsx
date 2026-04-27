@@ -51,12 +51,8 @@ import {
   ContentCopy,
   Send,
   Cancel,
-  Visibility,
   Add,
   Refresh,
-  Palette,
-  Save,
-  PersonAdd as PersonImpersonateIcon,
   CardMembership,
   WhatsApp as WhatsAppIcon,
   TrendingUp as TrendIcon,
@@ -67,7 +63,6 @@ import SuperAdminPlans from './SuperAdminPlans';
 import TrackingDashboard from './TrackingDashboard';
 import { useNavigate } from 'react-router-dom';
 import { superAdminApi } from '../services/api';
-import { superAdminService } from '../services/superAdminService';
 
 interface Tenant {
   id: string;
@@ -80,25 +75,6 @@ interface Tenant {
   };
   status: string;
   createdAt: string;
-}
-
-interface ThemeConfiguration {
-  primaryColor: string;
-  secondaryColor: string;
-  accentColor: string;
-  backgroundColor: string;
-  surfaceColor: string;
-  errorColor: string;
-  warningColor: string;
-  infoColor: string;
-  successColor: string;
-  textPrimaryColor: string;
-  textSecondaryColor: string;
-  borderColor: string;
-  fontFamily: string;
-  borderRadius: number;
-  useShadows: boolean;
-  autoContrastText: boolean;
 }
 
 interface Invitation {
@@ -225,7 +201,8 @@ function WhatsAppPanel() {
 
 const SuperAdminDashboard: React.FC = () => {
   const [currentTab, setCurrentTab] = useState(0);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
+  // tenants list itself is rendered by the embedded TenantsManagement;
+  // we only need the count for the dashboard stats below.
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -255,29 +232,6 @@ const SuperAdminDashboard: React.FC = () => {
   const [createdInvitation, setCreatedInvitation] = useState<Invitation | null>(null);
   const [openInvitationCreatedDialog, setOpenInvitationCreatedDialog] = useState(false);
   
-  // Estados para editar tema de tenant
-  const [openThemeDialog, setOpenThemeDialog] = useState(false);
-  const [selectedTenantForTheme, setSelectedTenantForTheme] = useState<Tenant | null>(null);
-  const [tenantTheme, setTenantTheme] = useState<ThemeConfiguration>({
-    primaryColor: '#1976d2',
-    secondaryColor: '#ffffff',
-    accentColor: '#ffc107',
-    backgroundColor: '#ffffff',
-    surfaceColor: '#f5f5f5',
-    errorColor: '#f44336',
-    warningColor: '#ff9800',
-    infoColor: '#2196f3',
-    successColor: '#4caf50',
-    textPrimaryColor: '#000000',
-    textSecondaryColor: '#666666',
-    borderColor: '#e0e0e0',
-    fontFamily: 'Roboto, Helvetica, Arial, sans-serif',
-    borderRadius: 8,
-    useShadows: true,
-    autoContrastText: true,
-  });
-  const [themeLoading, setThemeLoading] = useState(false);
-
   const [stats, setStats] = useState({
     totalTenants: 0,
     activeTenants: 0,
@@ -314,14 +268,10 @@ const SuperAdminDashboard: React.FC = () => {
     try {
       const response = await superAdminApi.getTenants();
       const tenantsData = response.data || response;
-      setTenants(tenantsData);
-      
-      // Calcular estadísticas
       const totalTenants = tenantsData.length;
-      const activeTenants = tenantsData.filter((t: Tenant) => 
+      const activeTenants = tenantsData.filter((t: Tenant) =>
         t.status.toLowerCase() === 'active'
       ).length;
-      
       setStats(prev => ({ ...prev, totalTenants, activeTenants }));
     } catch (error: any) {
       console.error('Error loading tenants:', error);
@@ -406,56 +356,6 @@ const SuperAdminDashboard: React.FC = () => {
     navigate('/super-admin/login');
   };
 
-  const handleOpenThemeDialog = async (tenant: Tenant) => {
-    setSelectedTenantForTheme(tenant);
-    setThemeLoading(true);
-    setOpenThemeDialog(true);
-    
-    try {
-      const response = await superAdminApi.getTenantTheme(tenant.id);
-      setTenantTheme(response.data || response);
-    } catch (error: any) {
-      console.error('Error loading tenant theme:', error);
-      setError('Error cargando el tema del negocio');
-    } finally {
-      setThemeLoading(false);
-    }
-  };
-
-  const handleSaveTheme = async () => {
-    if (!selectedTenantForTheme) return;
-    
-    try {
-      setThemeLoading(true);
-      await superAdminApi.saveTenantTheme(selectedTenantForTheme.id, tenantTheme);
-      setSuccess('Tema actualizado exitosamente');
-      setOpenThemeDialog(false);
-    } catch (error: any) {
-      setError(error.response?.data?.message || 'Error actualizando el tema');
-    } finally {
-      setThemeLoading(false);
-    }
-  };
-
-  const handleResetTheme = async () => {
-    if (!selectedTenantForTheme) return;
-    
-    try {
-      setThemeLoading(true);
-      const response = await superAdminApi.resetTenantTheme(selectedTenantForTheme.id);
-      setTenantTheme(response.data || response);
-      setSuccess('Tema restablecido a valores por defecto');
-    } catch (error: any) {
-      setError(error.response?.data?.message || 'Error restableciendo el tema');
-    } finally {
-      setThemeLoading(false);
-    }
-  };
-
-  const handleThemeColorChange = (field: keyof ThemeConfiguration, value: string) => {
-    setTenantTheme(prev => ({ ...prev, [field]: value }));
-  };
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': case 'pending': return 'success';
@@ -479,16 +379,6 @@ const SuperAdminDashboard: React.FC = () => {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setSuccess('Copiado al portapapeles');
-  };
-
-  const handleImpersonateTenant = async (tenantId: string, subdomain: string) => {
-    try {
-      setSuccess('Iniciando impersonación...');
-      await superAdminService.handleImpersonateFlow(tenantId, subdomain);
-    } catch (error: any) {
-      console.error('Error impersonating tenant:', error);
-      setError(error.message || 'Error al impersonar tenant');
-    }
   };
 
   const renderDashboard = () => (
@@ -626,7 +516,7 @@ const SuperAdminDashboard: React.FC = () => {
                 <Button
                   variant="outlined"
                   startIcon={<People />}
-                  onClick={() => setCurrentTab(3)}
+                  onClick={() => navigate('/super-admin/tenants')}
                 >
                   Ver Negocios
                 </Button>
@@ -740,114 +630,6 @@ const SuperAdminDashboard: React.FC = () => {
     </Box>
   );
 
-  const renderManageInvitations = () => (
-    <Box sx={{ p: 3 }}>
-      <Card>
-        <CardHeader 
-          title="Gestionar Negocios Registrados"
-          action={
-            <Button
-              startIcon={<Refresh />}
-              onClick={loadData}
-            >
-              Actualizar
-            </Button>
-          }
-        />
-        <CardContent>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Negocio</TableCell>
-                  <TableCell>Subdominio</TableCell>
-                  <TableCell>Email del Propietario</TableCell>
-                  <TableCell>Vertical</TableCell>
-                  <TableCell>Estado</TableCell>
-                  <TableCell>Fecha de Creación</TableCell>
-                  <TableCell>Acciones</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {tenants.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} sx={{ textAlign: 'center', py: 4 }}>
-                      No hay negocios registrados
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  tenants.map((tenant) => (
-                    <TableRow key={tenant.id}>
-                      <TableCell>
-                        <Typography variant="body2" fontWeight="medium">
-                          {tenant.businessName}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="primary">
-                          {tenant.subdomain}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>{tenant.ownerEmail}</TableCell>
-                      <TableCell>{tenant.vertical?.name || 'N/A'}</TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={tenant.status.toUpperCase()} 
-                          color={getStatusColor(tenant.status) as any}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell>{formatDate(tenant.createdAt)}</TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                          <Tooltip title="Impersonar Tenant">
-                            <IconButton 
-                              size="small"
-                              sx={{ 
-                                color: '#ff9800',
-                                '&:hover': {
-                                  backgroundColor: 'rgba(255, 152, 0, 0.1)',
-                                  color: '#f57c00'
-                                }
-                              }}
-                              onClick={() => handleImpersonateTenant(tenant.id, tenant.subdomain)}
-                            >
-                              <PersonImpersonateIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Ver Detalles">
-                            <IconButton 
-                              size="small"
-                              onClick={() => {
-                                // TODO: Implementar vista de detalles
-                                console.log('Ver detalles de:', tenant.id);
-                              }}
-                            >
-                              <Visibility fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Personalizar Tema">
-                            <IconButton 
-                              size="small"
-                              color="primary"
-                              onClick={() => handleOpenThemeDialog(tenant)}
-                            >
-                              <Palette fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </CardContent>
-      </Card>
-    </Box>
-  );
-
   return (
     <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
       {/* AppBar */}
@@ -898,9 +680,8 @@ const SuperAdminDashboard: React.FC = () => {
             <Tab icon={<Dashboard />} label="Dashboard" />
             <Tab icon={<Email />} label="Crear Invitación" />
             <Tab icon={<Email />} label="Invitaciones Enviadas" />
-            <Tab icon={<People />} label="Tenants" />
+            <Tab icon={<People />} label="Negocios" />
             <Tab icon={<CardMembership />} label="Planes" />
-            <Tab icon={<Subscriptions />} label="Suscripciones" />
             <Tab icon={<AttachMoney />} label="Facturación" />
             <Tab icon={<WhatsAppIcon />} label="WhatsApp" />
             <Tab icon={<TrendIcon />} label="Marketing" />
@@ -911,19 +692,23 @@ const SuperAdminDashboard: React.FC = () => {
           <div role="tabpanel" hidden={currentTab !== 0}>
             {currentTab === 0 && renderDashboard()}
           </div>
-          
+
           <div role="tabpanel" hidden={currentTab !== 1}>
             {currentTab === 1 && renderCreateInvitation()}
           </div>
-          
+
           <div role="tabpanel" hidden={currentTab !== 2}>
             {currentTab === 2 && renderInvitationsList()}
           </div>
-          
+
           <div role="tabpanel" hidden={currentTab !== 3}>
-            {currentTab === 3 && renderManageInvitations()}
+            {currentTab === 3 && (
+              <Box sx={{ p: 0 }}>
+                <TenantsManagement embedded />
+              </Box>
+            )}
           </div>
-          
+
           <div role="tabpanel" hidden={currentTab !== 4}>
             {currentTab === 4 && (
               <Box sx={{ p: 0 }}>
@@ -934,14 +719,6 @@ const SuperAdminDashboard: React.FC = () => {
 
           <div role="tabpanel" hidden={currentTab !== 5}>
             {currentTab === 5 && (
-              <Box sx={{ p: 0 }}>
-                <TenantsManagement embedded />
-              </Box>
-            )}
-          </div>
-
-          <div role="tabpanel" hidden={currentTab !== 6}>
-            {currentTab === 6 && (
               <Box sx={{ p: 3 }}>
                 <Typography variant="h5">Facturación</Typography>
                 <Typography color="text.secondary">Próximamente...</Typography>
@@ -949,20 +726,20 @@ const SuperAdminDashboard: React.FC = () => {
             )}
           </div>
 
-          <div role="tabpanel" hidden={currentTab !== 7}>
-            {currentTab === 7 && <WhatsAppPanel />}
+          <div role="tabpanel" hidden={currentTab !== 6}>
+            {currentTab === 6 && <WhatsAppPanel />}
           </div>
 
-          <div role="tabpanel" hidden={currentTab !== 8}>
-            {currentTab === 8 && (
+          <div role="tabpanel" hidden={currentTab !== 7}>
+            {currentTab === 7 && (
               <Box sx={{ p: 0 }}>
                 <TrackingDashboard />
               </Box>
             )}
           </div>
 
-          <div role="tabpanel" hidden={currentTab !== 9}>
-            {currentTab === 9 && (
+          <div role="tabpanel" hidden={currentTab !== 8}>
+            {currentTab === 8 && (
               <Box sx={{ p: 3 }}>
                 <Typography variant="h5">Configuración</Typography>
                 <Typography color="text.secondary">Próximamente...</Typography>
@@ -1217,371 +994,6 @@ const SuperAdminDashboard: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Theme Configuration Dialog */}
-      <Dialog 
-        open={openThemeDialog} 
-        onClose={() => setOpenThemeDialog(false)} 
-        maxWidth="lg" 
-        fullWidth
-      >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Palette /> Personalizar Tema - {selectedTenantForTheme?.businessName}
-        </DialogTitle>
-        <DialogContent>
-          {themeLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-              <Typography>Cargando configuración del tema...</Typography>
-            </Box>
-          ) : (
-            <Grid container spacing={3} sx={{ mt: 1 }}>
-              {/* Colores Principales */}
-              <Grid item xs={12} md={6}>
-                <Typography variant="h6" gutterBottom>
-                  Colores Principales
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-                
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="subtitle2" gutterBottom>Color Primario</Typography>
-                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                    <Box
-                      sx={{
-                        width: 40,
-                        height: 40,
-                        backgroundColor: tenantTheme.primaryColor,
-                        border: '1px solid #ccc',
-                        borderRadius: 1,
-                        cursor: 'pointer',
-                      }}
-                      onClick={() => {
-                        const input = document.createElement('input');
-                        input.type = 'color';
-                        input.value = tenantTheme.primaryColor;
-                        input.onchange = (e) => {
-                          handleThemeColorChange('primaryColor', (e.target as HTMLInputElement).value);
-                        };
-                        input.click();
-                      }}
-                    />
-                    <TextField
-                      size="small"
-                      value={tenantTheme.primaryColor}
-                      onChange={(e) => handleThemeColorChange('primaryColor', e.target.value)}
-                      sx={{ flex: 1 }}
-                    />
-                  </Box>
-                </Box>
-
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="subtitle2" gutterBottom>Color Secundario</Typography>
-                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                    <Box
-                      sx={{
-                        width: 40,
-                        height: 40,
-                        backgroundColor: tenantTheme.secondaryColor,
-                        border: '1px solid #ccc',
-                        borderRadius: 1,
-                        cursor: 'pointer',
-                      }}
-                      onClick={() => {
-                        const input = document.createElement('input');
-                        input.type = 'color';
-                        input.value = tenantTheme.secondaryColor;
-                        input.onchange = (e) => {
-                          handleThemeColorChange('secondaryColor', (e.target as HTMLInputElement).value);
-                        };
-                        input.click();
-                      }}
-                    />
-                    <TextField
-                      size="small"
-                      value={tenantTheme.secondaryColor}
-                      onChange={(e) => handleThemeColorChange('secondaryColor', e.target.value)}
-                      sx={{ flex: 1 }}
-                    />
-                  </Box>
-                </Box>
-
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="subtitle2" gutterBottom>Color de Acento</Typography>
-                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                    <Box
-                      sx={{
-                        width: 40,
-                        height: 40,
-                        backgroundColor: tenantTheme.accentColor,
-                        border: '1px solid #ccc',
-                        borderRadius: 1,
-                        cursor: 'pointer',
-                      }}
-                      onClick={() => {
-                        const input = document.createElement('input');
-                        input.type = 'color';
-                        input.value = tenantTheme.accentColor;
-                        input.onchange = (e) => {
-                          handleThemeColorChange('accentColor', (e.target as HTMLInputElement).value);
-                        };
-                        input.click();
-                      }}
-                    />
-                    <TextField
-                      size="small"
-                      value={tenantTheme.accentColor}
-                      onChange={(e) => handleThemeColorChange('accentColor', e.target.value)}
-                      sx={{ flex: 1 }}
-                    />
-                  </Box>
-                </Box>
-              </Grid>
-
-              {/* Colores de Fondo */}
-              <Grid item xs={12} md={6}>
-                <Typography variant="h6" gutterBottom>
-                  Colores de Fondo
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-                
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="subtitle2" gutterBottom>Fondo Principal</Typography>
-                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                    <Box
-                      sx={{
-                        width: 40,
-                        height: 40,
-                        backgroundColor: tenantTheme.backgroundColor,
-                        border: '1px solid #ccc',
-                        borderRadius: 1,
-                        cursor: 'pointer',
-                      }}
-                      onClick={() => {
-                        const input = document.createElement('input');
-                        input.type = 'color';
-                        input.value = tenantTheme.backgroundColor;
-                        input.onchange = (e) => {
-                          handleThemeColorChange('backgroundColor', (e.target as HTMLInputElement).value);
-                        };
-                        input.click();
-                      }}
-                    />
-                    <TextField
-                      size="small"
-                      value={tenantTheme.backgroundColor}
-                      onChange={(e) => handleThemeColorChange('backgroundColor', e.target.value)}
-                      sx={{ flex: 1 }}
-                    />
-                  </Box>
-                </Box>
-
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="subtitle2" gutterBottom>Superficie</Typography>
-                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                    <Box
-                      sx={{
-                        width: 40,
-                        height: 40,
-                        backgroundColor: tenantTheme.surfaceColor,
-                        border: '1px solid #ccc',
-                        borderRadius: 1,
-                        cursor: 'pointer',
-                      }}
-                      onClick={() => {
-                        const input = document.createElement('input');
-                        input.type = 'color';
-                        input.value = tenantTheme.surfaceColor;
-                        input.onchange = (e) => {
-                          handleThemeColorChange('surfaceColor', (e.target as HTMLInputElement).value);
-                        };
-                        input.click();
-                      }}
-                    />
-                    <TextField
-                      size="small"
-                      value={tenantTheme.surfaceColor}
-                      onChange={(e) => handleThemeColorChange('surfaceColor', e.target.value)}
-                      sx={{ flex: 1 }}
-                    />
-                  </Box>
-                </Box>
-              </Grid>
-
-              {/* Colores de Estado */}
-              <Grid item xs={12}>
-                <Typography variant="h6" gutterBottom>
-                  Colores de Estado
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-                
-                <Grid container spacing={2}>
-                  <Grid item xs={6} md={3}>
-                    <Typography variant="subtitle2" gutterBottom>Error</Typography>
-                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                      <Box
-                        sx={{
-                          width: 30,
-                          height: 30,
-                          backgroundColor: tenantTheme.errorColor,
-                          border: '1px solid #ccc',
-                          borderRadius: 1,
-                          cursor: 'pointer',
-                        }}
-                        onClick={() => {
-                          const input = document.createElement('input');
-                          input.type = 'color';
-                          input.value = tenantTheme.errorColor;
-                          input.onchange = (e) => {
-                            handleThemeColorChange('errorColor', (e.target as HTMLInputElement).value);
-                          };
-                          input.click();
-                        }}
-                      />
-                      <TextField
-                        size="small"
-                        value={tenantTheme.errorColor}
-                        onChange={(e) => handleThemeColorChange('errorColor', e.target.value)}
-                      />
-                    </Box>
-                  </Grid>
-
-                  <Grid item xs={6} md={3}>
-                    <Typography variant="subtitle2" gutterBottom>Advertencia</Typography>
-                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                      <Box
-                        sx={{
-                          width: 30,
-                          height: 30,
-                          backgroundColor: tenantTheme.warningColor,
-                          border: '1px solid #ccc',
-                          borderRadius: 1,
-                          cursor: 'pointer',
-                        }}
-                        onClick={() => {
-                          const input = document.createElement('input');
-                          input.type = 'color';
-                          input.value = tenantTheme.warningColor;
-                          input.onchange = (e) => {
-                            handleThemeColorChange('warningColor', (e.target as HTMLInputElement).value);
-                          };
-                          input.click();
-                        }}
-                      />
-                      <TextField
-                        size="small"
-                        value={tenantTheme.warningColor}
-                        onChange={(e) => handleThemeColorChange('warningColor', e.target.value)}
-                      />
-                    </Box>
-                  </Grid>
-
-                  <Grid item xs={6} md={3}>
-                    <Typography variant="subtitle2" gutterBottom>Información</Typography>
-                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                      <Box
-                        sx={{
-                          width: 30,
-                          height: 30,
-                          backgroundColor: tenantTheme.infoColor,
-                          border: '1px solid #ccc',
-                          borderRadius: 1,
-                          cursor: 'pointer',
-                        }}
-                        onClick={() => {
-                          const input = document.createElement('input');
-                          input.type = 'color';
-                          input.value = tenantTheme.infoColor;
-                          input.onchange = (e) => {
-                            handleThemeColorChange('infoColor', (e.target as HTMLInputElement).value);
-                          };
-                          input.click();
-                        }}
-                      />
-                      <TextField
-                        size="small"
-                        value={tenantTheme.infoColor}
-                        onChange={(e) => handleThemeColorChange('infoColor', e.target.value)}
-                      />
-                    </Box>
-                  </Grid>
-
-                  <Grid item xs={6} md={3}>
-                    <Typography variant="subtitle2" gutterBottom>Éxito</Typography>
-                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                      <Box
-                        sx={{
-                          width: 30,
-                          height: 30,
-                          backgroundColor: tenantTheme.successColor,
-                          border: '1px solid #ccc',
-                          borderRadius: 1,
-                          cursor: 'pointer',
-                        }}
-                        onClick={() => {
-                          const input = document.createElement('input');
-                          input.type = 'color';
-                          input.value = tenantTheme.successColor;
-                          input.onchange = (e) => {
-                            handleThemeColorChange('successColor', (e.target as HTMLInputElement).value);
-                          };
-                          input.click();
-                        }}
-                      />
-                      <TextField
-                        size="small"
-                        value={tenantTheme.successColor}
-                        onChange={(e) => handleThemeColorChange('successColor', e.target.value)}
-                      />
-                    </Box>
-                  </Grid>
-                </Grid>
-              </Grid>
-
-              {/* Vista Previa */}
-              <Grid item xs={12}>
-                <Typography variant="h6" gutterBottom>
-                  Vista Previa
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-                
-                <Box sx={{ p: 2, backgroundColor: tenantTheme.backgroundColor, borderRadius: 1 }}>
-                  <Box sx={{ p: 2, backgroundColor: tenantTheme.surfaceColor, borderRadius: tenantTheme.borderRadius / 8, mb: 2 }}>
-                    <Typography variant="h6" sx={{ color: tenantTheme.textPrimaryColor, mb: 1 }}>
-                      Ejemplo de Título
-                    </Typography>
-                    <Typography variant="body1" sx={{ color: tenantTheme.textSecondaryColor, mb: 2 }}>
-                      Este es un texto de ejemplo para mostrar cómo se verán los colores.
-                    </Typography>
-                    
-                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                      <Button variant="contained" sx={{ backgroundColor: tenantTheme.primaryColor }}>
-                        Botón Primario
-                      </Button>
-                      <Chip label="Éxito" sx={{ backgroundColor: tenantTheme.successColor, color: 'white' }} />
-                      <Chip label="Error" sx={{ backgroundColor: tenantTheme.errorColor, color: 'white' }} />
-                      <Chip label="Info" sx={{ backgroundColor: tenantTheme.infoColor, color: 'white' }} />
-                    </Box>
-                  </Box>
-                </Box>
-              </Grid>
-            </Grid>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleResetTheme} disabled={themeLoading}>
-            Restablecer
-          </Button>
-          <Button onClick={() => setOpenThemeDialog(false)}>
-            Cancelar
-          </Button>
-          <Button 
-            onClick={handleSaveTheme} 
-            variant="contained"
-            startIcon={<Save />}
-            disabled={themeLoading}
-          >
-            {themeLoading ? 'Guardando...' : 'Guardar Tema'}
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };

@@ -53,11 +53,15 @@ import {
   PersonAdd as PersonImpersonateIcon,
   MoreVert as MoreVertIcon,
   Message as MessageIcon,
+  LockReset as LockResetIcon,
+  ContentCopy as ContentCopyIcon,
+  Palette as PaletteIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../services/api';
 import { superAdminService } from '../services/superAdminService';
+import TenantThemeDialog from '../components/superAdmin/TenantThemeDialog';
 
 interface Tenant {
   id: string;
@@ -174,6 +178,13 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
   const [deleteTenant, setDeleteTenant] = useState<Tenant | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [resetPasswordDialog, setResetPasswordDialog] = useState(false);
+  const [resetPasswordTenant, setResetPasswordTenant] = useState<Tenant | null>(null);
+  const [resetPasswordForm, setResetPasswordForm] = useState<{ email: string; password: string; autoGenerate: boolean }>({ email: '', password: '', autoGenerate: true });
+  const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
+  const [resetPasswordResult, setResetPasswordResult] = useState<{ email: string; password?: string | null } | null>(null);
+  const [themeDialogOpen, setThemeDialogOpen] = useState(false);
+  const [themeDialogTenant, setThemeDialogTenant] = useState<Tenant | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -354,6 +365,35 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
       setMessage({ type: 'error', text: error.response?.data?.message || 'Error al eliminar tenant' });
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const handleOpenResetPasswordDialog = (tenant: Tenant) => {
+    setResetPasswordTenant(tenant);
+    setResetPasswordForm({ email: '', password: '', autoGenerate: true });
+    setResetPasswordResult(null);
+    setResetPasswordDialog(true);
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPasswordTenant) return;
+    setResetPasswordLoading(true);
+    try {
+      const payload: { email?: string; newPassword?: string } = {};
+      if (resetPasswordForm.email.trim()) payload.email = resetPasswordForm.email.trim();
+      if (!resetPasswordForm.autoGenerate && resetPasswordForm.password) payload.newPassword = resetPasswordForm.password;
+
+      const response = await api.post(`/super-admin/tenants/${resetPasswordTenant.id}/reset-password`, payload);
+      if (response.data?.success) {
+        setResetPasswordResult({ email: response.data.email, password: response.data.password });
+        setMessage({ type: 'success', text: response.data.message || 'Contraseña actualizada' });
+      } else {
+        setMessage({ type: 'error', text: response.data?.message || 'Error al resetear contraseña' });
+      }
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.response?.data?.message || 'Error al resetear contraseña' });
+    } finally {
+      setResetPasswordLoading(false);
     }
   };
 
@@ -952,6 +992,14 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
           <MenuItem onClick={() => { if (actionMenuTenant) handleOpenCreditsDialog(actionMenuTenant); setActionMenuAnchor(null); }}>
             Cargar créditos WhatsApp
           </MenuItem>
+          <MenuItem onClick={() => { if (actionMenuTenant) handleOpenResetPasswordDialog(actionMenuTenant); setActionMenuAnchor(null); }}>
+            <LockResetIcon fontSize="small" sx={{ mr: 1 }} />
+            Resetear contraseña
+          </MenuItem>
+          <MenuItem onClick={() => { if (actionMenuTenant) { setThemeDialogTenant(actionMenuTenant); setThemeDialogOpen(true); } setActionMenuAnchor(null); }}>
+            <PaletteIcon fontSize="small" sx={{ mr: 1 }} />
+            Personalizar tema
+          </MenuItem>
           <MenuItem
             onClick={() => { if (actionMenuTenant) { setDeleteTenant(actionMenuTenant); setDeleteConfirmText(''); setDeleteDialog(true); } setActionMenuAnchor(null); }}
             sx={{ color: 'error.main' }}
@@ -959,6 +1007,129 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
             Eliminar permanentemente
           </MenuItem>
         </Menu>
+
+        {/* Reset Password Dialog */}
+        <Dialog
+          open={resetPasswordDialog}
+          onClose={() => { setResetPasswordDialog(false); setResetPasswordResult(null); }}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>
+            Resetear contraseña
+            {resetPasswordTenant && (
+              <Typography variant="body2" color="text.secondary">
+                {resetPasswordTenant.businessName} ({resetPasswordTenant.subdomain})
+              </Typography>
+            )}
+          </DialogTitle>
+          <DialogContent>
+            {resetPasswordResult ? (
+              <Box sx={{ mt: 1 }}>
+                <Alert severity="success" sx={{ mb: 2 }}>
+                  Contraseña actualizada para <b>{resetPasswordResult.email}</b>
+                </Alert>
+                {resetPasswordResult.password && (
+                  <>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      Nueva contraseña generada (cópiala ahora, no se mostrará nuevamente):
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      value={resetPasswordResult.password}
+                      InputProps={{
+                        readOnly: true,
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              onClick={() => {
+                                if (resetPasswordResult.password) {
+                                  navigator.clipboard.writeText(resetPasswordResult.password);
+                                  setMessage({ type: 'info', text: 'Contraseña copiada al portapapeles' });
+                                }
+                              }}
+                            >
+                              <ContentCopyIcon />
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ fontFamily: 'monospace' }}
+                    />
+                  </>
+                )}
+              </Box>
+            ) : (
+              <Grid container spacing={2} sx={{ mt: 1 }}>
+                <Grid item xs={12}>
+                  <Alert severity="warning">
+                    Esta acción reemplaza la contraseña del usuario admin del tenant. El usuario deberá usar la nueva contraseña para iniciar sesión.
+                  </Alert>
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Email del usuario (opcional)"
+                    placeholder={resetPasswordTenant?.businessName ? 'Si se omite, se usa el admin del tenant' : ''}
+                    value={resetPasswordForm.email}
+                    onChange={(e) => setResetPasswordForm({ ...resetPasswordForm, email: e.target.value })}
+                    helperText="Dejar vacío para resetear al admin principal del tenant"
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    select
+                    label="Modo"
+                    value={resetPasswordForm.autoGenerate ? 'auto' : 'manual'}
+                    onChange={(e) => setResetPasswordForm({ ...resetPasswordForm, autoGenerate: e.target.value === 'auto', password: '' })}
+                  >
+                    <MenuItem value="auto">Generar contraseña temporal</MenuItem>
+                    <MenuItem value="manual">Definir contraseña manualmente</MenuItem>
+                  </TextField>
+                </Grid>
+                {!resetPasswordForm.autoGenerate && (
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Nueva contraseña"
+                      type="text"
+                      value={resetPasswordForm.password}
+                      onChange={(e) => setResetPasswordForm({ ...resetPasswordForm, password: e.target.value })}
+                      helperText="Mínimo 6 caracteres"
+                      required
+                    />
+                  </Grid>
+                )}
+              </Grid>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => { setResetPasswordDialog(false); setResetPasswordResult(null); }}>
+              {resetPasswordResult ? 'Cerrar' : 'Cancelar'}
+            </Button>
+            {!resetPasswordResult && (
+              <Button
+                variant="contained"
+                color="warning"
+                onClick={handleResetPassword}
+                disabled={resetPasswordLoading || (!resetPasswordForm.autoGenerate && resetPasswordForm.password.length < 6)}
+                startIcon={resetPasswordLoading ? <CircularProgress size={16} /> : <LockResetIcon />}
+              >
+                Resetear contraseña
+              </Button>
+            )}
+          </DialogActions>
+        </Dialog>
+
+        <TenantThemeDialog
+          open={themeDialogOpen}
+          tenant={themeDialogTenant}
+          onClose={() => setThemeDialogOpen(false)}
+          onSuccess={(text) => setMessage({ type: 'success', text })}
+          onError={(text) => setMessage({ type: 'error', text })}
+        />
+
         {/* Manual Payment Dialog */}
         <Dialog open={manualPaymentDialog} onClose={() => setManualPaymentDialog(false)} maxWidth="sm" fullWidth>
           <DialogTitle>Registrar pago manual</DialogTitle>
