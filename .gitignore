@@ -101,6 +101,10 @@ public
 !src/marketing-next/public/
 !src/marketing-next/public/**
 
+# Allow tenant-facing public pages (source code, not build assets)
+!src/frontend/src/pages/public/
+!src/frontend/src/pages/public/**
+
 # Env files
 .env
 .env.local
