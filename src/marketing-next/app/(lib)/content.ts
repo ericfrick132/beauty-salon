@@ -136,6 +136,66 @@ export const faqs = [
   },
 ];
 
+export const pricingContent = {
+  eyebrow: 'Nº 07 · Precios',
+  headline: 'Elegí el plan que se adapta a tu negocio',
+  subheadline:
+    'Mismo plan, distinto compromiso. Cuanto más largo, mayor el descuento. Todos los planes incluyen prueba gratis, sin tarjeta.',
+  microcopy: 'Sin permanencia · Cancelás cuando quieras · Cambiás de plan en 1 clic',
+  features: [
+    'Reservas online ilimitadas',
+    'Cobros con MercadoPago',
+    'Recordatorios por WhatsApp',
+    'Agenda multi-profesional',
+    'Reportes y métricas',
+    'Soporte prioritario',
+  ],
+  plans: [
+    {
+      code: 'promo',
+      name: 'Promo 3 meses',
+      commitment: '3 meses',
+      price: 45000,
+      discount: '10% OFF',
+      trialDays: 14,
+      cta: 'Empezar prueba',
+      highlighted: false,
+    },
+    {
+      code: '6meses',
+      name: 'Plan 6 meses',
+      commitment: '6 meses',
+      price: 40000,
+      discount: '20% OFF',
+      trialDays: 14,
+      cta: 'Empezar prueba',
+      highlighted: true,
+      badge: 'Más popular',
+    },
+    {
+      code: '12meses',
+      name: 'Plan 12 meses',
+      commitment: '12 meses',
+      price: 37500,
+      discount: '25% OFF',
+      trialDays: 14,
+      cta: 'Empezar prueba',
+      highlighted: false,
+      badge: 'Mejor precio',
+    },
+    {
+      code: 'pro',
+      name: 'Plan mensual',
+      commitment: 'Mes a mes',
+      price: 50000,
+      discount: null,
+      trialDays: 7,
+      cta: 'Empezar prueba',
+      highlighted: false,
+    },
+  ],
+};
+
 export const finalCtaContent = {
   headline: '¿Qué esperás para llevar tu negocio al siguiente nivel?',
   subtext: 'Configúralo en 15 min. Soporte humano para onboarding.',

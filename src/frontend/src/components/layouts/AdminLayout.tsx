@@ -73,6 +73,8 @@ import {
   getCardBackground 
 } from '../../utils/themeUtils';
 import ImpersonationBanner from '../common/ImpersonationBanner';
+import MercadoPagoIcon from '../icons/MercadoPagoIcon';
+import { isAdminLike } from '../../utils/permissions';
 
 const drawerWidth = 280;
 const mobileDrawerWidth = 260;
@@ -186,6 +188,22 @@ interface MenuItemType {
   icon: React.ReactNode;
   path?: string;
   children?: MenuItemType[];
+  adminOnly?: boolean;
+}
+
+function filterMenu(items: MenuItemType[], canSeeAdmin: boolean): MenuItemType[] {
+  const result: MenuItemType[] = [];
+  for (const item of items) {
+    if (item.adminOnly && !canSeeAdmin) continue;
+    if (item.children) {
+      const children = filterMenu(item.children, canSeeAdmin);
+      if (children.length === 0) continue;
+      result.push({ ...item, children });
+    } else {
+      result.push(item);
+    }
+  }
+  return result;
 }
 
 export const AdminLayout: React.FC = () => {
@@ -231,8 +249,10 @@ export const AdminLayout: React.FC = () => {
   const headerTextColor = getHeaderTextColor(themeConfig);
   const isLightTheme = themeConfig.isLightBackground;
 
+  const canSeeAdmin = isAdminLike(user?.role);
+
   // IA agrupada con colapsables por tema
-  const menuItems: MenuItemType[] = [
+  const allMenuItems: MenuItemType[] = [
     { text: 'Inicio', icon: <Dashboard />, path: '/dashboard' },
     {
       text: 'Agenda',
@@ -248,7 +268,7 @@ export const AdminLayout: React.FC = () => {
       children: [
         { text: 'Clientes', path: '/customers', icon: <People fontSize="small" /> },
         { text: 'Servicios', path: '/services', icon: <ManageAccounts fontSize="small" /> },
-        { text: 'Empleados', path: '/employees', icon: <Group fontSize="small" /> },
+        { text: 'Empleados', path: '/employees', icon: <Group fontSize="small" />, adminOnly: true },
       ],
     },
     {
@@ -257,23 +277,24 @@ export const AdminLayout: React.FC = () => {
       children: [
         { text: 'Punto de venta', path: '/pos', icon: <Storefront fontSize="small" /> },
         { text: 'Productos', path: '/products', icon: <Inventory2Outlined fontSize="small" /> },
-        { text: 'Pagos', path: '/payments', icon: <Payment fontSize="small" /> },
+        { text: 'Pagos', path: '/payments', icon: <Payment fontSize="small" />, adminOnly: true },
       ],
     },
-    { text: 'Reportes', icon: <Assessment />, path: '/reports' },
+    { text: 'Reportes', icon: <Assessment />, path: '/reports', adminOnly: true },
     {
       text: 'Configuración',
       icon: <Settings />,
       children: [
-        { text: 'General', path: '/settings', icon: <Settings fontSize="small" /> },
-        { text: 'Suscripción', path: '/subscription', icon: <CreditCard fontSize="small" /> },
-        { text: 'WhatsApp', path: '/whatsapp', icon: <WhatsApp fontSize="small" /> },
-        { text: 'Mensajería', path: '/messaging/settings', icon: <WhatsApp fontSize="small" /> },
-        { text: 'Créditos', path: '/messaging', icon: <CreditCard fontSize="small" /> },
-        { text: 'Historial', path: '/messaging/history', icon: <Assessment fontSize="small" /> },
+        { text: 'General', path: '/settings', icon: <Settings fontSize="small" />, adminOnly: true },
+        { text: 'Equipo', path: '/team', icon: <Group fontSize="small" />, adminOnly: true },
+        { text: 'Suscripción', path: '/subscription', icon: <CreditCard fontSize="small" />, adminOnly: true },
+        { text: 'Mensajería', path: '/messaging', icon: <WhatsApp fontSize="small" /> },
+        { text: 'MercadoPago', path: '/mercadopago-settings', icon: <MercadoPagoIcon fontSize="small" />, adminOnly: true },
       ],
     },
   ];
+
+  const menuItems = filterMenu(allMenuItems, canSeeAdmin);
 
   const mobileNavItems = [
     { key: 'dashboard', label: 'Inicio', icon: <Home fontSize="small" />, path: '/dashboard' },

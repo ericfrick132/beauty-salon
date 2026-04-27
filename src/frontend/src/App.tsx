@@ -48,6 +48,8 @@ import MessagingCredits from './pages/MessagingCredits';
 import MessagingSettings from './pages/MessagingSettings';
 import WhatsAppSettings from './pages/WhatsAppSettings';
 import MessageHistory from './pages/MessageHistory';
+import MessagingHub from './pages/MessagingHub';
+import TeamUsers from './pages/TeamUsers';
 import RecurringSubscription from './pages/RecurringSubscription';
 import TenantsManagement from './pages/TenantsManagement';
 import Blocks from './pages/Blocks';
@@ -311,7 +313,9 @@ function App() {
                   <Route path="/subscription" element={<SubscriptionManagement />} />
                   <Route path="/subscription/recurring" element={<RecurringSubscription />} />
                   <Route path="/platform-subscription" element={<PlatformSubscriptionStatus />} />
-                  <Route path="/messaging" element={<MessagingCredits />} />
+                  <Route path="/team" element={<TeamUsers />} />
+                  <Route path="/messaging" element={<MessagingHub />} />
+                  <Route path="/messaging/credits" element={<MessagingCredits />} />
                   <Route path="/messaging/settings" element={<MessagingSettings />} />
                   <Route path="/messaging/history" element={<MessageHistory />} />
                   <Route path="/whatsapp" element={<WhatsAppSettings />} />

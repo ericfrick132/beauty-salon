@@ -34,6 +34,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpGet("financial-stats")]
+        [Authorize(Roles = "admin,super_admin")]
         public async Task<IActionResult> GetFinancialStats(
             [FromQuery] DateTime? startDate = null,
             [FromQuery] DateTime? endDate = null)
@@ -125,6 +126,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpGet("payroll")]
+        [Authorize(Roles = "admin,super_admin")]
         public async Task<IActionResult> GetPayroll(
             [FromQuery] string period = "monthly", // monthly, weekly
             [FromQuery] DateTime? date = null)
@@ -263,6 +265,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpPost("payroll/mark-paid")]
+        [Authorize(Roles = "admin,super_admin")]
         public async Task<IActionResult> MarkPayrollPaid([FromBody] MarkPayrollPaidDto dto)
         {
             try

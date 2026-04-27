@@ -22,6 +22,7 @@ import { palette } from '@/app/(lib)/theme';
 const navLinks = [
   { href: '#beneficios', label: 'Funciones' },
   { href: '#como-funciona', label: 'Cómo funciona' },
+  { href: '#precios', label: 'Precios' },
   { href: '#faq', label: 'FAQ' },
 ];
 

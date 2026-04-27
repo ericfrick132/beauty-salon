@@ -11,7 +11,7 @@ using System.Collections.Generic;
 
 namespace BookingPro.API.Controllers
 {
-    [Authorize]
+    [Authorize(Roles = "admin,super_admin")]
     [ApiController]
     [Route("api/[controller]")]
     public class PaymentsController : ControllerBase
