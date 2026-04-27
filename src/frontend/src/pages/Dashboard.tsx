@@ -48,6 +48,7 @@ import { useSubscription } from '../contexts/SubscriptionContext';
 import { PlanSummary } from '../components/common/PlanFeatureBadge';
 import { useAppDispatch, useAppSelector } from '../store';
 import { fetchBookings, fetchEmployees, fetchServices } from '../store/slices/bookingSlice';
+import { isAdminLike } from '../utils/permissions';
 import {
   BarChart,
   Bar,
@@ -82,6 +83,8 @@ const Dashboard: React.FC = () => {
   const { subscription } = useSubscription();
   const dispatch = useAppDispatch();
   const { bookings, employees, services, loading } = useAppSelector(state => state.booking);
+  const currentUser = useAppSelector(state => state.auth.user);
+  const canSeeAdmin = isAdminLike(currentUser?.role);
   const [financialStats, setFinancialStats] = useState<any>(null);
   const [loadingFinancials, setLoadingFinancials] = useState(false);
   const [unpaidBookings, setUnpaidBookings] = useState<any[]>([]);
@@ -728,7 +731,8 @@ const Dashboard: React.FC = () => {
       </Grid>
 
     
-      {/* Charts Row */}
+      {/* Charts Row — solo para admins (datos de facturación). */}
+      {canSeeAdmin && (
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={8}>
           <motion.div
@@ -736,9 +740,9 @@ const Dashboard: React.FC = () => {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            <Paper 
-              sx={{ 
-                p: 3, 
+            <Paper
+              sx={{
+                p: 3,
                 height: '100%',
                 background: '#FFFFFF',
                 border: '1px solid #E5E7EB',
@@ -829,6 +833,7 @@ const Dashboard: React.FC = () => {
           </motion.div>
         </Grid>
       </Grid>
+      )}
 
       {/* Today's Schedule and Activity */}
       <Grid container spacing={3}>

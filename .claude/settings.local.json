@@ -46,7 +46,9 @@
       "Bash(cd /mnt/d/code/efcloud/projects/TurnosPro/src/frontend/public/templates/ && file *)",
       "Bash(file /mnt/d/code/efcloud/projects/TurnosPro/src/frontend/public/images/templates/*.jpg)",
       "Bash(cd:*)",
-      "Skill(update-config)"
+      "Skill(update-config)",
+      "Bash(doctl version *)",
+      "Bash(doctl apps *)"
     ],
     "deny": [],
     "ask": []

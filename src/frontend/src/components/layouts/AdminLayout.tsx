@@ -262,7 +262,7 @@ export const AdminLayout: React.FC = () => {
       icon: <CalendarToday />,
       children: [
         { text: 'Agenda', path: '/calendar', icon: <Schedule fontSize="small" /> },
-        { text: 'Bloqueos', path: '/blocks', icon: <BlockIcon fontSize="small" /> },
+        { text: 'Bloqueos', path: '/blocks', icon: <BlockIcon fontSize="small" />, adminOnly: true },
       ],
     },
     {
