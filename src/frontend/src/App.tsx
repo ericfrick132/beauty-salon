@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -30,6 +30,7 @@ import NewCustomer from './pages/NewCustomer';
 import Services from './pages/Services';
 import Reports from './pages/Reports';
 import BookingPage from './pages/public/BookingPage';
+import TenantLanding from './pages/public/TenantLanding';
 import InvitationPage from './pages/public/InvitationPage';
 import SelfRegistration from './pages/SelfRegistration';
 import Payments from './pages/Payments';
@@ -309,7 +310,7 @@ function App() {
                 ) : (
                   <>
                     {/* Tenant Subdomain Routes */}
-                    <Route path="/" element={<Navigate to="/login" replace />} />
+                    <Route path="/" element={<TenantLanding />} />
                     <Route path="/book" element={<BookingPage />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/invitation/:token" element={<InvitationPage />} />
