@@ -1,12 +1,15 @@
 using BookingPro.API.Data;
+using BookingPro.API.Models.Constants;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Models.Entities;
 using BookingPro.API.Models.Common;
 using BookingPro.API.Models.Enums;
 using BookingPro.API.Services.Interfaces;
 using BookingPro.API.Repositories;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Security.Claims;
 using System.Text.Json;
 
 namespace BookingPro.API.Services
@@ -19,6 +22,7 @@ namespace BookingPro.API.Services
         private readonly IRepository<Customer> _customerRepository;
         private readonly ITenantService _tenantService;
         private readonly ILogger<BookingService> _logger;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
         private record BusinessHoursConfig(TimeSpan Opening, TimeSpan Closing, HashSet<int> ClosedDays);
         private static readonly TimeSpan DefaultOpening = new TimeSpan(9, 0, 0);
@@ -30,7 +34,8 @@ namespace BookingPro.API.Services
             IRepository<Employee> employeeRepository,
             IRepository<Customer> customerRepository,
             ITenantService tenantService,
-            ILogger<BookingService> logger)
+            ILogger<BookingService> logger,
+            IHttpContextAccessor httpContextAccessor)
         {
             _bookingRepository = bookingRepository;
             _serviceRepository = serviceRepository;
@@ -38,6 +43,13 @@ namespace BookingPro.API.Services
             _customerRepository = customerRepository;
             _tenantService = tenantService;
             _logger = logger;
+            _httpContextAccessor = httpContextAccessor;
+        }
+
+        private bool IsEmployeeRole()
+        {
+            var role = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.Role);
+            return string.Equals(role, Roles.Employee, StringComparison.OrdinalIgnoreCase);
         }
 
         public async Task<ServiceResult<IEnumerable<BookingListDto>>> GetBookingsAsync(DateTime? date = null, Guid? employeeId = null, string? status = null)
@@ -85,6 +97,11 @@ namespace BookingPro.API.Services
                     })
                     .ToListAsync();
 
+                if (IsEmployeeRole())
+                {
+                    foreach (var b in bookings) b.CustomerPhone = null;
+                }
+
                 return ServiceResult<IEnumerable<BookingListDto>>.Ok(bookings);
             }
             catch (Exception ex)
@@ -122,6 +139,11 @@ namespace BookingPro.API.Services
                     })
                     .OrderBy(b => b.StartTime)
                     .ToListAsync();
+
+                if (IsEmployeeRole())
+                {
+                    foreach (var b in bookings) b.CustomerPhone = null;
+                }
 
                 return ServiceResult<IEnumerable<BookingListDto>>.Ok(bookings);
             }
@@ -175,6 +197,11 @@ namespace BookingPro.API.Services
                     CancelledAt = booking.CancelledAt,
                     CancellationReason = booking.CancellationReason
                 };
+
+                if (IsEmployeeRole())
+                {
+                    result.Customer.Phone = null;
+                }
 
                 return ServiceResult<BookingDetailDto>.Ok(result);
             }

@@ -40,6 +40,7 @@ import { useTenant } from '../contexts/TenantContext';
 import { useAppDispatch, useAppSelector } from '../store';
 import { fetchCustomers, fetchEmployees, fetchServices, createBooking } from '../store/slices/bookingSlice';
 import api from '../services/api';
+import { isEmployee } from '../utils/permissions';
 import { es } from 'date-fns/locale';
 
 const steps = ['Seleccionar Servicio', 'Elegir Profesional', 'Fecha y Hora', 'Datos del Cliente', 'Confirmar'];
@@ -49,6 +50,8 @@ const NewBooking: React.FC = () => {
   const dispatch = useAppDispatch();
   const { getTerm } = useTenant();
   const { services, employees, customers, loading } = useAppSelector(state => state.booking);
+  const currentUser = useAppSelector(state => state.auth.user);
+  const hidePhone = isEmployee(currentUser?.role);
 
   const [activeStep, setActiveStep] = useState(0);
   const [bookingData, setBookingData] = useState({
@@ -116,7 +119,7 @@ const NewBooking: React.FC = () => {
         if (newCustomer) {
           if (!bookingData.customerName) newErrors.customerName = 'Ingrese el nombre del cliente';
           if (!bookingData.customerEmail) newErrors.customerEmail = 'Ingrese el email del cliente';
-          if (!bookingData.customerPhone) newErrors.customerPhone = 'Ingrese el teléfono del cliente';
+          if (!hidePhone && !bookingData.customerPhone) newErrors.customerPhone = 'Ingrese el teléfono del cliente';
         } else {
           if (!bookingData.customerId) newErrors.customerId = 'Seleccione un cliente';
         }
@@ -468,16 +471,18 @@ const NewBooking: React.FC = () => {
                     helperText={errors.customerEmail}
                   />
                 </Grid>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Teléfono"
-                    value={bookingData.customerPhone}
-                    onChange={(e) => setBookingData({ ...bookingData, customerPhone: e.target.value })}
-                    error={!!errors.customerPhone}
-                    helperText={errors.customerPhone}
-                  />
-                </Grid>
+                {!hidePhone && (
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Teléfono"
+                      value={bookingData.customerPhone}
+                      onChange={(e) => setBookingData({ ...bookingData, customerPhone: e.target.value })}
+                      error={!!errors.customerPhone}
+                      helperText={errors.customerPhone}
+                    />
+                  </Grid>
+                )}
               </Grid>
             )}
 

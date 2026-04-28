@@ -1,9 +1,12 @@
+using BookingPro.API.Models.Constants;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Models.Entities;
 using BookingPro.API.Models.Common;
 using BookingPro.API.Services.Interfaces;
 using BookingPro.API.Repositories;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace BookingPro.API.Services
 {
@@ -11,13 +14,22 @@ namespace BookingPro.API.Services
     {
         private readonly IRepository<Customer> _customerRepository;
         private readonly IRepository<Booking> _bookingRepository;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
         public CustomerService(
             IRepository<Customer> customerRepository,
-            IRepository<Booking> bookingRepository)
+            IRepository<Booking> bookingRepository,
+            IHttpContextAccessor httpContextAccessor)
         {
             _customerRepository = customerRepository;
             _bookingRepository = bookingRepository;
+            _httpContextAccessor = httpContextAccessor;
+        }
+
+        private bool IsEmployeeRole()
+        {
+            var role = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.Role);
+            return string.Equals(role, Roles.Employee, StringComparison.OrdinalIgnoreCase);
         }
 
         public async Task<ServiceResult<IEnumerable<CustomerListDto>>> GetCustomersAsync()
@@ -42,6 +54,11 @@ namespace BookingPro.API.Services
                             .FirstOrDefault()
                     })
                     .ToListAsync();
+
+                if (IsEmployeeRole())
+                {
+                    foreach (var c in customers) c.Phone = null;
+                }
 
                 return ServiceResult<IEnumerable<CustomerListDto>>.Ok(customers);
             }
@@ -94,6 +111,11 @@ namespace BookingPro.API.Services
                 if (customer == null)
                 {
                     return ServiceResult<CustomerDetailDto>.NotFound("Customer not found");
+                }
+
+                if (IsEmployeeRole())
+                {
+                    customer.Phone = null;
                 }
 
                 return ServiceResult<CustomerDetailDto>.Ok(customer);
@@ -221,14 +243,15 @@ namespace BookingPro.API.Services
             try
             {
                 var query = _customerRepository.Query();
+                var isEmployee = IsEmployeeRole();
 
                 if (!string.IsNullOrWhiteSpace(searchTerm))
                 {
-                    query = query.Where(c => 
+                    query = query.Where(c =>
                         (c.Notes == null || !c.Notes.StartsWith("[DELETED")) &&
                         (c.FirstName.Contains(searchTerm) ||
                         c.LastName != null && c.LastName.Contains(searchTerm) ||
-                        c.Phone != null && c.Phone.Contains(searchTerm) ||
+                        (!isEmployee && c.Phone != null && c.Phone.Contains(searchTerm)) ||
                         c.Email != null && c.Email.Contains(searchTerm) ||
                         c.Dni != null && c.Dni.Contains(searchTerm)));
                 }
@@ -250,6 +273,11 @@ namespace BookingPro.API.Services
                     })
                     .OrderBy(c => c.FirstName)
                     .ToListAsync();
+
+                if (isEmployee)
+                {
+                    foreach (var c in customers) c.Phone = null;
+                }
 
                 return ServiceResult<IEnumerable<CustomerSearchDto>>.Ok(customers);
             }

@@ -39,6 +39,8 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTenant } from '../contexts/TenantContext';
 import api from '../services/api';
+import { useAppSelector } from '../store';
+import { isEmployee } from '../utils/permissions';
 
 interface Customer {
   id: string;
@@ -56,7 +58,9 @@ interface Customer {
 const Customers: React.FC = () => {
   const navigate = useNavigate();
   const { getTerm } = useTenant();
-  
+  const currentUser = useAppSelector(state => state.auth.user);
+  const hidePhone = isEmployee(currentUser?.role);
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -192,7 +196,7 @@ const Customers: React.FC = () => {
     return (
       fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (customer.email && customer.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (customer.phone && customer.phone.includes(searchTerm))
+      (!hidePhone && customer.phone && customer.phone.includes(searchTerm))
     );
   });
 
@@ -263,7 +267,7 @@ const Customers: React.FC = () => {
                 <TableRow>
                   <TableCell>Nombre</TableCell>
                   <TableCell>Email</TableCell>
-                  <TableCell>Teléfono</TableCell>
+                  {!hidePhone && <TableCell>Teléfono</TableCell>}
                   <TableCell>Total {getTerm('booking')}s</TableCell>
                   <TableCell>Última Visita</TableCell>
                   <TableCell align="right">Acciones</TableCell>
@@ -272,13 +276,13 @@ const Customers: React.FC = () => {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} align="center">
+                    <TableCell colSpan={hidePhone ? 5 : 6} align="center">
                       Cargando...
                     </TableCell>
                   </TableRow>
                 ) : filteredCustomers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} align="center">
+                    <TableCell colSpan={hidePhone ? 5 : 6} align="center">
                       No se encontraron {getTerm('customer')}s
                     </TableCell>
                   </TableRow>
@@ -306,12 +310,14 @@ const Customers: React.FC = () => {
                             {customer.email}
                           </Box>
                         </TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <Phone sx={{ mr: 1, fontSize: 18, color: 'text.secondary' }} />
-                            {customer.phone}
-                          </Box>
-                        </TableCell>
+                        {!hidePhone && (
+                          <TableCell>
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                              <Phone sx={{ mr: 1, fontSize: 18, color: 'text.secondary' }} />
+                              {customer.phone}
+                            </Box>
+                          </TableCell>
+                        )}
                         <TableCell>
                           <Chip
                             label={customer.totalBookings || 0}
@@ -406,16 +412,18 @@ const Customers: React.FC = () => {
                   helperText={errors.email}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Teléfono"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  error={!!errors.phone}
-                  helperText={errors.phone}
-                />
-              </Grid>
+              {!hidePhone && (
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Teléfono"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    error={!!errors.phone}
+                    helperText={errors.phone}
+                  />
+                </Grid>
+              )}
               <Grid item xs={12}>
                 <TextField
                   fullWidth

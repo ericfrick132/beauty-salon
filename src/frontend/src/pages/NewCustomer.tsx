@@ -18,9 +18,13 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../services/api';
+import { useAppSelector } from '../store';
+import { isEmployee } from '../utils/permissions';
 
 const NewCustomer: React.FC = () => {
   const navigate = useNavigate();
+  const currentUser = useAppSelector(state => state.auth.user);
+  const hidePhone = isEmployee(currentUser?.role);
   
   const [formData, setFormData] = useState({
     firstName: '',
@@ -179,17 +183,19 @@ const NewCustomer: React.FC = () => {
               />
               </Grid>
 
-              <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Teléfono"
-                value={formData.phone}
-                onChange={handleChange('phone')}
-                error={!!errors.phone}
-                helperText={errors.phone}
-                disabled={submitting}
-              />
-              </Grid>
+              {!hidePhone && (
+                <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Teléfono"
+                  value={formData.phone}
+                  onChange={handleChange('phone')}
+                  error={!!errors.phone}
+                  helperText={errors.phone}
+                  disabled={submitting}
+                />
+                </Grid>
+              )}
 
               <Grid item xs={12}>
                 <TextField

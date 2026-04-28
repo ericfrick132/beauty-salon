@@ -56,6 +56,7 @@ import { es } from 'date-fns/locale';
 import { useTenant } from '../../contexts/TenantContext';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { fetchBookings, updateBooking, deleteBooking } from '../../store/slices/bookingSlice';
+import { isEmployee } from '../../utils/permissions';
 import { EventImpl } from '@fullcalendar/core/internal';
 import api from '../../services/api';
 
@@ -85,6 +86,8 @@ const CalendarView: React.FC = () => {
   const { config, getTerm } = useTenant();
   const dispatch = useAppDispatch();
   const { bookings, loading } = useAppSelector(state => state.booking);
+  const currentUser = useAppSelector(state => state.auth.user);
+  const hidePhone = isEmployee(currentUser?.role);
   
   const calendarRef = useRef<FullCalendar>(null);
   const [currentView, setCurrentView] = useState('timeGridWeek');
@@ -930,9 +933,11 @@ const CalendarView: React.FC = () => {
                   <Typography variant="body1">
                     {eventDialog.event.extendedProps?.customerName}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {eventDialog.event.extendedProps?.customerPhone}
-                  </Typography>
+                  {!hidePhone && (
+                    <Typography variant="body2" color="text.secondary">
+                      {eventDialog.event.extendedProps?.customerPhone}
+                    </Typography>
+                  )}
                 </Box>
 
                 <Box>
