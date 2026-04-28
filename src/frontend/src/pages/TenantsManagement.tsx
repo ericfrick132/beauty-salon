@@ -77,8 +77,10 @@ interface Tenant {
   planId?: string;
   plan?: {
     name: string;
-    monthlyPrice: number;
-  };
+    code: string;
+    price: number;
+    currency: string;
+  } | null;
   isActive: boolean;
   createdAt: string;
   lastLoginAt?: string;
@@ -697,6 +699,7 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
                     <TableRow>
                       <TableCell>Tenant</TableCell>
                       <TableCell>Vertical</TableCell>
+                      <TableCell>Plan</TableCell>
                       <TableCell>Estado Suscripción</TableCell>
                       <TableCell>Vencimiento</TableCell>
                       <TableCell>Registro</TableCell>
@@ -719,11 +722,25 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
                           </Box>
                         </TableCell>
                         <TableCell>
-                          <Chip 
-                            label={tenant.vertical?.name || 'N/A'} 
-                            size="small" 
+                          <Chip
+                            label={tenant.vertical?.name || 'N/A'}
+                            size="small"
                             variant="outlined"
                           />
+                        </TableCell>
+                        <TableCell>
+                          {tenant.plan ? (
+                            <Box>
+                              <Typography variant="body2" fontWeight={600}>
+                                {tenant.plan.name}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                ${tenant.plan.price.toLocaleString()} {tenant.plan.currency}/mes
+                              </Typography>
+                            </Box>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">Sin plan</Typography>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Box>

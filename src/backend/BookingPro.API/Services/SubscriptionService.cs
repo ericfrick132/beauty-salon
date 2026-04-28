@@ -170,17 +170,9 @@ namespace BookingPro.API.Services
 
                         _context.SubscriptionPlans.Add(plan);
                     }
-                    else
-                    {
-                        // Update existing plan
-                        existingPlan.Name = plan.Name;
-                        existingPlan.Description = plan.Description;
-                        existingPlan.Price = plan.Price;
-                        existingPlan.MaxBookingsPerMonth = plan.MaxBookingsPerMonth;
-                        existingPlan.MaxServices = plan.MaxServices;
-                        existingPlan.MaxStaff = plan.MaxStaff;
-                        existingPlan.UpdatedAt = DateTime.UtcNow;
-                    }
+                    // If the plan already exists, leave it alone — prices and limits
+                    // are managed by the SuperAdmin through the UI; we must not
+                    // overwrite their changes on every deploy.
                 }
 
                 await _context.SaveChangesAsync();

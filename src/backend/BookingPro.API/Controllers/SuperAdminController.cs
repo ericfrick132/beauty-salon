@@ -58,6 +58,13 @@ namespace BookingPro.API.Controllers
                         isActive = t.Status == "active",
                         status = t.Status,
                         createdAt = t.CreatedAt,
+                        planId = t.SubscriptionPlanId,
+                        plan = t.SubscriptionPlanId.HasValue
+                            ? _context.SubscriptionPlans
+                                .Where(p => p.Id == t.SubscriptionPlanId.Value)
+                                .Select(p => new { name = p.Name, code = p.Code, price = p.Price, currency = p.Currency })
+                                .FirstOrDefault()
+                            : null,
                         lastLoginAt = _context.Users
                             .IgnoreQueryFilters()
                             .Where(u => u.TenantId == t.Id && u.LastLogin.HasValue)
