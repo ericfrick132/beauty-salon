@@ -680,7 +680,7 @@ const SelfRegistration: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: [0.22, 0.61, 0.36, 1] }}
         >
-          <Box sx={{ my: 2.5, height: 1, backgroundColor: authPalette.rule }} />
+          <Box sx={{ my: 2.5, height: '1px', backgroundColor: authPalette.rule }} />
 
           <Box component="form" onSubmit={handleSignupSubmit}>
             <Box sx={{ mb: 2.5 }}>
