@@ -48,9 +48,13 @@ namespace BookingPro.API.Services
                         Dni = c.Dni,
                         BirthDate = c.BirthDate,
                         BookingCount = c.Bookings.Count(),
+                        // Cast to DateTime? before FirstOrDefault so a customer
+                        // with zero bookings returns null instead of
+                        // DateTime.MinValue (which the frontend was rendering
+                        // as "1/1/1" in the "Última visita" column).
                         LastBooking = c.Bookings
                             .OrderByDescending(b => b.StartTime)
-                            .Select(b => b.StartTime)
+                            .Select(b => (DateTime?)b.StartTime)
                             .FirstOrDefault()
                     })
                     .ToListAsync();

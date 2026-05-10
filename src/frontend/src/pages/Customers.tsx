@@ -327,14 +327,21 @@ const Customers: React.FC = () => {
                           />
                         </TableCell>
                         <TableCell>
-                          {customer.lastBooking ? (
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                              <CalendarToday sx={{ mr: 1, fontSize: 18, color: 'text.secondary' }} />
-                              {new Date(customer.lastBooking).toLocaleDateString('es-ES')}
-                            </Box>
-                          ) : (
-                            '-'
-                          )}
+                          {(() => {
+                            // The backend used to return DateTime.MinValue
+                            // ("0001-01-01") when a customer had no bookings;
+                            // that's been fixed but we keep this guard so any
+                            // stale/cached row doesn't render "1/1/1".
+                            if (!customer.lastBooking) return '-';
+                            const d = new Date(customer.lastBooking);
+                            if (isNaN(d.getTime()) || d.getFullYear() < 1970) return '-';
+                            return (
+                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                <CalendarToday sx={{ mr: 1, fontSize: 18, color: 'text.secondary' }} />
+                                {d.toLocaleDateString('es-ES')}
+                              </Box>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell align="right">
                           <Tooltip title="Editar">

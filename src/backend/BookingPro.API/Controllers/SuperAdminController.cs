@@ -35,6 +35,12 @@ namespace BookingPro.API.Controllers
         {
             try
             {
+                // First day of the current calendar month (UTC). Used to sum
+                // each tenant's booking revenue for the "Facturado este mes"
+                // column on the super-admin dashboard.
+                var now = DateTime.UtcNow;
+                var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+
                 var query = _context.Tenants
                     .Include(t => t.Vertical)
                     .OrderByDescending(t => t.CreatedAt);
@@ -75,6 +81,17 @@ namespace BookingPro.API.Controllers
                         totalRevenue = _context.TenantSubscriptionPayments
                             .Where(p => p.TenantId == t.Id && p.Status == "approved")
                             .Select(p => (decimal?)p.Amount)
+                            .Sum() ?? 0,
+                        // Facturación del negocio en el mes actual (cobros a
+                        // clientes finales — turnos pagados). IgnoreQueryFilters
+                        // porque Payment es tenant-scoped y este endpoint corre
+                        // sin tenant context.
+                        currentMonthRevenue = _context.Payments
+                            .IgnoreQueryFilters()
+                            .Where(p => p.TenantId == t.Id
+                                        && p.Status == "completed"
+                                        && p.PaymentDate >= monthStart)
+                            .Select(p => (decimal?)(p.Amount + (p.TipAmount ?? 0)))
                             .Sum() ?? 0,
                         // Último vencimiento de suscripción (por pagos aprobados)
                         subscriptionExpiry = _context.TenantSubscriptionPayments

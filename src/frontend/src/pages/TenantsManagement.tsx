@@ -85,6 +85,8 @@ interface Tenant {
   createdAt: string;
   lastLoginAt?: string;
   totalRevenue?: number;
+  /** Tenant-side booking revenue for the current calendar month (server-computed). */
+  currentMonthRevenue?: number;
   subscriptionExpiry?: string;
   currentSubscription?: TenantSubscription;
   subscriptionStatus: 'ACTIVE' | 'EXPIRED' | 'PENDING' | 'NEVER_SUBSCRIBED';
@@ -704,6 +706,7 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
                       <TableCell>Vencimiento</TableCell>
                       <TableCell>Registro</TableCell>
                       <TableCell>Último Acceso</TableCell>
+                      <TableCell>Facturado este mes</TableCell>
                       <TableCell>Facturación Total</TableCell>
                       <TableCell>Acciones</TableCell>
                     </TableRow>
@@ -767,6 +770,14 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
                         </TableCell>
                         <TableCell>
                           {tenant.lastLoginAt ? new Date(tenant.lastLoginAt).toLocaleString('es-ES') : 'Nunca'}
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={600}>
+                            ${(tenant.currentMonthRevenue ?? 0).toLocaleString('es-AR')}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {new Date().toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })}
+                          </Typography>
                         </TableCell>
                         <TableCell>
                           ${getTenantTotalRevenue(tenant).toLocaleString()} {platformConfig.currency}
