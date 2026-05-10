@@ -12,23 +12,24 @@ const Calendar: React.FC = () => {
   const { getTerm } = useTenant();
 
   return (
-    <Container maxWidth={false} sx={{ py: 0, px: 0, height: '100vh' }}>
+    <Container maxWidth={false} sx={{ py: 0, px: 0 }}>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        style={{ height: '100%' }}
       >
         <CalendarView />
-        
-        {/* Floating Action Button to create new booking */}
+
+        {/* Floating Action Button to create new booking — kept above the
+            mobile bottom nav (~56px) so it doesn't overlap and chop off the
+            bottom of the calendar grid. */}
         <Fab
           color="primary"
           aria-label="nueva cita"
           onClick={() => navigate('/new-booking')}
           sx={{
             position: 'fixed',
-            bottom: 24,
+            bottom: { xs: 80, md: 24 },
             right: 24,
             zIndex: 1000,
           }}

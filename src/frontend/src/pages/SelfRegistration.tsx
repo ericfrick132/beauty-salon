@@ -645,6 +645,7 @@ const SelfRegistration: React.FC = () => {
       <Box component={motion.div} {...item(0)}>
         <GoogleSignInButton
           text="signup_with"
+          context="signup"
           onSuccess={handleGoogleSignup}
           onError={(msg) => setError(msg)}
         />
@@ -1187,7 +1188,7 @@ const SelfRegistration: React.FC = () => {
           mb: 1.5,
         }}
       >
-        Edición especial · Cuenta activada
+        Cuenta activada
       </Typography>
       <Typography
         component="h1"

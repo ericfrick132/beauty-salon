@@ -86,7 +86,10 @@ const StyledAppBar = styled(AppBar)(({ theme }) => ({
   backgroundColor: '#111827',
   borderBottom: 'none',
   boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-  zIndex: theme.zIndex.drawer + 1,
+  // Drawer must overlay the AppBar so the drawer's own dark header isn't
+  // clipped underneath the top bar. The navbar stays full-width and never
+  // shifts when the drawer toggles.
+  zIndex: theme.zIndex.drawer - 1,
   color: '#FFFFFF',
 }));
 
@@ -99,6 +102,7 @@ const StyledDrawer = styled(Drawer)(({ theme }) => ({
     borderRight: '1px solid #E5E7EB',
     backgroundImage: 'none',
     color: '#111827',
+    zIndex: theme.zIndex.drawer + 2,
     [theme.breakpoints.down('sm')]: {
       width: mobileDrawerWidth,
     },
@@ -122,7 +126,7 @@ const MainContent = styled(Box)<{ open: boolean; hasMobileNav?: boolean }>(({ th
   paddingBottom: hasMobileNav ? theme.spacing(12) : theme.spacing(3),
   backgroundColor: '#FAF7F2',
   minHeight: '100vh',
-  marginLeft: open ? 0 : `-${drawerWidth}px`,
+  marginLeft: 0,
   transition: theme.transitions.create('margin', {
     easing: theme.transitions.easing.sharp,
     duration: theme.transitions.duration.leavingScreen,
@@ -133,7 +137,7 @@ const MainContent = styled(Box)<{ open: boolean; hasMobileNav?: boolean }>(({ th
     marginLeft: 0,
   },
   [theme.breakpoints.up('md')]: {
-    marginLeft: 0,
+    marginLeft: open ? `${drawerWidth}px` : 0,
   },
 }));
 
@@ -583,7 +587,10 @@ export const AdminLayout: React.FC = () => {
           backgroundColor: '#111827',
           borderBottom: 'none',
           boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-          zIndex: theme.zIndex.drawer + 1,
+          // Drawer overlays the AppBar so its dark header is visible above the
+          // navbar. Navbar stays full-width and never shifts when the drawer
+          // toggles — the user explicitly asked for that.
+          zIndex: theme.zIndex.drawer - 1,
           color: '#FFFFFF',
         }}
       >
@@ -690,7 +697,11 @@ export const AdminLayout: React.FC = () => {
             {drawer}
           </Drawer>
         ) : (
-          <StyledDrawer variant="permanent" open id="tp-sidebar">
+          <StyledDrawer
+            variant="persistent"
+            open={drawerOpen}
+            id="tp-sidebar"
+          >
             {drawer}
           </StyledDrawer>
         )}

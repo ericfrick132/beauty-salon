@@ -307,7 +307,12 @@ const MercadoPagoSettings: React.FC = () => {
           <IconButton onClick={() => navigate('/dashboard')} sx={{ mr: 2 }}>
             <ArrowBack />
           </IconButton>
-          <AccountBalance sx={{ mr: 2, fontSize: 32, color: 'primary.main' }} />
+          <Box
+            component="img"
+            src="/mercadopago-logo.png"
+            alt="MercadoPago"
+            sx={{ height: 48, width: 'auto', mr: 2, objectFit: 'contain' }}
+          />
           <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
             Configuración de MercadoPago
           </Typography>
@@ -431,10 +436,9 @@ const MercadoPagoSettings: React.FC = () => {
                     <strong>¿Cómo funciona?</strong>
                   </Typography>
                   <Typography variant="body2" component="ul" sx={{ mb: 0, pl: 2 }}>
-                    <li>Conexión OAuth segura sin compartir credenciales</li>
+                    <li>Conexión segura sin compartir credenciales</li>
                     <li>Tus clientes pagan directamente en tu cuenta de MercadoPago</li>
                     <li>Ideal para pagos de señas y servicios completos</li>
-                    <li>Tokens se renuevan automáticamente</li>
                     <li>Control total desde tu cuenta de MercadoPago</li>
                   </Typography>
                 </Alert>
@@ -450,7 +454,7 @@ const MercadoPagoSettings: React.FC = () => {
                     }
                   }}
                 >
-                  Conectar con MercadoPago OAuth
+                  Conectar con MercadoPago
                 </Button>
               </>
             )}
@@ -532,7 +536,7 @@ const MercadoPagoSettings: React.FC = () => {
                 <li>Las reservas se confirman automáticamente al recibir el pago</li>
                 <li>El dinero se acredita directamente en tu cuenta de MercadoPago</li>
                 <li>Modelo marketplace: una sola integración para todos los tenants</li>
-                <li>Comisión del 5% por transacción para la plataforma</li>
+                <li>Comisión por transacción para la plataforma</li>
               </Typography>
 
               <Divider sx={{ my: 2 }} />

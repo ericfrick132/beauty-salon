@@ -539,7 +539,7 @@ const CalendarView: React.FC = () => {
   };
 
   return (
-    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ minHeight: 'calc(100vh - 160px)', display: 'flex', flexDirection: 'column' }}>
       {/* Toolbar */}
       <Paper sx={{ p: 2, mb: 2 }}>
         <Toolbar sx={{ px: '0 !important' }}>

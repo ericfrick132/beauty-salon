@@ -1,15 +1,37 @@
 import React from 'react';
-import { SvgIcon, SvgIconProps } from '@mui/material';
+import { Box, BoxProps } from '@mui/material';
 
-const MercadoPagoIcon: React.FC<SvgIconProps> = (props) => (
-  <SvgIcon viewBox="0 0 32 32" {...props}>
-    <circle cx="16" cy="16" r="15" fill="#00B1EA" />
-    <path
-      d="M7 18.2c2.4-2.6 4.8-3.7 7-3.7 2.5 0 3.6 1.4 4 2.4.5 1 .8 1.6 1.7 1.6 1.2 0 2-1 2-2.4 0-2.5-2-5.5-6-6.5-3.5-.9-7 .3-9.4 2.7-.7.7-1.5 1.6-2 2.4l2.7 3.5z"
-      fill="#FFE600"
+// Renders the real MercadoPago brand logo from /public. Sized to match MUI
+// icon sizing conventions (~24px) so it can sit alongside `<Settings />`,
+// `<Group />` etc. in the sidebar without throwing off vertical rhythm.
+type Props = Omit<BoxProps<'img'>, 'component' | 'src'> & {
+  fontSize?: 'small' | 'medium' | 'large';
+};
+
+const SIZE: Record<NonNullable<Props['fontSize']>, number> = {
+  small: 20,
+  medium: 24,
+  large: 32,
+};
+
+const MercadoPagoIcon: React.FC<Props> = ({ fontSize = 'medium', sx, ...rest }) => {
+  const size = SIZE[fontSize];
+  return (
+    <Box
+      component="img"
+      src="/mercadopago-logo.png"
+      alt="MercadoPago"
+      sx={{
+        height: size,
+        width: 'auto',
+        objectFit: 'contain',
+        display: 'inline-block',
+        verticalAlign: 'middle',
+        ...sx,
+      }}
+      {...rest}
     />
-    <circle cx="14.6" cy="16.2" r="1.4" fill="#00B1EA" />
-  </SvgIcon>
-);
+  );
+};
 
 export default MercadoPagoIcon;

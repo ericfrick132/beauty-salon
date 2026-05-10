@@ -1164,12 +1164,17 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
         }}
       >
         <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2.5 }}>
-          <Box
-            component="img"
-            src={config.logoUrl}
-            alt={config.productName}
-            sx={{ height: 28, filter: 'none' }}
-          />
+          <Typography
+            sx={{
+              fontFamily: typography.display,
+              fontWeight: 600,
+              fontSize: 22,
+              letterSpacing: '-0.02em',
+              color: palette.ink,
+            }}
+          >
+            {config.productName}
+          </Typography>
         </Stack>
         <ProgressBar
           step={stepIndex + 1}
@@ -1243,22 +1248,24 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
         }}
       />
 
-      {/* Logo */}
+      {/* Logo wordmark */}
       <motion.div
         initial={{ opacity: 0, y: -10, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.6, ease: [0.2, 0.7, 0.2, 1] }}
         style={{ position: 'absolute', top: 32, left: 40, zIndex: 2 }}
       >
-        <Box
-          component="img"
-          src={config.logoUrl}
-          alt={config.productName}
+        <Typography
           sx={{
-            height: { md: 36, lg: 44 },
-            filter: 'brightness(0) invert(1)',
+            fontFamily: typography.display,
+            fontWeight: 600,
+            fontSize: { md: 26, lg: 32 },
+            letterSpacing: '-0.02em',
+            color: '#FFFFFF',
           }}
-        />
+        >
+          {config.productName}
+        </Typography>
       </motion.div>
 
       {/* Card modal */}

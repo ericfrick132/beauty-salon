@@ -445,37 +445,6 @@ const Dashboard: React.FC = () => {
           </Grid>
         </Grid>
 
-        {/* Plan Summary Card */}
-        {subscription && (
-          <Grid container spacing={3} sx={{ mb: 3 }}>
-            <Grid item xs={12} md={6}>
-              <Card
-                sx={{
-                  background: '#FFFFFF',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-                  border: '1px solid #E5E7EB',
-                }}
-              >
-                <CardContent>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <Box>
-                      <PlanSummary />
-                    </Box>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => navigate('/subscription')}
-                      sx={{ borderColor: primaryColor, color: primaryColor }}
-                    >
-                      Ver planes
-                    </Button>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-        )}
-
         {/* Financial Overview Card - Nueva sección */}
         {financialStats && (
           <Grid container spacing={3} sx={{ mb: 3, mt: 3 }}>

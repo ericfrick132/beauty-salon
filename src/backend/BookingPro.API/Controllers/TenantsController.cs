@@ -18,6 +18,7 @@ namespace BookingPro.API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly ITenantService _tenantService;
+        private readonly ITenantProvisioningService _provisioningService;
         private readonly IMemoryCache _cache;
         private readonly IWebHostEnvironment _env;
         private readonly ILogger<TenantsController> _logger;
@@ -25,16 +26,33 @@ namespace BookingPro.API.Controllers
         public TenantsController(
             ApplicationDbContext context,
             ITenantService tenantService,
+            ITenantProvisioningService provisioningService,
             IMemoryCache cache,
             IWebHostEnvironment env,
             ILogger<TenantsController> logger)
         {
             _context = context;
             _tenantService = tenantService;
+            _provisioningService = provisioningService;
             _cache = cache;
             _env = env;
             _logger = logger;
         }
+
+        // Wizard "BusinessKind" values come from src/frontend/src/config/onboardingConfig.ts.
+        // Mapping them to vertical codes (matching VerticalSeeders) lets the
+        // /completar-perfil flow seed services automatically — so the user
+        // never has to answer the same "elegí un template" question twice.
+        private static readonly Dictionary<string, string> BusinessKindToVerticalCode =
+            new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["barberia"] = "barbershop",
+                ["salon_belleza"] = "peluqueria",
+                ["estetica"] = "aesthetics",
+                ["spa"] = "aesthetics",
+                ["manicuria"] = "nailsalon",
+                // peluqueria_canina, otro → no auto-seed; user can pick later.
+            };
 
         [Authorize]
         [HttpPatch("current/onboarding")]
@@ -75,6 +93,27 @@ namespace BookingPro.API.Controllers
             tenant.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
+
+            // Auto-seed the vertical (services, categories, sample employees) when
+            // the chosen BusinessKind maps cleanly to a known vertical. Without this
+            // the Dashboard would re-prompt the user with the "Elegí un template"
+            // modal even though they just told us in step 2 of the wizard.
+            if (tenant.VerticalId == null
+                && !string.IsNullOrWhiteSpace(tenant.BusinessKind)
+                && BusinessKindToVerticalCode.TryGetValue(tenant.BusinessKind!, out var verticalCode))
+            {
+                try
+                {
+                    await _provisioningService.ApplyTemplateAsync(tenant.Id, verticalCode);
+                }
+                catch (Exception ex)
+                {
+                    // Seeding is best-effort: if it fails the Dashboard will fall
+                    // back to the manual template picker, which is the prior
+                    // behaviour. Don't block the wizard's success response.
+                    _logger.LogError(ex, "Auto-seeding vertical {VerticalCode} failed for tenant {TenantId}", verticalCode, tenant.Id);
+                }
+            }
 
             // Invalidate tenant caches so the next /api/tenant/config read is fresh.
             var host = HttpContext.Request.Host.Value;
