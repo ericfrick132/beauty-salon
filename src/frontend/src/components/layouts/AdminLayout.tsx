@@ -38,7 +38,6 @@ import {
   Logout,
   AccountCircle,
   Notifications,
-  ChevronLeft,
   AttachMoney,
   Group,
   Schedule,
@@ -86,10 +85,11 @@ const StyledAppBar = styled(AppBar)(({ theme }) => ({
   backgroundColor: '#111827',
   borderBottom: 'none',
   boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-  // Drawer must overlay the AppBar so the drawer's own dark header isn't
-  // clipped underneath the top bar. The navbar stays full-width and never
-  // shifts when the drawer toggles.
-  zIndex: theme.zIndex.drawer - 1,
+  // Navbar floats above the drawer so the dark bar reads as a single
+  // continuous strip across the top of the screen. The drawer starts
+  // BELOW it (see StyledDrawer) and slides in/out without ever covering
+  // the navbar.
+  zIndex: theme.zIndex.drawer + 1,
   color: '#FFFFFF',
 }));
 
@@ -102,9 +102,15 @@ const StyledDrawer = styled(Drawer)(({ theme }) => ({
     borderRight: '1px solid #E5E7EB',
     backgroundImage: 'none',
     color: '#111827',
-    zIndex: theme.zIndex.drawer + 2,
+    // Push the drawer below the AppBar so its content starts where the
+    // navbar ends. theme.mixins.toolbar is the source of truth for the
+    // navbar's height across breakpoints.
+    top: 'var(--app-toolbar-height, 64px)',
+    height: 'calc(100% - var(--app-toolbar-height, 64px))',
     [theme.breakpoints.down('sm')]: {
       width: mobileDrawerWidth,
+      top: 56,
+      height: 'calc(100% - 56px)',
     },
   },
 }));
@@ -396,42 +402,12 @@ export const AdminLayout: React.FC = () => {
 
   const drawer = (
     <Box>
-      <Box 
-        sx={{ 
-          display: 'flex',
-          alignItems: 'center',
-          padding: theme.spacing(2, 2),
-          ...theme.mixins.toolbar,
-          background: '#111827',
-          color: '#ffffff',
-        }}
-      >
-        <CalendarToday sx={{ mr: 1, fontSize: { xs: 24, sm: 32 }, color: '#ffffff' }} />
-        <Typography 
-          variant="h6" 
-          component="div" 
-          fontWeight="bold"
-          sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, color: '#ffffff' }}
-        >
-          {config?.businessName || 'Turnos Pro'}
-        </Typography>
-        {isMobile && (
-          <IconButton
-            onClick={handleDrawerToggle}
-            sx={{ 
-              ml: 'auto', 
-              color: '#ffffff',
-              '&:hover': {
-                backgroundColor: config?.vertical === 'beautysalon' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.2)',
-              }
-            }}
-          >
-            <ChevronLeft />
-          </IconButton>
-        )}
-      </Box>
-      
-      <Box sx={{ p: { xs: 1, sm: 2 } }}>
+      {/* The drawer used to repeat the business name + calendar icon in its
+          own dark header. With the drawer now sitting below the AppBar
+          (which already shows the biz name on the left), that section was
+          redundant and visually noisy. We start straight with the user
+          card so the sidebar reads as one clean column. */}
+      <Box sx={{ p: { xs: 1, sm: 2 }, pt: { xs: 2, sm: 3 } }}>
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -587,10 +563,10 @@ export const AdminLayout: React.FC = () => {
           backgroundColor: '#111827',
           borderBottom: 'none',
           boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-          // Drawer overlays the AppBar so its dark header is visible above the
-          // navbar. Navbar stays full-width and never shifts when the drawer
-          // toggles — the user explicitly asked for that.
-          zIndex: theme.zIndex.drawer - 1,
+          // Navbar above the drawer — the dark strip across the top is
+          // continuous, the drawer slides in BELOW it (see StyledDrawer's
+          // top offset) so the navbar never moves and never gets covered.
+          zIndex: theme.zIndex.drawer + 1,
           color: '#FFFFFF',
         }}
       >
