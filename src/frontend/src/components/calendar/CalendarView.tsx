@@ -539,7 +539,7 @@ const CalendarView: React.FC = () => {
   };
 
   return (
-    <Box sx={{ minHeight: 'calc(100vh - 160px)', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ height: 'calc(100vh - 160px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Toolbar */}
       <Paper sx={{ p: 2, mb: 2 }}>
         <Toolbar sx={{ px: '0 !important' }}>
@@ -608,8 +608,8 @@ const CalendarView: React.FC = () => {
       </Paper>
 
       {/* Calendar */}
-      <Paper sx={{ flex: 1, p: 2 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+      <Paper sx={{ flex: 1, p: 2, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1, flexShrink: 0 }}>
           <Button variant="contained" startIcon={<Add />} onClick={(e)=> setNewMenuAnchor(e.currentTarget)}>Nuevo</Button>
           <Menu anchorEl={newMenuAnchor} open={Boolean(newMenuAnchor)} onClose={()=> setNewMenuAnchor(null)}>
             <MenuItem onClick={()=> { setNewMenuAnchor(null); window.location.href = '/new-booking'; }}>Nueva Reserva</MenuItem>
@@ -621,6 +621,7 @@ const CalendarView: React.FC = () => {
             }}>Bloquear horario</MenuItem>
           </Menu>
         </Box>
+        <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
         <FullCalendar
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -664,6 +665,7 @@ const CalendarView: React.FC = () => {
           dayHeaderFormat={{ weekday: 'short', day: 'numeric' }}
           eventDisplay="block"
         />
+        </Box>
      </Paper>
 
       {/* Block dialog */}
