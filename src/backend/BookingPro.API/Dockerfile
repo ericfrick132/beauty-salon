@@ -19,7 +19,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS final
 WORKDIR /app
 
 # Install dependencies for health checks and configure non-root user
-RUN apk add --no-cache curl icu-libs krb5-libs libgcc libintl libssl3 libstdc++ zlib && \
+RUN apk add --no-cache curl icu-libs krb5-libs libgcc libintl libssl3 libstdc++ zlib tzdata && \
     adduser -D -u 1000 appuser
 
 # Copy published files
