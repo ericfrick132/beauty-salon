@@ -172,6 +172,7 @@ const CalendarView: React.FC = () => {
   
   const [employees, setEmployees] = useState<any[]>([]);
   const [blocks, setBlocks] = useState<Array<{ id: string; start: string; end: string; employeeId: string }>>([]);
+  const [minimumGapMinutes, setMinimumGapMinutes] = useState(15);
   const [viewRange, setViewRange] = useState<{ start: string; end: string } | null>(null);
   const [businessHoursCfg, setBusinessHoursCfg] = useState<{ opening: string; closing: string; closedDays: number[] }>({
     opening: '09:00',
@@ -221,7 +222,19 @@ const CalendarView: React.FC = () => {
     dispatch(fetchBookings());
     fetchEmployees();
     fetchBusinessHours();
+    fetchServicesSettings();
   }, [dispatch]);
+
+  const fetchServicesSettings = async () => {
+    try {
+      const res = await api.get('/settings/services');
+      if (res?.data?.minimumGapMinutes != null) {
+        setMinimumGapMinutes(res.data.minimumGapMinutes);
+      }
+    } catch {
+      // keep default
+    }
+  };
 
   const fetchEmployees = async () => {
     try {
@@ -286,6 +299,19 @@ const CalendarView: React.FC = () => {
     borderColor: '#9e9e9e',
     extendedProps: { isBlock: true, employeeId: b.employeeId }
   }));
+
+  const gapEvents = minimumGapMinutes > 0
+    ? calendarEvents
+        .filter(e => e.extendedProps?.status !== 'cancelled')
+        .map(e => ({
+          id: `gap-${e.id}`,
+          start: e.end,
+          end: new Date(new Date(e.end).getTime() + minimumGapMinutes * 60 * 1000).toISOString(),
+          display: 'background' as const,
+          backgroundColor: 'rgba(255, 152, 0, 0.25)',
+          extendedProps: { isGap: true },
+        }))
+    : [];
 
   const handleViewChange = (view: string) => {
     setCurrentView(view);
@@ -626,7 +652,7 @@ const CalendarView: React.FC = () => {
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
           initialView={currentView}
-          events={[...calendarEvents, ...blockEvents]}
+          events={[...calendarEvents, ...blockEvents, ...gapEvents]}
           locale="es"
           height="100%"
           headerToolbar={false}

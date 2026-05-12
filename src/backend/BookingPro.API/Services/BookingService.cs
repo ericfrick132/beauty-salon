@@ -25,6 +25,7 @@ namespace BookingPro.API.Services
         private readonly IHttpContextAccessor _httpContextAccessor;
 
         private record BusinessHoursConfig(TimeSpan Opening, TimeSpan Closing, HashSet<int> ClosedDays);
+        private const int DefaultMinimumGapMinutes = 15;
         private static readonly TimeSpan DefaultOpening = new TimeSpan(9, 0, 0);
         private static readonly TimeSpan DefaultClosing = new TimeSpan(22, 0, 0);
 
@@ -453,7 +454,7 @@ namespace BookingPro.API.Services
                     return ServiceResult<IEnumerable<string>>.Ok(availableSlots);
                 }
                 var slotDuration = TimeSpan.FromMinutes(service.DurationMinutes);
-                var minimumGap = TimeSpan.FromMinutes(15); // Tiempo mínimo entre citas
+                var minimumGap = TimeSpan.FromMinutes(await GetMinimumGapMinutesAsync());
 
                 for (var time = startWindow; time <= endWindow.Subtract(slotDuration); time = time.Add(TimeSpan.FromMinutes(30)))
                 {
@@ -616,7 +617,8 @@ namespace BookingPro.API.Services
 
         private async Task<ServiceResult> ValidateMinimumGapBetweenAppointments(Guid employeeId, DateTime startTime, DateTime endTime, Guid? bookingIdToExclude)
         {
-            var minimumGap = TimeSpan.FromMinutes(15);
+            var gapMinutes = await GetMinimumGapMinutesAsync();
+            var minimumGap = TimeSpan.FromMinutes(gapMinutes);
             var bufferStart = startTime.Subtract(minimumGap);
             var bufferEnd = endTime.Add(minimumGap);
 
@@ -634,7 +636,7 @@ namespace BookingPro.API.Services
             var nearbyBooking = await query.FirstOrDefaultAsync();
             if (nearbyBooking != null)
             {
-                return ServiceResult.Fail($"Debe haber al menos 15 minutos entre citas. Hay una cita muy cerca programada de {nearbyBooking.StartTime:HH:mm} a {nearbyBooking.EndTime:HH:mm}");
+                return ServiceResult.Fail($"Debe haber al menos {gapMinutes} minutos entre citas. Hay una cita muy cerca programada de {nearbyBooking.StartTime:HH:mm} a {nearbyBooking.EndTime:HH:mm}");
             }
 
             return ServiceResult.Ok();
@@ -699,6 +701,31 @@ namespace BookingPro.API.Services
             {
                 return defaultConfig;
             }
+        }
+
+        private async Task<int> GetMinimumGapMinutesAsync()
+        {
+            var tenantInfo = _tenantService.GetCurrentTenant();
+            if (tenantInfo == null) return DefaultMinimumGapMinutes;
+
+            var ctx = _bookingRepository.GetContext();
+            var tenant = await ctx.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.Id == tenantInfo.Id);
+            if (tenant == null) return DefaultMinimumGapMinutes;
+
+            try
+            {
+                var settings = JsonSerializer.Deserialize<Dictionary<string, object>>(tenant.Settings ?? "{}") ?? new();
+                if (settings.TryGetValue("bookingMinimumGapMinutes", out var val))
+                {
+                    if (val is JsonElement je && je.ValueKind == JsonValueKind.Number)
+                        return je.GetInt32();
+                    if (val is int iv)
+                        return iv;
+                }
+            }
+            catch { }
+
+            return DefaultMinimumGapMinutes;
         }
 
         private static TimeSpan? ParseTimeSetting(Dictionary<string, object> settings, string key)

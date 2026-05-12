@@ -185,6 +185,7 @@ const Settings: React.FC = () => {
     autoConfirmBookings: false,
     allowCustomerNotes: true,
     minAdvanceMinutes: 0,
+    minimumGapMinutes: 15,
   });
   const [serviceCategories, setServiceCategories] = useState<ServiceCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
@@ -318,6 +319,7 @@ const Settings: React.FC = () => {
           setServicesSettings(prev => ({
             ...prev,
             minAdvanceMinutes: servicesRes.data.minAdvanceMinutes ?? 0,
+            minimumGapMinutes: servicesRes.data.minimumGapMinutes ?? 15,
           }));
         }
       } catch (error) {
@@ -480,7 +482,7 @@ const Settings: React.FC = () => {
   const saveServicesSettings = async () => {
     setLoading(true);
     try {
-      await api.put('/settings/services', { minAdvanceMinutes: servicesSettings.minAdvanceMinutes });
+      await api.put('/settings/services', { minAdvanceMinutes: servicesSettings.minAdvanceMinutes, minimumGapMinutes: servicesSettings.minimumGapMinutes });
       setSnackbar({
         open: true,
         message: 'Configuración de servicios guardada exitosamente',
@@ -1093,6 +1095,21 @@ const Settings: React.FC = () => {
                   onChange={(e) => setServicesSettings(prev => ({
                     ...prev,
                     minAdvanceMinutes: parseInt(e.target.value) || 0
+                  }))}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Tiempo mínimo entre turnos (minutos)"
+                  type="number"
+                  helperText="Margen de tiempo libre entre un turno y el siguiente"
+                  inputProps={{ min: 0 }}
+                  value={servicesSettings.minimumGapMinutes}
+                  onChange={(e) => setServicesSettings(prev => ({
+                    ...prev,
+                    minimumGapMinutes: parseInt(e.target.value) || 0
                   }))}
                 />
               </Grid>

@@ -21,6 +21,7 @@ namespace BookingPro.API.Controllers
         public class ServicesSettingsDto
         {
             public int? MinAdvanceMinutes { get; set; }
+            public int? MinimumGapMinutes { get; set; }
         }
 
         public class BusinessHoursSettingsDto
@@ -42,15 +43,18 @@ namespace BookingPro.API.Controllers
                 settings.TryGetValue("bookingMinAdvanceMinutes", out var valueObj);
                 int minAdvance = 0;
                 if (valueObj is JsonElement je && je.ValueKind == JsonValueKind.Number)
-                {
                     minAdvance = je.GetInt32();
-                }
                 else if (valueObj is int iv)
-                {
                     minAdvance = iv;
-                }
 
-                return Ok(new { minAdvanceMinutes = minAdvance });
+                settings.TryGetValue("bookingMinimumGapMinutes", out var gapObj);
+                int minimumGap = 15;
+                if (gapObj is JsonElement gje && gje.ValueKind == JsonValueKind.Number)
+                    minimumGap = gje.GetInt32();
+                else if (gapObj is int giv)
+                    minimumGap = giv;
+
+                return Ok(new { minAdvanceMinutes = minAdvance, minimumGapMinutes = minimumGap });
             }
             catch (KeyNotFoundException)
             {
@@ -72,9 +76,10 @@ namespace BookingPro.API.Controllers
 
                 var settings = await _settingsService.GetSettingsAsync(tenant.Id);
                 if (dto.MinAdvanceMinutes.HasValue)
-                {
                     settings["bookingMinAdvanceMinutes"] = dto.MinAdvanceMinutes.Value;
-                }
+
+                if (dto.MinimumGapMinutes.HasValue)
+                    settings["bookingMinimumGapMinutes"] = dto.MinimumGapMinutes.Value;
 
                 await _settingsService.SaveSettingsAsync(tenant.Id, settings);
 
