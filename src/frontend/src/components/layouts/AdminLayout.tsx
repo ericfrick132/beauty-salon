@@ -25,6 +25,7 @@ import {
   Button,
   BottomNavigation,
   BottomNavigationAction,
+  SwipeableDrawer,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import {
@@ -126,7 +127,7 @@ const DrawerHeader = styled(Box)(({ theme }) => ({
   overflow: 'hidden',
 }));
 
-const MainContent = styled(Box)<{ open: boolean; hasMobileNav?: boolean }>(({ theme, open, hasMobileNav }) => ({
+const MainContent = styled(Box)<{ open: boolean; hasMobileNav?: boolean }>(({ theme, hasMobileNav }) => ({
   flexGrow: 1,
   padding: theme.spacing(3),
   paddingBottom: hasMobileNav ? theme.spacing(12) : theme.spacing(3),
@@ -143,7 +144,7 @@ const MainContent = styled(Box)<{ open: boolean; hasMobileNav?: boolean }>(({ th
     marginLeft: 0,
   },
   [theme.breakpoints.up('md')]: {
-    marginLeft: open ? `${drawerWidth}px` : 0,
+    marginLeft: 0,
   },
 }));
 
@@ -244,6 +245,7 @@ export const AdminLayout: React.FC = () => {
   }, [config, location.pathname, navigate]);
 
   const [drawerOpen, setDrawerOpen] = useState(!isMobile);
+  const [moreSheetOpen, setMoreSheetOpen] = useState(false);
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
   const [notificationMenuAnchor, setNotificationMenuAnchor] = useState<null | HTMLElement>(null);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
@@ -314,7 +316,7 @@ export const AdminLayout: React.FC = () => {
     { key: 'calendar', label: 'Agenda', icon: <CalendarToday fontSize="small" />, path: '/calendar' },
     { key: 'customers', label: 'Clientes', icon: <People fontSize="small" />, path: '/customers' },
     { key: 'services', label: 'Servicios', icon: <Storefront fontSize="small" />, path: '/services' },
-    { key: 'more', label: 'Más', icon: <MenuIcon fontSize="small" />, action: 'drawer' as const },
+    { key: 'more', label: 'Más', icon: <MenuIcon fontSize="small" />, action: 'more' as const },
   ];
 
   const mobileNavValue = mobileNavItems.findIndex((item) => item.path && location.pathname.startsWith(item.path));
@@ -654,7 +656,15 @@ export const AdminLayout: React.FC = () => {
 
       <Box
         component="nav"
-        sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
+        sx={{
+          width: { md: drawerOpen ? drawerWidth : 0 },
+          flexShrink: { md: 0 },
+          transition: theme.transitions.create('width', {
+            easing: drawerOpen ? theme.transitions.easing.easeOut : theme.transitions.easing.sharp,
+            duration: drawerOpen ? theme.transitions.duration.enteringScreen : theme.transitions.duration.leavingScreen,
+          }),
+          overflow: 'hidden',
+        }}
       >
         {isMobile ? (
           <Drawer
@@ -703,8 +713,8 @@ export const AdminLayout: React.FC = () => {
           onChange={(_, newValue) => {
             const target = mobileNavItems[newValue];
             if (!target) return;
-            if (target.action === 'drawer') {
-              setDrawerOpen(true);
+            if (target.action === 'more') {
+              setMoreSheetOpen(true);
               return;
             }
             if (target.path) {
@@ -722,6 +732,8 @@ export const AdminLayout: React.FC = () => {
             borderColor: 'divider',
             boxShadow: '0 -6px 18px rgba(0,0,0,0.08)',
             backgroundColor: 'background.paper',
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            height: 'auto',
           }}
         >
           {mobileNavItems.map((item) => (
@@ -733,6 +745,132 @@ export const AdminLayout: React.FC = () => {
             />
           ))}
         </BottomNavigation>
+      )}
+
+      {/* Mobile "Más" bottom sheet */}
+      {isMobile && (
+        <SwipeableDrawer
+          anchor="bottom"
+          open={moreSheetOpen}
+          onClose={() => setMoreSheetOpen(false)}
+          onOpen={() => setMoreSheetOpen(true)}
+          disableSwipeToOpen
+          ModalProps={{ keepMounted: true }}
+          sx={{
+            zIndex: theme.zIndex.drawer + 3,
+            '& .MuiDrawer-paper': {
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              maxHeight: '80vh',
+              paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+              background: '#FFFFFF',
+              display: 'flex',
+              flexDirection: 'column',
+            },
+          }}
+        >
+          {/* Drag handle */}
+          <Box sx={{ pt: 1.5, pb: 1, display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
+            <Box sx={{ width: 40, height: 4, borderRadius: 2, bgcolor: '#D1D5DB' }} />
+          </Box>
+
+          {/* User info */}
+          <Box sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, borderBottom: '1px solid #E5E7EB', flexShrink: 0 }}>
+            <Avatar sx={{ bgcolor: primaryColor, width: 40, height: 40, fontWeight: 700, fontSize: '0.9rem' }}>
+              {getInitials(user?.firstName)}
+            </Avatar>
+            <Box>
+              <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#111827', lineHeight: 1.2 }}>
+                {user?.firstName || 'Usuario'}
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#6B7280' }}>{user?.email}</Typography>
+            </Box>
+          </Box>
+
+          {/* Navigation items */}
+          <List sx={{ overflow: 'auto', flex: 1, py: 1 }}>
+            {menuItems.map((item) => {
+              const primaryPaths = ['/dashboard', '/calendar', '/customers', '/services'];
+              if (item.path && primaryPaths.includes(item.path)) return null;
+
+              if (item.children) {
+                const filteredChildren = item.children.filter(
+                  (c) => !c.path || !primaryPaths.includes(c.path)
+                );
+                if (filteredChildren.length === 0) return null;
+                return (
+                  <React.Fragment key={item.text}>
+                    <ListItem sx={{ pt: 1.5, pb: 0.5 }}>
+                      <ListItemIcon sx={{ minWidth: 32, color: '#9CA3AF' }}>{React.cloneElement(item.icon as React.ReactElement, { fontSize: 'small' })}</ListItemIcon>
+                      <Typography variant="caption" fontWeight={700} sx={{ color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.68rem' }}>
+                        {item.text}
+                      </Typography>
+                    </ListItem>
+                    {filteredChildren.map((child) => (
+                      <ListItemButton
+                        key={child.text}
+                        onClick={() => { if (child.path) handleNavigation(child.path); setMoreSheetOpen(false); }}
+                        sx={{
+                          pl: 4.5, py: 1, mx: 1, borderRadius: 1,
+                          bgcolor: location.pathname === child.path ? `${primaryColor}10` : 'transparent',
+                          borderLeft: location.pathname === child.path ? `3px solid ${primaryColor}` : '3px solid transparent',
+                          '&:hover': { bgcolor: '#F9FAFB' },
+                        }}
+                      >
+                        <ListItemIcon sx={{ minWidth: 36, color: location.pathname === child.path ? primaryColor : '#6B7280' }}>
+                          {child.icon}
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={child.text}
+                          primaryTypographyProps={{
+                            fontSize: '0.9rem',
+                            fontWeight: location.pathname === child.path ? 700 : 500,
+                            color: location.pathname === child.path ? primaryColor : '#374151',
+                          }}
+                        />
+                      </ListItemButton>
+                    ))}
+                  </React.Fragment>
+                );
+              }
+
+              return (
+                <ListItemButton
+                  key={item.text}
+                  onClick={() => { if (item.path) handleNavigation(item.path); setMoreSheetOpen(false); }}
+                  sx={{
+                    py: 1, mx: 1, borderRadius: 1,
+                    bgcolor: location.pathname === item.path ? `${primaryColor}10` : 'transparent',
+                    borderLeft: location.pathname === item.path ? `3px solid ${primaryColor}` : '3px solid transparent',
+                    '&:hover': { bgcolor: '#F9FAFB' },
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 40, color: location.pathname === item.path ? primaryColor : '#6B7280' }}>
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.text}
+                    primaryTypographyProps={{
+                      fontSize: '0.9rem',
+                      fontWeight: location.pathname === item.path ? 700 : 500,
+                      color: location.pathname === item.path ? primaryColor : '#374151',
+                    }}
+                  />
+                </ListItemButton>
+              );
+            })}
+          </List>
+
+          {/* Logout */}
+          <Divider sx={{ flexShrink: 0 }} />
+          <ListItemButton
+            onClick={() => { setMoreSheetOpen(false); handleLogout(); }}
+            sx={{ py: 1.5, flexShrink: 0, '&:hover': { bgcolor: '#FEF2F2' } }}
+          >
+            <ListItemIcon sx={{ minWidth: 40, color: '#EF4444' }}><Logout /></ListItemIcon>
+            <ListItemText primary="Cerrar sesión" primaryTypographyProps={{ fontWeight: 600, color: '#EF4444', fontSize: '0.9rem' }} />
+          </ListItemButton>
+        </SwipeableDrawer>
       )}
 
       <Menu
