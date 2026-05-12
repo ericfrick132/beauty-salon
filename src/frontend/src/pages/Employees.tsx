@@ -959,15 +959,15 @@ const Employees: React.FC = () => {
                   try {
                     if (!scheduleEmployee) return;
                     const startDate = breakForm.from || new Date().toISOString().slice(0,10);
-                    const endDate = breakForm.until || startDate;
-                    await api.post(`/employees/${scheduleEmployee.id}/blocks/recurring`, {
+                    const blockPayload: any = {
                       startDate,
-                      endDate,
                       startTimeOfDay: breakForm.start,
                       endTimeOfDay: breakForm.end,
                       daysOfWeek: breakForm.daysOfWeek,
                       reason: 'Descanso fijo',
-                    });
+                    };
+                    if (breakForm.until) blockPayload.endDate = breakForm.until;
+                    await api.post(`/employees/${scheduleEmployee.id}/blocks/recurring`, blockPayload);
                     // Feedback simple
                     alert('Descanso aplicado');
                   } catch (e) {
