@@ -138,11 +138,10 @@ const Employees: React.FC = () => {
     { day: 6, start: '', end: '' },
     { day: 0, start: '', end: '' },
   ]);
-  const [breakForm, setBreakForm] = useState<{ start: string; end: string; daysOfWeek: number[]; from: string; until: string }>(() => {
-    const today = new Date();
-    const iso = today.toISOString().slice(0,10);
-    return { start: '13:00', end: '14:00', daysOfWeek: [1,2,3,4,5], from: iso, until: '' };
+  const [breakForm, setBreakForm] = useState<{ start: string; end: string; daysOfWeek: number[]; from: string; until: string }>({
+    start: '', end: '', daysOfWeek: [1,2,3,4,5], from: new Date().toISOString().slice(0,10), until: '',
   });
+  const [existingBreaks, setExistingBreaks] = useState<any[]>([]);
 
   const [stats, setStats] = useState({
     totalEmployees: 0,
@@ -382,10 +381,15 @@ const Employees: React.FC = () => {
 
   const openScheduleDialog = async (employee: Employee) => {
     setScheduleEmployee(employee);
+    setExistingBreaks([]);
+    setBreakForm({ start: '', end: '', daysOfWeek: [1,2,3,4,5], from: new Date().toISOString().slice(0,10), until: '' });
     setScheduleDialogOpen(true);
     try {
-      const res = await api.get(`/employees/${employee.id}/schedule`);
-      const list = Array.isArray(res.data) ? res.data : [];
+      const [schedRes, rulesRes] = await Promise.all([
+        api.get(`/employees/${employee.id}/schedule`),
+        api.get(`/employees/${employee.id}/blocks/rules`),
+      ]);
+      const list = Array.isArray(schedRes.data) ? schedRes.data : [];
       const base = [1,2,3,4,5,6,0].map(d => ({ day: d, start: '', end: '' }));
       list.forEach((item: any) => {
         const idx = base.findIndex(x => x.day === item.dayOfWeek);
@@ -395,6 +399,8 @@ const Employees: React.FC = () => {
         }
       });
       setScheduleForm(base);
+      const rules = Array.isArray(rulesRes.data) ? rulesRes.data : [];
+      setExistingBreaks(rules.filter((r: any) => r.isRecurring));
     } catch (e) {
       console.error('Error loading schedule', e);
     }
@@ -927,17 +933,46 @@ const Employees: React.FC = () => {
                 <Divider sx={{ my: 1 }} />
                 <Typography variant="subtitle1">Descanso fijo (opcional)</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  Crea bloqueos recurrentes (p. ej. almuerzo) aplicados a los días seleccionados.
+                  Bloqueos recurrentes (p. ej. almuerzo). Se guardan junto con el horario.
                 </Typography>
               </Grid>
+              {existingBreaks.length > 0 && (
+                <Grid item xs={12}>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>Descansos actuales:</Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {existingBreaks.map(b => {
+                      let label = b.reason || 'Descanso';
+                      try {
+                        const p = JSON.parse(b.recurrencePattern || '{}');
+                        const days = (p.daysOfWeek || []).map((d: number) => ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d]).join(', ');
+                        label = `${p.startTimeOfDay}–${p.endTimeOfDay} (${days})`;
+                      } catch {}
+                      return (
+                        <Chip
+                          key={b.id}
+                          label={label}
+                          onDelete={async () => {
+                            try {
+                              await api.delete(`/employees/${b.employeeId}/blocks/${b.id}`);
+                              setExistingBreaks(prev => prev.filter(x => x.id !== b.id));
+                            } catch (e) {
+                              console.error('Error deleting break', e);
+                            }
+                          }}
+                        />
+                      );
+                    })}
+                  </Box>
+                </Grid>
+              )}
               <Grid item xs={6}>
-                <TextField fullWidth type="time" label="Desde" value={breakForm.start} onChange={(e)=> setBreakForm({ ...breakForm, start: e.target.value })} InputLabelProps={{ shrink: true }} />
+                <TextField fullWidth type="time" label="Inicio descanso" value={breakForm.start} onChange={(e)=> setBreakForm({ ...breakForm, start: e.target.value })} InputLabelProps={{ shrink: true }} />
               </Grid>
               <Grid item xs={6}>
-                <TextField fullWidth type="time" label="Hasta" value={breakForm.end} onChange={(e)=> setBreakForm({ ...breakForm, end: e.target.value })} InputLabelProps={{ shrink: true }} />
+                <TextField fullWidth type="time" label="Fin descanso" value={breakForm.end} onChange={(e)=> setBreakForm({ ...breakForm, end: e.target.value })} InputLabelProps={{ shrink: true }} />
               </Grid>
               <Grid item xs={12}>
-                <Typography variant="body2">Días de semana</Typography>
+                <Typography variant="body2">Días</Typography>
                 <Box>
                   {[1,2,3,4,5,6,0].map(d => (
                     <FormControlLabel key={d} control={<Switch size="small" checked={breakForm.daysOfWeek.includes(d)} onChange={(e)=>{
@@ -952,28 +987,7 @@ const Employees: React.FC = () => {
                 <TextField fullWidth type="date" label="Aplicar desde" value={breakForm.from} onChange={(e)=> setBreakForm({ ...breakForm, from: e.target.value })} InputLabelProps={{ shrink: true }} />
               </Grid>
               <Grid item xs={6}>
-                <TextField fullWidth type="date" label="Hasta" value={breakForm.until} onChange={(e)=> setBreakForm({ ...breakForm, until: e.target.value })} InputLabelProps={{ shrink: true }} />
-              </Grid>
-              <Grid item xs={12}>
-                <Button variant="outlined" onClick={async ()=>{
-                  try {
-                    if (!scheduleEmployee) return;
-                    const startDate = breakForm.from || new Date().toISOString().slice(0,10);
-                    const blockPayload: any = {
-                      startDate,
-                      startTimeOfDay: breakForm.start,
-                      endTimeOfDay: breakForm.end,
-                      daysOfWeek: breakForm.daysOfWeek,
-                      reason: 'Descanso fijo',
-                    };
-                    if (breakForm.until) blockPayload.endDate = breakForm.until;
-                    await api.post(`/employees/${scheduleEmployee.id}/blocks/recurring`, blockPayload);
-                    // Feedback simple
-                    alert('Descanso aplicado');
-                  } catch (e) {
-                    console.error('Error applying break', e);
-                  }
-                }}>Aplicar descanso</Button>
+                <TextField fullWidth type="date" label="Hasta (vacío = indefinido)" value={breakForm.until} onChange={(e)=> setBreakForm({ ...breakForm, until: e.target.value })} InputLabelProps={{ shrink: true }} />
               </Grid>
             </Grid>
           </DialogContent>
@@ -984,6 +998,18 @@ const Employees: React.FC = () => {
                 if (!scheduleEmployee) return;
                 const payload = scheduleForm.map(r => ({ dayOfWeek: r.day, start: r.start || null, end: r.end || null }));
                 await api.put(`/employees/${scheduleEmployee.id}/schedule`, payload);
+                if (breakForm.start && breakForm.end && breakForm.daysOfWeek.length > 0) {
+                  const startDate = breakForm.from || new Date().toISOString().slice(0,10);
+                  const blockPayload: any = {
+                    startDate,
+                    startTimeOfDay: breakForm.start,
+                    endTimeOfDay: breakForm.end,
+                    daysOfWeek: breakForm.daysOfWeek,
+                    reason: 'Descanso fijo',
+                  };
+                  if (breakForm.until) blockPayload.endDate = breakForm.until;
+                  await api.post(`/employees/${scheduleEmployee.id}/blocks/recurring`, blockPayload);
+                }
                 setScheduleDialogOpen(false);
               } catch (e) {
                 console.error('Error saving schedule', e);
