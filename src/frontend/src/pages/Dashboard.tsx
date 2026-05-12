@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   Box,
-  Container,
   Grid,
   Card,
   CardContent,
@@ -371,12 +370,7 @@ const Dashboard: React.FC = () => {
   const stats = calculateStats();
 
   return (
-    <Box sx={{ 
-      minHeight: '100vh',
-      background: '#FAF7F2',
-      py: 3
-    }}>
-      <Container maxWidth="xl">
+    <Box>
         {/* Welcome Section */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -1051,8 +1045,6 @@ const Dashboard: React.FC = () => {
           </motion.div>
         </Grid>
       </Grid>
-      </Container>
-
       {/* Template Selection Modal (first visit without vertical) */}
       <TemplateSelectionModal
         open={showTemplateModal}
