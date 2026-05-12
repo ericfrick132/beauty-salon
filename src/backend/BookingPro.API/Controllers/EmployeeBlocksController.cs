@@ -175,8 +175,8 @@ namespace BookingPro.API.Controllers
                 {
                     TenantId = employee.TenantId,
                     EmployeeId = employeeId,
-                    StartTime = dto.StartTime,
-                    EndTime = dto.EndTime,
+                    StartTime = DateTime.SpecifyKind(dto.StartTime, DateTimeKind.Utc),
+                    EndTime = DateTime.SpecifyKind(dto.EndTime, DateTimeKind.Utc),
                     Reason = dto.Reason,
                     IsRecurring = false
                 };
@@ -237,8 +237,8 @@ namespace BookingPro.API.Controllers
                     Reason = dto.Reason,
                     IsRecurring = true,
                     RecurrencePattern = recurrencePattern,
-                    RecurrenceStart = dto.StartDate.Date,
-                    RecurrenceEnd = dto.EndDate?.Date
+                    RecurrenceStart = DateTime.SpecifyKind(dto.StartDate.Date, DateTimeKind.Utc),
+                    RecurrenceEnd = dto.EndDate.HasValue ? DateTime.SpecifyKind(dto.EndDate.Value.Date, DateTimeKind.Utc) : null
                 };
 
                 _context.EmployeeTimeBlocks.Add(block);
@@ -285,8 +285,8 @@ namespace BookingPro.API.Controllers
                     foreach (var b in overlappingBookings)
                         b.Status = "cancelled";
 
-                block.StartTime = dto.StartTime;
-                block.EndTime = dto.EndTime;
+                block.StartTime = DateTime.SpecifyKind(dto.StartTime, DateTimeKind.Utc);
+                block.EndTime = DateTime.SpecifyKind(dto.EndTime, DateTimeKind.Utc);
                 block.Reason = dto.Reason;
                 await _context.SaveChangesAsync();
                 return Ok(new { message = "Bloqueo actualizado" });
@@ -325,7 +325,7 @@ namespace BookingPro.API.Controllers
                 if (dto.EndTimeOfDay != null) pattern.endTimeOfDay = dto.EndTimeOfDay;
                 if (dto.DaysOfWeek != null) pattern.daysOfWeek = dto.DaysOfWeek;
                 if (dto.Reason != null) block.Reason = dto.Reason;
-                if (dto.RecurrenceEnd.HasValue) block.RecurrenceEnd = dto.RecurrenceEnd.Value.Date;
+                if (dto.RecurrenceEnd.HasValue) block.RecurrenceEnd = DateTime.SpecifyKind(dto.RecurrenceEnd.Value.Date, DateTimeKind.Utc);
 
                 block.RecurrencePattern = System.Text.Json.JsonSerializer.Serialize(new
                 {
