@@ -276,7 +276,10 @@ namespace BookingPro.API.Models.Entities
         public string? Specialties { get; set; } // JSON array de service_ids
         public string? WorkingHours { get; set; } // JSON horarios por día
         public bool CanPerformServices { get; set; } = true; // Can this employee perform services?
-        
+
+        // null = inherit tenant setting; true/false = explicit override
+        public bool? AllowSimultaneousBookings { get; set; }
+
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? DeactivatedAt { get; set; }

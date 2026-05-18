@@ -44,6 +44,7 @@ namespace BookingPro.API.Services
                 Specialties = dto.Specialties,
                 WorkingHours = dto.WorkingHours,
                 CanPerformServices = dto.CanPerformServices ?? true,
+                AllowSimultaneousBookings = dto.AllowSimultaneousBookings,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             };
@@ -79,6 +80,8 @@ namespace BookingPro.API.Services
                 employee.WorkingHours = dto.WorkingHours;
             if (dto.CanPerformServices.HasValue)
                 employee.CanPerformServices = dto.CanPerformServices.Value;
+            // null is meaningful ("inherit tenant setting"); always overwrite.
+            employee.AllowSimultaneousBookings = dto.AllowSimultaneousBookings;
             if (dto.IsActive.HasValue)
             {
                 employee.IsActive = dto.IsActive.Value;

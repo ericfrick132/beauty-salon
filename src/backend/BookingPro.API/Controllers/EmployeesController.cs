@@ -105,6 +105,7 @@ namespace BookingPro.API.Controllers
                         specialties = e.Specialties,
                         workingHours = e.WorkingHours,
                         canPerformServices = e.CanPerformServices,
+                        allowSimultaneousBookings = e.AllowSimultaneousBookings,
                         isActive = e.IsActive,
                         createdAt = e.CreatedAt,
                         pendingCommissions = _context.Payments
@@ -168,6 +169,7 @@ namespace BookingPro.API.Controllers
                     Specialties = dto.Specialties,
                     WorkingHours = dto.WorkingHours,
                     CanPerformServices = dto.CanPerformServices ?? true,
+                    AllowSimultaneousBookings = dto.AllowSimultaneousBookings,
                     IsActive = dto.IsActive ?? true,
                     CreatedAt = DateTime.UtcNow
                 };
@@ -221,6 +223,9 @@ namespace BookingPro.API.Controllers
                 if (dto.Specialties != null) employee.Specialties = dto.Specialties;
                 if (dto.WorkingHours != null) employee.WorkingHours = dto.WorkingHours;
                 if (dto.CanPerformServices.HasValue) employee.CanPerformServices = dto.CanPerformServices.Value;
+                // AllowSimultaneousBookings: null is a meaningful state ("inherit tenant setting"),
+                // so we always overwrite from the payload on update.
+                employee.AllowSimultaneousBookings = dto.AllowSimultaneousBookings;
                 if (dto.IsActive.HasValue) employee.IsActive = dto.IsActive.Value;
 
                 if (dto.IsActive.HasValue)

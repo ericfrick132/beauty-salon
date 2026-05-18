@@ -51,7 +51,17 @@
       "Bash(doctl apps *)",
       "Bash(awk '/Theme Configuration Dialog/,/^      <\\\\/Dialog>/' /mnt/d/code/efcloud/projects/TurnosPro/src/frontend/src/pages/SuperAdminDashboard.tsx)",
       "Bash(awk 'NR==1015,NR==1379' /mnt/d/code/efcloud/projects/TurnosPro/src/frontend/src/pages/SuperAdminDashboard.tsx)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(python3 -c \"import json,sys; app=json.load\\(sys.stdin\\); envs=[e for comp in app.get\\('spec',{}\\).get\\('services',[]\\) + app.get\\('spec',{}\\).get\\('workers',[]\\) + app.get\\('spec',{}\\).get\\('jobs',[]\\) for e in comp.get\\('envs',[]\\)] ; [print\\(e['key'],'=',e.get\\('value','***ENCRYPTED***'\\)\\) for e in envs]\")",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "mcp__playwright__browser_click",
+      "Bash(python3 *)",
+      "mcp__playwright__browser_resize",
+      "mcp__playwright__browser_fill_form",
+      "mcp__playwright__browser_snapshot",
+      "Bash(dotnet ef *)",
+      "Bash(dotnet tool *)"
     ],
     "deny": [],
     "ask": []

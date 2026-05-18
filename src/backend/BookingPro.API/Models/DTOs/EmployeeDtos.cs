@@ -27,6 +27,7 @@ namespace BookingPro.API.Models.DTOs
         public string? Specialties { get; set; }
         public string? WorkingHours { get; set; }
         public bool? CanPerformServices { get; set; }
+        public bool? AllowSimultaneousBookings { get; set; }
         public bool? IsActive { get; set; }
     }
 
@@ -55,6 +56,7 @@ namespace BookingPro.API.Models.DTOs
         public string? Specialties { get; set; }
         public string? WorkingHours { get; set; }
         public bool? CanPerformServices { get; set; }
+        public bool? AllowSimultaneousBookings { get; set; }
         public bool? IsActive { get; set; }
     }
 

@@ -454,24 +454,30 @@ namespace BookingPro.API.Services
                     return ServiceResult<IEnumerable<string>>.Ok(availableSlots);
                 }
                 var slotDuration = TimeSpan.FromMinutes(service.DurationMinutes);
-                var minimumGap = TimeSpan.FromMinutes(await GetMinimumGapMinutesAsync());
+                var allowSimultaneous = await IsSimultaneousBookingAllowedAsync(professionalId);
+                var minimumGap = allowSimultaneous
+                    ? TimeSpan.Zero
+                    : TimeSpan.FromMinutes(await GetMinimumGapMinutesAsync());
 
                 for (var time = startWindow; time <= endWindow.Subtract(slotDuration); time = time.Add(TimeSpan.FromMinutes(30)))
                 {
                     var localSlotStart = startOfDay.Add(time);
                     var localSlotEnd = localSlotStart.Add(slotDuration);
-                    
+
                     // Convert to UTC for comparison with existing bookings (subtract the offset)
                     var utcSlotStart = localSlotStart.AddHours(-offsetHours);
                     var utcSlotEnd = localSlotEnd.AddHours(-offsetHours);
 
-                    // Verificar conflictos con reservas existentes (incluyendo tiempo mínimo)
-                    var hasConflict = existingBookings.Any(b => 
+                    // Verificar conflictos con reservas existentes (incluyendo tiempo mínimo).
+                    // Si el tenant/empleado permite simultáneas, ignoramos colisiones con bookings.
+                    var hasBookingConflict = !allowSimultaneous && existingBookings.Any(b =>
                     {
                         var bufferStart = b.StartTime.Subtract(minimumGap);
                         var bufferEnd = b.EndTime.Add(minimumGap);
                         return utcSlotStart < bufferEnd && utcSlotEnd > bufferStart;
-                    }) || blockOccurrences.Any(bl => utcSlotStart < bl.End && utcSlotEnd > bl.Start);
+                    });
+                    var hasConflict = hasBookingConflict
+                        || blockOccurrences.Any(bl => utcSlotStart < bl.End && utcSlotEnd > bl.Start);
 
                     if (!hasConflict && IsWithinBusinessHours(localSlotStart, localSlotEnd, businessConfig))
                     {
@@ -595,6 +601,11 @@ namespace BookingPro.API.Services
 
         private async Task<ServiceResult> ValidateNoDoubleBooking(Guid employeeId, DateTime startTime, DateTime endTime, Guid? bookingIdToExclude)
         {
+            if (await IsSimultaneousBookingAllowedAsync(employeeId))
+            {
+                return ServiceResult.Ok();
+            }
+
             var query = _bookingRepository.Query()
                 .Where(b => b.EmployeeId == employeeId &&
                            b.Status != "cancelled" &&
@@ -615,8 +626,53 @@ namespace BookingPro.API.Services
             return ServiceResult.Ok();
         }
 
+        private async Task<bool> IsSimultaneousBookingAllowedAsync(Guid employeeId)
+        {
+            var ctx = _bookingRepository.GetContext();
+            var employeeOverride = await ctx.Set<Employee>()
+                .AsNoTracking()
+                .Where(e => e.Id == employeeId)
+                .Select(e => e.AllowSimultaneousBookings)
+                .FirstOrDefaultAsync();
+
+            if (employeeOverride.HasValue)
+                return employeeOverride.Value;
+
+            return await GetTenantAllowSimultaneousBookingsAsync();
+        }
+
+        private async Task<bool> GetTenantAllowSimultaneousBookingsAsync()
+        {
+            var tenantInfo = _tenantService.GetCurrentTenant();
+            if (tenantInfo == null) return false;
+
+            var ctx = _bookingRepository.GetContext();
+            var tenant = await ctx.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.Id == tenantInfo.Id);
+            if (tenant == null) return false;
+
+            try
+            {
+                var settings = JsonSerializer.Deserialize<Dictionary<string, object>>(tenant.Settings ?? "{}") ?? new();
+                if (settings.TryGetValue("allowSimultaneousBookings", out var val))
+                {
+                    if (val is JsonElement je && (je.ValueKind == JsonValueKind.True || je.ValueKind == JsonValueKind.False))
+                        return je.GetBoolean();
+                    if (val is bool bv)
+                        return bv;
+                }
+            }
+            catch { }
+
+            return false;
+        }
+
         private async Task<ServiceResult> ValidateMinimumGapBetweenAppointments(Guid employeeId, DateTime startTime, DateTime endTime, Guid? bookingIdToExclude)
         {
+            if (await IsSimultaneousBookingAllowedAsync(employeeId))
+            {
+                return ServiceResult.Ok();
+            }
+
             var gapMinutes = await GetMinimumGapMinutesAsync();
             var minimumGap = TimeSpan.FromMinutes(gapMinutes);
             var bufferStart = startTime.Subtract(minimumGap);

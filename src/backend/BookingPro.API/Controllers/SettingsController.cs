@@ -22,6 +22,7 @@ namespace BookingPro.API.Controllers
         {
             public int? MinAdvanceMinutes { get; set; }
             public int? MinimumGapMinutes { get; set; }
+            public bool? AllowSimultaneousBookings { get; set; }
         }
 
         public class BusinessHoursSettingsDto
@@ -54,7 +55,21 @@ namespace BookingPro.API.Controllers
                 else if (gapObj is int giv)
                     minimumGap = giv;
 
-                return Ok(new { minAdvanceMinutes = minAdvance, minimumGapMinutes = minimumGap });
+                bool allowSimultaneous = false;
+                if (settings.TryGetValue("allowSimultaneousBookings", out var allowObj))
+                {
+                    if (allowObj is JsonElement aje && (aje.ValueKind == JsonValueKind.True || aje.ValueKind == JsonValueKind.False))
+                        allowSimultaneous = aje.GetBoolean();
+                    else if (allowObj is bool ab)
+                        allowSimultaneous = ab;
+                }
+
+                return Ok(new
+                {
+                    minAdvanceMinutes = minAdvance,
+                    minimumGapMinutes = minimumGap,
+                    allowSimultaneousBookings = allowSimultaneous
+                });
             }
             catch (KeyNotFoundException)
             {
@@ -80,6 +95,9 @@ namespace BookingPro.API.Controllers
 
                 if (dto.MinimumGapMinutes.HasValue)
                     settings["bookingMinimumGapMinutes"] = dto.MinimumGapMinutes.Value;
+
+                if (dto.AllowSimultaneousBookings.HasValue)
+                    settings["allowSimultaneousBookings"] = dto.AllowSimultaneousBookings.Value;
 
                 await _settingsService.SaveSettingsAsync(tenant.Id, settings);
 

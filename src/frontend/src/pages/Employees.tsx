@@ -73,6 +73,7 @@ interface Employee {
   specialties?: string;
   workingHours?: string;
   canPerformServices: boolean;
+  allowSimultaneousBookings?: boolean | null;
   isActive: boolean;
   createdAt: string;
   totalEarnings?: number;
@@ -118,6 +119,7 @@ const Employees: React.FC = () => {
     specialties: '',
     workingHours: '',
     canPerformServices: true,
+    allowSimultaneousBookings: 'inherit' as 'inherit' | 'yes' | 'no',
     isActive: true,
   });
   
@@ -213,6 +215,11 @@ const Employees: React.FC = () => {
         specialties: employee.specialties || '',
         workingHours: employee.workingHours || '',
         canPerformServices: employee.canPerformServices,
+        allowSimultaneousBookings: (
+          employee.allowSimultaneousBookings === true ? 'yes'
+          : employee.allowSimultaneousBookings === false ? 'no'
+          : 'inherit'
+        ) as 'inherit' | 'yes' | 'no',
         isActive: employee.isActive,
       });
     } else {
@@ -230,6 +237,7 @@ const Employees: React.FC = () => {
         specialties: '',
         workingHours: '',
         canPerformServices: true,
+        allowSimultaneousBookings: 'inherit' as 'inherit' | 'yes' | 'no',
         isActive: true,
       });
     }
@@ -253,6 +261,7 @@ const Employees: React.FC = () => {
       specialties: '',
       workingHours: '',
       canPerformServices: true,
+      allowSimultaneousBookings: 'inherit' as 'inherit' | 'yes' | 'no',
       isActive: true,
     });
     setErrors({});
@@ -306,6 +315,11 @@ const Employees: React.FC = () => {
         // Convert empty specialties and workingHours to null if needed
         specialties: formData.specialties || null,
         workingHours: formData.workingHours || null,
+        // Tri-state → nullable bool ('inherit' means use tenant setting)
+        allowSimultaneousBookings:
+          formData.allowSimultaneousBookings === 'yes' ? true
+          : formData.allowSimultaneousBookings === 'no' ? false
+          : null,
       };
 
       if (editingEmployee) {
@@ -802,7 +816,24 @@ const Employees: React.FC = () => {
                   />
                 </Grid>
               )}
-              <Grid item xs={12}>
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Reservas simultáneas</InputLabel>
+                  <Select
+                    value={formData.allowSimultaneousBookings}
+                    label="Reservas simultáneas"
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      allowSimultaneousBookings: e.target.value as 'inherit' | 'yes' | 'no',
+                    })}
+                  >
+                    <MenuItem value="inherit">Usar configuración del negocio</MenuItem>
+                    <MenuItem value="yes">Permitir solapamiento de turnos</MenuItem>
+                    <MenuItem value="no">No permitir solapamiento</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={6}>
                 <FormControlLabel
                   control={
                     <Switch

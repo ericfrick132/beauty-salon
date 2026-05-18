@@ -186,6 +186,7 @@ const Settings: React.FC = () => {
     allowCustomerNotes: true,
     minAdvanceMinutes: 0,
     minimumGapMinutes: 15,
+    allowSimultaneousBookings: false,
   });
   const [serviceCategories, setServiceCategories] = useState<ServiceCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
@@ -320,6 +321,7 @@ const Settings: React.FC = () => {
             ...prev,
             minAdvanceMinutes: servicesRes.data.minAdvanceMinutes ?? 0,
             minimumGapMinutes: servicesRes.data.minimumGapMinutes ?? 15,
+            allowSimultaneousBookings: servicesRes.data.allowSimultaneousBookings ?? false,
           }));
         }
       } catch (error) {
@@ -482,7 +484,11 @@ const Settings: React.FC = () => {
   const saveServicesSettings = async () => {
     setLoading(true);
     try {
-      await api.put('/settings/services', { minAdvanceMinutes: servicesSettings.minAdvanceMinutes, minimumGapMinutes: servicesSettings.minimumGapMinutes });
+      await api.put('/settings/services', {
+        minAdvanceMinutes: servicesSettings.minAdvanceMinutes,
+        minimumGapMinutes: servicesSettings.minimumGapMinutes,
+        allowSimultaneousBookings: servicesSettings.allowSimultaneousBookings,
+      });
       setSnackbar({
         open: true,
         message: 'Configuración de servicios guardada exitosamente',
@@ -1027,6 +1033,21 @@ const Settings: React.FC = () => {
                       }
                       label="Permitir notas del cliente"
                     />
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={servicesSettings.allowSimultaneousBookings}
+                          onChange={(e) => setServicesSettings(prev => ({
+                            ...prev,
+                            allowSimultaneousBookings: e.target.checked
+                          }))}
+                        />
+                      }
+                      label="Permitir reservas simultáneas en el mismo horario"
+                    />
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, ml: 4 }}>
+                      Si está activo, se pueden tomar varias reservas que se superpongan para el mismo profesional. Cada empleado puede sobreescribir esta opción.
+                    </Typography>
                   </CardContent>
                 </Card>
               </Grid>
