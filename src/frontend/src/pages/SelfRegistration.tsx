@@ -629,16 +629,118 @@ const SelfRegistration: React.FC = () => {
   const renderSignup = () => (
     <>
       <EditorialHeader
-        kicker="Crónica · 7 días gratis"
+        kicker={subdomainFromUrl ? 'Tu URL te espera · 7 días gratis' : 'Crónica · 7 días gratis'}
         title={
-          <>
-            <span className="upright">Creá</span> tu cuenta,
-            <br />
-            dejá el papel.
-          </>
+          subdomainFromUrl ? (
+            <>
+              <span className="upright">Reservá</span> tu link
+              <br />
+              en menos de un minuto.
+            </>
+          ) : (
+            <>
+              <span className="upright">Creá</span> tu cuenta,
+              <br />
+              dejá el papel.
+            </>
+          )
         }
-        subtitle="Llevá la relación con tus clientes al siguiente nivel — sin instalar nada."
+        subtitle={
+          subdomainFromUrl
+            ? 'Activá tu cuenta para publicar tu sitio de reservas y empezar a cobrar.'
+            : 'Llevá la relación con tus clientes al siguiente nivel — sin instalar nada.'
+        }
       />
+
+      {subdomainFromUrl && (
+        <Box
+          component={motion.div}
+          initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            duration: prefersReducedMotion ? 0.2 : 0.55,
+            delay: prefersReducedMotion ? 0 : 0.5,
+            ease: [0.22, 0.61, 0.36, 1] as [number, number, number, number],
+          }}
+          sx={{
+            mb: 3.5,
+            border: `1.5px solid ${authPalette.secondary}`,
+            borderRadius: 2,
+            backgroundColor: 'rgba(232, 89, 60, 0.06)',
+            overflow: 'hidden',
+            boxShadow: `5px 5px 0 ${authPalette.secondary}`,
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              px: 2,
+              py: 0.9,
+              borderBottom: `1.5px dashed ${authPalette.secondary}`,
+              fontFamily: authFonts.mono,
+              fontSize: 10,
+              letterSpacing: '0.18em',
+              textTransform: 'uppercase',
+              color: authPalette.secondary,
+            }}
+          >
+            <span>Tu URL · reservada</span>
+            <Box
+              component="span"
+              sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6 }}
+            >
+              {checkingSubdomain
+                ? 'verificando…'
+                : subdomainAvailable === false
+                ? 'ya en uso — editá abajo'
+                : 'lista en 15 min'}
+              {subdomainAvailable === true && (
+                <CheckCircleIcon sx={{ fontSize: 13, color: authPalette.primary }} />
+              )}
+            </Box>
+          </Box>
+          <Box sx={{ px: { xs: 2, md: 3 }, py: { xs: 2, md: 2.4 }, textAlign: 'center' }}>
+            <Typography
+              sx={{
+                fontFamily: authFonts.display,
+                fontWeight: 500,
+                fontStyle: 'italic',
+                fontVariationSettings: '"opsz" 144, "SOFT" 60',
+                fontSize: { xs: '1.35rem', md: '1.75rem' },
+                lineHeight: 1.1,
+                letterSpacing: '-0.02em',
+                color: authPalette.ink,
+                wordBreak: 'break-all',
+              }}
+            >
+              <Box
+                component="span"
+                sx={{
+                  color: authPalette.secondary,
+                  fontWeight: 600,
+                  fontStyle: 'italic',
+                  mr: 0.4,
+                }}
+              >
+                {subdomain || subdomainFromUrl}
+              </Box>
+              <Box
+                component="span"
+                sx={{
+                  color: authPalette.inkSoft,
+                  fontStyle: 'normal',
+                  fontWeight: 400,
+                  fontSize: { xs: '1.1rem', md: '1.4rem' },
+                }}
+              >
+                .turnos-pro.com
+              </Box>
+            </Typography>
+          </Box>
+        </Box>
+      )}
 
       {renderError()}
 
