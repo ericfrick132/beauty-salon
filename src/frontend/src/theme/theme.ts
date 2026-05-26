@@ -18,7 +18,12 @@ export const createTurnosProTheme = (config?: TenantConfig) => {
   const textPrimaryColor = theme?.textPrimaryColor || '#111827'; // gray-900
   const textSecondaryColor = theme?.textSecondaryColor || '#374151'; // gray-700
   const borderColor = theme?.borderColor || '#D1D5DB'; // gray-300
-  const fontFamily = theme?.fontFamily || '"Space Grotesk", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  // Brand typography: Space Grotesk (body) + Fraunces (display) — matches the
+  // landing and the onboarding wizard. We intentionally ignore tenant-supplied
+  // `fontFamily` here: most tenant verticals seed fonts ("Playfair Display",
+  // etc.) that aren't actually loaded, which falls back to Roboto and looks
+  // off-brand. Tenants can still customize colors through their theme.
+  const fontFamily = '"Space Grotesk", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
   const displayFamily = '"Fraunces", "Space Grotesk", Georgia, serif';
   const borderRadius = theme?.borderRadius || 8;
   const useShadows = theme?.useShadows ?? true;

@@ -78,7 +78,7 @@ const CompletarPerfil: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.get('/tenants/info');
+        const res = await api.get('/Tenant/info');
         if (!cancelled) {
           const phone = res?.data?.phone;
           if (phone && typeof phone === 'string') setTenantPhone(phone);
