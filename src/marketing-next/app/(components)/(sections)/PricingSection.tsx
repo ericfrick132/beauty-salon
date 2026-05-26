@@ -111,13 +111,13 @@ export default function PricingSection() {
                     flexDirection: 'column',
                     bgcolor: highlighted ? palette.ink : palette.paperSoft,
                     color: highlighted ? palette.paper : palette.ink,
-                    border: `1.5px solid ${palette.ink}`,
+                    border: highlighted ? `2.5px solid ${palette.ink}` : `1.5px solid ${palette.ink}`,
                     borderRadius: 2,
                     boxShadow: highlighted
-                      ? `6px 6px 0 ${palette.coral}`
+                      ? `8px 8px 0 ${palette.coral}`
                       : `4px 4px 0 ${palette.ink}`,
                     p: { xs: 3, md: 3.5 },
-                    transform: highlighted ? { md: 'translateY(-8px)' } : 'none',
+                    transform: highlighted ? { md: 'translateY(-12px)' } : 'none',
                     transition: 'transform 200ms ease, box-shadow 200ms ease',
                   }}
                 >

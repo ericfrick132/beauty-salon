@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using BookingPro.API.Data;
 using BookingPro.API.Models.Entities;
 using BookingPro.API.Services;
@@ -67,6 +68,13 @@ namespace BookingPro.API.Controllers
             _ => null
         };
 
+        private static readonly Regex BotUserAgentRegex = new(
+            @"bot|crawler|spider|crawling|headless|puppeteer|selenium|playwright|lighthouse|phantomjs|slurp|bingpreview|chrome-lighthouse|google\s?page\s?speed|gtmetrix|pingdom|monitor|curl|wget|python-requests|httpclient|java/|okhttp|axios|node-fetch|got\(|insomnia|postman",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static bool IsBotUserAgent(string? ua)
+            => !string.IsNullOrEmpty(ua) && BotUserAgentRegex.IsMatch(ua);
+
         private static string ClassifyReferrer(string? referrer)
         {
             if (string.IsNullOrEmpty(referrer)) return "directo";
@@ -96,6 +104,26 @@ namespace BookingPro.API.Controllers
         {
             if (string.IsNullOrWhiteSpace(request.EventType))
                 return BadRequest();
+
+            // Filter bots and excluded IPs server-side. We Ok() instead of forbidding so we
+            // don't leak the filter to bots probing for it.
+            var incomingUa = Request.Headers.UserAgent.ToString();
+            if (IsBotUserAgent(incomingUa))
+            {
+                _logger.LogDebug("Tracking event dropped — bot UA: {UA}", incomingUa.Length > 120 ? incomingUa[..120] : incomingUa);
+                return Ok();
+            }
+            var clientIpStr = HttpContext.Connection.RemoteIpAddress?.ToString();
+            var excludedCsv = _config["TRACKING_EXCLUDED_IPS"];
+            if (!string.IsNullOrEmpty(excludedCsv) && !string.IsNullOrEmpty(clientIpStr))
+            {
+                var excluded = excludedCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                if (excluded.Any(ip => string.Equals(ip, clientIpStr, StringComparison.OrdinalIgnoreCase)))
+                {
+                    _logger.LogDebug("Tracking event dropped — excluded IP: {IP}", clientIpStr);
+                    return Ok();
+                }
+            }
 
             var ev = new TrackingEvent
             {
@@ -158,7 +186,7 @@ namespace BookingPro.API.Controllers
             {
                 var adminPhone = _config["AdminNotificationPhone"];
                 var summary = request.Name ?? "";
-                var durationMatch = System.Text.RegularExpressions.Regex.Match(summary, @"^(\d+)s");
+                var durationMatch = Regex.Match(summary, @"^(\d+)s");
                 var duration = durationMatch.Success ? int.Parse(durationMatch.Groups[1].Value) : 0;
                 if (!string.IsNullOrEmpty(adminPhone) && duration >= 3)
                 {
@@ -169,7 +197,16 @@ namespace BookingPro.API.Controllers
                     {
                         var origin = ClassifyReferrer(request.Referrer);
                         var campaign = request.UtmCampaign ?? "orgánico";
+                        // Real visitor scrolling 100% in <90s with zero clicks is almost
+                        // always a bot that slipped past the UA filter.
+                        var scrollMatch = Regex.Match(summary, @"Scroll\s+(\d+)%");
+                        var scrollPct = scrollMatch.Success ? int.Parse(scrollMatch.Groups[1].Value) : 0;
+                        var noClicks = summary.Contains("Clicks: Ninguno", StringComparison.OrdinalIgnoreCase);
+                        var suspiciousTag = (scrollPct >= 100 && noClicks && duration < 90)
+                            ? "⚠️ *posible bot*\n"
+                            : "";
                         var msg = $"\ud83d\udcca *SESIÓN - TurnosPro*\n" +
+                                  suspiciousTag +
                                   $"{summary}\n" +
                                   $"Campaña: {campaign}\n" +
                                   $"Origen: {origin}\n" +

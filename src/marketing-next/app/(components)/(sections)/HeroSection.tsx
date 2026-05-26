@@ -1,11 +1,17 @@
 'use client';
 import { Box, Container, Typography, Button, Stack } from '@mui/material';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import { motion } from 'framer-motion';
 import type { ReactNode } from 'react';
 import { heroContent } from '@/app/(lib)/content';
 import { palette } from '@/app/(lib)/theme';
 import { useSignupModal } from './SignupModal';
 import BookingTicket from './BookingTicket';
+
+const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_CONTACT_NUMBER;
+const WHATSAPP_HREF = WHATSAPP_NUMBER
+  ? `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Hola, quiero info de TurnosPro')}`
+  : null;
 
 function FadeUp({ delay = 0, children }: { delay?: number; children: ReactNode }) {
   return (
@@ -166,7 +172,7 @@ export default function HeroSection() {
               <Stack
                 direction={{ xs: 'column', sm: 'row' }}
                 spacing={1.5}
-                sx={{ mb: 3 }}
+                sx={{ mb: 1.5 }}
               >
                 <Button
                   variant="contained"
@@ -184,21 +190,65 @@ export default function HeroSection() {
                     →
                   </Box>
                 </Button>
-                <Button
-                  variant="text"
-                  size="large"
-                  href="#como-funciona"
-                  sx={{
-                    px: 2,
-                    py: 1.4,
-                    fontSize: '1rem',
-                    color: palette.ink,
-                    '&:hover': { background: 'transparent', color: palette.coral },
-                  }}
-                >
-                  Ver cómo funciona
-                </Button>
+                {WHATSAPP_HREF ? (
+                  <Button
+                    variant="outlined"
+                    size="large"
+                    href={WHATSAPP_HREF}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    startIcon={<WhatsAppIcon />}
+                    sx={{
+                      px: 2.5,
+                      py: 1.4,
+                      fontSize: '1rem',
+                      color: palette.ink,
+                      borderColor: palette.ink,
+                      borderWidth: 1.5,
+                      '&:hover': { background: 'transparent', borderColor: palette.coral, color: palette.coral, borderWidth: 1.5 },
+                    }}
+                  >
+                    Hablar por WhatsApp
+                  </Button>
+                ) : (
+                  <Button
+                    variant="text"
+                    size="large"
+                    href="#como-funciona"
+                    sx={{
+                      px: 2,
+                      py: 1.4,
+                      fontSize: '1rem',
+                      color: palette.ink,
+                      '&:hover': { background: 'transparent', color: palette.coral },
+                    }}
+                  >
+                    Ver cómo funciona
+                  </Button>
+                )}
               </Stack>
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  gap: { xs: 1, md: 1.5 },
+                  mb: 3,
+                  fontFamily: 'var(--font-mono), monospace',
+                  fontSize: '0.78rem',
+                  letterSpacing: '0.08em',
+                  color: palette.inkSoft,
+                  maxWidth: 520,
+                }}
+              >
+                <Box component="span" sx={{ color: palette.forest, fontWeight: 600 }}>
+                  ● 7 días gratis
+                </Box>
+                <Box component="span" sx={{ opacity: 0.4 }}>·</Box>
+                <Box component="span">sin tarjeta</Box>
+                <Box component="span" sx={{ opacity: 0.4 }}>·</Box>
+                <Box component="span">activá en 15 min</Box>
+              </Box>
             </FadeUp>
 
             <FadeUp delay={0.32}>

@@ -1,26 +1,11 @@
 'use client';
-import { useState } from 'react';
-import { Box, Container, Typography, TextField, Button, Stack } from '@mui/material';
+import { Box, Container, Typography, Button, Stack } from '@mui/material';
 import AnimatedSection from './AnimatedSection';
-import SectionLabel from './SectionLabel';
-import { useSignupModal } from './SignupModal';
 import { finalCtaContent } from '@/app/(lib)/content';
 import { palette } from '@/app/(lib)/theme';
 
-function sanitizeSubdomain(value: string): string {
-  const normalized = value.normalize('NFD').replace(/\p{Diacritic}/gu, '');
-  return normalized
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 30);
-}
-
 export default function FinalCta() {
-  const { open } = useSignupModal();
-  const [subdomain, setSubdomain] = useState('');
-  const display = subdomain || 'tunegocio';
+  const display = 'tunegocio';
 
   return (
     <Box
@@ -175,54 +160,33 @@ export default function FinalCta() {
           <Box
             sx={{
               display: 'flex',
-              gap: 1.5,
-              maxWidth: 540,
-              mx: 'auto',
+              justifyContent: 'center',
               mb: 4,
-              flexDirection: { xs: 'column', sm: 'row' },
             }}
           >
-            <TextField
-              placeholder="tunegocio"
-              value={subdomain}
-              onChange={(e) => setSubdomain(sanitizeSubdomain(e.target.value))}
-              size="medium"
-              fullWidth
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  bgcolor: palette.paper,
-                  borderRadius: 999,
-                  px: 1,
-                  '& fieldset': { borderColor: palette.amber, borderWidth: 1.5 },
-                  '&:hover fieldset': { borderColor: `${palette.amber} !important` },
-                  '&.Mui-focused fieldset': { borderColor: `${palette.amber} !important`, borderWidth: 2 },
-                  '& input': { color: palette.ink, fontFamily: 'var(--font-mono), monospace' },
-                  '& input::placeholder': { color: palette.inkSoft, opacity: 0.7 },
-                },
-              }}
-            />
             <Button
               variant="contained"
-              href={subdomain ? `/register?subdomain=${encodeURIComponent(subdomain)}` : '/register'}
+              href="/register"
+              size="large"
               sx={{
-                whiteSpace: 'nowrap',
                 bgcolor: palette.amber,
                 color: palette.ink,
                 fontWeight: 700,
-                fontSize: '1rem',
-                px: 4,
-                py: 1.4,
+                fontSize: '1.1rem',
+                px: 5,
+                py: 1.8,
                 border: `1.5px solid ${palette.paper}`,
-                boxShadow: `4px 4px 0 ${palette.paper}`,
+                boxShadow: `5px 5px 0 ${palette.paper}`,
                 '&:hover': {
                   bgcolor: palette.coral,
                   color: palette.paperSoft,
                   borderColor: palette.paper,
+                  boxShadow: `3px 3px 0 ${palette.paper}`,
                 },
               }}
             >
               {finalCtaContent.cta}
-              <Box component="span" sx={{ ml: 1 }} aria-hidden>→</Box>
+              <Box component="span" sx={{ ml: 1.2 }} aria-hidden>→</Box>
             </Button>
           </Box>
         </AnimatedSection>

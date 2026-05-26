@@ -59,8 +59,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 'https://connect.facebook.net/en_US/fbevents.js');
                 fbq('init', '${pixelId}');
 
+                // Bot detection — skip ALL tracking for crawlers/headless browsers.
+                // UA regex catches most bots; navigator.webdriver flags automation tools
+                // (Selenium/Puppeteer/Playwright); missing navigator.languages is a
+                // common headless Chrome signal.
+                var _isBot = (function() {
+                  try {
+                    var ua = navigator.userAgent || '';
+                    if (/bot|crawler|spider|crawling|headless|puppeteer|selenium|playwright|lighthouse|phantomjs|slurp|bingpreview|chrome-lighthouse|google page speed|gtmetrix|pingdom|monitor/i.test(ua)) return true;
+                    if (navigator.webdriver === true) return true;
+                    if (!navigator.languages || navigator.languages.length === 0) return true;
+                    return false;
+                  } catch (e) { return false; }
+                })();
+
                 // Track PageView in our DB
                 try {
+                  if (_isBot) throw new Error('bot');
                   var p = new URLSearchParams(window.location.search);
                   var utms = {};
                   if (p.get('utm_source')) { utms.utmSource = p.get('utm_source'); sessionStorage.setItem('utm_source', p.get('utm_source')); }
@@ -83,6 +98,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
                 // Session interaction tracking
                 try {
+                  if (_isBot) throw new Error('bot');
                   var _sess = { start: Date.now(), maxScroll: 0, clicks: [], sections: {} };
                   var _sessSent = false;
                   window.addEventListener('scroll', function() {
