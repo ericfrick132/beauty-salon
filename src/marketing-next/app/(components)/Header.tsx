@@ -138,7 +138,7 @@ export default function Header() {
                 Entrar
               </Button>
               <Button
-                href="/register"
+                onClick={() => open()}
                 variant="contained"
                 color="primary"
                 size="small"
@@ -223,8 +223,7 @@ export default function Header() {
             variant="contained"
             color="primary"
             fullWidth
-            href="/register"
-            onClick={() => setDrawerOpen(false)}
+            onClick={() => { setDrawerOpen(false); open(); }}
           >
             Empezar gratis
           </Button>

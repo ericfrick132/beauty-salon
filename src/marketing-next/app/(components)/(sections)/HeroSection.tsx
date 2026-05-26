@@ -243,7 +243,7 @@ export default function HeroSection() {
                   variant="contained"
                   color="primary"
                   size="large"
-                  href="/register"
+                  onClick={() => open()}
                   sx={{ px: 3.5, py: 1.4, fontSize: '1rem' }}
                 >
                   {heroContent.cta}

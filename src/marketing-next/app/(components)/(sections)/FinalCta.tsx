@@ -1,10 +1,12 @@
 'use client';
 import { Box, Container, Typography, Button, Stack } from '@mui/material';
 import AnimatedSection from './AnimatedSection';
+import { useSignupModal } from './SignupModal';
 import { finalCtaContent } from '@/app/(lib)/content';
 import { palette } from '@/app/(lib)/theme';
 
 export default function FinalCta() {
+  const { open } = useSignupModal();
   const display = 'tunegocio';
 
   return (
@@ -166,7 +168,7 @@ export default function FinalCta() {
           >
             <Button
               variant="contained"
-              href="/register"
+              onClick={() => open()}
               size="large"
               sx={{
                 bgcolor: palette.amber,

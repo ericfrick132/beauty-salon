@@ -2,6 +2,7 @@
 import { Box, Container, Typography, Button, Stack } from '@mui/material';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import AnimatedSection from './AnimatedSection';
+import { useSignupModal } from './SignupModal';
 import { pricingContent } from '@/app/(lib)/content';
 import { palette } from '@/app/(lib)/theme';
 
@@ -13,6 +14,13 @@ function formatPrice(value: number): string {
 }
 
 export default function PricingSection() {
+  const { open } = useSignupModal();
+  const selectPlan = (code: string) => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('_selected_plan', code);
+    }
+    open();
+  };
   return (
     <Box
       id="precios"
@@ -245,7 +253,7 @@ export default function PricingSection() {
                   {/* CTA */}
                   <Button
                     variant="contained"
-                    href={`/register?plan=${plan.code}`}
+                    onClick={() => selectPlan(plan.code)}
                     sx={{
                       mb: 3,
                       py: 1.3,
