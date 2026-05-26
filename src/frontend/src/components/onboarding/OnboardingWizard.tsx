@@ -111,6 +111,7 @@ export interface OnboardingConfig {
     name?: string;
     avatarUrl?: string;
     email?: string;
+    phone?: string;
   };
 }
 
@@ -915,6 +916,29 @@ const StepBrand: React.FC<StepProps> = ({
   );
 };
 
+const formatDateDMY = (raw: string): string => {
+  // Strip everything that isn't a digit, then re-insert slashes at positions 2 and 4.
+  const digits = raw.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+};
+
+const isValidDMY = (value: string): boolean => {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+  if (!m) return false;
+  const [, dd, mm, yyyy] = m;
+  const d = parseInt(dd, 10);
+  const mo = parseInt(mm, 10);
+  const y = parseInt(yyyy, 10);
+  if (mo < 1 || mo > 12) return false;
+  if (d < 1 || d > 31) return false;
+  if (y < 1900 || y > new Date().getFullYear()) return false;
+  // Cross-check the parsed date is real (e.g. rejects 31/02/2024).
+  const dt = new Date(y, mo - 1, d);
+  return dt.getDate() === d && dt.getMonth() === mo - 1 && dt.getFullYear() === y;
+};
+
 const StepPersonal: React.FC<StepProps> = ({
   config,
   formData,
@@ -923,7 +947,8 @@ const StepPersonal: React.FC<StepProps> = ({
   goBack,
 }) => {
   const { palette, typography, copy } = config;
-  const canNext = !!formData.ownerBirthday && !!formData.ownerPhone;
+  const phonePrefilled = Boolean(config.prefill?.phone && config.prefill.phone.trim().length > 0);
+  const canNext = isValidDMY(formData.ownerBirthday) && !!formData.ownerPhone;
   return (
     <StepShell
       palette={palette}
@@ -943,28 +968,33 @@ const StepPersonal: React.FC<StepProps> = ({
           <InkInput
             palette={palette}
             typography={typography}
-            type="date"
+            type="text"
+            inputMode="numeric"
             value={formData.ownerBirthday}
             onChange={(e) =>
-              setFormData({ ...formData, ownerBirthday: e.target.value })
+              setFormData({ ...formData, ownerBirthday: formatDateDMY(e.target.value) })
             }
+            placeholder="dd/mm/aaaa"
+            maxLength={10}
           />
         </Box>
-        <Box>
-          <FieldLabel palette={palette} typography={typography}>
-            Teléfono
-          </FieldLabel>
-          <InkInput
-            palette={palette}
-            typography={typography}
-            type="tel"
-            value={formData.ownerPhone}
-            onChange={(e) =>
-              setFormData({ ...formData, ownerPhone: e.target.value })
-            }
-            placeholder="+54 11 XXXX-XXXX"
-          />
-        </Box>
+        {!phonePrefilled && (
+          <Box>
+            <FieldLabel palette={palette} typography={typography}>
+              Teléfono
+            </FieldLabel>
+            <InkInput
+              palette={palette}
+              typography={typography}
+              type="tel"
+              value={formData.ownerPhone}
+              onChange={(e) =>
+                setFormData({ ...formData, ownerPhone: e.target.value })
+              }
+              placeholder="+54 11 XXXX-XXXX"
+            />
+          </Box>
+        )}
 
         <Box
           sx={{
@@ -1089,7 +1119,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
     secondaryColor: initialTheme.secondary,
     logoFile: null,
     ownerBirthday: '',
-    ownerPhone: '',
+    ownerPhone: config.prefill?.phone ?? '',
     ownerInstagram: '',
     ownerWeb: '',
   });
@@ -1117,7 +1147,11 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
       if (onLogoUpload && formData.logoFile) {
         await onLogoUpload(formData.logoFile);
       }
-      await onComplete(formData);
+      // Backend expects ISO (YYYY-MM-DD); the wizard input is dd/mm/yyyy.
+      const dmy = formData.ownerBirthday;
+      const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(dmy);
+      const isoBirthday = m ? `${m[3]}-${m[2]}-${m[1]}` : dmy;
+      await onComplete({ ...formData, ownerBirthday: isoBirthday });
     } catch (e) {
       const msg =
         (e as { message?: string })?.message ?? 'Algo falló, intentá de nuevo.';

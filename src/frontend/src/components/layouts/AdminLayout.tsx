@@ -734,6 +734,25 @@ export const AdminLayout: React.FC = () => {
             backgroundColor: 'background.paper',
             paddingBottom: 'env(safe-area-inset-bottom, 0px)',
             height: 'auto',
+            // Force equal-width distribution across exactly 5 items so the bar
+            // looks identical on every page regardless of content/layout.
+            display: 'flex',
+            '& .MuiBottomNavigationAction-root': {
+              flex: '1 1 0',
+              minWidth: 0,
+              maxWidth: 'none',
+              paddingLeft: 0,
+              paddingRight: 0,
+              fontWeight: 700,
+            },
+            '& .MuiBottomNavigationAction-label': {
+              fontSize: '0.72rem',
+              opacity: 1,
+              transition: 'none',
+            },
+            '& .MuiBottomNavigationAction-label.Mui-selected': {
+              fontSize: '0.72rem',
+            },
           }}
         >
           {mobileNavItems.map((item) => (
@@ -741,7 +760,7 @@ export const AdminLayout: React.FC = () => {
               key={item.key}
               label={item.label}
               icon={item.icon}
-              sx={{ minWidth: 0, fontWeight: 700 }}
+              showLabel
             />
           ))}
         </BottomNavigation>

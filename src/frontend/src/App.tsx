@@ -191,7 +191,7 @@ function App() {
         textPrimaryColor: '#0F172A',    // slate-900
         textSecondaryColor: '#475569',  // slate-600
         borderColor: '#E5E7EB',         // gray-200
-        fontFamily: 'Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"',
+        fontFamily: '"Space Grotesk", Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"',
         borderRadius: 8,
         useShadows: true,
         autoContrastText: true

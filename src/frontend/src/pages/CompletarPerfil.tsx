@@ -6,7 +6,7 @@
  * OnboardingWizard with TurnosPro config, and submits to the backend on step 5.
  */
 
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import OnboardingWizard, {
@@ -66,22 +66,46 @@ function decodeGoogleIdToken(token: string | null): GoogleIdPayload | null {
 
 const CompletarPerfil: React.FC = () => {
   const navigate = useNavigate();
+  const [tenantPhone, setTenantPhone] = useState<string | undefined>(undefined);
+  const [tenantInfoLoaded, setTenantInfoLoaded] = useState(false);
 
   useEffect(() => {
     ensureFontsLoaded();
+  }, []);
+
+  // Fetch the phone captured during signup so we don't ask the user for it again.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get('/tenants/info');
+        if (!cancelled) {
+          const phone = res?.data?.phone;
+          if (phone && typeof phone === 'string') setTenantPhone(phone);
+        }
+      } catch {
+        // Non-fatal — the wizard still works without the prefill.
+      } finally {
+        if (!cancelled) setTenantInfoLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Prefill name + avatar from a cached Google ID token (set during register).
   const prefill = useMemo(() => {
     const stored = localStorage.getItem('googleIdTokenForOnboarding');
     const payload = decodeGoogleIdToken(stored);
-    if (!payload) return undefined;
+    if (!payload && !tenantPhone) return undefined;
     return {
-      name: payload.name,
-      email: payload.email,
-      avatarUrl: payload.picture,
+      name: payload?.name,
+      email: payload?.email,
+      avatarUrl: payload?.picture,
+      phone: tenantPhone,
     };
-  }, []);
+  }, [tenantPhone]);
 
   const config = useMemo(
     () => ({
@@ -142,6 +166,12 @@ const CompletarPerfil: React.FC = () => {
   // NOTE: we intentionally do NOT pass `onLogoUpload` — the upload is done
   // once inside `handleComplete` so the URL can be included in the PATCH body.
   // Passing both callbacks would cause a double-upload.
+  //
+  // Render the wizard only after the tenant info fetch resolves: the wizard
+  // captures `prefill` into its initial state once on mount, so showing it
+  // before the fetch lands would render the phone field even when we already
+  // have the number from signup.
+  if (!tenantInfoLoaded) return null;
   return <OnboardingWizard config={config} onComplete={handleComplete} />;
 };
 

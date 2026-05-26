@@ -18,7 +18,8 @@ export const createTurnosProTheme = (config?: TenantConfig) => {
   const textPrimaryColor = theme?.textPrimaryColor || '#111827'; // gray-900
   const textSecondaryColor = theme?.textSecondaryColor || '#374151'; // gray-700
   const borderColor = theme?.borderColor || '#D1D5DB'; // gray-300
-  const fontFamily = theme?.fontFamily || '"Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  const fontFamily = theme?.fontFamily || '"Space Grotesk", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  const displayFamily = '"Fraunces", "Space Grotesk", Georgia, serif';
   const borderRadius = theme?.borderRadius || 8;
   const useShadows = theme?.useShadows ?? true;
 
@@ -62,24 +63,32 @@ export const createTurnosProTheme = (config?: TenantConfig) => {
         color: textPrimaryColor,
       },
     h1: {
+      fontFamily: displayFamily,
       fontSize: '2.25rem',
-      fontWeight: 700,
-      lineHeight: 1.25,
+      fontWeight: 600,
+      lineHeight: 1.18,
+      letterSpacing: '-0.02em',
     },
     h2: {
+      fontFamily: displayFamily,
       fontSize: '1.875rem',
       fontWeight: 600,
-      lineHeight: 1.3,
+      lineHeight: 1.22,
+      letterSpacing: '-0.02em',
     },
     h3: {
+      fontFamily: displayFamily,
       fontSize: '1.5rem',
       fontWeight: 600,
-      lineHeight: 1.4,
+      lineHeight: 1.3,
+      letterSpacing: '-0.015em',
     },
     h4: {
+      fontFamily: displayFamily,
       fontSize: '1.25rem',
-      fontWeight: 500,
-      lineHeight: 1.4,
+      fontWeight: 600,
+      lineHeight: 1.35,
+      letterSpacing: '-0.01em',
     },
     h5: {
       fontSize: '1.125rem',
