@@ -3,7 +3,7 @@ import { Box, Container, Typography, Button, Stack } from '@mui/material';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import { motion } from 'framer-motion';
 import type { ReactNode } from 'react';
-import { heroContent } from '@/app/(lib)/content';
+import { heroContent, finalCtaContent } from '@/app/(lib)/content';
 import { palette } from '@/app/(lib)/theme';
 import { useSignupModal } from './SignupModal';
 import BookingTicket from './BookingTicket';
@@ -45,6 +45,71 @@ export default function HeroSection() {
       <CornerMarks />
 
       <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
+        {/* TOP ribbon — full-width pre-hero question */}
+        <FadeUp delay={0}>
+          <Box
+            sx={{
+              mb: { xs: 5, md: 6 },
+              pb: { xs: 3, md: 4 },
+              borderBottom: `1.5px dashed ${palette.ink}`,
+              display: 'flex',
+              alignItems: { xs: 'flex-start', md: 'center' },
+              justifyContent: { xs: 'flex-start', md: 'space-between' },
+              gap: { xs: 1.5, md: 3 },
+              flexDirection: { xs: 'column', md: 'row' },
+            }}
+          >
+            <Box
+              component="span"
+              aria-hidden
+              sx={{
+                fontFamily: 'var(--font-mono), monospace',
+                fontSize: '0.7rem',
+                letterSpacing: '0.22em',
+                textTransform: 'uppercase',
+                color: palette.coral,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 1,
+                whiteSpace: 'nowrap',
+                '&::before': {
+                  content: '""',
+                  display: 'inline-block',
+                  width: 24,
+                  height: '1.5px',
+                  bgcolor: palette.coral,
+                },
+              }}
+            >
+              Nº 00 · Portada
+            </Box>
+            <Typography
+              component="p"
+              sx={{
+                fontFamily: 'var(--font-fraunces), serif',
+                fontStyle: 'italic',
+                fontWeight: 500,
+                fontVariationSettings: '"opsz" 144, "SOFT" 60',
+                fontSize: { xs: '1.35rem', sm: '1.6rem', md: '1.85rem' },
+                lineHeight: 1.15,
+                letterSpacing: '-0.015em',
+                color: palette.ink,
+                m: 0,
+                textAlign: { xs: 'left', md: 'right' },
+                flex: 1,
+              }}
+            >
+              {finalCtaContent.headline.split('al siguiente nivel')[0]}
+              <Box
+                component="span"
+                sx={{ color: palette.coral, fontStyle: 'italic', fontWeight: 600 }}
+              >
+                al siguiente nivel?
+              </Box>
+            </Typography>
+          </Box>
+        </FadeUp>
+
         <Box
           sx={{
             display: 'grid',
@@ -55,7 +120,7 @@ export default function HeroSection() {
         >
           {/* LEFT — typography */}
           <Box>
-            <FadeUp delay={0}>
+            <FadeUp delay={0.05}>
               <Box
                 sx={{
                   display: 'inline-flex',
