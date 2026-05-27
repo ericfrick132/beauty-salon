@@ -593,7 +593,11 @@ const NewBooking: React.FC = () => {
             <ArrowBack />
           </IconButton>
           <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
-            Nuevo {getTerm('booking')}
+            {(() => {
+              const term = getTerm('booking');
+              const article = term.toLowerCase().endsWith('a') ? 'Nueva' : 'Nuevo';
+              return `${article} ${term}`;
+            })()}
           </Typography>
         </Box>
 

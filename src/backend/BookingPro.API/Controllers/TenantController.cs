@@ -113,6 +113,7 @@ namespace BookingPro.API.Controllers
                     address = tenant.BusinessAddress,
                     phone = tenant.OwnerPhone,
                     email = tenant.OwnerEmail,
+                    ownerName = tenant.OwnerName,
                     timezone = tenant.TimeZone ?? "-3",
                     currency = tenant.Currency ?? "ARS",
                     language = tenant.Language ?? "es",

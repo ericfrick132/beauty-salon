@@ -386,6 +386,7 @@ namespace BookingPro.API.Controllers
                     BusinessName = dto.BusinessName.Trim(),
                     OwnerEmail = emailLower,
                     OwnerPhone = dto.Mobile,
+                    OwnerName = string.IsNullOrWhiteSpace(dto.FullName) ? null : dto.FullName.Trim(),
                     SchemaName = $"tenant_{subdomain.Replace("-", "_")}",
                     TimeZone = "America/Argentina/Buenos_Aires",
                     Currency = "ARS",
@@ -401,13 +402,32 @@ namespace BookingPro.API.Controllers
                 _context.Tenants.Add(tenant);
                 await _context.SaveChangesAsync();
 
+                // Split fullName into FirstName/LastName so the post-signup
+                // onboarding wizard can prefill "Tu nombre" instead of asking
+                // for it again. Fallback to BusinessName preserves the previous
+                // behavior for older clients that don't send fullName.
+                string firstName;
+                string lastName;
+                var fullName = dto.FullName?.Trim();
+                if (!string.IsNullOrWhiteSpace(fullName))
+                {
+                    var parts = fullName.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    firstName = parts[0];
+                    lastName = parts.Length > 1 ? parts[1] : "";
+                }
+                else
+                {
+                    firstName = dto.BusinessName.Trim();
+                    lastName = "";
+                }
+
                 var adminUser = new User
                 {
                     Id = Guid.NewGuid(),
                     TenantId = tenant.Id,
                     Email = emailLower,
-                    FirstName = dto.BusinessName.Trim(),
-                    LastName = "",
+                    FirstName = firstName,
+                    LastName = lastName,
                     Phone = dto.Mobile,
                     PasswordHash = Services.Security.PasswordHasher.Hash(dto.Password),
                     Role = "admin",
@@ -681,6 +701,8 @@ namespace BookingPro.API.Controllers
         public string Mobile { get; set; } = string.Empty;
 
         public string? PlanCode { get; set; }
+
+        public string? FullName { get; set; }
     }
 
     public class RegistrationCompleteDto

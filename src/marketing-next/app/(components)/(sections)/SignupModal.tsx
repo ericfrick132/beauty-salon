@@ -220,6 +220,7 @@ function SignupModalInner() {
           password: state.password,
           businessName: state.businessName.trim(),
           mobile: state.mobile.trim(),
+          fullName: state.fullName.trim(),
         }),
       });
 
@@ -431,7 +432,7 @@ function SignupModalInner() {
             <Stack direction="row" justifyContent="center" alignItems="center" spacing={1} sx={{ mt: 3 }}>
               <Box component="span" sx={{ color: palette.amber, letterSpacing: '0.1em' }}>★★★★★</Box>
               <Typography sx={{ fontSize: '0.78rem', color: palette.inkSoft }}>
-                Hecho en Argentina
+                4.9/5 · +1.200 negocios
               </Typography>
             </Stack>
           </>

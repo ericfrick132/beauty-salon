@@ -67,13 +67,15 @@ function decodeGoogleIdToken(token: string | null): GoogleIdPayload | null {
 const CompletarPerfil: React.FC = () => {
   const navigate = useNavigate();
   const [tenantPhone, setTenantPhone] = useState<string | undefined>(undefined);
+  const [tenantOwnerName, setTenantOwnerName] = useState<string | undefined>(undefined);
   const [tenantInfoLoaded, setTenantInfoLoaded] = useState(false);
 
   useEffect(() => {
     ensureFontsLoaded();
   }, []);
 
-  // Fetch the phone captured during signup so we don't ask the user for it again.
+  // Fetch phone + ownerName captured during signup so we don't ask the user
+  // for them again here.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -82,6 +84,8 @@ const CompletarPerfil: React.FC = () => {
         if (!cancelled) {
           const phone = res?.data?.phone;
           if (phone && typeof phone === 'string') setTenantPhone(phone);
+          const ownerName = res?.data?.ownerName;
+          if (ownerName && typeof ownerName === 'string') setTenantOwnerName(ownerName);
         }
       } catch {
         // Non-fatal — the wizard still works without the prefill.
@@ -94,18 +98,19 @@ const CompletarPerfil: React.FC = () => {
     };
   }, []);
 
-  // Prefill name + avatar from a cached Google ID token (set during register).
+  // Prefill name + avatar from a cached Google ID token (set during register),
+  // falling back to the ownerName captured by the marketing signup flow.
   const prefill = useMemo(() => {
     const stored = localStorage.getItem('googleIdTokenForOnboarding');
     const payload = decodeGoogleIdToken(stored);
-    if (!payload && !tenantPhone) return undefined;
+    if (!payload && !tenantPhone && !tenantOwnerName) return undefined;
     return {
-      name: payload?.name,
+      name: payload?.name ?? tenantOwnerName,
       email: payload?.email,
       avatarUrl: payload?.picture,
       phone: tenantPhone,
     };
-  }, [tenantPhone]);
+  }, [tenantPhone, tenantOwnerName]);
 
   const config = useMemo(
     () => ({

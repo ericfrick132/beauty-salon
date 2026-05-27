@@ -168,7 +168,7 @@ export const pricingContent = {
       price: 40000,
       discount: '20% OFF',
       trialDays: 14,
-      cta: 'Empezar 14 días gratis',
+      cta: 'Empezar prueba',
       highlighted: true,
       badge: 'Más elegido',
     },

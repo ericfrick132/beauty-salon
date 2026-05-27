@@ -1124,7 +1124,11 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
     ownerWeb: '',
   });
 
-  const [stepIndex, setStepIndex] = useState<number>(0);
+  // If we already captured the owner's name in the signup form, skip the
+  // first step instead of asking again — the field would just show prefilled
+  // and force a "Siguiente" click for no reason.
+  const namePrefilled = Boolean(config.prefill?.name && config.prefill.name.trim().length > 0);
+  const [stepIndex, setStepIndex] = useState<number>(namePrefilled ? 1 : 0);
   const [direction, setDirection] = useState<1 | -1>(1);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
