@@ -305,6 +305,7 @@ export const AdminLayout: React.FC = () => {
         { text: 'Suscripción', path: '/subscription', icon: <CreditCard fontSize="small" />, adminOnly: true },
         { text: 'Mensajería', path: '/messaging', icon: <WhatsApp fontSize="small" /> },
         { text: 'MercadoPago', path: '/mercadopago-settings', icon: <MercadoPagoIcon fontSize="small" />, adminOnly: true },
+        { text: 'Chytapay', path: '/chytapay-settings', icon: <AccountBalance fontSize="small" />, adminOnly: true },
       ],
     },
   ];

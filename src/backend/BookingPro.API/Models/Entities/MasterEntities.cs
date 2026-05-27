@@ -138,6 +138,11 @@ namespace BookingPro.API.Models.Entities
 
         public DateTime? OnboardingCompletedAt { get; set; }
 
+        // Default payment provider when both MercadoPago and Chytapay are
+        // connected. Values: "mercadopago" (default) | "chytapay".
+        [MaxLength(20)]
+        public string? DefaultPaymentProvider { get; set; }
+
         // Navigation properties
         public Vertical? Vertical { get; set; }
         public Plan? Plan { get; set; }

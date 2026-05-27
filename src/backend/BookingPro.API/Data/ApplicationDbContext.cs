@@ -65,6 +65,8 @@ namespace BookingPro.API.Data
         // OAuth entities
         public DbSet<MercadoPagoOAuthState> MercadoPagoOAuthStates { get; set; }
         public DbSet<MercadoPagoOAuthConfiguration> MercadoPagoOAuthConfigurations { get; set; }
+        public DbSet<ChytapayOAuthState> ChytapayOAuthStates { get; set; }
+        public DbSet<ChytapayOAuthConfiguration> ChytapayOAuthConfigurations { get; set; }
         
         // Inventory entities
         public DbSet<ProductCategory> ProductCategories { get; set; }
@@ -507,6 +509,23 @@ namespace BookingPro.API.Data
                 entity.HasIndex(c => c.IsActive);
                 entity.HasIndex(c => c.AccessTokenExpiresAt);
             });
+
+            modelBuilder.Entity<ChytapayOAuthState>(entity =>
+            {
+                entity.ToTable("chytapay_oauth_states");
+                entity.HasIndex(s => s.State).IsUnique();
+                entity.HasIndex(s => s.TenantId);
+                entity.HasIndex(s => s.ExpiresAt);
+                entity.HasIndex(s => s.IsCompleted);
+            });
+
+            modelBuilder.Entity<ChytapayOAuthConfiguration>(entity =>
+            {
+                entity.ToTable("chytapay_oauth_configurations");
+                entity.HasIndex(c => c.TenantId);
+                entity.HasIndex(c => c.IsActive);
+                entity.HasIndex(c => c.IdTokenExpiresAt);
+            });
             
             // === Inventory Entities Configuration ===
             modelBuilder.Entity<ProductCategory>(entity =>
@@ -672,6 +691,8 @@ namespace BookingPro.API.Data
             // OAuth entities filters
             modelBuilder.Entity<MercadoPagoOAuthState>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<MercadoPagoOAuthConfiguration>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<ChytapayOAuthState>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<ChytapayOAuthConfiguration>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             
             // Inventory entities filters
             modelBuilder.Entity<ProductCategory>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());

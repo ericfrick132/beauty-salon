@@ -128,6 +128,8 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IPaymentService, B
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IPublicService, BookingPro.API.Services.PublicService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IMercadoPagoService, BookingPro.API.Services.MercadoPagoService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IMercadoPagoOAuthService, BookingPro.API.Services.MercadoPagoOAuthService>();
+builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IChytapayOAuthService, BookingPro.API.Services.ChytapayOAuthService>();
+builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IChytapayService, BookingPro.API.Services.ChytapayService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IWhatsAppService, BookingPro.API.Services.WhatsAppService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IWhatsAppConnectionService, BookingPro.API.Services.WhatsAppConnectionService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ISubscriptionService, BookingPro.API.Services.SubscriptionService>();
@@ -149,6 +151,7 @@ builder.Services.AddHttpClient();
 
 // Add MercadoPago token refresh background service
 builder.Services.AddHostedService<BookingPro.API.Services.MercadoPagoTokenRefreshService>();
+builder.Services.AddHostedService<BookingPro.API.Services.ChytapayTokenRefreshService>();
 builder.Services.AddHostedService<BookingPro.API.Services.WhatsAppReminderService>();
 // Daily-ish scan that emails trial_ending_2d / trial_expired warnings
 builder.Services.AddHostedService<BookingPro.API.Services.TrialReminderBackgroundService>();

@@ -1,4 +1,5 @@
 using BookingPro.API.Data;
+using BookingPro.API.Models.DTOs;
 using BookingPro.API.Models.Entities;
 using BookingPro.API.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
@@ -13,18 +14,24 @@ namespace BookingPro.API.Controllers
     {
         private readonly IMercadoPagoService _mercadoPagoService;
         private readonly ISubscriptionService _subscriptionService;
+        private readonly IChytapayService _chytapayService;
         private readonly ApplicationDbContext _context;
+        private readonly IConfiguration _configuration;
         private readonly ILogger<WebhooksController> _logger;
 
         public WebhooksController(
             IMercadoPagoService mercadoPagoService,
             ISubscriptionService subscriptionService,
+            IChytapayService chytapayService,
             ApplicationDbContext context,
+            IConfiguration configuration,
             ILogger<WebhooksController> logger)
         {
             _mercadoPagoService = mercadoPagoService;
             _subscriptionService = subscriptionService;
+            _chytapayService = chytapayService;
             _context = context;
+            _configuration = configuration;
             _logger = logger;
         }
 
@@ -70,6 +77,63 @@ namespace BookingPro.API.Controllers
             {
                 _logger.LogError(ex, "Error processing MercadoPago webhook for tenant {TenantId}", tenantId);
                 return Ok(); // Return 200 even on error — retries would compound the problem.
+            }
+        }
+
+        /// <summary>
+        /// Chytapay webhook — fires when a payment_request transitions to
+        /// PAID / PARTIAL_PAID. The URL is configured once at the Chytapay
+        /// integration-admin level (no tenantId in the path), so we identify
+        /// the transaction by the GUID referenceId we set when creating the
+        /// payment_request.
+        /// </summary>
+        [HttpPost("chytapay")]
+        public async Task<IActionResult> ChytapayWebhook()
+        {
+            try
+            {
+                using var reader = new StreamReader(Request.Body);
+                var body = await reader.ReadToEndAsync();
+
+                _logger.LogInformation("Received Chytapay webhook: {Body}", body);
+
+                // Optional validation-token check (configured in Chytapay
+                // integration-admin "client/url" with the same value we put
+                // here). Per docs, the header name is "validation-token".
+                var expected = _configuration["Chytapay:ValidationToken"];
+                if (!string.IsNullOrEmpty(expected))
+                {
+                    var got = Request.Headers["validation-token"].ToString();
+                    if (!string.Equals(got, expected, StringComparison.Ordinal))
+                    {
+                        _logger.LogWarning("Chytapay webhook rejected: validation-token mismatch");
+                        return Unauthorized();
+                    }
+                }
+
+                var payload = JsonSerializer.Deserialize<ChytapayWebhookPayloadDto>(body, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                if (payload == null)
+                {
+                    _logger.LogWarning("Failed to parse Chytapay webhook body");
+                    return Ok(); // 200 to suppress retries — body is unrecoverable.
+                }
+
+                var result = await _chytapayService.ProcessWebhookAsync(payload);
+                if (!result.Success)
+                {
+                    _logger.LogWarning("Chytapay webhook processing reported: {Error}", result.Message);
+                }
+
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing Chytapay webhook");
+                return Ok();
             }
         }
 

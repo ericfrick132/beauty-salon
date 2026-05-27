@@ -119,7 +119,8 @@ namespace BookingPro.API.Controllers
                     language = tenant.Language ?? "es",
                     description = GetStringSetting(settings, "description"),
                     website = GetStringSetting(settings, "website"),
-                    taxId = GetStringSetting(settings, "taxId")
+                    taxId = GetStringSetting(settings, "taxId"),
+                    defaultPaymentProvider = tenant.DefaultPaymentProvider ?? "mercadopago"
                 });
             }
             catch (Exception ex)
@@ -183,6 +184,41 @@ namespace BookingPro.API.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
+        }
+
+        [Authorize]
+        [HttpPut("payment-provider")]
+        public async Task<IActionResult> UpdateDefaultPaymentProvider([FromBody] UpdatePaymentProviderRequest request)
+        {
+            try
+            {
+                var tenantInfo = _tenantService.GetCurrentTenant();
+                if (tenantInfo == null)
+                    return NotFound(new { message = "Tenant not found" });
+
+                var provider = request.Provider?.Trim().ToLowerInvariant();
+                if (provider != "mercadopago" && provider != "chytapay")
+                    return BadRequest(new { message = "Provider must be 'mercadopago' or 'chytapay'" });
+
+                var tenant = await _context.Tenants.FirstOrDefaultAsync(t => t.Id == tenantInfo.Id);
+                if (tenant == null)
+                    return NotFound(new { message = "Tenant not found" });
+
+                tenant.DefaultPaymentProvider = provider;
+                tenant.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                return Ok(new { defaultPaymentProvider = tenant.DefaultPaymentProvider });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        public class UpdatePaymentProviderRequest
+        {
+            public string Provider { get; set; } = string.Empty;
         }
 
         private static Dictionary<string, object> ParseSettingsSafe(string? json)

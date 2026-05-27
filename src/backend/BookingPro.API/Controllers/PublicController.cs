@@ -20,6 +20,7 @@ namespace BookingPro.API.Controllers
         private readonly ApplicationDbContext _context;
         private readonly ITenantService _tenantService;
         private readonly IMercadoPagoService _mercadoPagoService;
+        private readonly IChytapayService _chytapayService;
         private readonly IBookingService _bookingService;
         private readonly IEmailService _emailService;
         private readonly IWhatsAppService _whatsAppService;
@@ -29,6 +30,7 @@ namespace BookingPro.API.Controllers
             ApplicationDbContext context,
             ITenantService tenantService,
             IMercadoPagoService mercadoPagoService,
+            IChytapayService chytapayService,
             IBookingService bookingService,
             IEmailService emailService,
             IWhatsAppService whatsAppService,
@@ -37,6 +39,7 @@ namespace BookingPro.API.Controllers
             _context = context;
             _tenantService = tenantService;
             _mercadoPagoService = mercadoPagoService;
+            _chytapayService = chytapayService;
             _bookingService = bookingService;
             _emailService = emailService;
             _whatsAppService = whatsAppService;
@@ -359,6 +362,54 @@ namespace BookingPro.API.Controllers
                         booking.Status = "pending_payment";
                         await _context.SaveChangesAsync();
 
+                        // Route to the tenant's chosen provider. When Chytapay is
+                        // selected, the customer is notified by Chytapay (CVU via
+                        // WhatsApp/email) instead of getting a checkout URL.
+                        var tenantRow = await _context.Tenants
+                            .AsNoTracking()
+                            .Where(t => t.Id == tenantInfo.Id)
+                            .Select(t => new { t.DefaultPaymentProvider })
+                            .FirstOrDefaultAsync();
+                        var provider = (tenantRow?.DefaultPaymentProvider ?? "mercadopago").ToLowerInvariant();
+
+                        if (provider == "chytapay")
+                        {
+                            var chytapayResult = await _chytapayService.CreatePaymentRequestAsync(
+                                tenantInfo.Id.ToString(),
+                                new CreateChytapayPaymentRequestDto
+                                {
+                                    BookingId = booking.Id,
+                                    Amount = depositCalc.Data.Amount,
+                                    Description = $"Seña — {service.Name}",
+                                    SendWhatsappNotification = true,
+                                    SendEmailNotification = true
+                                });
+
+                            if (!chytapayResult.Success)
+                            {
+                                _logger.LogWarning("Failed to create Chytapay payment-request: {Error}", chytapayResult.Message);
+                                return BadRequest(new { message = chytapayResult.Message ?? "No se pudo iniciar el cobro de Chytapay." });
+                            }
+
+                            return Ok(new
+                            {
+                                success = true,
+                                bookingId = booking.Id,
+                                confirmationCode,
+                                requiresPayment = true,
+                                provider = "chytapay",
+                                payment = new
+                                {
+                                    paymentRequestId = chytapayResult.Data?.PaymentRequestId,
+                                    cvu = chytapayResult.Data?.Cvu,
+                                    bankAccountHolder = chytapayResult.Data?.BankAccountHolder,
+                                    bankName = chytapayResult.Data?.BankName,
+                                    amount = chytapayResult.Data?.Amount
+                                },
+                                message = "Reserva creada. Te enviamos los datos de pago por WhatsApp/email para confirmar la seña."
+                            });
+                        }
+
                         var paymentDto = new BookingPro.API.Models.DTOs.CreatePaymentDto
                         {
                             BookingId = booking.Id,
@@ -380,12 +431,13 @@ namespace BookingPro.API.Controllers
                             return BadRequest(new { message = errorMessage });
                         }
 
-                        return Ok(new 
-                        { 
+                        return Ok(new
+                        {
                             success = true,
                             bookingId = booking.Id,
                             confirmationCode = confirmationCode,
                             requiresPayment = true,
+                            provider = "mercadopago",
                             payment = new
                             {
                                 preferenceId = paymentResult.Data?.PreferenceId,
@@ -394,7 +446,7 @@ namespace BookingPro.API.Controllers
                                 publicKey = paymentResult.Data?.PublicKey,
                                 amount = paymentResult.Data?.Amount
                             },
-                            message = "Reserva creada. Por favor pagá la seña para confirmar." 
+                            message = "Reserva creada. Por favor pagá la seña para confirmar."
                         });
                     }
 
