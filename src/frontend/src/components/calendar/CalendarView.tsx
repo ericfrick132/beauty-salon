@@ -265,6 +265,12 @@ const CalendarView: React.FC = () => {
     .filter(booking => {
       if (selectedEmployee !== 'all' && booking.employeeId !== selectedEmployee) return false;
       if (selectedStatus !== 'all' && booking.status !== selectedStatus) return false;
+      // Skip malformed rows — invalid startTime/endTime would crash FullCalendar
+      // and any downstream .toISOString() call.
+      if (!booking.startTime || !booking.endTime) return false;
+      const startMs = new Date(booking.startTime).getTime();
+      const endMs = new Date(booking.endTime).getTime();
+      if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return false;
       return true;
     })
     .map(booking => ({
@@ -303,14 +309,22 @@ const CalendarView: React.FC = () => {
   const gapEvents = minimumGapMinutes > 0
     ? calendarEvents
         .filter(e => e.extendedProps?.status !== 'cancelled')
-        .map(e => ({
-          id: `gap-${e.id}`,
-          start: e.end,
-          end: new Date(new Date(e.end).getTime() + minimumGapMinutes * 60 * 1000).toISOString(),
-          display: 'background' as const,
-          backgroundColor: 'rgba(255, 152, 0, 0.25)',
-          extendedProps: { isGap: true },
-        }))
+        .map(e => {
+          // Guard against malformed bookings (e.end null/invalid). Without this
+          // a single bad row would throw RangeError("Invalid time value") and
+          // blank-screen the calendar.
+          const endMs = e.end ? new Date(e.end).getTime() : NaN;
+          if (!Number.isFinite(endMs)) return null;
+          return {
+            id: `gap-${e.id}`,
+            start: e.end,
+            end: new Date(endMs + minimumGapMinutes * 60 * 1000).toISOString(),
+            display: 'background' as const,
+            backgroundColor: 'rgba(255, 152, 0, 0.25)',
+            extendedProps: { isGap: true },
+          };
+        })
+        .filter((e): e is NonNullable<typeof e> => e !== null)
     : [];
 
   const handleViewChange = (view: string) => {
