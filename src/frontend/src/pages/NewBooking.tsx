@@ -45,6 +45,27 @@ import { es } from 'date-fns/locale';
 
 const steps = ['Seleccionar Servicio', 'Elegir Profesional', 'Fecha y Hora', 'Datos del Cliente', 'Confirmar'];
 
+/**
+ * Extract a human-readable error from an axios error, including ASP.NET
+ * ProblemDetails validation responses (status 400 with `errors: { Field: [msg] }`).
+ */
+function extractApiError(err: any): string {
+  const data = err?.response?.data;
+  if (data) {
+    if (data.errors && typeof data.errors === 'object') {
+      const messages = Object.values(data.errors as Record<string, string[] | string>)
+        .flatMap((v) => (Array.isArray(v) ? v : [String(v)]))
+        .filter(Boolean);
+      if (messages.length > 0) return messages.join(' · ');
+    }
+    if (typeof data.message === 'string' && data.message) return data.message;
+    if (typeof data.title === 'string' && data.title) return data.title;
+    if (typeof data === 'string' && data) return data;
+  }
+  if (err?.message) return err.message;
+  return 'Error al crear la reserva. Intente nuevamente.';
+}
+
 const NewBooking: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -117,9 +138,31 @@ const NewBooking: React.FC = () => {
         break;
       case 3:
         if (newCustomer) {
-          if (!bookingData.customerName) newErrors.customerName = 'Ingrese el nombre del cliente';
-          if (!bookingData.customerEmail) newErrors.customerEmail = 'Ingrese el email del cliente';
-          if (!hidePhone && !bookingData.customerPhone) newErrors.customerPhone = 'Ingrese el teléfono del cliente';
+          const name = bookingData.customerName.trim();
+          if (!name) {
+            newErrors.customerName = 'Ingrese el nombre del cliente';
+          } else if (name.length < 2) {
+            newErrors.customerName = 'El nombre debe tener al menos 2 caracteres';
+          } else if (name.length > 100) {
+            newErrors.customerName = 'El nombre no puede superar los 100 caracteres';
+          }
+
+          const email = bookingData.customerEmail.trim();
+          if (!email) {
+            newErrors.customerEmail = 'Ingrese el email del cliente';
+          } else if (!/^\S+@\S+\.\S+$/.test(email)) {
+            newErrors.customerEmail = 'Ingrese un email válido';
+          }
+
+          if (!hidePhone) {
+            const phone = bookingData.customerPhone.trim();
+            const digits = phone.replace(/\D/g, '');
+            if (!phone) {
+              newErrors.customerPhone = 'Ingrese el teléfono del cliente';
+            } else if (digits.length < 6) {
+              newErrors.customerPhone = 'El teléfono debe tener al menos 6 dígitos';
+            }
+          }
         } else {
           if (!bookingData.customerId) newErrors.customerId = 'Seleccione un cliente';
         }
@@ -194,8 +237,7 @@ const NewBooking: React.FC = () => {
       navigate('/calendar');
     } catch (error: any) {
       console.error('Error creating booking:', error);
-      const backendMessage = error?.message || error?.response?.data?.message || error?.response?.data?.errors?.[0];
-      setErrors({ submit: backendMessage || 'Error al crear la reserva. Intente nuevamente.' });
+      setErrors({ submit: extractApiError(error) });
     } finally {
       setSubmitting(false);
     }

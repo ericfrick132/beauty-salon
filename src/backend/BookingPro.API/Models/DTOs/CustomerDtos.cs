@@ -6,8 +6,10 @@ namespace BookingPro.API.Models.DTOs
     {
         [Required, MaxLength(100)]
         public string FirstName { get; set; } = string.Empty;
-        
-        [Required, MaxLength(100)]
+
+        // Optional — the NewBooking form has a single "name" field, so customers
+        // who only enter one word ("Tamafri") would otherwise hit a 400.
+        [MaxLength(100)]
         public string LastName { get; set; } = string.Empty;
         
         [MaxLength(255)]
