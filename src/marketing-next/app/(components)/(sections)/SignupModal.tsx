@@ -415,17 +415,24 @@ function SignupModalInner() {
               autoFocus
               sx={{ mb: 1 }}
             />
+            {/* Antes mostrábamos acá el preview de la URL pública
+                (xxx.turnos-pro.com). El tracking mostró que el 100% de los
+                abandonos del registro pasaban en este primer campo, sin cargar
+                datos: el preview de una URL "definitiva" disparaba ansiedad de
+                compromiso en gente que recién llega de un ad de Instagram.
+                Lo reemplazamos por una microcopy que baja la presión: es solo
+                el nombre y se puede cambiar todo después. La URL se sigue
+                generando sola y se confirma recién en el paso 2. */}
             <Typography
               sx={{
-                fontFamily: 'var(--font-mono), monospace',
-                fontSize: '0.72rem',
+                fontSize: '0.8rem',
                 color: palette.inkSoft,
                 mb: 2.5,
-                opacity: state.businessName ? 1 : 0,
-                transition: 'opacity 200ms',
+                lineHeight: 1.4,
               }}
             >
-              🌐 {subdomainPreview}.turnos-pro.com
+              Solo el nombre para empezar. Después podés personalizar tu link y
+              todo lo demás.
             </Typography>
 
             <Button
@@ -552,6 +559,11 @@ function SignupModalInner() {
                 .turnos-pro.com
               </Box>
             </Box>
+            <Typography
+              sx={{ fontSize: '0.72rem', color: palette.inkSoft, textAlign: 'center', mt: 0.8 }}
+            >
+              Podés cambiar tu link cuando quieras
+            </Typography>
 
             <Button
               variant="contained"

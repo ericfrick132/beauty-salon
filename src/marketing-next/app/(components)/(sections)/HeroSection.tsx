@@ -37,7 +37,7 @@ export default function HeroSection() {
         overflow: 'hidden',
         bgcolor: palette.paper,
         borderBottom: `1.5px solid ${palette.ink}`,
-        pt: { xs: 8, md: 12 },
+        pt: { xs: 3.5, md: 12 },
         pb: { xs: 14, md: 18 },
       }}
     >
@@ -45,14 +45,17 @@ export default function HeroSection() {
       <CornerMarks />
 
       <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
-        {/* TOP ribbon — full-width pre-hero question */}
+        {/* TOP ribbon — full-width pre-hero question.
+            Oculto en mobile: en pantallas chicas (tráfico de Instagram) este
+            adorno editorial empujaba el H1 y el CTA por debajo del fold, lo que
+            se traducía en sesiones con scroll 0% y sin clicks. */}
         <FadeUp delay={0}>
           <Box
             sx={{
               mb: { xs: 5, md: 6 },
               pb: { xs: 3, md: 4 },
               borderBottom: `1.5px dashed ${palette.ink}`,
-              display: 'flex',
+              display: { xs: 'none', md: 'flex' },
               alignItems: { xs: 'flex-start', md: 'center' },
               justifyContent: { xs: 'flex-start', md: 'space-between' },
               gap: { xs: 1.5, md: 3 },
