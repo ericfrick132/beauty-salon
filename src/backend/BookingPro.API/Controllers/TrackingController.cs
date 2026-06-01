@@ -246,8 +246,20 @@ namespace BookingPro.API.Controllers
                     var label = isAbandoned ? "REGISTRO ABANDONADO" : "REGISTRO COMPLETADO";
                     var origin = ClassifyReferrer(request.Referrer);
                     var campaign = request.UtmCampaign ?? "orgánico";
+
+                    // Datos parciales que la persona alcanzó a cargar (cualquiera puede venir vacío)
+                    var datos = new StringBuilder();
+                    if (!string.IsNullOrWhiteSpace(request.BusinessName)) datos.Append($"Negocio: {request.BusinessName}\n");
+                    if (!string.IsNullOrWhiteSpace(request.FullName)) datos.Append($"Nombre: {request.FullName}\n");
+                    if (!string.IsNullOrWhiteSpace(request.Email)) datos.Append($"Email: {request.Email}\n");
+                    if (!string.IsNullOrWhiteSpace(request.Phone)) datos.Append($"WhatsApp: {request.Phone}\n");
+                    var datosBlock = datos.Length > 0
+                        ? $"\n📋 Datos cargados:\n{datos}"
+                        : "\n(sin datos cargados)\n";
+
                     var msg = $"{emoji} *{label} - TurnosPro*\n" +
-                              $"{summary}\n" +
+                              datosBlock +
+                              $"\n⏱️ {summary}\n" +
                               $"Campaña: {campaign} | Origen: {origin}\n" +
                               $"Dispositivo: {request.Device ?? "?"}\n" +
                               $"Hora: {DateTime.UtcNow.AddHours(-3):HH:mm} hs";
