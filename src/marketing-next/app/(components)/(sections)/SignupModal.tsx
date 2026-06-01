@@ -121,7 +121,7 @@ function SignupModalInner() {
   const [state, setState] = useState<ModalState>(initialState);
 
   const startRegFlow = () => {
-    (window as any).__regFlow = { started: Date.now(), actions: ['0s OPEN'], fieldTimes: {} as Record<string, number>, currentField: null as string | null, fieldStart: 0 };
+    (window as any).__regFlow = { started: Date.now(), actions: ['0s OPEN'], fieldTimes: {} as Record<string, number>, currentField: null as string | null, fieldStart: 0, data: {} as Record<string, string> };
   };
   const trackAction = (action: string) => {
     const f = (window as any).__regFlow; if (!f) return;
@@ -147,9 +147,15 @@ function SignupModalInner() {
     f.actions.push(`${total}s ${outcome}`);
     const fields = Object.entries(f.fieldTimes).map(([k, v]) => `${k}:${v}s`).join(', ');
     const summary = `[${outcome}] ${total}s total | Campos: ${fields || 'ninguno'} | ${f.actions.join(' → ')}`;
+    const d = (f.data || {}) as Record<string, string>;
     const sid = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('_track_sid') || '' : '';
     navigator.sendBeacon('/api/tracking/event', new Blob([JSON.stringify({
       eventType: 'RegisterFlow', url: window.location.href, name: summary.slice(0, 500),
+      // Datos parciales: lo que la persona alcanzó a cargar antes de abandonar/completar
+      businessName: d.businessName?.trim() || undefined,
+      fullName: d.fullName?.trim() || undefined,
+      email: d.email?.trim() || undefined,
+      phone: d.mobile?.trim() || undefined,
       device: window.innerWidth < 768 ? 'mobile' : 'desktop', sessionId: sid,
       utmSource: sessionStorage.getItem('utm_source') || undefined,
       utmMedium: sessionStorage.getItem('utm_medium') || undefined,
@@ -161,11 +167,23 @@ function SignupModalInner() {
   const set = useCallback((patch: Partial<ModalState>) => setState((s) => ({ ...s, ...patch })), []);
 
   useEffect(() => {
-    if (isOpen) {
-      startRegFlow();
-      sendTrackingEvent('OpenRegister');
-    }
+    if (!isOpen) return;
+    startRegFlow();
+    sendTrackingEvent('OpenRegister');
+    // Si la persona cierra la pestaña/navega sin tocar la X, igual mandamos
+    // el abandono con lo que haya cargado. sendRegFlow se anula a sí mismo,
+    // así que no duplica con handleClose ni con un registro completado.
+    const onPageHide = () => sendRegFlow('ABANDONED');
+    window.addEventListener('pagehide', onPageHide);
+    return () => window.removeEventListener('pagehide', onPageHide);
   }, [isOpen]);
+
+  // Guardado parcial: vamos reflejando lo cargado en __regFlow.data para que el
+  // beacon (que se dispara desde un handler global) tenga los valores actuales.
+  useEffect(() => {
+    const f = (window as any).__regFlow;
+    if (f) f.data = { businessName: state.businessName, fullName: state.fullName, email: state.email, mobile: state.mobile };
+  }, [state.businessName, state.fullName, state.email, state.mobile]);
 
   const handleClose = () => {
     trackAction('CLOSE');

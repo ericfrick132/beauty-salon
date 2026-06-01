@@ -46,6 +46,8 @@ namespace BookingPro.API.Controllers
             public string? Name { get; set; }
             public string? Email { get; set; }
             public string? Phone { get; set; }
+            public string? BusinessName { get; set; }
+            public string? FullName { get; set; }
             public string? PlanName { get; set; }
             public string? Fbclid { get; set; }
             public string? SessionId { get; set; }
