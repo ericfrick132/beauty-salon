@@ -212,7 +212,12 @@ namespace BookingPro.API.Models.Entities
         public bool IsActive { get; set; } = true;
         public DateTime? LastLogin { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        
+
+        // True cuando la cuenta se creó por un flujo sin contraseña (magic link).
+        // El dashboard fuerza al usuario a definir su contraseña en el primer
+        // ingreso para que pueda volver a entrar más adelante con email+contraseña.
+        public bool MustSetPassword { get; set; } = false;
+
         // Navigation properties
         public Tenant Tenant { get; set; } = null!;
     }
@@ -284,6 +289,21 @@ namespace BookingPro.API.Models.Entities
 
         [Required]
         public string PasswordHash { get; set; } = string.Empty;
+
+        // Datos del negocio que la persona cargó en el registro sin contraseña
+        // (magic link). En el flujo clásico (start/complete) quedan en null.
+        [MaxLength(255)]
+        public string? BusinessName { get; set; }
+
+        [MaxLength(255)]
+        public string? FullName { get; set; }
+
+        [MaxLength(50)]
+        public string? Mobile { get; set; }
+
+        // Marca el registro como "sin contraseña": al confirmar el magic link se
+        // crea la cuenta con una contraseña aleatoria y MustSetPassword=true.
+        public bool IsPasswordless { get; set; } = false;
 
         [Required, MaxLength(255)]
         public string RememberToken { get; set; } = string.Empty;

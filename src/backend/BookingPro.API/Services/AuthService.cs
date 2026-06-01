@@ -185,6 +185,11 @@ namespace BookingPro.API.Services
                 new("last_name", user.LastName ?? "")
             };
 
+            // Cuentas creadas sin contraseña (magic link): el frontend usa este
+            // claim para forzar la creación de contraseña en el primer ingreso.
+            if (user.MustSetPassword)
+                claims.Add(new Claim("must_set_password", "true"));
+
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(claims),

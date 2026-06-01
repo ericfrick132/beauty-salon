@@ -497,6 +497,255 @@ namespace BookingPro.API.Controllers
         }
 
         /// <summary>
+        /// Registro SIN contraseña (magic link), paso 1. Recibe los datos del
+        /// negocio y envía un email con un enlace que crea la cuenta y deja a la
+        /// persona logueada. No pedimos contraseña porque inventar/tipear una en
+        /// el navegador in-app de Instagram (sin gestor de contraseñas ni
+        /// autocompletado) es el mayor punto de abandono del registro.
+        /// </summary>
+        [HttpPost("passwordless/start")]
+        public async Task<IActionResult> PasswordlessStart([FromBody] PasswordlessStartDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(new { success = false, message = "Datos inválidos", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
+
+            try
+            {
+                var emailLower = dto.Email.Trim().ToLowerInvariant();
+
+                var emailExists = await _context.Users
+                    .IgnoreQueryFilters()
+                    .AnyAsync(u => u.Email.ToLower() == emailLower);
+                if (emailExists)
+                    return BadRequest(new { success = false, message = "Ya existe una cuenta con este email. Iniciá sesión." });
+
+                // Validamos temprano que el nombre del negocio sirva como subdominio,
+                // así no enviamos un email que después no se va a poder completar.
+                var baseSubdomain = SanitizeSubdomain(dto.BusinessName);
+                if (string.IsNullOrEmpty(baseSubdomain) || baseSubdomain.Length < 3)
+                    return BadRequest(new { success = false, message = "El nombre del negocio no es válido para generar tu link." });
+
+                var existingPending = await _context.PendingRegistrations
+                    .FirstOrDefaultAsync(p => p.Email == emailLower);
+                if (existingPending != null && existingPending.IsConfirmed)
+                    return BadRequest(new { success = false, message = "Este email ya fue confirmado. Revisá el enlace que te enviamos." });
+
+                var token = Guid.NewGuid().ToString("N");
+                if (existingPending != null)
+                {
+                    existingPending.PasswordHash = string.Empty;
+                    existingPending.IsPasswordless = true;
+                    existingPending.BusinessName = dto.BusinessName.Trim();
+                    existingPending.FullName = string.IsNullOrWhiteSpace(dto.FullName) ? null : dto.FullName.Trim();
+                    existingPending.Mobile = dto.Mobile.Trim();
+                    existingPending.RememberToken = token;
+                    existingPending.ExpiresAt = DateTime.UtcNow.AddHours(24);
+                    existingPending.CreatedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    existingPending = new PendingRegistration
+                    {
+                        Email = emailLower,
+                        PasswordHash = string.Empty,
+                        IsPasswordless = true,
+                        BusinessName = dto.BusinessName.Trim(),
+                        FullName = string.IsNullOrWhiteSpace(dto.FullName) ? null : dto.FullName.Trim(),
+                        Mobile = dto.Mobile.Trim(),
+                        RememberToken = token,
+                        ExpiresAt = DateTime.UtcNow.AddHours(24),
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    _context.PendingRegistrations.Add(existingPending);
+                }
+                await _context.SaveChangesAsync();
+
+                var host = HttpContext.Request.Host.Host;
+                var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");
+                // El enlace apunta al backend: al abrirlo crea la cuenta y redirige ya logueado.
+                var apiBase = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}";
+                var magicUrl = $"{apiBase}/api/registration/passwordless/complete?token={token}";
+
+                try
+                {
+                    await _emailService.SendConfirmationEmailAsync(emailLower, magicUrl);
+                }
+                catch (Exception emailEx)
+                {
+                    _logger.LogError(emailEx, "Failed to send passwordless magic link to {Email}", emailLower);
+                    _logger.LogInformation("=== MAGIC LINK (email failed) === {MagicUrl}", magicUrl);
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Te enviamos un email con un enlace para activar tu cuenta. Revisá tu casilla.",
+                    devMagicUrl = isLocal ? magicUrl : null
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in passwordless start for {Email}", dto.Email);
+                return StatusCode(500, new { success = false, message = "Error interno. Por favor intentá nuevamente." });
+            }
+        }
+
+        /// <summary>
+        /// Registro SIN contraseña (magic link), paso 2. La persona abre el enlace
+        /// del email: creamos tenant + usuario (contraseña aleatoria,
+        /// MustSetPassword=true) y la redirigimos al dashboard ya logueada.
+        /// Idempotente: si el enlace ya se usó, simplemente reloguea al usuario.
+        /// </summary>
+        [HttpGet("passwordless/complete")]
+        public async Task<IActionResult> PasswordlessComplete([FromQuery] string token)
+        {
+            var host = HttpContext.Request.Host.Host;
+            var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");
+            string LoginFallback(string error) => (isLocal ? "http://localhost:3001" : "https://www.turnos-pro.com") + $"/login?error={error}";
+
+            if (string.IsNullOrWhiteSpace(token))
+                return Redirect(LoginFallback("invalid_link"));
+
+            try
+            {
+                var pending = await _context.PendingRegistrations
+                    .FirstOrDefaultAsync(p => p.RememberToken == token && p.IsPasswordless);
+                if (pending == null)
+                    return Redirect(LoginFallback("invalid_link"));
+
+                var emailLower = pending.Email.Trim().ToLowerInvariant();
+
+                // Idempotencia: si el usuario ya existe (enlace abierto dos veces),
+                // reemitimos el token y lo mandamos a su dashboard.
+                var existingUser = await _context.Users
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(u => u.Email.ToLower() == emailLower);
+                if (existingUser != null)
+                {
+                    var existingTenant = await _context.Tenants.IgnoreQueryFilters()
+                        .FirstOrDefaultAsync(t => t.Id == existingUser.TenantId);
+                    var existingSub = existingTenant?.Subdomain ?? "";
+                    var existingUrl = isLocal ? $"http://{existingSub}.localhost:3001" : $"https://{existingSub}.turnos-pro.com";
+                    var existingJwt = _authService.GenerateJwtToken(existingUser);
+                    return Redirect($"{existingUrl}/dashboard?impersonationToken={existingJwt}");
+                }
+
+                if (pending.ExpiresAt < DateTime.UtcNow)
+                    return Redirect(LoginFallback("expired_link"));
+
+                var baseSubdomain = SanitizeSubdomain(pending.BusinessName ?? "");
+                if (string.IsNullOrEmpty(baseSubdomain) || baseSubdomain.Length < 3)
+                    return Redirect(LoginFallback("invalid_business"));
+
+                var subdomain = baseSubdomain;
+                if (_reservedSubdomains.Contains(subdomain))
+                    subdomain = baseSubdomain + "1";
+                var attempt = 1;
+                while (await _context.Tenants.AnyAsync(t => t.Subdomain.ToLower() == subdomain.ToLower()))
+                {
+                    attempt++;
+                    if (attempt > 100)
+                        return Redirect(LoginFallback("subdomain"));
+                    subdomain = baseSubdomain + attempt;
+                }
+
+                using var transaction = await _context.Database.BeginTransactionAsync();
+
+                var tenant = new Tenant
+                {
+                    Id = Guid.NewGuid(),
+                    VerticalId = null,
+                    Subdomain = subdomain,
+                    BusinessName = (pending.BusinessName ?? "").Trim(),
+                    OwnerEmail = emailLower,
+                    OwnerPhone = pending.Mobile,
+                    OwnerName = string.IsNullOrWhiteSpace(pending.FullName) ? null : pending.FullName!.Trim(),
+                    SchemaName = $"tenant_{subdomain.Replace("-", "_")}",
+                    TimeZone = "America/Argentina/Buenos_Aires",
+                    Currency = "ARS",
+                    Language = "es",
+                    Status = "trial",
+                    IsDemo = true,
+                    DemoDays = 7,
+                    DemoExpiresAt = DateTime.UtcNow.AddDays(7),
+                    TrialEndsAt = DateTime.UtcNow.AddDays(7),
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _context.Tenants.Add(tenant);
+                await _context.SaveChangesAsync();
+
+                string firstName;
+                string lastName;
+                var fullName = pending.FullName?.Trim();
+                if (!string.IsNullOrWhiteSpace(fullName))
+                {
+                    var parts = fullName.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    firstName = parts[0];
+                    lastName = parts.Length > 1 ? parts[1] : "";
+                }
+                else
+                {
+                    firstName = (pending.BusinessName ?? "").Trim();
+                    lastName = "";
+                }
+
+                // Contraseña aleatoria inutilizable: la persona define la suya en
+                // el primer ingreso (gracias a MustSetPassword).
+                var randomPassword = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+                var adminUser = new User
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenant.Id,
+                    Email = emailLower,
+                    FirstName = firstName,
+                    LastName = lastName,
+                    Phone = pending.Mobile,
+                    PasswordHash = Services.Security.PasswordHasher.Hash(randomPassword),
+                    Role = "admin",
+                    IsActive = true,
+                    MustSetPassword = true,
+                    CreatedAt = DateTime.UtcNow,
+                    LastLogin = DateTime.UtcNow
+                };
+                _context.Users.Add(adminUser);
+                await _context.SaveChangesAsync();
+
+                var subscription = new Subscription
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenant.Id,
+                    PlanType = "demo",
+                    MonthlyAmount = 0,
+                    Status = "trial",
+                    IsTrialPeriod = true,
+                    TrialEndsAt = DateTime.UtcNow.AddDays(7),
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _context.Subscriptions.Add(subscription);
+
+                pending.IsConfirmed = true;
+                pending.ConfirmedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+
+                var jwt = _authService.GenerateJwtToken(adminUser);
+                var tenantUrl = isLocal ? $"http://{subdomain}.localhost:3001" : $"https://{subdomain}.turnos-pro.com";
+
+                _logger.LogInformation("Passwordless registration completed for {Email}, tenant {TenantId}, subdomain {Subdomain}", emailLower, tenant.Id, subdomain);
+
+                return Redirect($"{tenantUrl}/dashboard?impersonationToken={jwt}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error completing passwordless registration");
+                return Redirect(LoginFallback("server"));
+            }
+        }
+
+        /// <summary>
         /// Check subdomain availability.
         /// </summary>
         [HttpGet("check-subdomain/{subdomain}")]
@@ -726,5 +975,21 @@ namespace BookingPro.API.Controllers
 
         // Plan elegido por el usuario en el signup flow. Si es null, se usa "demo" con 7 días trial.
         public string? PlanCode { get; set; }
+    }
+
+    public class PasswordlessStartDto
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El nombre del negocio es requerido")]
+        [System.ComponentModel.DataAnnotations.MinLength(2, ErrorMessage = "El nombre del negocio es muy corto")]
+        public string BusinessName { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El email es requerido")]
+        [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "Email inválido")]
+        public string Email { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El celular es requerido")]
+        public string Mobile { get; set; } = string.Empty;
+
+        public string? FullName { get; set; }
     }
 }

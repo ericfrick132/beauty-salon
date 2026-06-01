@@ -14,9 +14,12 @@ import api from '../../services/api';
 interface Props {
   open: boolean;
   onClose: () => void;
+  // En el primer ingreso de cuentas creadas sin contraseña (magic link),
+  // forzamos definir una contraseña: no se puede cancelar ni cerrar hasta crearla.
+  forced?: boolean;
 }
 
-const ChangePasswordDialog: React.FC<Props> = ({ open, onClose }) => {
+const ChangePasswordDialog: React.FC<Props> = ({ open, onClose, forced = false }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [saving, setSaving] = useState(false);
@@ -32,6 +35,8 @@ const ChangePasswordDialog: React.FC<Props> = ({ open, onClose }) => {
 
   const handleClose = () => {
     if (saving) return;
+    // En modo forzado solo se puede salir una vez creada la contraseña.
+    if (forced && !success) return;
     reset();
     onClose();
   };
@@ -61,10 +66,22 @@ const ChangePasswordDialog: React.FC<Props> = ({ open, onClose }) => {
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
-      <DialogTitle>Cambiar contraseña</DialogTitle>
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      maxWidth="xs"
+      fullWidth
+      disableEscapeKeyDown={forced}
+    >
+      <DialogTitle>{forced ? 'Creá tu contraseña' : 'Cambiar contraseña'}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
+          {forced && !success && (
+            <Alert severity="info">
+              Tu cuenta se creó sin contraseña. Definí una para poder volver a
+              entrar más adelante con tu email.
+            </Alert>
+          )}
           {error && <Alert severity="error">{error}</Alert>}
           {success && <Alert severity="success">Contraseña actualizada.</Alert>}
           <TextField
@@ -88,9 +105,9 @@ const ChangePasswordDialog: React.FC<Props> = ({ open, onClose }) => {
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={handleClose} disabled={saving}>Cancelar</Button>
+        {!forced && <Button onClick={handleClose} disabled={saving}>Cancelar</Button>}
         <Button onClick={handleSubmit} variant="contained" disabled={saving || success}>
-          {saving ? 'Guardando…' : 'Guardar'}
+          {saving ? 'Guardando…' : forced ? 'Crear contraseña' : 'Guardar'}
         </Button>
       </DialogActions>
     </Dialog>

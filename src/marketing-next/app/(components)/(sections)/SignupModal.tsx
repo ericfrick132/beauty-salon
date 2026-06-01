@@ -29,10 +29,6 @@ export function useSignupModal() {
 }
 
 // --- Helpers ---
-function passwordValid(pwd: string): boolean {
-  return pwd.length >= 8;
-}
-
 function emailValid(value: string): boolean {
   return /\S+@\S+\.\S+/.test(value);
 }
@@ -100,9 +96,12 @@ interface ModalState {
   fullName: string;
   email: string;
   mobile: string;
-  password: string;
   busy: boolean;
   error: string;
+  // Registro sin contraseña: al enviar el formulario mandamos un email con un
+  // enlace mágico. `sent` muestra la pantalla de "revisá tu casilla".
+  sent: boolean;
+  devMagicUrl?: string;
 }
 
 const initialState: ModalState = {
@@ -111,10 +110,63 @@ const initialState: ModalState = {
   fullName: '',
   email: '',
   mobile: '',
-  password: '',
   busy: false,
   error: '',
+  sent: false,
+  devMagicUrl: undefined,
 };
+
+// Pantalla final del registro sin contraseña: confirmamos que mandamos el
+// enlace mágico al email. En dev mostramos un botón directo para no depender
+// del envío real de correo.
+function SentView({ email, devMagicUrl }: { email: string; devMagicUrl?: string }) {
+  return (
+    <Box sx={{ textAlign: 'center', py: 1 }}>
+      <Box aria-hidden sx={{ fontSize: '2.6rem', mb: 1 }}>📧</Box>
+      <Typography
+        variant="h5"
+        component="h3"
+        sx={{
+          fontFamily: 'var(--font-fraunces), serif',
+          fontWeight: 600,
+          fontSize: { xs: '1.5rem', sm: '1.75rem' },
+          lineHeight: 1.15,
+          letterSpacing: '-0.02em',
+          color: palette.ink,
+          mb: 1,
+        }}
+      >
+        Revisá tu email
+      </Typography>
+      <Typography sx={{ fontSize: '0.95rem', color: palette.inkSoft, lineHeight: 1.5, mb: 1 }}>
+        Te enviamos un enlace a{' '}
+        <Box component="span" sx={{ color: palette.ink, fontWeight: 600, wordBreak: 'break-all' }}>
+          {email}
+        </Box>
+        . Abrilo para activar tu cuenta y entrar — sin contraseñas.
+      </Typography>
+      <Typography sx={{ fontSize: '0.78rem', color: palette.inkSoft, mb: 2 }}>
+        ¿No lo ves? Fijate en spam o en la pestaña de promociones.
+      </Typography>
+      {devMagicUrl && (
+        <Button
+          variant="contained"
+          fullWidth
+          href={devMagicUrl}
+          sx={{
+            py: 1.3,
+            fontWeight: 700,
+            bgcolor: palette.ink,
+            color: palette.paper,
+            '&:hover': { bgcolor: palette.forest },
+          }}
+        >
+          Continuar (dev)
+        </Button>
+      )}
+    </Box>
+  );
+}
 
 function SignupModalInner() {
   const { isOpen, close } = useSignupModalInternal();
@@ -201,8 +253,7 @@ function SignupModalInner() {
   const step2Valid =
     state.fullName.trim().length >= 2 &&
     emailValid(state.email) &&
-    state.mobile.trim().length >= 6 &&
-    passwordValid(state.password);
+    state.mobile.trim().length >= 6;
 
   const goToStep2 = () => {
     if (!step1Valid) return;
@@ -230,15 +281,16 @@ function SignupModalInner() {
     }
 
     try {
-      const res = await fetch(apiUrl('/registration/quick'), {
+      // Registro sin contraseña: el backend guarda los datos y envía un email
+      // con un enlace mágico que crea la cuenta y deja a la persona logueada.
+      const res = await fetch(apiUrl('/registration/passwordless/start'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: state.email.trim(),
-          password: state.password,
           businessName: state.businessName.trim(),
-          mobile: state.mobile.trim(),
           fullName: state.fullName.trim(),
+          email: state.email.trim(),
+          mobile: state.mobile.trim(),
         }),
       });
 
@@ -248,24 +300,12 @@ function SignupModalInner() {
         throw new Error(body.message || 'Error al registrar. Intenta de nuevo.');
       }
 
-      trackAction('SUBMIT_OK');
-      sendRegFlow('COMPLETED');
+      // El alta no termina hasta que abren el enlace, pero el lead ya quedó
+      // capturado: marcamos el flujo como EMAIL_SENT (distinto de ABANDONED).
+      trackAction('MAGIC_SENT');
+      sendRegFlow('EMAIL_SENT');
 
-      if (typeof window !== 'undefined' && (window as any).fbq) {
-        const sid = sessionStorage.getItem('_track_sid') || '';
-        (window as any).fbq('track', 'CompleteRegistration', {}, { eventID: sid ? `${sid}-CompleteRegistration` : undefined });
-      }
-      sendTrackingEvent('CompleteRegistration', {
-        name: state.businessName,
-        email: state.email,
-        phone: state.mobile,
-      });
-
-      if (body.redirectUrl) {
-        window.location.href = body.redirectUrl;
-      } else {
-        set({ busy: false, error: 'Cuenta creada pero no pudimos redirigirte. Intentá iniciar sesión.' });
-      }
+      set({ busy: false, sent: true, devMagicUrl: body.devMagicUrl || undefined });
     } catch (err: any) {
       trackAction(`SUBMIT_ERROR ${(err as Error).message?.slice(0, 30)}`);
       set({ error: err.message || 'Error inesperado', busy: false });
@@ -314,6 +354,10 @@ function SignupModalInner() {
       </IconButton>
 
       <DialogContent sx={{ px: { xs: 3, sm: 4 }, py: { xs: 3, sm: 3.5 } }}>
+        {state.sent ? (
+          <SentView email={state.email} devMagicUrl={state.devMagicUrl} />
+        ) : (
+        <>
         {/* Step indicator */}
         <Box
           sx={{
@@ -489,7 +533,7 @@ function SignupModalInner() {
                 lineHeight: 1.45,
               }}
             >
-              Tu sitio estará listo en 10 segundos
+              Sin contraseñas: te mandamos un enlace por email para entrar.
             </Typography>
 
             <Stack spacing={2}>
@@ -521,18 +565,9 @@ function SignupModalInner() {
                 onChange={(e) => set({ mobile: e.target.value })}
                 onFocus={() => trackFocus('mobile')}
                 onBlur={() => trackBlur('mobile')}
-                fullWidth
-              />
-              <TextField
-                label="Contraseña"
-                type="password"
-                value={state.password}
-                onChange={(e) => set({ password: e.target.value })}
-                onFocus={() => trackFocus('password')}
-                onBlur={() => trackBlur('password')}
                 onKeyDown={(e) => { if (e.key === 'Enter' && step2Valid && !state.busy) handleSubmit(); }}
                 fullWidth
-                helperText="Mínimo 8 caracteres"
+                helperText="Por acá te llegan los turnos y recordatorios"
               />
             </Stack>
 
@@ -583,7 +618,7 @@ function SignupModalInner() {
                 '&.Mui-disabled': { bgcolor: 'rgba(0,0,0,0.12)', color: 'rgba(0,0,0,0.4)' },
               }}
             >
-              {state.busy ? 'Creando cuenta...' : 'Crear mi cuenta'}
+              {state.busy ? 'Enviando…' : 'Crear mi cuenta gratis'}
             </Button>
 
             <Stack direction="row" justifyContent="center" alignItems="center" spacing={0.7} sx={{ mt: 2 }}>
@@ -593,6 +628,8 @@ function SignupModalInner() {
               </Typography>
             </Stack>
           </>
+        )}
+        </>
         )}
       </DialogContent>
     </Dialog>

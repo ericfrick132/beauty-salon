@@ -252,7 +252,12 @@ export const AdminLayout: React.FC = () => {
   const [notifications, setNotifications] = useState(0);
   const [notificationList] = useState<any[]>([]);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
-  
+  // Cuentas creadas sin contraseña (magic link): App.tsx setea esta flag al
+  // detectar el claim must_set_password en el JWT. Forzamos crear la contraseña.
+  const [mustSetPassword, setMustSetPassword] = useState<boolean>(
+    () => typeof window !== 'undefined' && localStorage.getItem('mustSetPassword') === '1'
+  );
+
   // Colores específicos del vertical
   const primaryColor = config?.theme?.primaryColor || '#1E40AF';
   const secondaryColor = config?.theme?.secondaryColor || '#1E3A5F';
@@ -996,6 +1001,15 @@ export const AdminLayout: React.FC = () => {
       </Menu>
 
       <ChangePasswordDialog open={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />
+
+      <ChangePasswordDialog
+        open={mustSetPassword}
+        forced
+        onClose={() => {
+          if (typeof window !== 'undefined') localStorage.removeItem('mustSetPassword');
+          setMustSetPassword(false);
+        }}
+      />
     </Box>
   );
 };

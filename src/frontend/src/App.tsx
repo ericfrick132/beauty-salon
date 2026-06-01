@@ -108,6 +108,12 @@ function App() {
         };
         localStorage.setItem('user', JSON.stringify(impersonatedUser));
         store.dispatch(setUser(impersonatedUser as any));
+
+        // Cuentas creadas sin contraseña (magic link): el claim must_set_password
+        // hace que el dashboard fuerce definir una contraseña en este primer ingreso.
+        if (payload.must_set_password === 'true' || payload.must_set_password === true) {
+          localStorage.setItem('mustSetPassword', '1');
+        }
       } catch (e) {
         console.warn('Could not decode impersonation JWT', e);
       }
