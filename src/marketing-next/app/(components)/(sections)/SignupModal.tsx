@@ -92,7 +92,8 @@ function sendTrackingEvent(eventType: string, extra: Record<string, any> = {}) {
 }
 
 // --- Component ---
-type Step = 1 | 2;
+// 'phone'/'otp' = low-friction WhatsApp flow (default). 1/2 = legacy email flow.
+type Step = 'phone' | 'otp' | 1 | 2;
 
 interface ModalState {
   step: Step;
@@ -101,19 +102,23 @@ interface ModalState {
   email: string;
   mobile: string;
   password: string;
+  otp: string;
   busy: boolean;
   error: string;
+  info: string;
 }
 
 const initialState: ModalState = {
-  step: 1,
+  step: 'phone',
   businessName: '',
   fullName: '',
   email: '',
   mobile: '',
   password: '',
+  otp: '',
   busy: false,
   error: '',
+  info: '',
 };
 
 function SignupModalInner() {
@@ -203,6 +208,79 @@ function SignupModalInner() {
     emailValid(state.email) &&
     state.mobile.trim().length >= 6 &&
     passwordValid(state.password);
+
+  // --- WhatsApp (low-friction) flow ---
+  const phoneValid = state.mobile.replace(/[^0-9]/g, '').length >= 8;
+  const otpValid = state.otp.replace(/[^0-9]/g, '').length >= 4;
+
+  const requestOtp = async () => {
+    if (!phoneValid || state.busy) return;
+    trackAction('TAP request_otp');
+    set({ busy: true, error: '', info: '' });
+    try {
+      const res = await fetch(apiUrl('/registration/phone/start'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: state.mobile.trim() }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.status === 409) {
+        // Phone already has an account → nudge to login.
+        set({ busy: false, error: body.message || 'Ya existe una cuenta con este WhatsApp. Iniciá sesión.' });
+        return;
+      }
+      if (!res.ok || !body.success) {
+        throw new Error(body.message || 'No pudimos enviar el código. Intentá de nuevo.');
+      }
+      trackAction('OTP_SENT');
+      // fbq Lead: dejó el WhatsApp = lead calificado
+      sendTrackingEvent('Lead', { phone: state.mobile });
+      if (typeof window !== 'undefined' && (window as any).fbq) {
+        const sid = sessionStorage.getItem('_track_sid') || '';
+        (window as any).fbq('track', 'Lead', {}, { eventID: sid ? `${sid}-Lead` : undefined });
+      }
+      set({
+        busy: false,
+        step: 'otp',
+        info: body.devCode ? `Código (dev): ${body.devCode}` : '',
+      });
+    } catch (err: any) {
+      trackAction(`OTP_ERROR ${(err as Error).message?.slice(0, 30)}`);
+      set({ error: err.message || 'Error inesperado', busy: false });
+    }
+  };
+
+  const verifyOtp = async () => {
+    if (!otpValid || state.busy) return;
+    trackAction('TAP verify_otp');
+    set({ busy: true, error: '' });
+    try {
+      const res = await fetch(apiUrl('/registration/phone/verify'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: state.mobile.trim(), code: state.otp.trim() }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.success) {
+        throw new Error(body.message || 'Código incorrecto.');
+      }
+      trackAction('SUBMIT_OK');
+      sendRegFlow('COMPLETED');
+      if (typeof window !== 'undefined' && (window as any).fbq) {
+        const sid = sessionStorage.getItem('_track_sid') || '';
+        (window as any).fbq('track', 'CompleteRegistration', {}, { eventID: sid ? `${sid}-CompleteRegistration` : undefined });
+      }
+      sendTrackingEvent('CompleteRegistration', { phone: state.mobile });
+      if (body.redirectUrl) {
+        window.location.href = body.redirectUrl;
+      } else {
+        set({ busy: false, error: 'Cuenta creada pero no pudimos redirigirte. Iniciá sesión.' });
+      }
+    } catch (err: any) {
+      trackAction(`VERIFY_ERROR ${(err as Error).message?.slice(0, 30)}`);
+      set({ error: err.message || 'Error inesperado', busy: false });
+    }
+  };
 
   const goToStep2 = () => {
     if (!step1Valid) return;
@@ -314,29 +392,163 @@ function SignupModalInner() {
       </IconButton>
 
       <DialogContent sx={{ px: { xs: 3, sm: 4 }, py: { xs: 3, sm: 3.5 } }}>
-        {/* Step indicator */}
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1.5,
-            mb: 2.5,
-            fontFamily: 'var(--font-mono), monospace',
-            fontSize: '0.66rem',
-            letterSpacing: '0.16em',
-            textTransform: 'uppercase',
-            color: palette.inkSoft,
-          }}
-        >
-          {state.step === 2 && (
+        {/* Step indicator — only for the legacy email flow (numeric steps) */}
+        {(state.step === 1 || state.step === 2) && (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              mb: 2.5,
+              fontFamily: 'var(--font-mono), monospace',
+              fontSize: '0.66rem',
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              color: palette.inkSoft,
+            }}
+          >
+            {state.step === 2 && (
+              <Button
+                size="small"
+                onClick={goBackToStep1}
+                startIcon={<ArrowBackIcon fontSize="small" />}
+                sx={{
+                  minWidth: 0,
+                  px: 0.8,
+                  py: 0.2,
+                  fontSize: '0.68rem',
+                  letterSpacing: '0.1em',
+                  color: palette.ink,
+                  textTransform: 'uppercase',
+                  fontFamily: 'var(--font-mono), monospace',
+                  '&:hover': { background: 'transparent', color: palette.coral },
+                }}
+              >
+                Atrás
+              </Button>
+            )}
+            <Box sx={{ flex: 1, display: 'flex', gap: 0.6, alignItems: 'center' }}>
+              <Box
+                sx={{
+                  flex: 1,
+                  height: 3,
+                  bgcolor: palette.forest,
+                  borderRadius: 2,
+                }}
+              />
+              <Box
+                sx={{
+                  flex: 1,
+                  height: 3,
+                  bgcolor: state.step === 2 ? palette.forest : 'rgba(0,0,0,0.1)',
+                  borderRadius: 2,
+                }}
+              />
+            </Box>
+            <Box component="span">Paso {state.step} de 2</Box>
+          </Box>
+        )}
+
+        {state.error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {state.error}
+          </Alert>
+        )}
+        {state.info && !state.error && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            {state.info}
+          </Alert>
+        )}
+
+        {state.step === 'phone' ? (
+          <>
+            <Typography
+              variant="h5"
+              component="h3"
+              sx={{
+                fontFamily: 'var(--font-fraunces), serif',
+                fontWeight: 600,
+                fontSize: { xs: '1.6rem', sm: '1.85rem' },
+                lineHeight: 1.15,
+                letterSpacing: '-0.02em',
+                color: palette.ink,
+                mb: 1,
+              }}
+            >
+              Empezá con tu WhatsApp
+            </Typography>
+            <Typography
+              sx={{ fontSize: '0.92rem', color: palette.inkSoft, mb: 3, lineHeight: 1.45 }}
+            >
+              Te mandamos un código y entrás al instante. Sin contraseñas, sin tarjeta.
+            </Typography>
+
+            <TextField
+              label="Tu WhatsApp"
+              type="tel"
+              placeholder="11 1234 5678"
+              value={state.mobile}
+              onChange={(e) => set({ mobile: e.target.value })}
+              onFocus={() => trackFocus('mobile')}
+              onBlur={() => trackBlur('mobile')}
+              onKeyDown={(e) => { if (e.key === 'Enter' && phoneValid && !state.busy) requestOtp(); }}
+              fullWidth
+              autoFocus
+              sx={{ mb: 2.5 }}
+            />
+
+            <Button
+              variant="contained"
+              size="large"
+              fullWidth
+              disabled={!phoneValid || state.busy}
+              onClick={requestOtp}
+              startIcon={state.busy ? <CircularProgress size={18} color="inherit" /> : undefined}
+              sx={{
+                py: 1.5,
+                fontSize: '1rem',
+                fontWeight: 700,
+                bgcolor: palette.ink,
+                color: palette.paper,
+                '&:hover': { bgcolor: palette.forest },
+                '&.Mui-disabled': { bgcolor: 'rgba(0,0,0,0.12)', color: 'rgba(0,0,0,0.4)' },
+              }}
+            >
+              {state.busy ? 'Enviando código...' : 'Enviar código por WhatsApp'}
+            </Button>
+
+            <Button
+              fullWidth
+              onClick={() => { trackAction('SWITCH_EMAIL'); set({ step: 1, error: '', info: '' }); }}
+              sx={{
+                mt: 1.5,
+                fontSize: '0.8rem',
+                color: palette.inkSoft,
+                textTransform: 'none',
+                '&:hover': { background: 'transparent', color: palette.coral },
+              }}
+            >
+              Prefiero registrarme con email
+            </Button>
+
+            <Stack direction="row" justifyContent="center" alignItems="center" spacing={1} sx={{ mt: 2 }}>
+              <Box component="span" sx={{ color: palette.amber, letterSpacing: '0.1em' }}>★★★★★</Box>
+              <Typography sx={{ fontSize: '0.78rem', color: palette.inkSoft }}>
+                4.9/5 · +1.200 negocios
+              </Typography>
+            </Stack>
+          </>
+        ) : state.step === 'otp' ? (
+          <>
             <Button
               size="small"
-              onClick={goBackToStep1}
+              onClick={() => { trackAction('BACK'); set({ step: 'phone', otp: '', error: '', info: '' }); }}
               startIcon={<ArrowBackIcon fontSize="small" />}
               sx={{
                 minWidth: 0,
                 px: 0.8,
                 py: 0.2,
+                mb: 1.5,
                 fontSize: '0.68rem',
                 letterSpacing: '0.1em',
                 color: palette.ink,
@@ -345,37 +557,80 @@ function SignupModalInner() {
                 '&:hover': { background: 'transparent', color: palette.coral },
               }}
             >
-              Atrás
+              Cambiar número
             </Button>
-          )}
-          <Box sx={{ flex: 1, display: 'flex', gap: 0.6, alignItems: 'center' }}>
-            <Box
+            <Typography
+              variant="h5"
+              component="h3"
               sx={{
-                flex: 1,
-                height: 3,
-                bgcolor: state.step >= 1 ? palette.forest : 'rgba(0,0,0,0.1)',
-                borderRadius: 2,
+                fontFamily: 'var(--font-fraunces), serif',
+                fontWeight: 600,
+                fontSize: { xs: '1.5rem', sm: '1.75rem' },
+                lineHeight: 1.15,
+                letterSpacing: '-0.02em',
+                color: palette.ink,
+                mb: 0.8,
               }}
+            >
+              Ingresá el código
+            </Typography>
+            <Typography
+              sx={{ fontSize: '0.92rem', color: palette.inkSoft, mb: 2.5, lineHeight: 1.45 }}
+            >
+              Te lo enviamos por WhatsApp al{' '}
+              <Box component="span" sx={{ fontWeight: 600, color: palette.ink }}>{state.mobile}</Box>
+            </Typography>
+
+            <TextField
+              label="Código de 6 dígitos"
+              placeholder="123456"
+              value={state.otp}
+              onChange={(e) => set({ otp: e.target.value.replace(/[^0-9]/g, '').slice(0, 6) })}
+              onFocus={() => trackFocus('otp')}
+              onBlur={() => trackBlur('otp')}
+              onKeyDown={(e) => { if (e.key === 'Enter' && otpValid && !state.busy) verifyOtp(); }}
+              fullWidth
+              autoFocus
+              inputProps={{ inputMode: 'numeric', style: { letterSpacing: '0.4em', fontSize: '1.3rem', textAlign: 'center' } }}
+              sx={{ mb: 2 }}
             />
-            <Box
+
+            <Button
+              variant="contained"
+              size="large"
+              fullWidth
+              disabled={!otpValid || state.busy}
+              onClick={verifyOtp}
+              startIcon={state.busy ? <CircularProgress size={18} color="inherit" /> : undefined}
               sx={{
-                flex: 1,
-                height: 3,
-                bgcolor: state.step >= 2 ? palette.forest : 'rgba(0,0,0,0.1)',
-                borderRadius: 2,
+                py: 1.5,
+                fontSize: '1rem',
+                fontWeight: 700,
+                bgcolor: palette.ink,
+                color: palette.paper,
+                '&:hover': { bgcolor: palette.forest },
+                '&.Mui-disabled': { bgcolor: 'rgba(0,0,0,0.12)', color: 'rgba(0,0,0,0.4)' },
               }}
-            />
-          </Box>
-          <Box component="span">Paso {state.step} de 2</Box>
-        </Box>
+            >
+              {state.busy ? 'Verificando...' : 'Entrar a mi cuenta'}
+            </Button>
 
-        {state.error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {state.error}
-          </Alert>
-        )}
-
-        {state.step === 1 ? (
+            <Button
+              fullWidth
+              disabled={state.busy}
+              onClick={requestOtp}
+              sx={{
+                mt: 1.5,
+                fontSize: '0.8rem',
+                color: palette.inkSoft,
+                textTransform: 'none',
+                '&:hover': { background: 'transparent', color: palette.coral },
+              }}
+            >
+              Reenviar código
+            </Button>
+          </>
+        ) : state.step === 1 ? (
           <>
             <Typography
               variant="h5"

@@ -179,6 +179,33 @@ namespace BookingPro.API.Controllers
             return Ok(new { message = "Contraseña actualizada" });
         }
 
+        // DELETE /api/auth/me — baja de la cuenta del dueño (requisito App Store).
+        // Desactiva el usuario (no puede volver a iniciar sesión).
+        [Authorize]
+        [HttpDelete("me")]
+        public async Task<IActionResult> DeleteMyAccount()
+        {
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            {
+                return Unauthorized(new { message = "No autenticado" });
+            }
+
+            Guid tenantId;
+            try { tenantId = Guid.Parse(_tenantService.GetCurrentTenantId()); }
+            catch { return Unauthorized(new { message = "Tenant inválido" }); }
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId && u.TenantId == tenantId);
+            if (user == null)
+            {
+                return NotFound(new { message = "Usuario no encontrado" });
+            }
+
+            user.IsActive = false;
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Cuenta eliminada" });
+        }
+
         [Authorize]
         [HttpPost("change-password")]
         public async Task<IActionResult> ChangePassword([FromBody] ChangeOwnPasswordDto dto)

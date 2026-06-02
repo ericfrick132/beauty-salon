@@ -25,6 +25,7 @@ namespace BookingPro.API.Data
         public DbSet<Invitation> Invitations { get; set; }
         public DbSet<MessagePackage> MessagePackages { get; set; }
         public DbSet<PendingRegistration> PendingRegistrations { get; set; }
+        public DbSet<PhoneVerification> PhoneVerifications { get; set; }
 
         // DbSets para entidades por tenant
         public DbSet<Models.Entities.ServiceCategory> ServiceCategories { get; set; }
@@ -109,6 +110,12 @@ namespace BookingPro.API.Data
             {
                 entity.HasIndex(p => p.Email).IsUnique();
                 entity.HasIndex(p => p.RememberToken).IsUnique();
+            });
+
+            modelBuilder.Entity<PhoneVerification>(entity =>
+            {
+                // One active verification row per phone — we upsert on resend.
+                entity.HasIndex(p => p.Phone).IsUnique();
             });
 
             modelBuilder.Entity<Tenant>(entity =>

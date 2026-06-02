@@ -5,7 +5,10 @@ using BookingPro.API.Models.Entities;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Services;
 using BookingPro.API.Services.Interfaces;
+using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Security.Cryptography;
 
 namespace BookingPro.API.Controllers
 {
@@ -19,6 +22,8 @@ namespace BookingPro.API.Controllers
         private readonly IGoogleAuthService _googleAuthService;
         private readonly IEmailService _emailService;
         private readonly ILogger<RegistrationController> _logger;
+        private readonly IConfiguration _config;
+        private readonly IHttpClientFactory _httpClientFactory;
 
         private readonly HashSet<string> _reservedSubdomains = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -36,7 +41,9 @@ namespace BookingPro.API.Controllers
             IAuthService authService,
             IGoogleAuthService googleAuthService,
             IEmailService emailService,
-            ILogger<RegistrationController> logger)
+            ILogger<RegistrationController> logger,
+            IConfiguration config,
+            IHttpClientFactory httpClientFactory)
         {
             _context = context;
             _tenantService = tenantService;
@@ -44,6 +51,8 @@ namespace BookingPro.API.Controllers
             _googleAuthService = googleAuthService;
             _emailService = emailService;
             _logger = logger;
+            _config = config;
+            _httpClientFactory = httpClientFactory;
         }
 
         /// <summary>
@@ -497,6 +506,229 @@ namespace BookingPro.API.Controllers
         }
 
         /// <summary>
+        /// Low-friction signup step 1: receives only a WhatsApp number, generates a 6-digit
+        /// OTP and sends it via the platform Evolution instance. No account is created yet.
+        /// </summary>
+        [HttpPost("phone/start")]
+        public async Task<IActionResult> PhoneStart([FromBody] PhoneStartDto dto)
+        {
+            var phone = NormalizePhone(dto.Phone);
+            if (phone.Length < 8)
+                return BadRequest(new { success = false, message = "Número de WhatsApp inválido." });
+
+            // If this phone already belongs to an account, route them to login instead of
+            // silently creating a duplicate tenant.
+            var phoneInUse = await _context.Users
+                .IgnoreQueryFilters()
+                .AnyAsync(u => u.Phone == phone);
+            if (phoneInUse)
+                return Conflict(new { success = false, code = "PHONE_EXISTS", message = "Ya existe una cuenta con este WhatsApp. Iniciá sesión." });
+
+            var now = DateTime.UtcNow;
+            var existing = await _context.PhoneVerifications.FirstOrDefaultAsync(p => p.Phone == phone);
+
+            // Anti-spam: cap resends within the active (non-expired) window.
+            if (existing != null && existing.ExpiresAt > now && existing.ConsumedAt == null)
+            {
+                if (existing.SendCount >= 5)
+                    return StatusCode(429, new { success = false, message = "Demasiados intentos. Esperá unos minutos e intentá de nuevo." });
+            }
+
+            var code = GenerateOtp();
+            var codeHash = Services.Security.PasswordHasher.Hash(code);
+
+            if (existing == null)
+            {
+                _context.PhoneVerifications.Add(new PhoneVerification
+                {
+                    Phone = phone,
+                    CodeHash = codeHash,
+                    ExpiresAt = now.AddMinutes(10),
+                    Attempts = 0,
+                    SendCount = 1,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
+            }
+            else
+            {
+                // Reset the window when expired/consumed, otherwise count the resend.
+                var windowActive = existing.ExpiresAt > now && existing.ConsumedAt == null;
+                existing.CodeHash = codeHash;
+                existing.ExpiresAt = now.AddMinutes(10);
+                existing.Attempts = 0;
+                existing.ConsumedAt = null;
+                existing.SendCount = windowActive ? existing.SendCount + 1 : 1;
+                existing.UpdatedAt = now;
+            }
+            await _context.SaveChangesAsync();
+
+            var sent = await SendWhatsAppOtpAsync(phone, code);
+            if (!sent)
+                return StatusCode(502, new { success = false, message = "No pudimos enviar el código por WhatsApp. Intentá de nuevo." });
+
+            var host = HttpContext.Request.Host.Host;
+            var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");
+            return Ok(new
+            {
+                success = true,
+                message = "Te enviamos un código por WhatsApp.",
+                // Dev-only convenience so we can test without a real WhatsApp.
+                devCode = isLocal ? code : null
+            });
+        }
+
+        /// <summary>
+        /// Low-friction signup step 2: verifies the OTP and, on success, provisions a full
+        /// account (tenant + admin user + trial subscription) with a placeholder email and a
+        /// temporary subdomain. The business name / vertical are chosen later in onboarding
+        /// (Dashboard shows the template picker while VerticalId is null). Returns an
+        /// auto-login redirect URL.
+        /// </summary>
+        [HttpPost("phone/verify")]
+        public async Task<IActionResult> PhoneVerify([FromBody] PhoneVerifyDto dto)
+        {
+            var phone = NormalizePhone(dto.Phone);
+            var code = (dto.Code ?? "").Trim();
+            if (phone.Length < 8 || code.Length < 4)
+                return BadRequest(new { success = false, message = "Datos inválidos." });
+
+            var now = DateTime.UtcNow;
+            var verification = await _context.PhoneVerifications.FirstOrDefaultAsync(p => p.Phone == phone);
+            if (verification == null || verification.ConsumedAt != null)
+                return BadRequest(new { success = false, message = "Pedí un código nuevo." });
+
+            if (verification.ExpiresAt < now)
+                return BadRequest(new { success = false, message = "El código expiró. Pedí uno nuevo." });
+
+            if (verification.Attempts >= 5)
+                return BadRequest(new { success = false, message = "Demasiados intentos. Pedí un código nuevo." });
+
+            var (valid, _) = Services.Security.PasswordHasher.Verify(code, verification.CodeHash);
+            if (!valid)
+            {
+                verification.Attempts++;
+                verification.UpdatedAt = now;
+                await _context.SaveChangesAsync();
+                return BadRequest(new { success = false, message = "Código incorrecto." });
+            }
+
+            // Double-check the phone wasn't claimed between start and verify.
+            var phoneInUse = await _context.Users.IgnoreQueryFilters().AnyAsync(u => u.Phone == phone);
+            if (phoneInUse)
+                return Conflict(new { success = false, code = "PHONE_EXISTS", message = "Ya existe una cuenta con este WhatsApp. Iniciá sesión." });
+
+            // Placeholder email — unique by construction so it never collides. The real email
+            // (if any) is captured later in onboarding.
+            var placeholderEmail = $"wa-{phone}@wa.turnos-pro.com";
+
+            // Temporary subdomain derived from the phone; the user picks a real one in onboarding.
+            var baseSubdomain = "n" + phone;
+            baseSubdomain = SanitizeSubdomain(baseSubdomain);
+            if (baseSubdomain.Length < 3) baseSubdomain = "negocio" + phone;
+            var subdomain = baseSubdomain;
+            var attempt = 1;
+            while (await _context.Tenants.AnyAsync(t => t.Subdomain.ToLower() == subdomain.ToLower()))
+            {
+                attempt++;
+                if (attempt > 100)
+                    return StatusCode(500, new { success = false, message = "No pudimos generar un subdominio. Intentá de nuevo." });
+                subdomain = baseSubdomain + attempt;
+            }
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var tenant = new Tenant
+                {
+                    Id = Guid.NewGuid(),
+                    VerticalId = null, // chosen in onboarding/template picker
+                    Subdomain = subdomain,
+                    BusinessName = "Mi negocio", // placeholder, set in onboarding
+                    OwnerEmail = placeholderEmail,
+                    OwnerPhone = phone,
+                    SchemaName = $"tenant_{subdomain.Replace("-", "_")}",
+                    TimeZone = "America/Argentina/Buenos_Aires",
+                    Currency = "ARS",
+                    Language = "es",
+                    Status = "trial",
+                    IsDemo = true,
+                    DemoDays = 7,
+                    DemoExpiresAt = now.AddDays(7),
+                    TrialEndsAt = now.AddDays(7),
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                _context.Tenants.Add(tenant);
+                await _context.SaveChangesAsync();
+
+                // Passwordless account: random unusable password. User can set one later.
+                var randomPassword = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+                var adminUser = new User
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenant.Id,
+                    Email = placeholderEmail,
+                    FirstName = "",
+                    LastName = "",
+                    Phone = phone,
+                    PasswordHash = Services.Security.PasswordHasher.Hash(randomPassword),
+                    Role = "admin",
+                    IsActive = true,
+                    CreatedAt = now,
+                    LastLogin = now
+                };
+                _context.Users.Add(adminUser);
+                await _context.SaveChangesAsync();
+
+                var subscription = new Subscription
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenant.Id,
+                    PlanType = "demo",
+                    MonthlyAmount = 0,
+                    Status = "trial",
+                    IsTrialPeriod = true,
+                    TrialEndsAt = now.AddDays(7),
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                _context.Subscriptions.Add(subscription);
+
+                verification.ConsumedAt = now;
+                verification.UpdatedAt = now;
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+
+                var token = _authService.GenerateJwtToken(adminUser);
+                var host = HttpContext.Request.Host.Host;
+                var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");
+                var tenantUrl = isLocal
+                    ? $"http://{subdomain}.localhost:3001"
+                    : $"https://{subdomain}.turnos-pro.com";
+                var redirectUrl = $"{tenantUrl}/dashboard?impersonationToken={token}&onboarding=1";
+
+                _logger.LogInformation("Phone registration completed for {Phone}, tenant {TenantId}, subdomain {Subdomain}", phone, tenant.Id, subdomain);
+
+                return Ok(new
+                {
+                    success = true,
+                    tenantId = tenant.Id,
+                    tenantUrl,
+                    token,
+                    redirectUrl
+                });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Error completing phone registration for {Phone}", phone);
+                return StatusCode(500, new { success = false, message = "Error interno. Por favor intentá nuevamente." });
+            }
+        }
+
+        /// <summary>
         /// Check subdomain availability.
         /// </summary>
         [HttpGet("check-subdomain/{subdomain}")]
@@ -531,6 +763,51 @@ namespace BookingPro.API.Controllers
         {
             if (string.IsNullOrEmpty(subdomain)) return string.Empty;
             return Regex.Replace(subdomain.ToLowerInvariant(), @"[^a-z0-9-]", "");
+        }
+
+        /// <summary>Strip everything but digits so the same number always maps to one row.</summary>
+        private static string NormalizePhone(string? phone)
+            => string.IsNullOrEmpty(phone) ? string.Empty : Regex.Replace(phone, @"[^0-9]", "");
+
+        /// <summary>Cryptographically-random 6-digit code (000000–999999).</summary>
+        private static string GenerateOtp()
+            => RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
+
+        /// <summary>
+        /// Sends the OTP through the platform-level Evolution (WhatsApp) instance — the same
+        /// one TrackingController uses for admin notifications. Returns false on any failure.
+        /// </summary>
+        private async Task<bool> SendWhatsAppOtpAsync(string phone, string code)
+        {
+            var evolutionUrl = _config["EVOLUTION_API_BASE_URL"] ?? "http://64.227.3.140:8080";
+            var evolutionKey = _config["EVOLUTION_API_KEY"];
+            var evolutionInstance = _config["EVOLUTION_API_INSTANCE"];
+            if (string.IsNullOrEmpty(evolutionKey) || string.IsNullOrEmpty(evolutionInstance))
+            {
+                _logger.LogWarning("Evolution API not configured — cannot send OTP to {Phone}", phone);
+                return false;
+            }
+
+            var msg = $"🔐 *TurnosPro*\n\nTu código de acceso es: *{code}*\n\nVence en 10 minutos. No lo compartas con nadie.";
+            try
+            {
+                var client = _httpClientFactory.CreateClient();
+                client.DefaultRequestHeaders.Add("apikey", evolutionKey);
+                var payload = JsonSerializer.Serialize(new { number = phone, text = msg });
+                var content = new StringContent(payload, Encoding.UTF8, "application/json");
+                var resp = await client.PostAsync($"{evolutionUrl.TrimEnd('/')}/message/sendText/{evolutionInstance}", content);
+                if (!resp.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("Evolution OTP send failed for {Phone}: {Status}", phone, resp.StatusCode);
+                    return false;
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Exception sending OTP WhatsApp to {Phone}", phone);
+                return false;
+            }
         }
 
         /// <summary>
@@ -703,6 +980,21 @@ namespace BookingPro.API.Controllers
         public string? PlanCode { get; set; }
 
         public string? FullName { get; set; }
+    }
+
+    public class PhoneStartDto
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El WhatsApp es requerido")]
+        public string Phone { get; set; } = string.Empty;
+    }
+
+    public class PhoneVerifyDto
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El WhatsApp es requerido")]
+        public string Phone { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El código es requerido")]
+        public string Code { get; set; } = string.Empty;
     }
 
     public class RegistrationCompleteDto

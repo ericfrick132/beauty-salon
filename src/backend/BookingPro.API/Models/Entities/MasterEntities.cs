@@ -297,6 +297,38 @@ namespace BookingPro.API.Models.Entities
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 
+    /// <summary>
+    /// One-time WhatsApp OTP used by the low-friction "solo WhatsApp" signup.
+    /// A row is created/updated per phone when the user requests a code; on a
+    /// successful verify the account is provisioned and the row is marked consumed.
+    /// </summary>
+    [Table("phone_verifications", Schema = "public")]
+    public class PhoneVerification
+    {
+        public Guid Id { get; set; } = Guid.NewGuid();
+
+        /// <summary>Normalized phone (digits only, country code included).</summary>
+        [Required, MaxLength(30)]
+        public string Phone { get; set; } = string.Empty;
+
+        /// <summary>Hash of the 6-digit code — never store it in clear.</summary>
+        [Required]
+        public string CodeHash { get; set; } = string.Empty;
+
+        public DateTime ExpiresAt { get; set; }
+
+        /// <summary>Failed verify attempts; we lock the code after a few.</summary>
+        public int Attempts { get; set; } = 0;
+
+        /// <summary>How many codes were sent to this phone in the current window (anti-spam).</summary>
+        public int SendCount { get; set; } = 1;
+
+        public DateTime? ConsumedAt { get; set; }
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    }
+
     // Messaging packages sold by platform (no tenant scope)
     public class MessagePackage
     {
