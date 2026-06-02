@@ -64,10 +64,15 @@ function decodeGoogleIdToken(token: string | null): GoogleIdPayload | null {
   }
 }
 
+// Placeholder business name set by the WhatsApp signup — never prefill the
+// wizard with it, the user must type their real one.
+const PLACEHOLDER_BUSINESS_NAME = 'Mi negocio';
+
 const CompletarPerfil: React.FC = () => {
   const navigate = useNavigate();
   const [tenantPhone, setTenantPhone] = useState<string | undefined>(undefined);
   const [tenantOwnerName, setTenantOwnerName] = useState<string | undefined>(undefined);
+  const [tenantBusinessName, setTenantBusinessName] = useState<string | undefined>(undefined);
   const [tenantInfoLoaded, setTenantInfoLoaded] = useState(false);
 
   useEffect(() => {
@@ -86,6 +91,10 @@ const CompletarPerfil: React.FC = () => {
           if (phone && typeof phone === 'string') setTenantPhone(phone);
           const ownerName = res?.data?.ownerName;
           if (ownerName && typeof ownerName === 'string') setTenantOwnerName(ownerName);
+          const businessName = res?.data?.businessName;
+          if (businessName && typeof businessName === 'string' && businessName !== PLACEHOLDER_BUSINESS_NAME) {
+            setTenantBusinessName(businessName);
+          }
         }
       } catch {
         // Non-fatal — the wizard still works without the prefill.
@@ -103,14 +112,15 @@ const CompletarPerfil: React.FC = () => {
   const prefill = useMemo(() => {
     const stored = localStorage.getItem('googleIdTokenForOnboarding');
     const payload = decodeGoogleIdToken(stored);
-    if (!payload && !tenantPhone && !tenantOwnerName) return undefined;
+    if (!payload && !tenantPhone && !tenantOwnerName && !tenantBusinessName) return undefined;
     return {
       name: payload?.name ?? tenantOwnerName,
+      businessName: tenantBusinessName,
       email: payload?.email,
       avatarUrl: payload?.picture,
       phone: tenantPhone,
     };
-  }, [tenantPhone, tenantOwnerName]);
+  }, [tenantPhone, tenantOwnerName, tenantBusinessName]);
 
   const config = useMemo(
     () => ({
@@ -146,6 +156,7 @@ const CompletarPerfil: React.FC = () => {
     const password = payload.password ?? '';
     const body = {
       ownerName: payload.ownerName,
+      businessName: payload.businessName,
       ownerBirthday: payload.ownerBirthday,
       ownerPhone: payload.ownerPhone,
       ownerInstagram: payload.ownerInstagram,
@@ -161,15 +172,21 @@ const CompletarPerfil: React.FC = () => {
       ...(email && password ? { email, password } : {}),
     };
 
-    await api.patch('/tenants/current/onboarding', body);
+    const res = await api.patch('/tenants/current/onboarding', body);
 
     // Clear any cached Google ID token — single-use.
     localStorage.removeItem('googleIdTokenForOnboarding');
 
-    // Hard reload so App re-fetches tenant config with the new
-    // onboardingCompletedAt — otherwise AdminLayout's guard sees the stale
-    // `null` value and bounces us right back to /completar-perfil.
-    window.location.href = '/dashboard';
+    // If the business name changed the subdomain, the backend returns a redirectUrl
+    // pointing at the new host with a fresh loginToken (localStorage is per-origin, so
+    // the current token can't follow us across subdomains). Otherwise just reload the
+    // dashboard so App re-fetches config with the new onboardingCompletedAt.
+    const redirectUrl: string | undefined = res?.data?.redirectUrl;
+    if (redirectUrl) {
+      window.location.href = redirectUrl;
+    } else {
+      window.location.href = '/dashboard';
+    }
   };
 
   // NOTE: we intentionally do NOT pass `onLogoUpload` — the upload is done

@@ -19,14 +19,27 @@ namespace BookingPro.API.Controllers
         private readonly ApplicationDbContext _context;
         private readonly ITenantService _tenantService;
         private readonly ITenantProvisioningService _provisioningService;
+        private readonly IAuthService _authService;
         private readonly IMemoryCache _cache;
         private readonly IWebHostEnvironment _env;
         private readonly ILogger<TenantsController> _logger;
+
+        // Subdomains we never hand out automatically.
+        private static readonly HashSet<string> ReservedSubdomains = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "www", "api", "admin", "app", "mail", "email", "ftp", "blog", "shop", "store",
+            "support", "help", "docs", "dev", "test", "staging", "prod", "production",
+            "cdn", "static", "assets", "images", "media", "files", "download", "upload",
+            "secure", "ssl", "vpn", "remote", "proxy", "gateway", "router", "firewall",
+            "database", "db", "redis", "cache", "queue", "worker", "cron", "backup",
+            "monitor", "stats", "analytics", "metrics", "health", "status", "ping"
+        };
 
         public TenantsController(
             ApplicationDbContext context,
             ITenantService tenantService,
             ITenantProvisioningService provisioningService,
+            IAuthService authService,
             IMemoryCache cache,
             IWebHostEnvironment env,
             ILogger<TenantsController> logger)
@@ -34,6 +47,7 @@ namespace BookingPro.API.Controllers
             _context = context;
             _tenantService = tenantService;
             _provisioningService = provisioningService;
+            _authService = authService;
             _cache = cache;
             _env = env;
             _logger = logger;
@@ -65,6 +79,41 @@ namespace BookingPro.API.Controllers
             var tenant = await _context.Tenants.FirstOrDefaultAsync(t => t.Id == tenantInfo.Id);
             if (tenant == null)
                 return NotFound(new { message = "Tenant no encontrado" });
+
+            // Business name drives the tenant subdomain. When provided (and different from the
+            // signup placeholder), set it and regenerate a clean, unique subdomain. The frontend
+            // is then redirected to the new host with a fresh login token.
+            var subdomainChanged = false;
+            string? newSubdomain = null;
+            if (!string.IsNullOrWhiteSpace(dto.BusinessName))
+            {
+                var businessName = dto.BusinessName.Trim();
+                tenant.BusinessName = businessName;
+
+                var baseSub = SanitizeSubdomain(businessName);
+                if (baseSub.Length >= 3 && !string.Equals(baseSub, tenant.Subdomain, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (ReservedSubdomains.Contains(baseSub)) baseSub += "1";
+                    var candidate = baseSub;
+                    var attempt = 1;
+                    while (await _context.Tenants.AnyAsync(t => t.Id != tenant.Id && t.Subdomain.ToLower() == candidate.ToLower()))
+                    {
+                        attempt++;
+                        if (attempt > 100) { candidate = tenant.Subdomain; break; } // give up: keep current
+                        candidate = baseSub + attempt;
+                    }
+                    if (!string.Equals(candidate, tenant.Subdomain, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var oldSubdomain = tenant.Subdomain;
+                        tenant.Subdomain = candidate;
+                        tenant.SchemaName = $"tenant_{candidate.Replace("-", "_")}";
+                        subdomainChanged = true;
+                        newSubdomain = candidate;
+                        _cache.Remove($"tenant_header_{oldSubdomain}");
+                        _cache.Remove($"tenant_qs_{oldSubdomain}");
+                    }
+                }
+            }
 
             if (!string.IsNullOrWhiteSpace(dto.OwnerName)) tenant.OwnerName = dto.OwnerName.Trim();
 
@@ -155,11 +204,35 @@ namespace BookingPro.API.Controllers
 
             _logger.LogInformation("Onboarding completed for tenant {TenantId}", tenant.Id);
 
+            // If the subdomain changed, the client must move to the new host. localStorage is
+            // per-origin so the current token can't follow — issue a fresh token and return a
+            // redirect URL with ?loginToken= (normal user auto-login, NOT impersonation).
+            string? redirectUrl = null;
+            if (subdomainChanged && newSubdomain != null)
+            {
+                var adminUser = await _context.Users
+                    .IgnoreQueryFilters()
+                    .Where(u => u.TenantId == tenant.Id && u.Role == "admin")
+                    .OrderBy(u => u.CreatedAt)
+                    .FirstOrDefaultAsync();
+                if (adminUser != null)
+                {
+                    var loginToken = _authService.GenerateJwtToken(adminUser);
+                    var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");
+                    var newHost = isLocal
+                        ? $"http://{newSubdomain}.localhost:3001"
+                        : $"https://{newSubdomain}.turnos-pro.com";
+                    redirectUrl = $"{newHost}/dashboard?loginToken={loginToken}";
+                }
+            }
+
             return Ok(new
             {
                 success = true,
                 onboardingCompletedAt = tenant.OnboardingCompletedAt,
                 logoUrl = tenant.LogoUrl,
+                subdomain = tenant.Subdomain,
+                redirectUrl,
             });
         }
 
@@ -228,11 +301,34 @@ namespace BookingPro.API.Controllers
 
             return Ok(new { url = publicUrl });
         }
+
+        /// <summary>
+        /// Turns a business name into a clean subdomain. Mirrors the frontend preview:
+        /// strips accents, lowercases, non-alphanumerics → hyphens, collapses/trims hyphens,
+        /// caps at 30 chars.
+        /// </summary>
+        private static string SanitizeSubdomain(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+            var normalized = value.Normalize(System.Text.NormalizationForm.FormD);
+            var sb = new System.Text.StringBuilder();
+            foreach (var c in normalized)
+            {
+                if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+                    sb.Append(c);
+            }
+            var cleaned = sb.ToString().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
+            cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"[^a-z0-9-]", "-");
+            cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"-+", "-");
+            cleaned = cleaned.Trim('-');
+            return cleaned.Length > 30 ? cleaned[..30] : cleaned;
+        }
     }
 
     public class OnboardingUpdateDto
     {
         public string? OwnerName { get; set; }
+        public string? BusinessName { get; set; }
         public string? OwnerBirthday { get; set; }  // yyyy-mm-dd
         public string? OwnerPhone { get; set; }
         public string? OwnerInstagram { get; set; }

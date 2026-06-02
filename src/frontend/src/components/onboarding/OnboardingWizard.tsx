@@ -109,6 +109,7 @@ export interface OnboardingConfig {
   themePresets: ThemePreset[];
   prefill?: {
     name?: string;
+    businessName?: string;
     avatarUrl?: string;
     email?: string;
     phone?: string;
@@ -117,6 +118,7 @@ export interface OnboardingConfig {
 
 export interface OnboardingPayload {
   ownerName: string;
+  businessName: string;
   whoAreYou?: string;
   activity: string;
   volume: string;
@@ -619,9 +621,22 @@ const StepShell: React.FC<{
   </Box>
 );
 
+/** Mirror of the backend's subdomain sanitizer, for the live preview. */
+const previewSubdomain = (value: string): string =>
+  value
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 30);
+
 const StepName: React.FC<StepProps> = ({ config, formData, setFormData, goNext }) => {
   const { palette, typography, copy } = config;
-  const canNext = !!formData.ownerName.trim();
+  const sub = previewSubdomain(formData.businessName) || 'tunegocio';
+  // The business name is what generates the tenant subdomain, so it's required.
+  const canNext = !!formData.ownerName.trim() && previewSubdomain(formData.businessName).length >= 3;
   return (
     <StepShell
       palette={palette}
@@ -633,24 +648,52 @@ const StepName: React.FC<StepProps> = ({ config, formData, setFormData, goNext }
       canNext={canNext}
       onNext={goNext}
     >
-      <Box>
-        <FieldLabel palette={palette} typography={typography}>
-          Tu nombre
-        </FieldLabel>
-        <InkInput
-          palette={palette}
-          typography={typography}
-          autoFocus
-          value={formData.ownerName}
-          onChange={(e) =>
-            setFormData({ ...formData, ownerName: e.target.value })
-          }
-          placeholder="Camila"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && canNext) goNext();
-          }}
-        />
-      </Box>
+      <Stack spacing={3}>
+        <Box>
+          <FieldLabel palette={palette} typography={typography}>
+            Tu nombre
+          </FieldLabel>
+          <InkInput
+            palette={palette}
+            typography={typography}
+            autoFocus
+            value={formData.ownerName}
+            onChange={(e) =>
+              setFormData({ ...formData, ownerName: e.target.value })
+            }
+            placeholder="Camila"
+          />
+        </Box>
+        <Box>
+          <FieldLabel palette={palette} typography={typography}>
+            ¿Cómo se llama tu negocio?
+          </FieldLabel>
+          <InkInput
+            palette={palette}
+            typography={typography}
+            value={formData.businessName}
+            onChange={(e) =>
+              setFormData({ ...formData, businessName: e.target.value })
+            }
+            placeholder="Estudio Lila"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && canNext) goNext();
+            }}
+          />
+          <Typography
+            sx={{
+              fontFamily: typography.mono,
+              fontSize: 13,
+              color: palette.inkSoft,
+              mt: 1,
+              opacity: formData.businessName ? 1 : 0.5,
+              transition: 'opacity 200ms',
+            }}
+          >
+            🌐 {sub}.turnos-pro.com
+          </Typography>
+        </Box>
+      </Stack>
     </StepShell>
   );
 };
@@ -1177,6 +1220,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
 
   const [formData, setFormData] = useState<OnboardingPayload>({
     ownerName: config.prefill?.name ?? '',
+    businessName: config.prefill?.businessName ?? '',
     activity: '',
     volume: '',
     workMode: '',
@@ -1192,11 +1236,15 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
     password: '',
   });
 
-  // If we already captured the owner's name in the signup form, skip the
-  // first step instead of asking again — the field would just show prefilled
-  // and force a "Siguiente" click for no reason.
-  const namePrefilled = Boolean(config.prefill?.name && config.prefill.name.trim().length > 0);
-  const [stepIndex, setStepIndex] = useState<number>(namePrefilled ? 1 : 0);
+  // Only skip step 1 when BOTH the owner name and business name were already
+  // captured at signup — otherwise we'd skip past the required business name
+  // (which generates the subdomain). The WhatsApp flow captures neither, so it
+  // always shows step 1.
+  const step1Prefilled = Boolean(
+    config.prefill?.name && config.prefill.name.trim().length > 0 &&
+    config.prefill?.businessName && config.prefill.businessName.trim().length > 0
+  );
+  const [stepIndex, setStepIndex] = useState<number>(step1Prefilled ? 1 : 0);
   const [direction, setDirection] = useState<1 | -1>(1);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);

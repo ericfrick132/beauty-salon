@@ -67,10 +67,56 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    handleLoginToken();
     handleImpersonationToken();
     loadTenantConfiguration();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-login for a NORMAL user arriving on a (possibly new) subdomain — e.g. after
+  // the onboarding renames the tenant and redirects to the pretty subdomain. This is
+  // NOT impersonation: it just rehydrates the user's own session in the new origin,
+  // because localStorage is per-origin and the token doesn't cross subdomains.
+  const handleLoginToken = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const loginToken = urlParams.get('loginToken');
+    if (!loginToken) return;
+
+    localStorage.setItem('authToken', loginToken);
+    try {
+      const payload = JSON.parse(atob(loginToken.split('.')[1]));
+      const role =
+        payload.role ||
+        payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] ||
+        '';
+      const email =
+        payload.email ||
+        payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'] ||
+        '';
+      const id =
+        payload.sub ||
+        payload.nameid ||
+        payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ||
+        '';
+      const user = {
+        id,
+        email,
+        firstName: payload.first_name || '',
+        lastName: payload.last_name || '',
+        role,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+      };
+      localStorage.setItem('user', JSON.stringify(user));
+      store.dispatch(setUser(user as any));
+    } catch (e) {
+      console.warn('Could not decode login JWT', e);
+    }
+
+    const newUrl = new URL(window.location.href);
+    newUrl.searchParams.delete('loginToken');
+    window.history.replaceState({}, '', newUrl.toString());
+  };
 
   const handleImpersonationToken = () => {
     const urlParams = new URLSearchParams(window.location.search);
