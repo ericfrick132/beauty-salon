@@ -142,6 +142,8 @@ const CompletarPerfil: React.FC = () => {
       console.warn('Logo upload failed, continuing without it.', e);
     }
 
+    const email = (payload.email ?? '').trim();
+    const password = payload.password ?? '';
     const body = {
       ownerName: payload.ownerName,
       ownerBirthday: payload.ownerBirthday,
@@ -155,6 +157,8 @@ const CompletarPerfil: React.FC = () => {
       primaryColor: payload.primaryColor,
       secondaryColor: payload.secondaryColor,
       logoUrl,
+      // Only sent when the user opted in to web login credentials.
+      ...(email && password ? { email, password } : {}),
     };
 
     await api.patch('/tenants/current/onboarding', body);

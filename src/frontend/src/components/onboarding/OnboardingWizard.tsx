@@ -129,6 +129,10 @@ export interface OnboardingPayload {
   ownerPhone: string;
   ownerInstagram?: string;
   ownerWeb?: string;
+  // Optional: lets a WhatsApp-only account also log in from the web with
+  // email + password. Empty when the user skips it.
+  email?: string;
+  password?: string;
 }
 
 export interface OnboardingWizardProps {
@@ -948,7 +952,13 @@ const StepPersonal: React.FC<StepProps> = ({
 }) => {
   const { palette, typography, copy } = config;
   const phonePrefilled = Boolean(config.prefill?.phone && config.prefill.phone.trim().length > 0);
-  const canNext = isValidDMY(formData.ownerBirthday) && !!formData.ownerPhone;
+  // Email + password are optional, but if one is filled the other must be valid.
+  const emailTrim = (formData.email ?? '').trim();
+  const pwd = formData.password ?? '';
+  const emailLooksValid = /\S+@\S+\.\S+/.test(emailTrim);
+  const credsTouched = emailTrim.length > 0 || pwd.length > 0;
+  const credsValid = !credsTouched || (emailLooksValid && pwd.length >= 8);
+  const canNext = isValidDMY(formData.ownerBirthday) && !!formData.ownerPhone && credsValid;
   return (
     <StepShell
       palette={palette}
@@ -995,6 +1005,62 @@ const StepPersonal: React.FC<StepProps> = ({
             />
           </Box>
         )}
+
+        <Box
+          sx={{
+            borderTop: `1px dashed ${palette.paperRule}`,
+            pt: 2.5,
+          }}
+        >
+          <Typography
+            sx={{
+              fontFamily: typography.display,
+              fontStyle: 'italic',
+              fontSize: 14,
+              color: palette.inkSoft,
+              mb: 2,
+            }}
+          >
+            Para entrar también desde la web (opcional)
+          </Typography>
+          <Stack spacing={3}>
+            <Box>
+              <FieldLabel palette={palette} typography={typography}>
+                Email
+              </FieldLabel>
+              <InkInput
+                palette={palette}
+                typography={typography}
+                type="email"
+                value={formData.email ?? ''}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
+                placeholder="tu@email.com"
+              />
+            </Box>
+            <Box>
+              <FieldLabel palette={palette} typography={typography}>
+                Contraseña
+              </FieldLabel>
+              <InkInput
+                palette={palette}
+                typography={typography}
+                type="password"
+                value={formData.password ?? ''}
+                onChange={(e) =>
+                  setFormData({ ...formData, password: e.target.value })
+                }
+                placeholder="Mínimo 8 caracteres"
+              />
+              {credsTouched && !credsValid && (
+                <Typography sx={{ fontFamily: typography.body, fontSize: 12, color: '#c0392b', mt: 0.8 }}>
+                  Ingresá un email válido y una contraseña de 8+ caracteres (o dejá ambos vacíos).
+                </Typography>
+              )}
+            </Box>
+          </Stack>
+        </Box>
 
         <Box
           sx={{
@@ -1122,6 +1188,8 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
     ownerPhone: config.prefill?.phone ?? '',
     ownerInstagram: '',
     ownerWeb: '',
+    email: config.prefill?.email ?? '',
+    password: '',
   });
 
   // If we already captured the owner's name in the signup form, skip the

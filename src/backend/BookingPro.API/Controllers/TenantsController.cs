@@ -89,6 +89,38 @@ namespace BookingPro.API.Controllers
             if (!string.IsNullOrWhiteSpace(dto.SecondaryColor)) tenant.SecondaryColor = dto.SecondaryColor.Trim();
             if (!string.IsNullOrWhiteSpace(dto.LogoUrl)) tenant.LogoUrl = dto.LogoUrl.Trim();
 
+            // Optional web-login credentials. WhatsApp-only accounts start with an empty
+            // email + random password; here the user can opt in to email + password so they
+            // can also log in from the web. Both must be present to apply.
+            if (!string.IsNullOrWhiteSpace(dto.Email) && !string.IsNullOrWhiteSpace(dto.Password))
+            {
+                var email = dto.Email.Trim().ToLowerInvariant();
+                if (!System.Text.RegularExpressions.Regex.IsMatch(email, @"^\S+@\S+\.\S+$"))
+                    return BadRequest(new { success = false, message = "Email inválido." });
+                if (dto.Password.Length < 8)
+                    return BadRequest(new { success = false, message = "La contraseña debe tener al menos 8 caracteres." });
+
+                // Email must be globally unique (it's the web-login identity). Allow the
+                // current tenant's own admin to keep/update its email.
+                var emailTaken = await _context.Users
+                    .IgnoreQueryFilters()
+                    .AnyAsync(u => u.Email.ToLower() == email && u.TenantId != tenant.Id);
+                if (emailTaken)
+                    return Conflict(new { success = false, message = "Ya existe una cuenta con este email." });
+
+                var adminUser = await _context.Users
+                    .IgnoreQueryFilters()
+                    .Where(u => u.TenantId == tenant.Id && u.Role == "admin")
+                    .OrderBy(u => u.CreatedAt)
+                    .FirstOrDefaultAsync();
+                if (adminUser != null)
+                {
+                    adminUser.Email = email;
+                    adminUser.PasswordHash = Services.Security.PasswordHasher.Hash(dto.Password);
+                    tenant.OwnerEmail = email;
+                }
+            }
+
             tenant.OnboardingCompletedAt = DateTime.UtcNow;
             tenant.UpdatedAt = DateTime.UtcNow;
 
@@ -212,5 +244,8 @@ namespace BookingPro.API.Controllers
         public string? PrimaryColor { get; set; }
         public string? SecondaryColor { get; set; }
         public string? LogoUrl { get; set; }
+        // Optional web-login credentials captured in onboarding.
+        public string? Email { get; set; }
+        public string? Password { get; set; }
     }
 }
