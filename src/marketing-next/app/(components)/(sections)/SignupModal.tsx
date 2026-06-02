@@ -103,6 +103,7 @@ interface ModalState {
   mobile: string;
   password: string;
   otp: string;
+  isExisting: boolean;
   busy: boolean;
   error: string;
   info: string;
@@ -116,6 +117,7 @@ const initialState: ModalState = {
   mobile: '',
   password: '',
   otp: '',
+  isExisting: false,
   busy: false,
   error: '',
   info: '',
@@ -224,24 +226,22 @@ function SignupModalInner() {
         body: JSON.stringify({ phone: state.mobile.trim() }),
       });
       const body = await res.json().catch(() => ({}));
-      if (res.status === 409) {
-        // Phone already has an account → nudge to login.
-        set({ busy: false, error: body.message || 'Ya existe una cuenta con este WhatsApp. Iniciá sesión.' });
-        return;
-      }
       if (!res.ok || !body.success) {
         throw new Error(body.message || 'No pudimos enviar el código. Intentá de nuevo.');
       }
-      trackAction('OTP_SENT');
-      // fbq Lead: dejó el WhatsApp = lead calificado
-      sendTrackingEvent('Lead', { phone: state.mobile });
-      if (typeof window !== 'undefined' && (window as any).fbq) {
-        const sid = sessionStorage.getItem('_track_sid') || '';
-        (window as any).fbq('track', 'Lead', {}, { eventID: sid ? `${sid}-Lead` : undefined });
+      trackAction(body.isExisting ? 'OTP_SENT_LOGIN' : 'OTP_SENT');
+      // fbq Lead solo para cuentas nuevas (un login no es un lead nuevo).
+      if (!body.isExisting) {
+        sendTrackingEvent('Lead', { phone: state.mobile });
+        if (typeof window !== 'undefined' && (window as any).fbq) {
+          const sid = sessionStorage.getItem('_track_sid') || '';
+          (window as any).fbq('track', 'Lead', {}, { eventID: sid ? `${sid}-Lead` : undefined });
+        }
       }
       set({
         busy: false,
         step: 'otp',
+        isExisting: !!body.isExisting,
         info: body.devCode ? `Código (dev): ${body.devCode}` : '',
       });
     } catch (err: any) {
@@ -264,13 +264,16 @@ function SignupModalInner() {
       if (!res.ok || !body.success) {
         throw new Error(body.message || 'Código incorrecto.');
       }
-      trackAction('SUBMIT_OK');
-      sendRegFlow('COMPLETED');
-      if (typeof window !== 'undefined' && (window as any).fbq) {
-        const sid = sessionStorage.getItem('_track_sid') || '';
-        (window as any).fbq('track', 'CompleteRegistration', {}, { eventID: sid ? `${sid}-CompleteRegistration` : undefined });
+      trackAction(body.isExisting ? 'LOGIN_OK' : 'SUBMIT_OK');
+      sendRegFlow(body.isExisting ? 'LOGGED_IN' : 'COMPLETED');
+      // CompleteRegistration solo cuando se creó una cuenta nueva.
+      if (!body.isExisting) {
+        if (typeof window !== 'undefined' && (window as any).fbq) {
+          const sid = sessionStorage.getItem('_track_sid') || '';
+          (window as any).fbq('track', 'CompleteRegistration', {}, { eventID: sid ? `${sid}-CompleteRegistration` : undefined });
+        }
+        sendTrackingEvent('CompleteRegistration', { phone: state.mobile });
       }
-      sendTrackingEvent('CompleteRegistration', { phone: state.mobile });
       if (body.redirectUrl) {
         window.location.href = body.redirectUrl;
       } else {
@@ -572,12 +575,14 @@ function SignupModalInner() {
                 mb: 0.8,
               }}
             >
-              Ingresá el código
+              {state.isExisting ? '¡Hola de nuevo!' : 'Ingresá el código'}
             </Typography>
             <Typography
               sx={{ fontSize: '0.92rem', color: palette.inkSoft, mb: 2.5, lineHeight: 1.45 }}
             >
-              Te lo enviamos por WhatsApp al{' '}
+              {state.isExisting
+                ? 'Ya tenés una cuenta con este número. Te enviamos un código para entrar al '
+                : 'Te lo enviamos por WhatsApp al '}
               <Box component="span" sx={{ fontWeight: 600, color: palette.ink }}>{state.mobile}</Box>
             </Typography>
 

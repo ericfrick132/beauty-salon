@@ -506,8 +506,10 @@ namespace BookingPro.API.Controllers
         }
 
         /// <summary>
-        /// Low-friction signup step 1: receives only a WhatsApp number, generates a 6-digit
-        /// OTP and sends it via the platform Evolution instance. No account is created yet.
+        /// WhatsApp passwordless step 1: receives only a WhatsApp number and sends a 6-digit OTP
+        /// via the platform Evolution instance. The SAME flow serves both signup and login — if
+        /// the number already has an account the code logs them in, otherwise it creates one on
+        /// verify. No account is created here.
         /// </summary>
         [HttpPost("phone/start")]
         public async Task<IActionResult> PhoneStart([FromBody] PhoneStartDto dto)
@@ -516,13 +518,9 @@ namespace BookingPro.API.Controllers
             if (phone.Length < 8)
                 return BadRequest(new { success = false, message = "Número de WhatsApp inválido." });
 
-            // If this phone already belongs to an account, route them to login instead of
-            // silently creating a duplicate tenant.
-            var phoneInUse = await _context.Users
+            var isExisting = await _context.Users
                 .IgnoreQueryFilters()
                 .AnyAsync(u => u.Phone == phone);
-            if (phoneInUse)
-                return Conflict(new { success = false, code = "PHONE_EXISTS", message = "Ya existe una cuenta con este WhatsApp. Iniciá sesión." });
 
             var now = DateTime.UtcNow;
             var existing = await _context.PhoneVerifications.FirstOrDefaultAsync(p => p.Phone == phone);
@@ -573,17 +571,19 @@ namespace BookingPro.API.Controllers
             {
                 success = true,
                 message = "Te enviamos un código por WhatsApp.",
+                // Lets the UI say "Bienvenido de nuevo" vs "Creá tu cuenta".
+                isExisting,
                 // Dev-only convenience so we can test without a real WhatsApp.
                 devCode = isLocal ? code : null
             });
         }
 
         /// <summary>
-        /// Low-friction signup step 2: verifies the OTP and, on success, provisions a full
-        /// account (tenant + admin user + trial subscription) with a placeholder email and a
-        /// temporary subdomain. The business name / vertical are chosen later in onboarding
-        /// (Dashboard shows the template picker while VerticalId is null). Returns an
-        /// auto-login redirect URL.
+        /// WhatsApp passwordless step 2: verifies the OTP. If the phone already has an account it
+        /// logs the user in; otherwise it provisions a new account (tenant + admin user + trial
+        /// subscription) with NO email and a temporary subdomain — business name / vertical /
+        /// optional email are captured later in onboarding (Dashboard shows the template picker
+        /// while VerticalId is null). Either way returns an auto-login redirect URL.
         /// </summary>
         [HttpPost("phone/verify")]
         public async Task<IActionResult> PhoneVerify([FromBody] PhoneVerifyDto dto)
@@ -613,14 +613,51 @@ namespace BookingPro.API.Controllers
                 return BadRequest(new { success = false, message = "Código incorrecto." });
             }
 
-            // Double-check the phone wasn't claimed between start and verify.
-            var phoneInUse = await _context.Users.IgnoreQueryFilters().AnyAsync(u => u.Phone == phone);
-            if (phoneInUse)
-                return Conflict(new { success = false, code = "PHONE_EXISTS", message = "Ya existe una cuenta con este WhatsApp. Iniciá sesión." });
+            var host = HttpContext.Request.Host.Host;
+            var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");
 
-            // Placeholder email — unique by construction so it never collides. The real email
-            // (if any) is captured later in onboarding.
-            var placeholderEmail = $"wa-{phone}@wa.turnos-pro.com";
+            // --- LOGIN path: the phone already has an account → just issue a token. ---
+            var existingUser = await _context.Users
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(u => u.Phone == phone);
+            if (existingUser != null)
+            {
+                var existingTenant = await _context.Tenants
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(t => t.Id == existingUser.TenantId);
+                if (existingTenant == null)
+                    return StatusCode(500, new { success = false, message = "No encontramos tu negocio. Contactanos." });
+
+                existingUser.LastLogin = now;
+                verification.ConsumedAt = now;
+                verification.UpdatedAt = now;
+                await _context.SaveChangesAsync();
+
+                var loginToken = _authService.GenerateJwtToken(existingUser);
+                var loginTenantUrl = isLocal
+                    ? $"http://{existingTenant.Subdomain}.localhost:3001"
+                    : $"https://{existingTenant.Subdomain}.turnos-pro.com";
+                // Send straight to onboarding if they never picked a vertical, else the dashboard.
+                var needsOnboarding = existingTenant.VerticalId == null;
+                var loginRedirect = $"{loginTenantUrl}/dashboard?impersonationToken={loginToken}" + (needsOnboarding ? "&onboarding=1" : "");
+
+                _logger.LogInformation("Phone login for {Phone}, tenant {TenantId}", phone, existingTenant.Id);
+                return Ok(new
+                {
+                    success = true,
+                    isExisting = true,
+                    tenantId = existingTenant.Id,
+                    tenantUrl = loginTenantUrl,
+                    token = loginToken,
+                    redirectUrl = loginRedirect
+                });
+            }
+
+            // --- SIGNUP path: create a brand-new account. ---
+            // No fabricated email: the (Email, TenantId) unique index treats "" as unique per
+            // tenant, so an empty email is valid and we never store junk. The real email is
+            // optionally captured later in onboarding.
+            const string emptyEmail = "";
 
             // Temporary subdomain derived from the phone; the user picks a real one in onboarding.
             var baseSubdomain = "n" + phone;
@@ -645,7 +682,7 @@ namespace BookingPro.API.Controllers
                     VerticalId = null, // chosen in onboarding/template picker
                     Subdomain = subdomain,
                     BusinessName = "Mi negocio", // placeholder, set in onboarding
-                    OwnerEmail = placeholderEmail,
+                    OwnerEmail = emptyEmail,
                     OwnerPhone = phone,
                     SchemaName = $"tenant_{subdomain.Replace("-", "_")}",
                     TimeZone = "America/Argentina/Buenos_Aires",
@@ -668,7 +705,7 @@ namespace BookingPro.API.Controllers
                 {
                     Id = Guid.NewGuid(),
                     TenantId = tenant.Id,
-                    Email = placeholderEmail,
+                    Email = emptyEmail,
                     FirstName = "",
                     LastName = "",
                     Phone = phone,
@@ -702,8 +739,6 @@ namespace BookingPro.API.Controllers
                 await transaction.CommitAsync();
 
                 var token = _authService.GenerateJwtToken(adminUser);
-                var host = HttpContext.Request.Host.Host;
-                var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");
                 var tenantUrl = isLocal
                     ? $"http://{subdomain}.localhost:3001"
                     : $"https://{subdomain}.turnos-pro.com";
@@ -714,6 +749,7 @@ namespace BookingPro.API.Controllers
                 return Ok(new
                 {
                     success = true,
+                    isExisting = false,
                     tenantId = tenant.Id,
                     tenantUrl,
                     token,
