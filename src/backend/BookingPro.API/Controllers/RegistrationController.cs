@@ -765,9 +765,21 @@ namespace BookingPro.API.Controllers
             return Regex.Replace(subdomain.ToLowerInvariant(), @"[^a-z0-9-]", "");
         }
 
-        /// <summary>Strip everything but digits so the same number always maps to one row.</summary>
+        /// <summary>
+        /// Normalizes an Argentine phone to Evolution API format (549 + area + number), the same
+        /// way GymHero's working integration does. We store and send this canonical form so the
+        /// uniqueness lookup and the WhatsApp delivery always use the exact same number.
+        /// Already-formatted international numbers (starting with 549) are preserved.
+        /// </summary>
         private static string NormalizePhone(string? phone)
-            => string.IsNullOrEmpty(phone) ? string.Empty : Regex.Replace(phone, @"[^0-9]", "");
+        {
+            if (string.IsNullOrWhiteSpace(phone)) return string.Empty;
+            var digits = Regex.Replace(phone, @"[^0-9]", "");
+            if (digits.Length == 0) return digits;
+            if (digits.StartsWith("549")) return digits;                 // already 549<area><number>
+            if (digits.StartsWith("54") && digits.Length >= 11) return "549" + digits.Substring(2); // 54 sin el 9 móvil
+            return "549" + digits;                                       // local (ej 1168078814)
+        }
 
         /// <summary>Cryptographically-random 6-digit code (000000–999999).</summary>
         private static string GenerateOtp()
