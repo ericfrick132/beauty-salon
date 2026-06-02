@@ -107,6 +107,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 // Register Services
 builder.Services.AddScoped<ITenantService, TenantService>();
+builder.Services.AddScoped<IPlatformWhatsAppService, PlatformWhatsAppService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IGoogleAuthService, GoogleAuthService>();
 builder.Services.AddHttpClient<PlatformPaymentConnectionService>();

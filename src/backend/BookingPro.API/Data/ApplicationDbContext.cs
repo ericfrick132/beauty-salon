@@ -26,6 +26,7 @@ namespace BookingPro.API.Data
         public DbSet<MessagePackage> MessagePackages { get; set; }
         public DbSet<PendingRegistration> PendingRegistrations { get; set; }
         public DbSet<PhoneVerification> PhoneVerifications { get; set; }
+        public DbSet<PlatformWhatsAppConnection> PlatformWhatsAppConnections { get; set; }
 
         // DbSets para entidades por tenant
         public DbSet<Models.Entities.ServiceCategory> ServiceCategories { get; set; }

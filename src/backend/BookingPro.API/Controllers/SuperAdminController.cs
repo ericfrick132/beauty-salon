@@ -5,6 +5,7 @@ using System.Security.Claims;
 using BookingPro.API.Data;
 using BookingPro.API.Models.Entities;
 using BookingPro.API.Models.DTOs;
+using BookingPro.API.Services;
 using BookingPro.API.Services.Interfaces;
 
 namespace BookingPro.API.Controllers
@@ -17,15 +18,80 @@ namespace BookingPro.API.Controllers
         private readonly ApplicationDbContext _context;
         private readonly ILogger<SuperAdminController> _logger;
         private readonly ISuperAdminService _superAdminService;
+        private readonly IPlatformWhatsAppService _platformWhatsApp;
 
         public SuperAdminController(
             ApplicationDbContext context,
             ILogger<SuperAdminController> logger,
-            ISuperAdminService superAdminService)
+            ISuperAdminService superAdminService,
+            IPlatformWhatsAppService platformWhatsApp)
         {
             _context = context;
             _logger = logger;
             _superAdminService = superAdminService;
+            _platformWhatsApp = platformWhatsApp;
+        }
+
+        // ─── WhatsApp de plataforma (número que envía los OTP de registro/login) ───
+
+        [HttpGet("whatsapp/status")]
+        public async Task<IActionResult> GetPlatformWhatsAppStatus()
+        {
+            try
+            {
+                var status = await _platformWhatsApp.GetStatusAsync();
+                return Ok(new { success = true, data = status });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting platform WhatsApp status");
+                return StatusCode(500, new { success = false, message = "Error al obtener estado de WhatsApp" });
+            }
+        }
+
+        [HttpPost("whatsapp/connect")]
+        public async Task<IActionResult> ConnectPlatformWhatsApp()
+        {
+            try
+            {
+                var result = await _platformWhatsApp.ConnectAsync();
+                return Ok(new { success = result.Success, data = result, message = result.Error });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error connecting platform WhatsApp");
+                return StatusCode(500, new { success = false, message = "Error al conectar WhatsApp" });
+            }
+        }
+
+        [HttpPost("whatsapp/refresh-qr")]
+        public async Task<IActionResult> RefreshPlatformWhatsAppQr()
+        {
+            try
+            {
+                var result = await _platformWhatsApp.RefreshQrAsync();
+                return Ok(new { success = result.Success, data = result, message = result.Error });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error refreshing platform WhatsApp QR");
+                return StatusCode(500, new { success = false, message = "Error al refrescar QR" });
+            }
+        }
+
+        [HttpPost("whatsapp/disconnect")]
+        public async Task<IActionResult> DisconnectPlatformWhatsApp()
+        {
+            try
+            {
+                var (ok, message) = await _platformWhatsApp.DisconnectAsync();
+                return Ok(new { success = ok, message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error disconnecting platform WhatsApp");
+                return StatusCode(500, new { success = false, message = "Error al desconectar WhatsApp" });
+            }
         }
 
         [HttpGet("tenants")]

@@ -19,6 +19,7 @@ import Login from './pages/Login';
 import SuperAdminLogin from './pages/SuperAdminLogin';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import SuperAdminPlans from './pages/SuperAdminPlans';
+import SuperAdminWhatsApp from './pages/SuperAdminWhatsApp';
 import SuperAdminPayments from './pages/admin/SuperAdminPayments';
 import SuperAdminEmails from './pages/admin/SuperAdminEmails';
 import TrackingDashboard from './pages/TrackingDashboard';
@@ -344,6 +345,7 @@ function App() {
                 <Route path="/super-admin/payments" element={<SuperAdminPayments />} />
                 <Route path="/super-admin/emails" element={<SuperAdminEmails />} />
                 <Route path="/super-admin/marketing" element={<TrackingDashboard />} />
+                <Route path="/super-admin/whatsapp" element={<SuperAdminWhatsApp />} />
 
                 {/* Main Domain Routes - Landing Page */}
                 {isMainDomain() ? (

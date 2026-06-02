@@ -329,6 +329,36 @@ namespace BookingPro.API.Models.Entities
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     }
 
+    /// <summary>
+    /// The platform-level WhatsApp connection — the single number that sends OTP codes for
+    /// the WhatsApp signup/login flow (and other platform notifications). Distinct from
+    /// per-tenant connections (TenantWhatsAppConnection). One row only.
+    /// </summary>
+    [Table("platform_whatsapp_connections", Schema = "public")]
+    public class PlatformWhatsAppConnection
+    {
+        public int Id { get; set; }
+
+        [Required, MaxLength(100)]
+        public string InstanceName { get; set; } = string.Empty;
+
+        [MaxLength(500)]
+        public string? InstanceToken { get; set; }
+
+        [Required, MaxLength(20)]
+        public string Status { get; set; } = "pending"; // pending, connecting, open, close
+
+        [MaxLength(30)]
+        public string? ConnectedPhone { get; set; }
+
+        [MaxLength(200)]
+        public string? ProfileName { get; set; }
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime? ConnectedAt { get; set; }
+        public DateTime? DisconnectedAt { get; set; }
+    }
+
     // Messaging packages sold by platform (no tenant scope)
     public class MessagePackage
     {
