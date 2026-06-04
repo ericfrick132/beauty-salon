@@ -16,6 +16,8 @@ import api from './services/api';
 import LoadingScreen from './components/common/LoadingScreen';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import SuperAdminLogin from './pages/SuperAdminLogin';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import SuperAdminPlans from './pages/SuperAdminPlans';
@@ -362,6 +364,8 @@ function App() {
                     <Route path="/" element={<TenantLanding />} />
                     <Route path="/book" element={<BookingPage />} />
                     <Route path="/login" element={<Login />} />
+                    <Route path="/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/reset-password" element={<ResetPassword />} />
                     <Route path="/invitation/:token" element={<InvitationPage />} />
                     <Route path="/subscription/plans" element={<SubscriptionPlans />} />
                     <Route path="/subscription/success" element={<SubscriptionSuccess />} />

@@ -18,6 +18,8 @@ namespace BookingPro.API.Controllers
         private readonly IGoogleAuthService _googleAuthService;
         private readonly ApplicationDbContext _context;
         private readonly ITenantService _tenantService;
+        private readonly Services.Interfaces.IEmailService _emailService;
+        private readonly IWebHostEnvironment _environment;
         private readonly ILogger<AuthController> _logger;
 
         public AuthController(
@@ -25,12 +27,16 @@ namespace BookingPro.API.Controllers
             IGoogleAuthService googleAuthService,
             ApplicationDbContext context,
             ITenantService tenantService,
+            Services.Interfaces.IEmailService emailService,
+            IWebHostEnvironment environment,
             ILogger<AuthController> logger)
         {
             _authService = authService;
             _googleAuthService = googleAuthService;
             _context = context;
             _tenantService = tenantService;
+            _emailService = emailService;
+            _environment = environment;
             _logger = logger;
         }
 
@@ -151,15 +157,44 @@ namespace BookingPro.API.Controllers
                 return BadRequest(new { message = "Email es requerido" });
             }
 
+            // Always answer with the same generic message so we never reveal whether
+            // an email is registered (account-enumeration protection).
+            var genericMessage = "Si el email existe, te enviamos un enlace para restablecer tu contraseña.";
+
             var result = await _authService.GeneratePasswordResetTokenAsync(dto.Email);
-            if (!result.Success)
+
+            // result.Success is false only on an unexpected error; an unknown email
+            // succeeds with an empty token. In both cases we send nothing and reply generic.
+            var token = result.Success ? result.Data : null;
+
+            if (!string.IsNullOrEmpty(token))
             {
-                // Do not reveal whether email exists
-                return Ok(new { message = "Si el email existe, se envió un enlace de recuperación" });
+                // Build the reset link back on the same host the request came from
+                // (the tenant subdomain), so the SPA route resolves the right tenant.
+                var host = HttpContext.Request.Host.Value;
+                var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");
+                var scheme = isLocal ? "http" : "https";
+                var resetUrl = $"{scheme}://{host}/reset-password?token={Uri.EscapeDataString(token!)}";
+
+                try
+                {
+                    await _emailService.SendPasswordResetAsync(dto.Email, resetUrl);
+                }
+                catch (Exception ex)
+                {
+                    // Don't surface email-infra failures to the caller; just log them.
+                    _logger.LogError(ex, "Failed to send password reset email to {Email}", dto.Email);
+                }
             }
 
-            // For now we return the token so the frontend can proceed without email infra
-            return Ok(new { message = "Token generado", token = result.Data });
+            // In Development we also return the token so the flow can be tested
+            // without a working mailbox. Never leak it in production.
+            if (_environment.IsDevelopment() && !string.IsNullOrEmpty(token))
+            {
+                return Ok(new { message = genericMessage, token });
+            }
+
+            return Ok(new { message = genericMessage });
         }
 
         [HttpPost("reset-password")]

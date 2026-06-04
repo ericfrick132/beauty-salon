@@ -12,6 +12,9 @@ namespace BookingPro.API.Services.Interfaces
         // Trial reminders
         Task SendTrialEndingAsync(string toEmail, string recipientName, int daysLeft, string upgradeUrl, Guid? tenantId = null);
 
+        // Password reset
+        Task SendPasswordResetAsync(string toEmail, string resetUrl, Guid? tenantId = null);
+
         // Diagnostic
         Task SendTestEmailAsync(string toEmail);
     }
