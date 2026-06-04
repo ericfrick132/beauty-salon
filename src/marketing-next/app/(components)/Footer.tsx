@@ -80,6 +80,39 @@ export default function Footer() {
               Reservas online, cobros con seña y recordatorios por WhatsApp.
               Construido para profesionales independientes y pequeños negocios.
             </Box>
+
+            <Box sx={{ mt: 3 }}>
+              <Box
+                sx={{
+                  fontFamily: 'var(--font-mono), monospace',
+                  fontSize: '0.66rem',
+                  letterSpacing: '0.16em',
+                  textTransform: 'uppercase',
+                  color: palette.amber,
+                  mb: 1.4,
+                }}
+              >
+                Encontranos en:
+              </Box>
+              <Box
+                component="a"
+                href="https://apps.apple.com/app/id6775843253"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Descargar TurnosPro en el App Store"
+                sx={{ display: 'inline-block', lineHeight: 0 }}
+              >
+                <Box component="svg" viewBox="0 0 120 40" role="img" aria-label="Download on the App Store" sx={{ width: 132, height: 44, display: 'block' }}>
+                  <rect x="0.5" y="0.5" width="119" height="39" rx="6.5" fill="#000" stroke="rgba(244,239,230,0.35)" />
+                  <g transform="translate(9.5,7.7) scale(0.62)" fill="#fff">
+                    <path d="M17.05 12.54c-.03-2.79 2.28-4.13 2.38-4.2-1.3-1.9-3.32-2.16-4.04-2.19-1.72-.17-3.36 1.01-4.23 1.01-.87 0-2.22-.99-3.65-.96-1.88.03-3.61 1.09-4.58 2.77-1.95 3.39-.5 8.41 1.4 11.16.93 1.35 2.04 2.86 3.49 2.81 1.4-.06 1.93-.9 3.62-.9 1.69 0 2.17.9 3.65.87 1.51-.03 2.46-1.37 3.38-2.73 1.06-1.56 1.5-3.08 1.52-3.16-.03-.01-2.92-1.12-2.95-4.45z" />
+                    <path d="M14.69 4.35c.77-.93 1.29-2.22 1.15-3.51-1.11.04-2.46.74-3.25 1.67-.71.83-1.33 2.15-1.16 3.42 1.24.1 2.5-.63 3.26-1.58z" />
+                  </g>
+                  <text x="34" y="15.5" fill="#fff" fontFamily="-apple-system,Helvetica Neue,Arial,sans-serif" fontSize="6.5">Download on the</text>
+                  <text x="33.5" y="30.5" fill="#fff" fontFamily="-apple-system,Helvetica Neue,Arial,sans-serif" fontSize="15" fontWeight="600">App Store</text>
+                </Box>
+              </Box>
+            </Box>
           </Grid>
 
           <Grid item xs={6} md={3}>
