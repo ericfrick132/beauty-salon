@@ -58,6 +58,15 @@ namespace BookingPro.API.Controllers
                 return BadRequest(new { error = "Email requerido" });
             }
 
+            // El "+" de los emails llega como espacio cuando un cliente no lo escapa
+            // en el query string ("a+b@x.com" -> "a b@x.com"). Como un email no puede
+            // contener espacios, lo restauramos a "+".
+            email = email.Trim();
+            if (email.Contains(' '))
+            {
+                email = email.Replace(' ', '+');
+            }
+
             try
             {
                 string? subdomain = null;

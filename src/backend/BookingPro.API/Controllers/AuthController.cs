@@ -169,12 +169,45 @@ namespace BookingPro.API.Controllers
 
             if (!string.IsNullOrEmpty(token))
             {
-                // Build the reset link back on the same host the request came from
-                // (the tenant subdomain), so the SPA route resolves the right tenant.
+                // Build the reset link on the host that actually serves the app SPA.
+                // The web sends the request from the tenant subdomain; the mobile app
+                // hits the apex (turnos-pro.com), which serves the marketing site and
+                // has no /reset-password route. So when the request is the apex we
+                // resolve the tenant subdomain by email and point the link there.
                 var host = HttpContext.Request.Host.Value;
                 var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");
                 var scheme = isLocal ? "http" : "https";
-                var resetUrl = $"{scheme}://{host}/reset-password?token={Uri.EscapeDataString(token!)}";
+
+                var resetHost = host;
+                if (!isLocal)
+                {
+                    var bareHost = host.Split(':')[0];
+                    var isApex = bareHost.Equals("turnos-pro.com", StringComparison.OrdinalIgnoreCase)
+                              || bareHost.Equals("www.turnos-pro.com", StringComparison.OrdinalIgnoreCase);
+                    if (isApex)
+                    {
+                        var emailNorm = dto.Email.Trim();
+                        var subdomain = await _context.Users
+                            .Where(u => u.Email == emailNorm && u.IsActive)
+                            .OrderByDescending(u => u.CreatedAt)
+                            .Select(u => u.Tenant.Subdomain)
+                            .FirstOrDefaultAsync();
+                        if (string.IsNullOrEmpty(subdomain))
+                        {
+                            subdomain = await _context.Tenants
+                                .Where(t => t.OwnerEmail == emailNorm)
+                                .OrderByDescending(t => t.CreatedAt)
+                                .Select(t => t.Subdomain)
+                                .FirstOrDefaultAsync();
+                        }
+                        if (!string.IsNullOrEmpty(subdomain))
+                        {
+                            resetHost = $"{subdomain}.turnos-pro.com";
+                        }
+                    }
+                }
+
+                var resetUrl = $"{scheme}://{resetHost}/reset-password?token={Uri.EscapeDataString(token!)}";
 
                 try
                 {

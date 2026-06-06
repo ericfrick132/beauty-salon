@@ -35,6 +35,15 @@ services:
     value: "true"
   - key: BackendUrl
     value: "${APP_URL}"
+  - key: Email__From
+    value: "eric.frick@efcloud.tech"
+  - key: Email__Password
+    value: "${EMAIL_PASSWORD}"
+    type: SECRET
+  - key: Email__SmtpHost
+    value: "smtp.gmail.com"
+  - key: Email__SmtpPort
+    value: "587"
 
 - name: frontend
   dockerfile_path: src/frontend/Dockerfile
