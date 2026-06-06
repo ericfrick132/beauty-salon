@@ -232,9 +232,34 @@ namespace BookingPro.API.Services
         {
             try
             {
-                // Resolve tenant from context
-                var tenantId = Guid.Parse(_tenantService.GetCurrentTenantId());
-                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email && u.TenantId == tenantId);
+                var normalizedEmail = (email ?? string.Empty).Trim();
+                if (string.IsNullOrEmpty(normalizedEmail))
+                {
+                    return ServiceResult<string>.Ok(string.Empty, "If the email exists, a reset link was sent");
+                }
+
+                // A reset can be requested from any host: the user's own tenant
+                // subdomain, a different subdomain, or the apex (mobile app). The User
+                // table is NOT tenant-filtered, so we resolve the account by email
+                // instead of scoping to the current host's tenant — otherwise a request
+                // from the "wrong" subdomain finds no user and silently sends nothing
+                // (the link-building below already carries the tenant in the token).
+                // Prefer a match in the current tenant (covers the same email existing in
+                // several tenants when the request does come from the right subdomain),
+                // then fall back to the most recently created active user with that email.
+                User? user = null;
+
+                var currentTenantId = _tenantService.GetCurrentTenantIdFromContext();
+                if (currentTenantId != Guid.Empty)
+                {
+                    user = await _context.Users
+                        .FirstOrDefaultAsync(u => u.Email == normalizedEmail && u.TenantId == currentTenantId);
+                }
+
+                user ??= await _context.Users
+                    .Where(u => u.Email == normalizedEmail && u.IsActive)
+                    .OrderByDescending(u => u.CreatedAt)
+                    .FirstOrDefaultAsync();
 
                 // Do not reveal existence; but if not found, still return Ok message (no token)
                 if (user == null)

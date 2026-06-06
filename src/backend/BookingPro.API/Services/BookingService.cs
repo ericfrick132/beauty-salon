@@ -61,7 +61,15 @@ namespace BookingPro.API.Services
 
                 if (date.HasValue)
                 {
-                    query = query.Where(b => b.StartTime.Date == date.Value.Date);
+                    // The date query param can bind with Kind=Unspecified (e.g. the iOS
+                    // app sends "2026-06-06" with no time/zone). Comparing .Date keeps
+                    // that Kind, and Npgsql rejects a non-UTC DateTime against the
+                    // timestamptz StartTime column. Normalize to a UTC day range, which
+                    // also matches the previous date_trunc('day', StartTime, 'UTC')
+                    // semantics and is index-friendly.
+                    var dayStartUtc = DateTime.SpecifyKind(date.Value.Date, DateTimeKind.Utc);
+                    var dayEndUtc = dayStartUtc.AddDays(1);
+                    query = query.Where(b => b.StartTime >= dayStartUtc && b.StartTime < dayEndUtc);
                 }
 
                 if (employeeId.HasValue)

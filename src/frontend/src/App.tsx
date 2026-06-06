@@ -184,7 +184,7 @@ function App() {
       }
 
       // Check if we're on the main domain (for landing page or registration)
-      if (isMainDomain() && (window.location.pathname === '/' || window.location.pathname === '/login' || window.location.pathname === '/register' || window.location.pathname.startsWith('/register/'))) {
+      if (isMainDomain() && (window.location.pathname === '/' || window.location.pathname === '/login' || window.location.pathname === '/register' || window.location.pathname.startsWith('/register/') || window.location.pathname === '/forgot-password' || window.location.pathname === '/reset-password')) {
         // We're on the main domain, no tenant config needed
         setLoading(false);
         return;
@@ -220,7 +220,7 @@ function App() {
       console.log('Current hostname:', window.location.hostname);
       
       // If we're on main domain and API fails, still allow access to landing/register
-      if (isMainDomain() && (window.location.pathname === '/' || window.location.pathname === '/login' || window.location.pathname === '/register' || window.location.pathname.startsWith('/register/'))) {
+      if (isMainDomain() && (window.location.pathname === '/' || window.location.pathname === '/login' || window.location.pathname === '/register' || window.location.pathname.startsWith('/register/') || window.location.pathname === '/forgot-password' || window.location.pathname === '/reset-password')) {
         setLoading(false);
         return;
       }
@@ -357,6 +357,9 @@ function App() {
                     <Route path="/register/confirm" element={<SelfRegistration />} />
                     <Route path="/invitation/:token" element={<InvitationPage />} />
                     <Route path="/subscription/success" element={<SubscriptionSuccess />} />
+                    {/* Auth por token: funcionan en el apex sin tenant (el token lleva el tenant). */}
+                    <Route path="/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/reset-password" element={<ResetPassword />} />
                   </>
                 ) : (
                   <>

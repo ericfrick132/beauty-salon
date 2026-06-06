@@ -37,6 +37,11 @@ namespace BookingPro.API.Utilities
                 path.StartsWith("/api/mercadopago/oauth/callback") ||
                 path.StartsWith("/api/webhooks/") ||
                 path.StartsWith("/api/public/tenant-by-email") ||
+                // Password reset resolves the account by email / from the token's
+                // tenant claim, so it must work from any host (incl. the apex and the
+                // mobile app) without a tenant in context.
+                path.StartsWith("/api/auth/forgot-password") ||
+                path.StartsWith("/api/auth/reset-password") ||
                 path.StartsWith("/api/tracking") ||
                 path.StartsWith("/health") ||
                 path.StartsWith("/ping") ||
