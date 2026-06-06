@@ -96,8 +96,8 @@ namespace BookingPro.API.Controllers
 
         [HttpGet("tenants")]
         public async Task<IActionResult> GetTenants(
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 50)
+            [FromQuery] int? page = null,
+            [FromQuery] int? pageSize = null)
         {
             try
             {
@@ -109,11 +109,24 @@ namespace BookingPro.API.Controllers
 
                 var query = _context.Tenants
                     .Include(t => t.Vertical)
-                    .OrderByDescending(t => t.CreatedAt);
+                    .OrderByDescending(t => t.CreatedAt)
+                    .AsQueryable();
+
+                // Pagination is optional. The super-admin dashboard computes all
+                // stats (totals, active/expired counts, revenue) and runs search
+                // and filtering client-side over the full list, and has no
+                // pagination UI — so by default we return every tenant. Only
+                // apply Skip/Take when an explicit positive pageSize is given,
+                // otherwise the dashboard caps everything at the page size.
+                if (pageSize.HasValue && pageSize.Value > 0)
+                {
+                    var pageNumber = page.GetValueOrDefault(1);
+                    query = query
+                        .Skip((pageNumber - 1) * pageSize.Value)
+                        .Take(pageSize.Value);
+                }
 
                 var tenants = await query
-                    .Skip((page - 1) * pageSize)
-                    .Take(pageSize)
                     .Select(t => new
                     {
                         id = t.Id,
