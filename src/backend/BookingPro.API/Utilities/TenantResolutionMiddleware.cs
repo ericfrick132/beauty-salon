@@ -43,6 +43,7 @@ namespace BookingPro.API.Utilities
                 path.StartsWith("/api/auth/forgot-password") ||
                 path.StartsWith("/api/auth/reset-password") ||
                 path.StartsWith("/api/tracking") ||
+                path.StartsWith("/blog") ||
                 path.StartsWith("/health") ||
                 path.StartsWith("/ping") ||
                 path.StartsWith("/swagger"))
