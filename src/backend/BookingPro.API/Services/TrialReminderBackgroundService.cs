@@ -111,7 +111,11 @@ namespace BookingPro.API.Services
                 var recipient = !string.IsNullOrWhiteSpace(tenant.BusinessName)
                     ? tenant.BusinessName
                     : tenant.OwnerEmail;
-                await emailService.SendTrialEndingAsync(tenant.OwnerEmail, recipient, daysLeft, upgradeUrl, sub.TenantId);
+                // Link al panel del tenant (no genérico): cae en SU cuenta para suscribirse.
+                var tenantUpgradeUrl = !string.IsNullOrWhiteSpace(tenant.Subdomain)
+                    ? $"https://{tenant.Subdomain}.turnos-pro.com/subscription/upgrade"
+                    : upgradeUrl;
+                await emailService.SendTrialEndingAsync(tenant.OwnerEmail, recipient, daysLeft, tenantUpgradeUrl, sub.TenantId);
             }
             catch (Exception ex)
             {
@@ -143,7 +147,11 @@ namespace BookingPro.API.Services
                 var recipient = !string.IsNullOrWhiteSpace(tenant.BusinessName)
                     ? tenant.BusinessName
                     : tenant.OwnerEmail;
-                await emailService.SendTrialEndingAsync(tenant.OwnerEmail, recipient, daysLeft, upgradeUrl, sub.TenantId);
+                // Link al panel del tenant (no genérico): cae en SU cuenta para suscribirse.
+                var tenantUpgradeUrl = !string.IsNullOrWhiteSpace(tenant.Subdomain)
+                    ? $"https://{tenant.Subdomain}.turnos-pro.com/subscription/upgrade"
+                    : upgradeUrl;
+                await emailService.SendTrialEndingAsync(tenant.OwnerEmail, recipient, daysLeft, tenantUpgradeUrl, sub.TenantId);
             }
             catch (Exception ex)
             {
