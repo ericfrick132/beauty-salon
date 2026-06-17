@@ -836,7 +836,7 @@ namespace BookingPro.API.Controllers
                 return false;
             }
 
-            var msg = $"🔐 *TurnosPro*\n\nTu código de acceso es: *{code}*\n\nVence en 10 minutos. No lo compartas con nadie.";
+            var msg = $"*TurnosPro* — tu código para entrar es *{code}*.\n\nVence en 10 minutos. No lo compartas con nadie.";
             try
             {
                 var client = _httpClientFactory.CreateClient();
