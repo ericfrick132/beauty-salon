@@ -138,6 +138,10 @@ namespace BookingPro.API.Models.Entities
 
         public DateTime? OnboardingCompletedAt { get; set; }
 
+        // Marca cuándo este tenant fue exportado a SalesHub para re-engagement centralizado.
+        // null = nunca exportado (lo levanta el endpoint /api/platform/leads-export).
+        public DateTime? ExportedToSalesHubAt { get; set; }
+
         // Default payment provider when both MercadoPago and Chytapay are
         // connected. Values: "mercadopago" (default) | "chytapay".
         [MaxLength(20)]
