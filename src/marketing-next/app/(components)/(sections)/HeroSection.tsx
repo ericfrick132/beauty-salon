@@ -314,6 +314,45 @@ export default function HeroSection() {
                 <Box component="span" sx={{ opacity: 0.4 }}>·</Box>
                 <Box component="span">activá en 15 min</Box>
               </Box>
+
+              {/* App Store — también tenemos app mobile */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
+                  flexWrap: 'wrap',
+                  mb: 1,
+                }}
+              >
+                <Box
+                  component="a"
+                  href="https://apps.apple.com/us/app/turnospro/id6775843253"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Descargar TurnosPro en el App Store"
+                  sx={{ display: 'inline-block', lineHeight: 0, transition: 'transform 180ms', '&:hover': { transform: 'translateY(-2px)' } }}
+                >
+                  <Box
+                    component="img"
+                    src="/assets/app-store-badge.svg"
+                    alt="Consíguelo en el App Store"
+                    sx={{ height: 44, width: 'auto', display: 'block' }}
+                  />
+                </Box>
+                <Box
+                  component="span"
+                  sx={{
+                    fontFamily: 'var(--font-mono), monospace',
+                    fontSize: '0.74rem',
+                    letterSpacing: '0.08em',
+                    color: palette.inkSoft,
+                  }}
+                >
+                  Ahora también{' '}
+                  <Box component="span" sx={{ color: palette.ink, fontWeight: 600 }}>app para iPhone</Box>
+                </Box>
+              </Box>
             </FadeUp>
 
             <FadeUp delay={0.32}>

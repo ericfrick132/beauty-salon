@@ -13,6 +13,7 @@ import HowItWorks from './HowItWorks';
 import TestimonialsSection from './TestimonialsSection';
 import PricingSection from './PricingSection';
 import FaqSection from './FaqSection';
+import MobileAppSection from './MobileAppSection';
 import FinalCta from './FinalCta';
 import { logoCarouselTitle } from '@/app/(lib)/content';
 
@@ -32,6 +33,7 @@ export default function LandingClient() {
         <LogoCarousel />
         <TestimonialsSection />
         <PricingSection />
+        <MobileAppSection />
         <FaqSection />
         <FinalCta />
       </main>
