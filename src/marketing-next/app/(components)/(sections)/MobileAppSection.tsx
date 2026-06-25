@@ -18,7 +18,7 @@ function AppStoreBadge() {
       {/* Official Apple "App Store" badge (es-MX, black) */}
       <Box
         component="img"
-        src="/assets/app-store-badge.svg"
+        src="/landing/assets/img/app-store-badge.svg"
         alt="Consíguelo en el App Store"
         sx={{ height: { xs: 50, md: 56 }, width: 'auto', display: 'block' }}
       />
@@ -143,7 +143,7 @@ export default function MobileAppSection() {
             >
               <Box
                 component="img"
-                src="/assets/app-turnospro-1.png"
+                src="/landing/assets/img/app-turnospro-1.png"
                 alt="App TurnosPro — agenda del día en iPhone"
                 loading="lazy"
                 sx={{
@@ -165,7 +165,7 @@ export default function MobileAppSection() {
             >
               <Box
                 component="img"
-                src="/assets/app-turnospro-2.png"
+                src="/landing/assets/img/app-turnospro-2.png"
                 alt="App TurnosPro — clientes en iPhone"
                 loading="lazy"
                 sx={{

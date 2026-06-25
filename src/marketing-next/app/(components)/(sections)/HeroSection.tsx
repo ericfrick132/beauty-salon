@@ -335,7 +335,7 @@ export default function HeroSection() {
                 >
                   <Box
                     component="img"
-                    src="/assets/app-store-badge.svg"
+                    src="/landing/assets/img/app-store-badge.svg"
                     alt="Consíguelo en el App Store"
                     sx={{ height: 44, width: 'auto', display: 'block' }}
                   />
