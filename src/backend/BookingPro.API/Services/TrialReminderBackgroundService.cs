@@ -54,6 +54,7 @@ namespace BookingPro.API.Services
             using var scope = _serviceProvider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
+            var hub = scope.ServiceProvider.GetRequiredService<ISalesHubHubClient>();
             var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
 
             var now = DateTime.UtcNow;
@@ -75,12 +76,12 @@ namespace BookingPro.API.Services
                 // Window: about 2 days out
                 if (hoursLeft > 36 && hoursLeft <= 60)
                 {
-                    await TrySendOncePerDayAsync(db, emailService, sub, "trial_ending_2d", upgradeUrl, daysLeft: 2, ct);
+                    await TrySendOncePerDayAsync(db, emailService, hub, sub, "trial_ending_2d", upgradeUrl, daysLeft: 2, ct);
                 }
                 // Recently expired (within 48h of expiry)
                 else if (hoursLeft <= 0 && hoursLeft >= -48)
                 {
-                    await TrySendOnceAsync(db, emailService, sub, "trial_expired", upgradeUrl, daysLeft: 0, ct);
+                    await TrySendOnceAsync(db, emailService, hub, sub, "trial_expired", upgradeUrl, daysLeft: 0, ct);
                 }
             }
         }
@@ -88,6 +89,7 @@ namespace BookingPro.API.Services
         private async Task TrySendOncePerDayAsync(
             ApplicationDbContext db,
             IEmailService emailService,
+            ISalesHubHubClient hub,
             Subscription sub,
             string templateKey,
             string upgradeUrl,
@@ -116,6 +118,12 @@ namespace BookingPro.API.Services
                     ? $"https://{tenant.Subdomain}.turnos-pro.com/subscription/upgrade"
                     : upgradeUrl;
                 await emailService.SendTrialEndingAsync(tenant.OwnerEmail, recipient, daysLeft, tenantUpgradeUrl, sub.TenantId);
+
+                // Además del email, delegamos el aviso B2B por WhatsApp a SalesHub (encolado humanizado).
+                var waText = daysLeft > 0
+                    ? $"¡Hola! Te quedan {daysLeft} día(s) de prueba en TurnosPro. Activá tu suscripción acá 👉 {tenantUpgradeUrl}"
+                    : $"Tu prueba de TurnosPro venció. Reactivá tu cuenta para no perder tus turnos 👉 {tenantUpgradeUrl}";
+                await hub.SendAsync(tenant.Id.ToString(), waText, ct);
             }
             catch (Exception ex)
             {
@@ -126,6 +134,7 @@ namespace BookingPro.API.Services
         private async Task TrySendOnceAsync(
             ApplicationDbContext db,
             IEmailService emailService,
+            ISalesHubHubClient hub,
             Subscription sub,
             string templateKey,
             string upgradeUrl,
@@ -152,6 +161,12 @@ namespace BookingPro.API.Services
                     ? $"https://{tenant.Subdomain}.turnos-pro.com/subscription/upgrade"
                     : upgradeUrl;
                 await emailService.SendTrialEndingAsync(tenant.OwnerEmail, recipient, daysLeft, tenantUpgradeUrl, sub.TenantId);
+
+                // Además del email, delegamos el aviso B2B por WhatsApp a SalesHub (encolado humanizado).
+                var waText = daysLeft > 0
+                    ? $"¡Hola! Te quedan {daysLeft} día(s) de prueba en TurnosPro. Activá tu suscripción acá 👉 {tenantUpgradeUrl}"
+                    : $"Tu prueba de TurnosPro venció. Reactivá tu cuenta para no perder tus turnos 👉 {tenantUpgradeUrl}";
+                await hub.SendAsync(tenant.Id.ToString(), waText, ct);
             }
             catch (Exception ex)
             {

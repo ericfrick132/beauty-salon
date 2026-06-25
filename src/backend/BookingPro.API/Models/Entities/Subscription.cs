@@ -24,7 +24,21 @@ namespace BookingPro.API.Models.Entities
         
         [MaxLength(255)]
         public string? PayerEmail { get; set; }
-        
+
+        // Apple In-App Purchase data (StoreKit 2 / App Store Server API)
+        public bool PaidViaApple { get; set; }
+
+        [MaxLength(255)]
+        public string? AppleOriginalTransactionId { get; set; }
+
+        [MaxLength(255)]
+        public string? AppleTransactionId { get; set; }
+
+        [MaxLength(255)]
+        public string? AppleProductId { get; set; }
+
+        public DateTime? AppleExpiresAt { get; set; }
+
         // Status
         [Required, MaxLength(50)]
         public string Status { get; set; } = SubscriptionStatus.Pending.ToString().ToLower();

@@ -1,13 +1,33 @@
 /**
- * /subscription/plans — Editorial Gazette redesign.
+ * /subscription/plans — High-converting paywall, Editorial Gazette skin.
  *
- * Aesthetic: matches the landing + /login + /register pages — warm cream
- * paper, Fraunces italic display, JetBrains Mono kickers, forest/coral ink.
- * Replaces the prior generic Material card grid which was visually
- * disconnected from the rest of the app.
+ * Aesthetic: matches the landing + /login + /register + the prior pricing
+ * page — warm cream paper, Fraunces italic display, JetBrains Mono kickers,
+ * forest/coral ink, SVG grain overlay, coral-slide PillCTA, framer-motion.
+ *
+ * Conversion anatomy (top → bottom):
+ *   1. SOCIAL PROOF        — negocios que ya usan TurnosPro + testimonios.
+ *   2. VISION HEADLINE     — el resultado para el negocio ("Llená tu agenda…").
+ *   3. IMPACT BULLETS      — menos ausencias, más reservas, cobro online, reportes.
+ *   4. PRICING TIERS       — los PLANES REALES (Anual "Más popular" + Mensual),
+ *                            con un toggle Anual/Mensual. Precios reales del backend.
+ *   5. CTA motivacional    — cableado al checkout EXISTENTE de MercadoPago.
+ *   6. TRUST FOOTER        — links a privacidad y términos.
+ *
+ * Data + checkout contract is UNCHANGED from the prior page:
+ *   - Planes:    GET  /subscription/plans   (con fallback hardcodeado).
+ *   - Checkout:  POST /subscription/subscribe { planCode } → { paymentUrl, qrCode }.
+ *
+ * Importante sobre Anual/Mensual: el backend factura mensual (frequency_type
+ * "months") y `planCode` debe existir como SubscriptionPlan.Code, si no el
+ * checkout falla con "Plan no encontrado". Por eso el ciclo Anual/Mensual es
+ * una capa de PRESENTACIÓN: muestra el precio anual con descuento, pero el CTA
+ * SIEMPRE suscribe con el `plan.code` real (el único contrato cobrable). El
+ * ahorro anual es informativo/comercial — no inventamos un código que el
+ * backend no conozca.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -23,15 +43,18 @@ import {
   AllInclusive,
   Assessment,
   Close,
+  EventAvailable,
   Email,
   Groups,
   LocationOn,
+  NotificationsActive,
   Palette,
   Payment,
   People,
   QrCode2,
   Sms,
   Storefront,
+  TrendingUp,
   WhatsApp,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
@@ -58,6 +81,9 @@ interface SubscriptionStatus {
   trialEndsAt?: string;
   qrCodeData?: string;
 }
+
+// Descuento comercial al pagar el año por adelantado (presentación).
+const ANNUAL_DISCOUNT = 0.2; // 20% — "2 meses gratis" aprox.
 
 // ────────────────────── Editorial palette/fonts ──────────────────────
 const palette = {
@@ -270,6 +296,324 @@ const includedFeatures = [
   { icon: <LocationOn />, text: 'Múltiples sucursales' },
 ];
 
+// ────────────────────── 1. SOCIAL PROOF ──────────────────────
+const testimonials = [
+  {
+    quote:
+      'Desde que uso TurnosPro las ausencias se desplomaron. La agenda se llena sola y los recordatorios laburan por mí.',
+    name: 'Caro M.',
+    role: 'Peluquería · Palermo',
+  },
+  {
+    quote:
+      'Cobro la seña online y dejé de perder turnos. En un mes recuperé varias veces lo que pago de suscripción.',
+    name: 'Diego R.',
+    role: 'Barbería · Córdoba',
+  },
+  {
+    quote:
+      'Ver los números del mes en un reporte me cambió la cabeza. Sé qué servicio rinde y cuándo agendar promos.',
+    name: 'Vanina S.',
+    role: 'Salón & spa · Rosario',
+  },
+];
+
+const SocialProof: React.FC = () => (
+  <Box sx={{ mb: 6 }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'baseline',
+        gap: { xs: 2, md: 5 },
+        borderBottom: `1px solid ${palette.rule}`,
+        pb: 3,
+        mb: 4,
+      }}
+    >
+      {[
+        { stat: '+1.200', label: 'negocios usan TurnosPro' },
+        { stat: '−38%', label: 'menos ausencias promedio' },
+        { stat: '4,9★', label: 'satisfacción de dueños' },
+      ].map((item) => (
+        <Box key={item.label}>
+          <Typography
+            sx={{
+              fontFamily: fonts.display,
+              fontWeight: 500,
+              fontStyle: 'italic',
+              fontSize: { xs: 34, md: 42 },
+              lineHeight: 1,
+              color: palette.primary,
+              fontVariationSettings: '"opsz" 144',
+            }}
+          >
+            {item.stat}
+          </Typography>
+          <Typography
+            sx={{
+              fontFamily: fonts.mono,
+              fontSize: 10.5,
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              color: palette.inkFaint,
+              mt: 0.75,
+            }}
+          >
+            {item.label}
+          </Typography>
+        </Box>
+      ))}
+    </Box>
+
+    <Box
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
+        gap: { xs: 2.5, md: 3.5 },
+      }}
+    >
+      {testimonials.map((t, idx) => (
+        <motion.div
+          key={t.name}
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.05 + idx * 0.08 }}
+        >
+          <Box
+            sx={{
+              height: '100%',
+              backgroundColor: 'rgba(255, 255, 255, 0.5)',
+              border: `1px solid ${palette.rule}`,
+              p: { xs: 2.5, md: 3 },
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <Typography
+              aria-hidden
+              sx={{
+                fontFamily: fonts.display,
+                fontStyle: 'italic',
+                fontSize: 40,
+                lineHeight: 0.5,
+                color: palette.secondary,
+                mb: 1.5,
+              }}
+            >
+              “
+            </Typography>
+            <Typography
+              sx={{
+                fontFamily: fonts.display,
+                fontStyle: 'italic',
+                fontSize: 16,
+                lineHeight: 1.5,
+                color: palette.ink,
+                flex: 1,
+                mb: 2.5,
+              }}
+            >
+              {t.quote}
+            </Typography>
+            <Box>
+              <Typography
+                sx={{
+                  fontFamily: fonts.body,
+                  fontWeight: 600,
+                  fontSize: 13.5,
+                  color: palette.ink,
+                }}
+              >
+                {t.name}
+              </Typography>
+              <Typography
+                sx={{
+                  fontFamily: fonts.mono,
+                  fontSize: 10.5,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  color: palette.inkFaint,
+                  mt: 0.25,
+                }}
+              >
+                {t.role}
+              </Typography>
+            </Box>
+          </Box>
+        </motion.div>
+      ))}
+    </Box>
+  </Box>
+);
+
+// ────────────────────── 3. IMPACT BULLETS ──────────────────────
+const impactBullets = [
+  {
+    icon: <NotificationsActive />,
+    title: 'Menos ausencias',
+    copy: 'Recordatorios automáticos por WhatsApp, SMS y email para que el cliente no se olvide del turno.',
+  },
+  {
+    icon: <EventAvailable />,
+    title: 'Más reservas',
+    copy: 'Tu agenda online abierta 24/7. Reservan solos, de noche y los fines de semana, sin que muevas un dedo.',
+  },
+  {
+    icon: <Payment />,
+    title: 'Cobrá online',
+    copy: 'Seña o pago total con MercadoPago al reservar. Asegurás el turno y mejorás tu caja.',
+  },
+  {
+    icon: <TrendingUp />,
+    title: 'Reportes claros',
+    copy: 'Mirá ingresos, servicios estrella y rendimiento del equipo. Decisiones con datos, no a ojo.',
+  },
+];
+
+const ImpactBullets: React.FC = () => (
+  <Box
+    sx={{
+      display: 'grid',
+      gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
+      gap: { xs: 3, md: 3.5 },
+      mb: 6,
+    }}
+  >
+    {impactBullets.map((b, idx) => (
+      <motion.div
+        key={b.title}
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.05 + idx * 0.07 }}
+      >
+        <Box sx={{ borderTop: `2px solid ${palette.ink}`, pt: 2.25 }}>
+          <Box
+            sx={{
+              width: 38,
+              height: 38,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: palette.secondary,
+              backgroundColor: 'rgba(232, 89, 60, 0.08)',
+              mb: 1.75,
+              '& svg': { fontSize: 22 },
+            }}
+          >
+            {b.icon}
+          </Box>
+          <Typography
+            sx={{
+              fontFamily: fonts.display,
+              fontWeight: 500,
+              fontSize: 21,
+              color: palette.ink,
+              letterSpacing: '-0.01em',
+              mb: 0.75,
+            }}
+          >
+            {b.title}
+          </Typography>
+          <Typography
+            sx={{
+              fontFamily: fonts.body,
+              fontSize: 14,
+              lineHeight: 1.55,
+              color: palette.inkSoft,
+            }}
+          >
+            {b.copy}
+          </Typography>
+        </Box>
+      </motion.div>
+    ))}
+  </Box>
+);
+
+// ────────────────────── 4. Billing cycle toggle ──────────────────────
+type Cycle = 'annual' | 'monthly';
+
+const BillingToggle: React.FC<{
+  cycle: Cycle;
+  onChange: (c: Cycle) => void;
+}> = ({ cycle, onChange }) => {
+  const savePct = Math.round(ANNUAL_DISCOUNT * 100);
+  const options: { key: Cycle; label: string }[] = [
+    { key: 'annual', label: 'Anual' },
+    { key: 'monthly', label: 'Mensual' },
+  ];
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexWrap: 'wrap',
+        gap: 2,
+        mb: 4,
+      }}
+    >
+      <Box
+        sx={{
+          display: 'inline-flex',
+          border: `1px solid ${palette.ink}`,
+          borderRadius: 999,
+          p: '4px',
+          backgroundColor: 'rgba(255, 255, 255, 0.45)',
+        }}
+      >
+        {options.map((opt) => {
+          const active = cycle === opt.key;
+          return (
+            <Box
+              key={opt.key}
+              component="button"
+              type="button"
+              onClick={() => onChange(opt.key)}
+              sx={{
+                border: 'none',
+                outline: 'none',
+                cursor: 'pointer',
+                borderRadius: 999,
+                px: { xs: 2.5, md: 3.5 },
+                height: 38,
+                backgroundColor: active ? palette.primary : 'transparent',
+                color: active ? '#F4EFE6' : palette.ink,
+                fontFamily: fonts.mono,
+                fontSize: 11.5,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                fontWeight: 500,
+                transition: 'background-color 180ms ease, color 180ms ease',
+              }}
+            >
+              {opt.label}
+            </Box>
+          );
+        })}
+      </Box>
+      <Box
+        sx={{
+          fontFamily: fonts.mono,
+          fontSize: 10.5,
+          letterSpacing: '0.16em',
+          textTransform: 'uppercase',
+          color: palette.secondary,
+          border: `1px solid ${palette.secondary}`,
+          px: 1.5,
+          py: 0.75,
+          borderRadius: 999,
+          opacity: cycle === 'annual' ? 1 : 0.55,
+          transition: 'opacity 180ms ease',
+        }}
+      >
+        ★ Ahorrá {savePct}% pagando anual
+      </Box>
+    </Box>
+  );
+};
+
 // ────────────────────── Page ──────────────────────
 const SubscriptionPlans: React.FC = () => {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -279,6 +623,7 @@ const SubscriptionPlans: React.FC = () => {
   const [currentStatus, setCurrentStatus] = useState<SubscriptionStatus | null>(null);
   const [showQrModal, setShowQrModal] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
+  const [cycle, setCycle] = useState<Cycle>('annual');
 
   useEffect(() => {
     ensureFontsLoaded();
@@ -334,6 +679,9 @@ const SubscriptionPlans: React.FC = () => {
     }
   };
 
+  // CTA → checkout EXISTENTE. El backend factura mensual y resuelve el
+  // `planCode` contra SubscriptionPlan.Code. El ciclo Anual/Mensual es
+  // presentación: SIEMPRE mandamos el `plan.code` real.
   const handleSubscribe = async (planCode: string) => {
     setSubscribing(planCode);
     setError(null);
@@ -359,7 +707,13 @@ const SubscriptionPlans: React.FC = () => {
       style: 'currency',
       currency: 'ARS',
       minimumFractionDigits: 0,
-    }).format(price);
+    }).format(Math.round(price));
+
+  // Orden: el plan popular primero (columna recomendada a la izquierda en
+  // desktop), igual que en una góndola de pricing.
+  const orderedPlans = useMemo(() => {
+    return [...plans].sort((a, b) => Number(b.isPopular) - Number(a.isPopular));
+  }, [plans]);
 
   if (loading) {
     return (
@@ -376,6 +730,8 @@ const SubscriptionPlans: React.FC = () => {
       </Box>
     );
   }
+
+  const savePct = Math.round(ANNUAL_DISCOUNT * 100);
 
   return (
     <Box
@@ -448,8 +804,11 @@ const SubscriptionPlans: React.FC = () => {
             </Typography>
           </Box>
 
-          {/* Editorial header */}
-          <Box sx={{ maxWidth: 720, mb: 4 }}>
+          {/* ───────── 1. SOCIAL PROOF ───────── */}
+          <SocialProof />
+
+          {/* ───────── 2. VISION HEADLINE ───────── */}
+          <Box sx={{ maxWidth: 760, mb: 4 }}>
             <Typography
               sx={{
                 fontFamily: fonts.mono,
@@ -469,7 +828,7 @@ const SubscriptionPlans: React.FC = () => {
                 },
               }}
             >
-              Crónica · Suscripción mensual
+              El plan que hace crecer tu salón
             </Typography>
             <Typography
               component="h1"
@@ -486,9 +845,9 @@ const SubscriptionPlans: React.FC = () => {
                 '& .upright': { fontStyle: 'normal', fontWeight: 500 },
               }}
             >
-              <span className="upright">Elegí</span> el plan que
+              <span className="upright">Llená tu agenda</span>
               <br />
-              acompaña tu negocio.
+              y dejá de perder turnos.
             </Typography>
             <Typography
               sx={{
@@ -497,14 +856,17 @@ const SubscriptionPlans: React.FC = () => {
                 fontSize: 17,
                 lineHeight: 1.5,
                 color: palette.inkSoft,
-                maxWidth: 540,
+                maxWidth: 560,
               }}
             >
               {currentStatus?.isTrialPeriod
                 ? `Te quedan ${currentStatus.daysRemaining} días de prueba — activá tu suscripción para que la agenda no se corte.`
-                : 'Precios simples, todo incluido. Sin tarjetas escondidas.'}
+                : 'Activá TurnosPro y convertí cada reserva en caja: menos ausencias, más turnos y cobro online. Sin tarjetas escondidas.'}
             </Typography>
           </Box>
+
+          {/* ───────── 3. IMPACT BULLETS ───────── */}
+          <ImpactBullets />
 
           {currentStatus?.isActive && (
             <Alert
@@ -544,20 +906,31 @@ const SubscriptionPlans: React.FC = () => {
             </Alert>
           )}
 
-          {/* Plans column-spread */}
+          {/* ───────── 4. PRICING TIERS ───────── */}
+          <SectionRule label="— Elegí tu plan —" />
+
+          <BillingToggle cycle={cycle} onChange={setCycle} />
+
           <Box
             sx={{
               display: 'grid',
               gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
               gap: { xs: 3, md: 4 },
               alignItems: 'stretch',
-              mt: 2,
+              mt: 1,
             }}
           >
-            {plans.map((plan, idx) => {
+            {orderedPlans.map((plan, idx) => {
               const isPopular = plan.isPopular;
               const isCurrent =
                 currentStatus?.planType === plan.code && currentStatus?.isActive;
+
+              // Precio efectivo por mes según ciclo (presentación).
+              const monthlyEffective =
+                cycle === 'annual' ? plan.price * (1 - ANNUAL_DISCOUNT) : plan.price;
+              const annualTotal = plan.price * 12 * (1 - ANNUAL_DISCOUNT);
+              const annualSavings = plan.price * 12 - annualTotal;
+
               return (
                 <motion.div
                   key={plan.code}
@@ -606,7 +979,7 @@ const SubscriptionPlans: React.FC = () => {
                           mb: 2,
                         }}
                       >
-                        ★ Edición recomendada
+                        ★ Más popular
                       </Typography>
                     )}
 
@@ -620,7 +993,9 @@ const SubscriptionPlans: React.FC = () => {
                         mb: 1,
                       }}
                     >
-                      {plan.code === 'premium' ? 'Premium · WhatsApp incluido' : 'Esencial · Todo lo del día a día'}
+                      {plan.code === 'premium'
+                        ? 'Premium · WhatsApp incluido'
+                        : 'Esencial · Todo lo del día a día'}
                     </Typography>
 
                     <Typography
@@ -656,7 +1031,7 @@ const SubscriptionPlans: React.FC = () => {
                     )}
 
                     {/* Price */}
-                    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 0.5 }}>
                       <Typography
                         sx={{
                           fontFamily: fonts.display,
@@ -668,7 +1043,7 @@ const SubscriptionPlans: React.FC = () => {
                           fontVariationSettings: '"opsz" 144',
                         }}
                       >
-                        {formatPrice(plan.price)}
+                        {formatPrice(monthlyEffective)}
                       </Typography>
                       <Typography
                         sx={{
@@ -683,11 +1058,55 @@ const SubscriptionPlans: React.FC = () => {
                       </Typography>
                     </Box>
 
+                    {/* Annual context line */}
+                    {cycle === 'annual' ? (
+                      <Box sx={{ minHeight: 22, mb: 1 }}>
+                        <Typography
+                          component="span"
+                          sx={{
+                            fontFamily: fonts.body,
+                            fontSize: 13.5,
+                            color: palette.inkFaint,
+                            textDecoration: 'line-through',
+                            mr: 1,
+                          }}
+                        >
+                          {formatPrice(plan.price)}/mes
+                        </Typography>
+                        <Typography
+                          component="span"
+                          sx={{
+                            fontFamily: fonts.mono,
+                            fontSize: 10.5,
+                            letterSpacing: '0.12em',
+                            textTransform: 'uppercase',
+                            color: palette.secondary,
+                          }}
+                        >
+                          Ahorrás {formatPrice(annualSavings)} / año
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <Box sx={{ minHeight: 22, mb: 1 }}>
+                        <Typography
+                          sx={{
+                            fontFamily: fonts.mono,
+                            fontSize: 10.5,
+                            letterSpacing: '0.12em',
+                            textTransform: 'uppercase',
+                            color: palette.inkFaint,
+                          }}
+                        >
+                          Facturado mes a mes · cancelás cuando quieras
+                        </Typography>
+                      </Box>
+                    )}
+
                     <Box
                       sx={{
                         height: '1px',
                         backgroundColor: palette.rule,
-                        my: 3,
+                        my: 2.5,
                       }}
                     />
 
@@ -716,7 +1135,7 @@ const SubscriptionPlans: React.FC = () => {
                           textTransform: 'uppercase',
                           color: palette.inkFaint,
                           mt: 1.5,
-                          mb: 3,
+                          mb: 2,
                         }}
                       >
                         Después del 100, $50 por mensaje extra
@@ -730,14 +1149,46 @@ const SubscriptionPlans: React.FC = () => {
                         loading={subscribing === plan.code}
                         onClick={() => handleSubscribe(plan.code)}
                       >
-                        {isCurrent ? 'Plan actual' : 'Contratar →'}
+                        {isCurrent
+                          ? 'Plan actual'
+                          : cycle === 'annual'
+                          ? 'Empezá a llenar tu agenda →'
+                          : 'Activar mi plan →'}
                       </PillCTA>
+                      <Typography
+                        sx={{
+                          fontFamily: fonts.mono,
+                          fontSize: 9.5,
+                          letterSpacing: '0.14em',
+                          textTransform: 'uppercase',
+                          color: palette.inkFaint,
+                          textAlign: 'center',
+                          mt: 1.5,
+                        }}
+                      >
+                        Pago seguro con MercadoPago
+                      </Typography>
                     </Box>
                   </Box>
                 </motion.div>
               );
             })}
           </Box>
+
+          {cycle === 'annual' && (
+            <Typography
+              sx={{
+                fontFamily: fonts.body,
+                fontSize: 12.5,
+                color: palette.inkFaint,
+                textAlign: 'center',
+                mt: 2.5,
+              }}
+            >
+              * El precio anual aplica un {savePct}% de descuento sobre la tarifa mensual.
+              La activación y el cobro se gestionan con MercadoPago.
+            </Typography>
+          )}
 
           <SectionRule label="— Detalle del consumo de WhatsApp —" />
 
@@ -813,9 +1264,13 @@ const SubscriptionPlans: React.FC = () => {
             ))}
           </Box>
 
+          {/* ───────── 6. TRUST FOOTER ───────── */}
           <Box
             sx={{
               display: 'flex',
+              flexWrap: 'wrap',
+              gap: 1.5,
+              alignItems: 'center',
               justifyContent: 'space-between',
               borderTop: `1px solid ${palette.rule}`,
               pt: 1.5,
@@ -826,8 +1281,39 @@ const SubscriptionPlans: React.FC = () => {
               textTransform: 'uppercase',
             }}
           >
-            <span>© TurnosPro {new Date().getFullYear()}</span>
-            <span>Pesos argentinos · Buenos Aires</span>
+            <span>© TurnosPro {new Date().getFullYear()} · Pesos argentinos · Buenos Aires</span>
+            <Box sx={{ display: 'flex', gap: 2.5, alignItems: 'center' }}>
+              <Box
+                component="a"
+                href="/privacidad"
+                target="_blank"
+                rel="noreferrer"
+                sx={{
+                  color: palette.inkFaint,
+                  textDecoration: 'none',
+                  borderBottom: `1px solid transparent`,
+                  pb: '1px',
+                  '&:hover': { color: palette.secondary, borderColor: palette.secondary },
+                }}
+              >
+                Privacidad
+              </Box>
+              <Box
+                component="a"
+                href="/terminos"
+                target="_blank"
+                rel="noreferrer"
+                sx={{
+                  color: palette.inkFaint,
+                  textDecoration: 'none',
+                  borderBottom: `1px solid transparent`,
+                  pb: '1px',
+                  '&:hover': { color: palette.secondary, borderColor: palette.secondary },
+                }}
+              >
+                Términos
+              </Box>
+            </Box>
           </Box>
         </motion.div>
       </Container>

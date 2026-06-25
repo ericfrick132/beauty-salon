@@ -24,19 +24,22 @@ namespace BookingPro.API.Services
         private readonly ILogger<SubscriptionService> _logger;
         private readonly HttpClient _httpClient;
         private readonly IEmailService _emailService;
+        private readonly IAppleAppStoreService _appleService;
 
         public SubscriptionService(
             ApplicationDbContext context,
             IConfiguration configuration,
             ILogger<SubscriptionService> logger,
             IHttpClientFactory httpClientFactory,
-            IEmailService emailService)
+            IEmailService emailService,
+            IAppleAppStoreService appleService)
         {
             _context = context;
             _configuration = configuration;
             _logger = logger;
             _httpClient = httpClientFactory.CreateClient();
             _emailService = emailService;
+            _appleService = appleService;
         }
 
         private string BuildUpgradeUrl()
@@ -999,6 +1002,215 @@ namespace BookingPro.API.Services
             {
                 _logger.LogError(ex, "Error generating payment QR code with URL");
                 return ServiceResult<PaymentQRResultDto>.Fail("Error al generar código QR");
+            }
+        }
+
+        // ===================== Apple In-App Purchase =====================
+
+        public async Task<ServiceResult<SubscriptionStatusDto>> ActivateAppleSubscriptionAsync(Guid tenantId, string transactionId)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(transactionId))
+                    return ServiceResult<SubscriptionStatusDto>.Fail("transactionId requerido");
+
+                if (!_appleService.IsConfigured)
+                    return ServiceResult<SubscriptionStatusDto>.Fail("Apple IAP no está configurado en el servidor");
+
+                var info = await _appleService.GetTransactionInfoAsync(transactionId);
+                if (info == null)
+                    return ServiceResult<SubscriptionStatusDto>.Fail("No pudimos verificar la compra con Apple");
+
+                // Validate the transaction really belongs to this app + product family.
+                if (!string.IsNullOrEmpty(_appleService.BundleId) &&
+                    !string.Equals(info.BundleId, _appleService.BundleId, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogWarning("Apple transaction bundleId mismatch: got {Got} expected {Expected}",
+                        info.BundleId, _appleService.BundleId);
+                    return ServiceResult<SubscriptionStatusDto>.Fail("La compra no corresponde a esta app");
+                }
+
+                var tenant = await _context.Tenants.FindAsync(tenantId);
+                if (tenant == null)
+                    return ServiceResult<SubscriptionStatusDto>.Fail("Tenant no encontrado");
+
+                // Map the App Store product to the paid plan (single paid plan: "pro").
+                var plan = await _context.SubscriptionPlans
+                    .FirstOrDefaultAsync(p => p.Code == "pro" && p.IsActive)
+                    ?? await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.IsActive);
+
+                // Re-use the tenant's existing subscription row if present.
+                var subscription = await _context.Subscriptions
+                    .Where(s => s.TenantId == tenantId)
+                    .OrderByDescending(s => s.CreatedAt)
+                    .FirstOrDefaultAsync();
+
+                if (subscription == null)
+                {
+                    subscription = new Subscription
+                    {
+                        Id = Guid.NewGuid(),
+                        TenantId = tenantId,
+                        PlanType = plan?.Code ?? "pro",
+                        MonthlyAmount = plan?.Price ?? 0,
+                        PayerEmail = tenant.OwnerEmail,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    _context.Subscriptions.Add(subscription);
+                }
+
+                var expires = info.ExpiresDate ?? DateTime.UtcNow.AddMonths(1);
+
+                subscription.PaidViaApple = true;
+                subscription.AppleOriginalTransactionId = info.OriginalTransactionId;
+                subscription.AppleTransactionId = info.TransactionId;
+                subscription.AppleProductId = info.ProductId;
+                subscription.AppleExpiresAt = expires;
+                subscription.PlanType = plan?.Code ?? subscription.PlanType;
+                subscription.MonthlyAmount = plan?.Price ?? subscription.MonthlyAmount;
+                subscription.Status = "active";
+                subscription.IsTrialPeriod = false;
+                subscription.ActivatedAt = DateTime.UtcNow;
+                subscription.NextPaymentDate = expires;
+                subscription.UpdatedAt = DateTime.UtcNow;
+
+                // Tenant gate: GetSubscriptionStatus / SubscriptionMiddleware treat
+                // TrialEndsAt in the future as "active", so keep it in sync with the
+                // Apple expiry as a belt-and-suspenders activation.
+                tenant.Status = "active";
+                tenant.TrialEndsAt = expires;
+                if (plan != null) tenant.SubscriptionPlanId = plan.Id;
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation(
+                    "Apple subscription activated for tenant {TenantId}: product {Product}, originalTx {OTx}, expires {Expires:o}",
+                    tenantId, info.ProductId, info.OriginalTransactionId, expires);
+
+                return await GetSubscriptionStatusAsync(tenantId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error activating Apple subscription for tenant {TenantId}", tenantId);
+                return ServiceResult<SubscriptionStatusDto>.Fail("Error al activar la suscripción de Apple");
+            }
+        }
+
+        public async Task<ServiceResult<bool>> ProcessAppleNotificationAsync(string signedPayload)
+        {
+            try
+            {
+                var notification = _appleService.DecodeNotification(signedPayload);
+                if (notification?.Transaction?.OriginalTransactionId == null)
+                {
+                    _logger.LogWarning("Apple notification could not be decoded or had no transaction");
+                    return ServiceResult<bool>.Ok(true);
+                }
+
+                // Harden: this webhook is anonymous, so do NOT trust the payload to
+                // change billing state. Re-fetch the authoritative transaction from
+                // Apple over TLS and act on that. If it can't be verified (or Apple
+                // isn't configured), ignore the notification.
+                if (!_appleService.IsConfigured)
+                {
+                    _logger.LogWarning("Apple not configured; ignoring notification {Type}", notification.NotificationType);
+                    return ServiceResult<bool>.Ok(true);
+                }
+
+                var notifiedTxId = notification.Transaction.TransactionId;
+                AppleTransactionInfo? authoritative = string.IsNullOrEmpty(notifiedTxId)
+                    ? null
+                    : await _appleService.GetTransactionInfoAsync(notifiedTxId);
+
+                if (authoritative == null)
+                {
+                    _logger.LogWarning("Apple notification {Type}: transaction {Tx} not verifiable with Apple — ignored",
+                        notification.NotificationType, notifiedTxId);
+                    return ServiceResult<bool>.Ok(true);
+                }
+                if (!string.IsNullOrEmpty(_appleService.BundleId) &&
+                    !string.Equals(authoritative.BundleId, _appleService.BundleId, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogWarning("Apple notification bundleId mismatch ({Got}) — ignored", authoritative.BundleId);
+                    return ServiceResult<bool>.Ok(true);
+                }
+
+                // Trust the authoritative transaction for all downstream state.
+                notification.Transaction = authoritative;
+
+                var originalTxId = notification.Transaction.OriginalTransactionId;
+                var subscription = await _context.Subscriptions
+                    .FirstOrDefaultAsync(s => s.AppleOriginalTransactionId == originalTxId);
+
+                if (subscription == null)
+                {
+                    _logger.LogInformation(
+                        "Apple notification {Type} for unknown originalTx {OTx} — ignored",
+                        notification.NotificationType, originalTxId);
+                    return ServiceResult<bool>.Ok(true);
+                }
+
+                var tenant = await _context.Tenants.FindAsync(subscription.TenantId);
+                var type = notification.NotificationType?.ToUpperInvariant();
+                var expires = notification.Transaction.ExpiresDate;
+
+                switch (type)
+                {
+                    case "SUBSCRIBED":
+                    case "DID_RENEW":
+                    case "DID_CHANGE_RENEWAL_PREF":
+                    case "OFFER_REDEEMED":
+                        subscription.Status = "active";
+                        subscription.IsTrialPeriod = false;
+                        if (expires.HasValue)
+                        {
+                            subscription.AppleExpiresAt = expires;
+                            subscription.NextPaymentDate = expires;
+                        }
+                        if (tenant != null)
+                        {
+                            tenant.Status = "active";
+                            tenant.TrialEndsAt = expires ?? tenant.TrialEndsAt;
+                        }
+                        break;
+
+                    case "EXPIRED":
+                    case "GRACE_PERIOD_EXPIRED":
+                        subscription.Status = "expired";
+                        if (tenant != null) tenant.Status = "suspended";
+                        break;
+
+                    case "REFUND":
+                    case "REVOKE":
+                        subscription.Status = "cancelled";
+                        subscription.CancelledAt = DateTime.UtcNow;
+                        if (tenant != null) tenant.Status = "cancelled";
+                        break;
+
+                    case "DID_CHANGE_RENEWAL_STATUS":
+                        // Auto-renew toggled. Access continues until expiry — just
+                        // keep the expiry fresh if Apple sent one.
+                        if (expires.HasValue) subscription.AppleExpiresAt = expires;
+                        break;
+
+                    default:
+                        _logger.LogInformation("Apple notification {Type} — no state change", type);
+                        break;
+                }
+
+                subscription.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation(
+                    "Processed Apple notification {Type} for tenant {TenantId} (originalTx {OTx})",
+                    type, subscription.TenantId, originalTxId);
+
+                return ServiceResult<bool>.Ok(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing Apple notification");
+                return ServiceResult<bool>.Fail("Error procesando notificación de Apple");
             }
         }
     }

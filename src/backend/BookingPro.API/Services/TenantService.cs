@@ -13,11 +13,13 @@ namespace BookingPro.API.Services
     public class TenantService : ITenantService
     {
         private readonly ApplicationDbContext _context;
+        private readonly ISalesHubHubClient _hub;
         private TenantInfo? _currentTenant;
 
-        public TenantService(ApplicationDbContext context)
+        public TenantService(ApplicationDbContext context, ISalesHubHubClient hub)
         {
             _context = context;
+            _hub = hub;
         }
 
         public string GetCurrentTenantId()
@@ -231,6 +233,21 @@ namespace BookingPro.API.Services
                 }
 
                 await transaction.CommitAsync();
+
+                // Push del lead B2B al Hub de SalesHub (captura en tiempo real del onboarding).
+                // Solo trials/demos: son los que vale la pena seguir. El cliente es fire-and-forget
+                // (no tira excepción) y dedup en el Hub evita duplicar con el pull existente.
+                if (dto.IsDemo)
+                {
+                    var ownerName = $"{dto.AdminFirstName} {dto.AdminLastName}".Trim();
+                    await _hub.PushLeadAsync(
+                        externalId: tenant.Id.ToString(),
+                        name: string.IsNullOrWhiteSpace(ownerName) ? tenant.BusinessName : ownerName,
+                        businessName: tenant.BusinessName,
+                        phone: tenant.OwnerPhone,
+                        email: tenant.OwnerEmail,
+                        leadType: "onboarding");
+                }
 
                 // Build tenant URL (always use production domain; controllers may override for localhost)
                 var tenantUrl = $"https://{tenant.Subdomain}.turnos-pro.com";

@@ -270,6 +270,56 @@ namespace BookingPro.API.Controllers
             }
         }
 
+        // Verify a StoreKit 2 purchase (sent by the iOS app after a successful
+        // purchase) and activate the tenant's subscription.
+        [HttpPost("apple/verify")]
+        [Authorize]
+        public async Task<IActionResult> VerifyApplePurchase([FromBody] AppleVerifyDto dto)
+        {
+            try
+            {
+                if (dto == null || string.IsNullOrWhiteSpace(dto.TransactionId))
+                    return BadRequest(new { error = "transactionId requerido" });
+
+                var tenantId = GetTenantId();
+                if (!Guid.TryParse(tenantId, out var tenantGuid))
+                    return BadRequest(new { error = "Invalid tenant ID" });
+
+                var result = await _subscriptionService.ActivateAppleSubscriptionAsync(tenantGuid, dto.TransactionId);
+
+                if (result.Success && result.Data != null)
+                    return Ok(result.Data);
+
+                return BadRequest(new { error = result.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error verifying Apple purchase");
+                return StatusCode(500, new { error = "Error al verificar la compra" });
+            }
+        }
+
+        // App Store Server Notifications V2 (server-to-server: renewals,
+        // expirations, refunds). Apple POSTs { signedPayload: <JWS> }.
+        [HttpPost("/api/webhooks/apple")]
+        [AllowAnonymous]
+        public async Task<IActionResult> AppleNotifications([FromBody] AppleNotificationDto dto)
+        {
+            try
+            {
+                if (dto == null || string.IsNullOrWhiteSpace(dto.SignedPayload))
+                    return Ok();
+
+                await _subscriptionService.ProcessAppleNotificationAsync(dto.SignedPayload);
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing Apple notification webhook");
+                return Ok(); // Always 200 so Apple does not retry-storm.
+            }
+        }
+
         [HttpPost("initialize-plans")]
         [Authorize(Roles = "super_admin")]
         public async Task<IActionResult> InitializePlans()

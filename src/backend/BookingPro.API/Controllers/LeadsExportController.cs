@@ -19,11 +19,13 @@ public class LeadsExportController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly IConfiguration _config;
+    private readonly ILogger<LeadsExportController> _logger;
 
-    public LeadsExportController(ApplicationDbContext db, IConfiguration config)
+    public LeadsExportController(ApplicationDbContext db, IConfiguration config, ILogger<LeadsExportController> logger)
     {
         _db = db;
         _config = config;
+        _logger = logger;
     }
 
     private bool ApiKeyOk()
@@ -63,6 +65,55 @@ public class LeadsExportController : ControllerBase
             .ToListAsync();
 
         return Ok(leads);
+    }
+
+    /// <summary>
+    /// Estado actual de tenants para el pull-guard de SalesHub: por cada externalId le dice si
+    /// dejar de perseguir el follow-up (stopFollowup) y si fue conversión (won) o pérdida.
+    /// Convención: active = convirtió (stop+won); cancelled = churneó (stop+!won);
+    /// trial/suspended = seguir persiguiendo (no stop).
+    /// </summary>
+    [HttpGet("state")]
+    public async Task<IActionResult> State([FromQuery] string externalIds)
+    {
+        if (!ApiKeyOk()) return Unauthorized();
+        if (string.IsNullOrWhiteSpace(externalIds)) return Ok(Array.Empty<object>());
+
+        var ids = externalIds
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(s => Guid.TryParse(s, out var g) ? g : (Guid?)null)
+            .Where(g => g.HasValue).Select(g => g!.Value).Distinct().ToList();
+        if (ids.Count == 0) return Ok(Array.Empty<object>());
+
+        var tenants = await _db.Tenants.AsNoTracking()
+            .Where(t => ids.Contains(t.Id))
+            .Select(t => new { t.Id, t.Status })
+            .ToListAsync();
+
+        var result = tenants.Select(t =>
+        {
+            var status = (t.Status ?? "").ToLowerInvariant();
+            var won = status == "active";
+            var stop = status == "active" || status == "cancelled";
+            return new { externalId = t.Id.ToString(), stopFollowup = stop, won, status = t.Status };
+        });
+
+        return Ok(result);
+    }
+
+    public record SalesStatusCallback(string ExternalId, string Status, bool Won);
+
+    /// <summary>
+    /// Status-back desde SalesHub: avisa el estado de venta del tenant (Interested/DemoScheduled/
+    /// Closed/Lost). Por ahora se loguea; persistir en el tenant (campo SalesStatus) es follow-up.
+    /// </summary>
+    [HttpPost("status-callback")]
+    public IActionResult StatusCallback([FromBody] SalesStatusCallback body)
+    {
+        if (!ApiKeyOk()) return Unauthorized();
+        _logger.LogInformation("SalesHub status-back: tenant {Ext} -> {Status} (won={Won})",
+            body.ExternalId, body.Status, body.Won);
+        return Ok(new { received = true });
     }
 
     /// <summary>Marca un tenant como exportado para no traerlo dos veces.</summary>
