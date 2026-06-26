@@ -506,6 +506,224 @@ namespace BookingPro.API.Controllers
         }
 
         /// <summary>
+        /// Registro directo desde el bot de WhatsApp: crea la cuenta COMPLETA con {name, email, contactName}.
+        /// Genera una password automática y devuelve un link de acceso directo (auto-login con impersonationToken).
+        /// El lead nunca completa un formulario: el bot le manda el link y entra al dashboard.
+        /// Si el email ya existe, devuelve el link de login (no es error).
+        /// Espeja el bot-register de GymHero, adaptado a la arquitectura de TurnosPro (Guid + JWT auto-login).
+        /// </summary>
+        [HttpPost("bot-register")]
+        [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+        public async Task<IActionResult> BotRegister([FromBody] BotRegisterDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(new { success = false, message = "Datos inválidos", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
+
+            try
+            {
+                var emailLower = dto.Email.Trim().ToLowerInvariant();
+
+                var host = HttpContext.Request.Host.Host;
+                var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");
+
+                // Si ya existe una cuenta con este email, devolver el link de login (no es error).
+                var existingUser = await _context.Users
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(u => u.Email.ToLower() == emailLower);
+                if (existingUser != null)
+                {
+                    var existingTenant = await _context.Tenants
+                        .IgnoreQueryFilters()
+                        .FirstOrDefaultAsync(t => t.Id == existingUser.TenantId);
+                    if (existingTenant == null)
+                        return StatusCode(500, new { success = false, message = "No encontramos tu negocio. Contactanos." });
+
+                    var loginUrl = isLocal
+                        ? $"http://{existingTenant.Subdomain}.localhost:3001/login?email={Uri.EscapeDataString(emailLower)}"
+                        : $"https://{existingTenant.Subdomain}.turnos-pro.com/login?email={Uri.EscapeDataString(emailLower)}";
+
+                    return Ok(new
+                    {
+                        success = true,
+                        message = "La cuenta ya existía",
+                        data = new BotRegisterResponseDto
+                        {
+                            Success = true,
+                            AlreadyExisted = true,
+                            Subdomain = existingTenant.Subdomain,
+                            BusinessName = existingTenant.BusinessName,
+                            AccessUrl = loginUrl
+                        }
+                    });
+                }
+
+                // El bot a veces manda la frase entera (ej "es un salon se llama Glow") como nombre.
+                var cleanName = CleanBusinessName(dto.Name);
+
+                // Subdominio a partir del nombre del negocio; de-duplicamos con sufijo numérico si está tomado.
+                var baseSubdomain = SanitizeSubdomain(cleanName);
+                if (string.IsNullOrEmpty(baseSubdomain) || baseSubdomain.Length < 3)
+                    baseSubdomain = "negocio";
+                var subdomain = baseSubdomain;
+                if (_reservedSubdomains.Contains(subdomain))
+                    subdomain = baseSubdomain + "1";
+                var attempt = 1;
+                while (await _context.Tenants.AnyAsync(t => t.Subdomain.ToLower() == subdomain.ToLower()))
+                {
+                    attempt++;
+                    if (attempt > 100)
+                        return StatusCode(500, new { success = false, message = "No pudimos generar un subdominio único. Probá con otro nombre." });
+                    subdomain = baseSubdomain + attempt;
+                }
+
+                // Partir el nombre de contacto (pushName de WhatsApp) en nombre/apellido.
+                string firstName;
+                string lastName;
+                var contact = (dto.ContactName ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(contact))
+                {
+                    var parts = contact.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    firstName = parts[0];
+                    lastName = parts.Length > 1 ? parts[1] : "";
+                }
+                else
+                {
+                    firstName = cleanName;
+                    lastName = "";
+                }
+
+                // Password aleatoria: el dueño nunca la tipea, entra por el link de auto-login (impersonationToken).
+                var generatedPassword = Convert.ToBase64String(Guid.NewGuid().ToByteArray())
+                    .Replace("+", "").Replace("/", "").Replace("=", "").Substring(0, 12);
+
+                using var transaction = await _context.Database.BeginTransactionAsync();
+
+                var tenant = new Tenant
+                {
+                    Id = Guid.NewGuid(),
+                    VerticalId = null, // El vertical se elige luego en onboarding/template picker
+                    Subdomain = subdomain,
+                    BusinessName = cleanName,
+                    OwnerEmail = emailLower,
+                    OwnerName = string.IsNullOrWhiteSpace(contact) ? null : contact,
+                    SchemaName = $"tenant_{subdomain.Replace("-", "_")}",
+                    TimeZone = "America/Argentina/Buenos_Aires",
+                    Currency = "ARS",
+                    Language = "es",
+                    Status = "trial",
+                    IsDemo = true,
+                    DemoDays = 7,
+                    DemoExpiresAt = DateTime.UtcNow.AddDays(7),
+                    TrialEndsAt = DateTime.UtcNow.AddDays(7),
+                    // NOTA: el entity Tenant de TurnosPro no tiene columnas UTM (a diferencia de GymHero).
+                    // El bot puede mandar utmSource/Medium/Campaign, pero sólo se loguean (ver más abajo).
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _context.Tenants.Add(tenant);
+                await _context.SaveChangesAsync();
+
+                var adminUser = new User
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenant.Id,
+                    Email = emailLower,
+                    FirstName = firstName,
+                    LastName = lastName,
+                    PasswordHash = Services.Security.PasswordHasher.Hash(generatedPassword),
+                    Role = "admin",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    LastLogin = DateTime.UtcNow
+                };
+                _context.Users.Add(adminUser);
+                await _context.SaveChangesAsync();
+
+                var subscription = new Subscription
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenant.Id,
+                    PlanType = "demo",
+                    MonthlyAmount = 0,
+                    Status = "trial",
+                    IsTrialPeriod = true,
+                    TrialEndsAt = DateTime.UtcNow.AddDays(7),
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _context.Subscriptions.Add(subscription);
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+
+                // Link de acceso directo: auto-login con impersonationToken (lo consume App.tsx).
+                var token = _authService.GenerateJwtToken(adminUser);
+                var tenantUrl = isLocal
+                    ? $"http://{subdomain}.localhost:3001"
+                    : $"https://{subdomain}.turnos-pro.com";
+                var accessUrl = $"{tenantUrl}/dashboard?impersonationToken={token}&onboarding=1";
+
+                _logger.LogInformation("bot-register: cuenta creada para {BusinessName} ({Subdomain}) email {Email} — utm {Source}/{Medium}/{Campaign}",
+                    cleanName, subdomain, emailLower,
+                    dto.UtmSource ?? "whatsapp-bot", dto.UtmMedium ?? "whatsapp", dto.UtmCampaign ?? "chatbot-turnospro");
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Cuenta creada",
+                    data = new BotRegisterResponseDto
+                    {
+                        Success = true,
+                        AlreadyExisted = false,
+                        AccessUrl = accessUrl,
+                        Subdomain = subdomain,
+                        BusinessName = cleanName
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error en bot-register para {Name}", dto.Name);
+                return StatusCode(500, new { success = false, message = "Error interno. Intentá de nuevo." });
+            }
+        }
+
+        /// <summary>
+        /// Extrae un nombre de negocio limpio de una frase libre del bot
+        /// (ej. "es un salon se llama Glow" -> "Glow"). Si queda vacío, usa el texto original.
+        /// </summary>
+        private static string CleanBusinessName(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return "Mi negocio";
+            var s = Regex.Replace(raw.Trim(), @"\s+", " ");
+
+            // Si hay un conector "se llama / llamado / se denomina", el nombre es lo que sigue.
+            var m = Regex.Match(
+                s, @"(?:se\s+llaman?|ll?amad[oa]|se\s+denomina|se\s+dice)\s+(.+)$",
+                RegexOptions.IgnoreCase);
+            if (m.Success)
+            {
+                s = m.Groups[1].Value.Trim();
+            }
+            else
+            {
+                // Saca un arranque tipo "es un salon ", "mi peluqueria es ", "tengo un estudio ".
+                s = Regex.Replace(
+                    s, @"^(?:hola[,\s]+)?(?:es|soy|somos|tengo|tenemos|mi|el|la|un|una)\b.*?\b(?:salon|sal[oó]n|peluquer[ií]a|barber[ií]a|estudio|centro|spa|consultorio|negocio|local|clinica|cl[ií]nica)\b\s*(?:es|:|que\s+se\s+llama|se\s+llama)?\s*",
+                    "", RegexOptions.IgnoreCase).Trim();
+            }
+
+            s = s.Trim(' ', '.', ',', ';', ':', '!', '¡', '?', '¿', '"', '\'', '*');
+            if (s.Length < 2) return raw.Trim();
+
+            // Title-case simple.
+            var words = s.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Select(w => char.ToUpperInvariant(w[0]) + (w.Length > 1 ? w.Substring(1) : ""));
+            s = string.Join(' ', words);
+            return s.Length > 60 ? s.Substring(0, 60).Trim() : s;
+        }
+
+        /// <summary>
         /// WhatsApp passwordless step 1: receives only a WhatsApp number and sends a 6-digit OTP
         /// via the platform Evolution instance. The SAME flow serves both signup and login — if
         /// the number already has an account the code logs them in, otherwise it creates one on
@@ -1028,6 +1246,40 @@ namespace BookingPro.API.Controllers
         public string? PlanCode { get; set; }
 
         public string? FullName { get; set; }
+    }
+
+    /// <summary>Payload del bot de WhatsApp para crear una cuenta de tenant automáticamente.</summary>
+    public class BotRegisterDto
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El nombre del negocio es requerido")]
+        [System.ComponentModel.DataAnnotations.StringLength(100, ErrorMessage = "El nombre no puede exceder 100 caracteres")]
+        public string Name { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El email es requerido")]
+        [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "Formato de email inválido")]
+        [System.ComponentModel.DataAnnotations.StringLength(255, ErrorMessage = "El email no puede exceder 255 caracteres")]
+        public string Email { get; set; } = string.Empty;
+
+        /// <summary>Nombre de contacto (ej: pushName de WhatsApp). Se parte en nombre/apellido.</summary>
+        [System.ComponentModel.DataAnnotations.StringLength(150)]
+        public string? ContactName { get; set; }
+
+        [System.ComponentModel.DataAnnotations.StringLength(100)]
+        public string? UtmSource { get; set; }
+        [System.ComponentModel.DataAnnotations.StringLength(100)]
+        public string? UtmMedium { get; set; }
+        [System.ComponentModel.DataAnnotations.StringLength(200)]
+        public string? UtmCampaign { get; set; }
+    }
+
+    /// <summary>Respuesta de bot-register: cuenta creada + link de acceso directo (auto-login).</summary>
+    public class BotRegisterResponseDto
+    {
+        public bool Success { get; set; }
+        public bool AlreadyExisted { get; set; }
+        public string AccessUrl { get; set; } = string.Empty;
+        public string Subdomain { get; set; } = string.Empty;
+        public string BusinessName { get; set; } = string.Empty;
     }
 
     public class PhoneStartDto
