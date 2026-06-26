@@ -516,6 +516,17 @@ namespace BookingPro.API.Controllers
         [Microsoft.AspNetCore.Authorization.AllowAnonymous]
         public async Task<IActionResult> BotRegister([FromBody] BotRegisterDto dto)
         {
+            // FAIL-CLOSED: secreto compartido obligatorio. El endpoint es público ([AllowAnonymous]),
+            // así que sin esto cualquiera con la URL podría crear tenants infinitos. Si la key de
+            // config no está seteada O el header X-Bot-Key no coincide EXACTAMENTE → 401 y no se crea nada.
+            var expectedBotKey = _config["BotRegister:Key"];
+            var providedBotKey = Request.Headers["X-Bot-Key"].ToString();
+            if (string.IsNullOrEmpty(expectedBotKey) || !string.Equals(providedBotKey, expectedBotKey, StringComparison.Ordinal))
+            {
+                _logger.LogWarning("bot-register: intento rechazado (X-Bot-Key inválida o BotRegister:Key no configurada)");
+                return Unauthorized();
+            }
+
             if (!ModelState.IsValid)
                 return BadRequest(new { success = false, message = "Datos inválidos", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
 
