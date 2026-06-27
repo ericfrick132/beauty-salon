@@ -137,9 +137,9 @@ namespace BookingPro.API.Services
                     var coldAfterDays = config.GetValue("OtpFollowup:ColdAfterDays", 14);
                     text = ageDays > coldAfterDays
                         ? (config["OtpFollowup:ColdMessage"]
-                            ?? $"*{ProductName}* — hace un tiempo quisiste entrar y no llegaste a crear tu cuenta. ¿Seguís interesado/a? Si te sirve lo retomamos cuando quieras 🙌")
+                            ?? "hola! soy de turnospro 👋 hace un tiempo arrancaste a armar tu agenda y quedó a medias. ¿seguís con la idea?\n\nmirá lo que te resuelve: tus clientes reservan solos online, recordatorios automáticos por whatsapp para que no falten, y cobrás la seña por mercadopago. todo desde la app (también iphone).\n\n🎁 si te sumás ahora: código *TURNOSPRO2026* → 20% off los primeros 3 meses\n\nweb: https://turnos-pro.com\napp: https://apps.apple.com/app/id6775843253\n\nlo retomamos cuando quieras, sin apuro 🙌")
                         : (config["OtpFollowup:WarmMessage"]
-                            ?? $"*{ProductName}* — ¿pudiste entrar? Te quedó la cuenta a medio crear 🙂 Te paso un código nuevo para activarla: {{code}}. Si necesitás una mano, respondé este mensaje 🙌");
+                            ?? "hola! ¿pudiste entrar a turnospro? te quedó la cuenta a medio crear 🙂\nte paso un código nuevo para activarla: {code} (vence en 10 min)\n\ncon turnospro tus clientes reservan solos, les llegan recordatorios por whatsapp (chau ausencias) y cobrás la seña por mercadopago. también tenés la app para iphone.\n\n🎁 activá ahora con el código *TURNOSPRO2026* y tenés 20% off los primeros 3 meses\n\nweb: https://turnos-pro.com\napp: https://apps.apple.com/app/id6775843253\n\ncualquier cosa respondé este mensaje, te damos una mano!");
                     text = RenderBody(text, v, now);
                 }
                 else
@@ -283,7 +283,7 @@ namespace BookingPro.API.Services
         private static string RenderBody(string body, PhoneVerification v, DateTime now)
         {
             if (string.IsNullOrWhiteSpace(body))
-                body = $"*{ProductName}* — ¿pudiste entrar? Si necesitás una mano, respondé este mensaje 🙌";
+                body = "hola! ¿pudiste entrar a turnospro? si necesitás una mano respondé este mensaje, te ayudamos 🙌";
             if (body.Contains("{code}"))
             {
                 var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
