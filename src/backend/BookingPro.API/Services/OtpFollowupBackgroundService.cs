@@ -102,7 +102,9 @@ namespace BookingPro.API.Services
             var candidates = await db.PhoneVerifications
                 .Where(p => p.ConsumedAt == null && !p.FollowupDone
                          && p.CreatedAt >= backlogWindowStart && p.FollowupCount < steps.Count)
-                .OrderBy(p => p.CreatedAt >= liveWindowStart ? 0 : 1).ThenBy(p => p.CreatedAt)
+                // En vivo primero; backlog del MÁS NUEVO al más viejo (los tibios recientes primero,
+                // los rancios al final → si el número bloquea, bajás BacklogMaxAgeDays y no blasteás los viejos).
+                .OrderBy(p => p.CreatedAt >= liveWindowStart ? 0 : 1).ThenByDescending(p => p.CreatedAt)
                 .ToListAsync(ct);
 
             foreach (var v in candidates)
