@@ -71,6 +71,7 @@ namespace BookingPro.API.Services
             var trigger = config["OtpFollowup:Trigger"] ?? "otp_abandoned";
             var minSpacing = config.GetValue("OtpFollowup:MinSpacingMinutes", 4);
             var excludeExisting = config.GetValue("OtpFollowup:ExcludeExistingUsers", true);
+            var maxPerTick = config.GetValue("OtpFollowup:MaxPerTick", 5);
 
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var hub = scope.ServiceProvider.GetRequiredService<ISalesHubHubClient>();
@@ -94,9 +95,11 @@ namespace BookingPro.API.Services
                          && p.CreatedAt >= windowStart && p.FollowupCount < steps.Count)
                 .ToListAsync(ct);
 
+            var sentThisTick = 0;
             foreach (var v in candidates)
             {
                 if (ct.IsCancellationRequested) break;
+                if (sentThisTick >= maxPerTick) break; // anti-ráfaga: tope de envíos por tick
                 var idx = v.FollowupCount;
                 if (idx >= steps.Count) continue;
                 var step = steps[idx];
@@ -128,6 +131,7 @@ namespace BookingPro.API.Services
                 await hub.ReportFollowupEventAsync(trigger, v.Phone, "step_sent", idx, "whatsapp", null, ct);
 
                 v.FollowupCount++; v.LastFollowupAt = now; v.UpdatedAt = now;
+                sentThisTick++;
             }
 
             await db.SaveChangesAsync(ct);
