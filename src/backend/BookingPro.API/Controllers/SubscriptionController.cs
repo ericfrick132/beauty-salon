@@ -186,7 +186,7 @@ namespace BookingPro.API.Controllers
 
         [HttpGet("payment-qr/{planCode}")]
         [Authorize]
-        public async Task<IActionResult> GetPaymentQR(string planCode)
+        public async Task<IActionResult> GetPaymentQR(string planCode, [FromQuery] string? promoCode = null)
         {
             try
             {
@@ -197,7 +197,7 @@ namespace BookingPro.API.Controllers
                     return BadRequest(new { error = "Invalid tenant ID" });
                 }
 
-                var result = await _subscriptionService.GeneratePaymentQRWithUrlAsync(tenantGuid, planCode);
+                var result = await _subscriptionService.GeneratePaymentQRWithUrlAsync(tenantGuid, planCode, promoCode);
 
                 if (result.Success && result.Data != null)
                 {

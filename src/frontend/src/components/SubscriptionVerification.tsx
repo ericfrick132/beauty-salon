@@ -15,6 +15,7 @@ import {
   Chip,
   IconButton,
   Snackbar,
+  TextField,
 } from '@mui/material';
 import {
   Warning,
@@ -51,6 +52,7 @@ const SubscriptionVerification: React.FC = () => {
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
   const [checkingPayment, setCheckingPayment] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
 
   // Paths that don't require subscription
   const exemptPaths = [
@@ -123,10 +125,14 @@ const SubscriptionVerification: React.FC = () => {
     }
   }, []);
 
-  const generatePaymentQR = async (planCode: string) => {
+  const generatePaymentQR = async (planCode: string, promo?: string) => {
     try {
       setLoadingQR(true);
-      const response = await api.get(`/subscription/payment-qr/${planCode}`);
+      const code = (promo ?? promoCode).trim();
+      const url = code
+        ? `/subscription/payment-qr/${planCode}?promoCode=${encodeURIComponent(code)}`
+        : `/subscription/payment-qr/${planCode}`;
+      const response = await api.get(url);
       if (response.data?.qrCode) {
         setQrCode(response.data.qrCode);
       }
@@ -337,6 +343,25 @@ const SubscriptionVerification: React.FC = () => {
                     </Button>
                   </Box>
                 )}
+
+                {/* Promo code (optional) — applies to the one-time entry payment */}
+                <Box sx={{ display: 'flex', gap: 1, mt: 2, justifyContent: 'center', alignItems: 'center' }}>
+                  <TextField
+                    size="small"
+                    label="Código promocional (opcional)"
+                    placeholder="TURNOSPRO2026"
+                    value={promoCode}
+                    onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                    sx={{ backgroundColor: 'white', borderRadius: 1, flex: 1, maxWidth: 280 }}
+                  />
+                  <Button
+                    variant="contained"
+                    disabled={loadingQR || !promoCode.trim()}
+                    onClick={() => generatePaymentQR(status?.planType || 'pro', promoCode)}
+                  >
+                    Aplicar
+                  </Button>
+                </Box>
               </Box>
 
               {/* Alternative payment options */}

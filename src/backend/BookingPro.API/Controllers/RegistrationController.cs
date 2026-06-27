@@ -21,6 +21,7 @@ namespace BookingPro.API.Controllers
         private readonly IAuthService _authService;
         private readonly IGoogleAuthService _googleAuthService;
         private readonly IEmailService _emailService;
+        private readonly ICouponService _couponService;
         private readonly ILogger<RegistrationController> _logger;
         private readonly IConfiguration _config;
         private readonly IHttpClientFactory _httpClientFactory;
@@ -41,6 +42,7 @@ namespace BookingPro.API.Controllers
             IAuthService authService,
             IGoogleAuthService googleAuthService,
             IEmailService emailService,
+            ICouponService couponService,
             ILogger<RegistrationController> logger,
             IConfiguration config,
             IHttpClientFactory httpClientFactory)
@@ -50,9 +52,52 @@ namespace BookingPro.API.Controllers
             _authService = authService;
             _googleAuthService = googleAuthService;
             _emailService = emailService;
+            _couponService = couponService;
             _logger = logger;
             _config = config;
             _httpClientFactory = httpClientFactory;
+        }
+
+        /// <summary>
+        /// Validate a coupon/promo code for a given plan (public — called from the checkout/registration page).
+        /// Mirrors GymHero's CheckoutController.ValidateCoupon.
+        /// </summary>
+        [HttpGet("validate-coupon")]
+        [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+        public async Task<IActionResult> ValidateCoupon([FromQuery] string code, [FromQuery] string planCode)
+        {
+            if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(planCode))
+                return BadRequest(new { isValid = false, message = "Código y plan son requeridos" });
+
+            var result = await _couponService.ValidateCouponAsync(code, planCode);
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Returns the monthly amount to charge after applying a promo/coupon code (if valid for the
+        /// chosen plan). Mirrors GymHero's CheckoutController register flow: a valid coupon replaces
+        /// the price with FinalPrice and records the original price + coupon code on the subscription.
+        /// Returns the plan price unchanged when there's no plan or no valid code.
+        /// </summary>
+        private async Task<(decimal monthlyAmount, decimal? originalMonthlyPrice, string? appliedCouponCode)>
+            ResolveCouponAsync(SubscriptionPlan? chosenPlan, string? promoCode)
+        {
+            var monthlyAmount = chosenPlan?.Price ?? 0;
+            decimal? originalMonthlyPrice = null;
+            string? appliedCouponCode = null;
+
+            if (chosenPlan != null && !string.IsNullOrWhiteSpace(promoCode))
+            {
+                var couponResult = await _couponService.ValidateCouponAsync(promoCode, chosenPlan.Code);
+                if (couponResult.IsValid)
+                {
+                    originalMonthlyPrice = chosenPlan.Price;
+                    monthlyAmount = couponResult.FinalPrice;
+                    appliedCouponCode = couponResult.CouponCode;
+                }
+            }
+
+            return (monthlyAmount, originalMonthlyPrice, appliedCouponCode);
         }
 
         /// <summary>
@@ -291,12 +336,18 @@ namespace BookingPro.API.Controllers
                     ? await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Code == dto.PlanCode && p.IsActive)
                     : null;
 
+                // Apply promo/coupon discount if a valid code was provided for the chosen plan.
+                var (couponMonthlyAmount, couponOriginalPrice, appliedCouponCode) =
+                    await ResolveCouponAsync(chosenPlan, dto.PromoCode);
+
                 var subscription = new Subscription
                 {
                     Id = Guid.NewGuid(),
                     TenantId = tenant.Id,
                     PlanType = chosenPlan?.Code ?? "demo",
-                    MonthlyAmount = chosenPlan?.Price ?? 0,
+                    MonthlyAmount = couponMonthlyAmount,
+                    OriginalMonthlyPrice = couponOriginalPrice,
+                    AppliedCouponCode = appliedCouponCode,
                     Status = "trial",
                     IsTrialPeriod = true,
                     TrialEndsAt = DateTime.UtcNow.AddDays(chosenPlan?.TrialDays > 0 ? chosenPlan.TrialDays : 7),
@@ -320,6 +371,10 @@ namespace BookingPro.API.Controllers
                     : $"https://{subdomain}.turnos-pro.com";
 
                 var redirectUrl = $"{tenantUrl}/dashboard?impersonationToken={token}";
+
+                // Redeem coupon after the subscription is created (mirrors GymHero).
+                if (appliedCouponCode != null)
+                    await _couponService.RedeemCouponAsync(appliedCouponCode);
 
                 _logger.LogInformation("Registration completed for {Email}, tenant {TenantId}, subdomain {Subdomain}", pending.Email, tenant.Id, subdomain);
 
@@ -451,12 +506,18 @@ namespace BookingPro.API.Controllers
                     ? await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Code == dto.PlanCode && p.IsActive)
                     : null;
 
+                // Apply promo/coupon discount if a valid code was provided for the chosen plan.
+                var (couponMonthlyAmount, couponOriginalPrice, appliedCouponCode) =
+                    await ResolveCouponAsync(chosenPlan, dto.PromoCode);
+
                 var subscription = new Subscription
                 {
                     Id = Guid.NewGuid(),
                     TenantId = tenant.Id,
                     PlanType = chosenPlan?.Code ?? "demo",
-                    MonthlyAmount = chosenPlan?.Price ?? 0,
+                    MonthlyAmount = couponMonthlyAmount,
+                    OriginalMonthlyPrice = couponOriginalPrice,
+                    AppliedCouponCode = appliedCouponCode,
                     Status = "trial",
                     IsTrialPeriod = true,
                     TrialEndsAt = DateTime.UtcNow.AddDays(chosenPlan?.TrialDays > 0 ? chosenPlan.TrialDays : 7),
@@ -486,6 +547,10 @@ namespace BookingPro.API.Controllers
                     try { await emailSvc.SendConfirmationEmailAsync(emailLower, welcomeUrl); }
                     catch (Exception ex) { _logger.LogWarning(ex, "Failed to send welcome email to {Email}", emailLower); }
                 });
+
+                // Redeem coupon after the subscription is created (mirrors GymHero).
+                if (appliedCouponCode != null)
+                    await _couponService.RedeemCouponAsync(appliedCouponCode);
 
                 _logger.LogInformation("Quick registration completed for {Email}, tenant {TenantId}, subdomain {Subdomain}", emailLower, tenant.Id, subdomain);
 
@@ -1178,12 +1243,18 @@ namespace BookingPro.API.Controllers
                     ? await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Code == dto.PlanCode && p.IsActive)
                     : null;
 
+                // Apply promo/coupon discount if a valid code was provided for the chosen plan.
+                var (couponMonthlyAmount, couponOriginalPrice, appliedCouponCode) =
+                    await ResolveCouponAsync(chosenPlan, dto.PromoCode);
+
                 var subscription = new Subscription
                 {
                     Id = Guid.NewGuid(),
                     TenantId = tenant.Id,
                     PlanType = chosenPlan?.Code ?? "demo",
-                    MonthlyAmount = chosenPlan?.Price ?? 0,
+                    MonthlyAmount = couponMonthlyAmount,
+                    OriginalMonthlyPrice = couponOriginalPrice,
+                    AppliedCouponCode = appliedCouponCode,
                     Status = "trial",
                     IsTrialPeriod = true,
                     TrialEndsAt = DateTime.UtcNow.AddDays(chosenPlan?.TrialDays > 0 ? chosenPlan.TrialDays : 7),
@@ -1200,6 +1271,10 @@ namespace BookingPro.API.Controllers
                 var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");
                 var tenantUrl = isLocal ? $"http://{subdomain}.localhost:3001" : $"https://{subdomain}.turnos-pro.com";
                 var redirectUrl = $"{tenantUrl}/dashboard?impersonationToken={token}";
+
+                // Redeem coupon after the subscription is created (mirrors GymHero).
+                if (appliedCouponCode != null)
+                    await _couponService.RedeemCouponAsync(appliedCouponCode);
 
                 _logger.LogInformation("Google registration completed for {Email}, tenant {TenantId}, subdomain {Subdomain}", email, tenant.Id, subdomain);
 
@@ -1257,6 +1332,9 @@ namespace BookingPro.API.Controllers
         public string? PlanCode { get; set; }
 
         public string? FullName { get; set; }
+
+        /// <summary>Código promocional opcional. Si es válido para el plan elegido, descuenta el precio.</summary>
+        public string? PromoCode { get; set; }
     }
 
     /// <summary>Payload del bot de WhatsApp para crear una cuenta de tenant automáticamente.</summary>
@@ -1329,5 +1407,8 @@ namespace BookingPro.API.Controllers
 
         // Plan elegido por el usuario en el signup flow. Si es null, se usa "demo" con 7 días trial.
         public string? PlanCode { get; set; }
+
+        /// <summary>Código promocional opcional. Si es válido para el plan elegido, descuenta el precio.</summary>
+        public string? PromoCode { get; set; }
     }
 }

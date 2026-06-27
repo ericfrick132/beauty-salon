@@ -359,6 +359,18 @@ namespace BookingPro.API.Models.Entities
         /// <summary>Pasos serializados (JSON) tal cual vienen del contrato central.</summary>
         public string StepsJson { get; set; } = "[]";
 
+        /// <summary>
+        /// BACKLOG (abandonos viejos): mensaje "frío" de reactivación bajado del contrato central.
+        /// Null = usamos el literal hardcodeado como último recurso.
+        /// </summary>
+        public string? BacklogColdMessage { get; set; }
+
+        /// <summary>BACKLOG: mensaje "tibio" bajado del contrato central. Null = literal hardcodeado.</summary>
+        public string? BacklogWarmMessage { get; set; }
+
+        /// <summary>BACKLOG: umbral en días tibio→frío bajado del contrato central. Null = default local/env.</summary>
+        public int? BacklogColdAfterDays { get; set; }
+
         public DateTime SyncedAt { get; set; } = DateTime.UtcNow;
     }
 

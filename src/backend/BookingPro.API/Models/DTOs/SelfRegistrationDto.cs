@@ -106,6 +106,9 @@ namespace BookingPro.API.Models.DTOs
 
         // Plan elegido por el usuario en el signup flow. Si es null, se usa "demo" con 7 días trial.
         public string? PlanCode { get; set; }
+
+        /// <summary>Código promocional opcional. Si es válido para el plan elegido, descuenta el precio.</summary>
+        public string? PromoCode { get; set; }
     }
 
     public class GoogleLoginDto

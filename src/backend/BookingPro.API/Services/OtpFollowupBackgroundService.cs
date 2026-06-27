@@ -132,14 +132,18 @@ namespace BookingPro.API.Services
                 if (isBacklog)
                 {
                     // Cuanto MÁS VIEJO, más tono de reactivación. Tibio (≤ ColdAfterDays): ofrece código.
-                    // Reactivación (> ColdAfterDays): sin código, foco en el valor. Overridable por env.
+                    // Reactivación (> ColdAfterDays): sin código nuevo, foco en el valor. Resolución de
+                    // cada parámetro: DB sincronizada (local) > env > literal hardcodeado (último recurso).
                     var ageDays = (now - v.CreatedAt).TotalDays;
-                    var coldAfterDays = config.GetValue("OtpFollowup:ColdAfterDays", 14);
+                    var coldAfterDays = local?.BacklogColdAfterDays
+                        ?? config.GetValue("OtpFollowup:ColdAfterDays", 14);
                     text = ageDays > coldAfterDays
-                        ? (config["OtpFollowup:ColdMessage"]
-                            ?? "buenas! soy de turnospro 👋 hace un tiempo arrancaste a armar tu agenda y quedó a medias. ¿seguís con la idea?[[next]]te tiro la posta de lo que más le cambia a la gente: los clientes reservan solos y dejás de coordinar todo por mensaje. los recordatorios por whatsapp bajan un montón las ausencias, y cobrás la seña por mercadopago.[[next]]ah, también tenemos app para iphone! https://apps.apple.com/app/id6775843253[[next]]si te copa lo retomamos cuando quieras, sin apuro 🙌")
-                        : (config["OtpFollowup:WarmMessage"]
-                            ?? "buenas! ¿pudiste entrar a turnospro? te quedó la cuenta a medio crear 🙂[[next]]te dejo un código nuevo para activarla: {code} (vence en 10 min)[[next]]che, te tiro la posta: lo que más le sirve a la gente es que los clientes reservan solos y los recordatorios por whatsapp bajan las ausencias un montón. y cobrás la seña por mercadopago.[[next]]ah, también tenemos app para iphone! https://apps.apple.com/app/id6775843253[[next]]cualquier cosa respondé por acá, te damos una mano!");
+                        ? (local?.BacklogColdMessage
+                            ?? config["OtpFollowup:ColdMessage"]
+                            ?? "buenas! soy de turnospro 👋 hace un tiempo arrancaste a armar tu agenda y quedó a medias. ¿seguís con la idea?[[next]]te tiro la posta de lo que más le cambia a la gente: los clientes reservan solos y dejás de coordinar todo por mensaje. los recordatorios por whatsapp bajan un montón las ausencias, y cobrás la seña por mercadopago.[[next]]ah, también tenemos app para iphone! https://apps.apple.com/app/id6775843253[[next]]si te copa, con el código *TURNOSPRO2026* tenés 20% off los primeros 3 meses. lo retomamos cuando quieras, sin apuro 🙌")
+                        : (local?.BacklogWarmMessage
+                            ?? config["OtpFollowup:WarmMessage"]
+                            ?? "buenas! ¿pudiste entrar a turnospro? te quedó la cuenta a medio crear 🙂[[next]]te dejo un código nuevo para activarla: {code} (vence en 10 min)[[next]]che, te tiro la posta: lo que más le sirve a la gente es que los clientes reservan solos y los recordatorios por whatsapp bajan las ausencias un montón. y cobrás la seña por mercadopago.[[next]]ah, también tenemos app para iphone! https://apps.apple.com/app/id6775843253[[next]]cualquier cosa respondé por acá, te damos una mano![[next]]y si te sumás ahora, con el código *TURNOSPRO2026* tenés 20% off los primeros 3 meses 🙌 cualquier cosa respondé por acá");
                     text = RenderBody(text, v, now);
                 }
                 else
@@ -231,6 +235,8 @@ namespace BookingPro.API.Services
             try
             {
                 string? stepsJson = null;
+                string? backlogCold = null, backlogWarm = null;
+                int? backlogColdAfterDays = null;
                 using (var doc = JsonDocument.Parse(raw))
                 {
                     if (doc.RootElement.TryGetProperty("sequences", out var seqs) && seqs.ValueKind == JsonValueKind.Array)
@@ -238,6 +244,13 @@ namespace BookingPro.API.Services
                             if (s.TryGetProperty("trigger", out var t) && t.GetString() == trigger)
                             {
                                 if (s.TryGetProperty("steps", out var st)) stepsJson = st.GetRawText();
+                                // BACKLOG (abandonos viejos): mensajes opcionales del contrato central.
+                                if (s.TryGetProperty("backlogColdMessage", out var bc) && bc.ValueKind == JsonValueKind.String)
+                                    backlogCold = bc.GetString();
+                                if (s.TryGetProperty("backlogWarmMessage", out var bw) && bw.ValueKind == JsonValueKind.String)
+                                    backlogWarm = bw.GetString();
+                                if (s.TryGetProperty("backlogColdAfterDays", out var bd) && bd.ValueKind == JsonValueKind.Number)
+                                    backlogColdAfterDays = bd.GetInt32();
                                 break;
                             }
                 }
@@ -247,6 +260,9 @@ namespace BookingPro.API.Services
                 {
                     if (local == null) { local = new FollowupSequenceLocal { Trigger = trigger }; db.FollowupSequencesLocal.Add(local); }
                     local.StepsJson = stepsJson;
+                    local.BacklogColdMessage = string.IsNullOrWhiteSpace(backlogCold) ? null : backlogCold;
+                    local.BacklogWarmMessage = string.IsNullOrWhiteSpace(backlogWarm) ? null : backlogWarm;
+                    local.BacklogColdAfterDays = backlogColdAfterDays;
                     local.SyncedAt = DateTime.UtcNow;
                 }
                 else if (local != null) { db.FollowupSequencesLocal.Remove(local); }

@@ -25,6 +25,7 @@ namespace BookingPro.API.Services
         private readonly HttpClient _httpClient;
         private readonly IEmailService _emailService;
         private readonly IAppleAppStoreService _appleService;
+        private readonly ICouponService _couponService;
 
         public SubscriptionService(
             ApplicationDbContext context,
@@ -32,7 +33,8 @@ namespace BookingPro.API.Services
             ILogger<SubscriptionService> logger,
             IHttpClientFactory httpClientFactory,
             IEmailService emailService,
-            IAppleAppStoreService appleService)
+            IAppleAppStoreService appleService,
+            ICouponService couponService)
         {
             _context = context;
             _configuration = configuration;
@@ -40,6 +42,7 @@ namespace BookingPro.API.Services
             _httpClient = httpClientFactory.CreateClient();
             _emailService = emailService;
             _appleService = appleService;
+            _couponService = couponService;
         }
 
         private string BuildUpgradeUrl()
@@ -377,7 +380,7 @@ namespace BookingPro.API.Services
             return (null, null);
         }
 
-        public async Task<ServiceResult<string>> GeneratePaymentQRCodeAsync(Guid tenantId, string planCode)
+        public async Task<ServiceResult<string>> GeneratePaymentQRCodeAsync(Guid tenantId, string planCode, string? promoCode = null)
         {
             try
             {
@@ -396,6 +399,19 @@ namespace BookingPro.API.Services
                 if (string.IsNullOrEmpty(accessToken))
                     return ServiceResult<string>.Fail("MercadoPago no configurado");
 
+                // Apply promo code to the one-time entry payment if valid.
+                var unitPrice = plan.Price;
+                string? appliedCouponCode = null;
+                if (!string.IsNullOrWhiteSpace(promoCode))
+                {
+                    var couponResult = await _couponService.ValidateCouponAsync(promoCode, plan.Code);
+                    if (couponResult.IsValid)
+                    {
+                        unitPrice = couponResult.FinalPrice;
+                        appliedCouponCode = couponResult.CouponCode;
+                    }
+                }
+
                 var preferenceRequest = new
                 {
                     items = new[]
@@ -406,7 +422,7 @@ namespace BookingPro.API.Services
                             description = plan.Description,
                             quantity = 1,
                             currency_id = "ARS",
-                            unit_price = plan.Price
+                            unit_price = unitPrice
                         }
                     },
                     payer = new
@@ -438,13 +454,17 @@ namespace BookingPro.API.Services
                     
                     if (!string.IsNullOrEmpty(initPoint))
                     {
+                        // Preference created successfully — redeem the coupon (counts a use).
+                        if (!string.IsNullOrEmpty(appliedCouponCode))
+                            await _couponService.RedeemCouponAsync(appliedCouponCode);
+
                         // Generate QR code
                         using var qrGenerator = new QRCodeGenerator();
                         var qrCodeData = qrGenerator.CreateQrCode(initPoint, QRCodeGenerator.ECCLevel.Q);
                         using var qrCode = new PngByteQRCode(qrCodeData);
                         var qrCodeImage = qrCode.GetGraphic(20);
                         var base64 = Convert.ToBase64String(qrCodeImage);
-                        
+
                         return ServiceResult<string>.Ok($"data:image/png;base64,{base64}");
                     }
                 }
@@ -908,7 +928,7 @@ namespace BookingPro.API.Services
             };
         }
 
-        public async Task<ServiceResult<PaymentQRResultDto>> GeneratePaymentQRWithUrlAsync(Guid tenantId, string planCode)
+        public async Task<ServiceResult<PaymentQRResultDto>> GeneratePaymentQRWithUrlAsync(Guid tenantId, string planCode, string? promoCode = null)
         {
             try
             {
@@ -927,6 +947,19 @@ namespace BookingPro.API.Services
                 if (string.IsNullOrEmpty(accessToken))
                     return ServiceResult<PaymentQRResultDto>.Fail("MercadoPago no configurado");
 
+                // Apply promo code to the one-time entry payment if valid.
+                var unitPrice = plan.Price;
+                string? appliedCouponCode = null;
+                if (!string.IsNullOrWhiteSpace(promoCode))
+                {
+                    var couponResult = await _couponService.ValidateCouponAsync(promoCode, plan.Code);
+                    if (couponResult.IsValid)
+                    {
+                        unitPrice = couponResult.FinalPrice;
+                        appliedCouponCode = couponResult.CouponCode;
+                    }
+                }
+
                 var preferenceRequest = new
                 {
                     items = new[]
@@ -937,7 +970,7 @@ namespace BookingPro.API.Services
                             description = plan.Description ?? $"Plan {plan.Name} - Turnos Pro",
                             quantity = 1,
                             currency_id = "ARS",
-                            unit_price = plan.Price
+                            unit_price = unitPrice
                         }
                     },
                     payer = new
@@ -981,6 +1014,10 @@ namespace BookingPro.API.Services
 
                     if (!string.IsNullOrEmpty(initPoint))
                     {
+                        // Preference created successfully — redeem the coupon (counts a use).
+                        if (!string.IsNullOrEmpty(appliedCouponCode))
+                            await _couponService.RedeemCouponAsync(appliedCouponCode);
+
                         // Generate QR code
                         using var qrGenerator = new QRCodeGenerator();
                         var qrCodeData = qrGenerator.CreateQrCode(initPoint, QRCodeGenerator.ECCLevel.Q);

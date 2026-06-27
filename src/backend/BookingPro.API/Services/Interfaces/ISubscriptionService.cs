@@ -16,8 +16,8 @@ namespace BookingPro.API.Services.Interfaces
         Task<ServiceResult<List<SubscriptionPlanDto>>> GetAvailablePlansAsync();
         Task<ServiceResult<bool>> InitializePlansAsync();
         Task<ServiceResult<bool>> CheckAndUpdateTrialStatusAsync(Guid tenantId);
-        Task<ServiceResult<string>> GeneratePaymentQRCodeAsync(Guid tenantId, string planCode);
-        Task<ServiceResult<PaymentQRResultDto>> GeneratePaymentQRWithUrlAsync(Guid tenantId, string planCode);
+        Task<ServiceResult<string>> GeneratePaymentQRCodeAsync(Guid tenantId, string planCode, string? promoCode = null);
+        Task<ServiceResult<PaymentQRResultDto>> GeneratePaymentQRWithUrlAsync(Guid tenantId, string planCode, string? promoCode = null);
 
         /// <summary>
         /// Verify an Apple StoreKit 2 purchase with the App Store Server API and

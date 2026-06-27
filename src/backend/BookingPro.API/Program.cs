@@ -137,6 +137,7 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IWhatsAppService, 
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IWhatsAppConnectionService, BookingPro.API.Services.WhatsAppConnectionService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IAppleAppStoreService, BookingPro.API.Services.AppleAppStoreService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ISubscriptionService, BookingPro.API.Services.SubscriptionService>();
+builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ICouponService, BookingPro.API.Services.CouponService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IInventoryService, BookingPro.API.Services.InventoryService>();
 builder.Services.AddScoped<ISettingsService, SettingsService>();
 

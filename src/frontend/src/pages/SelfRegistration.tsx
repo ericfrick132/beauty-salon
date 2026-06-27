@@ -363,6 +363,7 @@ const SelfRegistration: React.FC = () => {
   // ----- Business step -----
   const [mobile, setMobile] = useState('');
   const [businessAddress, setBusinessAddress] = useState('');
+  const [promoCode, setPromoCode] = useState('');
 
   // ----- Final -----
   const [redirectUrl, setRedirectUrl] = useState('');
@@ -556,6 +557,7 @@ const SelfRegistration: React.FC = () => {
             businessName,
             businessAddress: businessAddress || undefined,
             mobile,
+            promoCode: promoCode.trim() || undefined,
           })
         : await registrationApi.complete({
             rememberToken,
@@ -563,6 +565,7 @@ const SelfRegistration: React.FC = () => {
             businessName,
             businessAddress: businessAddress || undefined,
             mobile,
+            promoCode: promoCode.trim() || undefined,
           });
 
       if (response.success) {
@@ -1225,13 +1228,25 @@ const SelfRegistration: React.FC = () => {
           />
         </Box>
 
-        <Box component={motion.div} {...item(0.18)} sx={{ mb: 4 }}>
+        <Box component={motion.div} {...item(0.18)} sx={{ mb: 2.5 }}>
           <TextField
             fullWidth
             variant="filled"
             label="Dirección (opcional)"
             value={businessAddress}
             onChange={(e) => setBusinessAddress(e.target.value)}
+            sx={underlineFieldSx}
+          />
+        </Box>
+
+        <Box component={motion.div} {...item(0.21)} sx={{ mb: 4 }}>
+          <TextField
+            fullWidth
+            variant="filled"
+            label="Código promocional (opcional)"
+            placeholder="TURNOSPRO2026"
+            value={promoCode}
+            onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
             sx={underlineFieldSx}
           />
         </Box>

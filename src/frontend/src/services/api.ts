@@ -298,10 +298,17 @@ export const registrationApi = {
     website?: string;
     mobile: string;
     planCode?: string;
+    promoCode?: string;
   }) => api.post('/registration/complete', data).then(res => res.data),
 
   checkSubdomain: (subdomain: string) =>
     api.get(`/registration/check-subdomain/${subdomain}`).then(res => res.data),
+
+  // Validate a promo/coupon code for a given plan. Mirrors GymHero's checkoutService.validateCoupon.
+  validateCoupon: (code: string, planCode: string) =>
+    api
+      .get('/registration/validate-coupon', { params: { code, planCode } })
+      .then(res => res.data),
 
   googleRegister: (data: {
     idToken: string;
@@ -310,6 +317,7 @@ export const registrationApi = {
     businessAddress?: string;
     mobile?: string;
     planCode?: string;
+    promoCode?: string;
   }) => api.post('/registration/google-register', data).then(res => res.data),
 
   googleLogin: (idToken: string) =>

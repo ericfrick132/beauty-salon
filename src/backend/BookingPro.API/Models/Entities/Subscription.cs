@@ -14,6 +14,14 @@ namespace BookingPro.API.Models.Entities
         [Required, MaxLength(50)]
         public string PlanType { get; set; } = string.Empty; // "basic", "pro", "enterprise"
         public decimal MonthlyAmount { get; set; }
+
+        // Coupon / promo-code tracking. When a promo code is applied at registration the
+        // discounted price lands in MonthlyAmount; these record the pre-discount price and
+        // which coupon was used (mirrors GymHero's TenantSubscription).
+        public decimal? OriginalMonthlyPrice { get; set; }
+
+        [MaxLength(50)]
+        public string? AppliedCouponCode { get; set; }
         
         // MercadoPago data
         [MaxLength(255)]

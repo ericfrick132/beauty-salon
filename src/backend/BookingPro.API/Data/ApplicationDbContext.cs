@@ -45,6 +45,7 @@ namespace BookingPro.API.Data
         public DbSet<MercadoPagoConfiguration> MercadoPagoConfigurations { get; set; }
         public DbSet<SubscriptionPayment> SubscriptionPayments { get; set; }
         public DbSet<SubscriptionPlan> SubscriptionPlans { get; set; }
+        public DbSet<Coupon> Coupons { get; set; }
         public DbSet<PlatformPaymentConnection> PlatformPaymentConnections { get; set; }
         public DbSet<TenantMessagingSettings> TenantMessagingSettings { get; set; }
         public DbSet<TenantMessageWallet> TenantMessageWallets { get; set; }
@@ -99,6 +100,43 @@ namespace BookingPro.API.Data
             
             // Aplicar filtros globales de multi-tenant
             ConfigureMultiTenantFilters(modelBuilder);
+
+            // Configuración de cupones / códigos promocionales (platform-level)
+            ConfigureCoupon(modelBuilder);
+        }
+
+        private void ConfigureCoupon(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Coupon>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).UseIdentityColumn();
+
+                entity.Property(e => e.Code)
+                    .HasMaxLength(50)
+                    .IsRequired();
+
+                entity.Property(e => e.Description)
+                    .HasMaxLength(500);
+
+                entity.Property(e => e.DiscountPercent)
+                    .HasPrecision(5, 2);
+
+                entity.Property(e => e.DiscountFixedAmount)
+                    .HasPrecision(18, 2);
+
+                entity.Property(e => e.CreatedAt)
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.HasOne(e => e.SubscriptionPlan)
+                    .WithMany()
+                    .HasForeignKey(e => e.SubscriptionPlanId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasIndex(e => e.Code)
+                    .IsUnique()
+                    .HasDatabaseName("IX_Coupon_Code");
+            });
         }
 
         private void ConfigureMasterEntities(ModelBuilder modelBuilder)
