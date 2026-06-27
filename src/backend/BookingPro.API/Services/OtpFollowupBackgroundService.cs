@@ -137,9 +137,9 @@ namespace BookingPro.API.Services
                     var coldAfterDays = config.GetValue("OtpFollowup:ColdAfterDays", 14);
                     text = ageDays > coldAfterDays
                         ? (config["OtpFollowup:ColdMessage"]
-                            ?? "hola! soy de turnospro 👋 hace un tiempo arrancaste a armar tu agenda y quedó a medias. ¿seguís con la idea?\n\nmirá lo que te resuelve: tus clientes reservan solos online, recordatorios automáticos por whatsapp para que no falten, y cobrás la seña por mercadopago. todo desde la app (también iphone).\n\n🎁 si te sumás ahora: código *TURNOSPRO2026* → 20% off los primeros 3 meses\n\nweb: https://turnos-pro.com\napp: https://apps.apple.com/app/id6775843253\n\nlo retomamos cuando quieras, sin apuro 🙌")
+                            ?? "buenas! soy de turnospro 👋 hace un tiempo arrancaste a armar tu agenda y quedó a medias. ¿seguís con la idea?[[next]]te tiro la posta de lo que más le cambia a la gente: los clientes reservan solos y dejás de coordinar todo por mensaje. los recordatorios por whatsapp bajan un montón las ausencias, y cobrás la seña por mercadopago.[[next]]ah, también tenemos app para iphone! https://apps.apple.com/app/id6775843253[[next]]si te copa lo retomamos cuando quieras, sin apuro 🙌")
                         : (config["OtpFollowup:WarmMessage"]
-                            ?? "hola! ¿pudiste entrar a turnospro? te quedó la cuenta a medio crear 🙂\nte paso un código nuevo para activarla: {code} (vence en 10 min)\n\ncon turnospro tus clientes reservan solos, les llegan recordatorios por whatsapp (chau ausencias) y cobrás la seña por mercadopago. también tenés la app para iphone.\n\n🎁 activá ahora con el código *TURNOSPRO2026* y tenés 20% off los primeros 3 meses\n\nweb: https://turnos-pro.com\napp: https://apps.apple.com/app/id6775843253\n\ncualquier cosa respondé este mensaje, te damos una mano!");
+                            ?? "buenas! ¿pudiste entrar a turnospro? te quedó la cuenta a medio crear 🙂[[next]]te dejo un código nuevo para activarla: {code} (vence en 10 min)[[next]]che, te tiro la posta: lo que más le sirve a la gente es que los clientes reservan solos y los recordatorios por whatsapp bajan las ausencias un montón. y cobrás la seña por mercadopago.[[next]]ah, también tenemos app para iphone! https://apps.apple.com/app/id6775843253[[next]]cualquier cosa respondé por acá, te damos una mano!");
                     text = RenderBody(text, v, now);
                 }
                 else
@@ -283,7 +283,7 @@ namespace BookingPro.API.Services
         private static string RenderBody(string body, PhoneVerification v, DateTime now)
         {
             if (string.IsNullOrWhiteSpace(body))
-                body = "hola! ¿pudiste entrar a turnospro? si necesitás una mano respondé este mensaje, te ayudamos 🙌";
+                body = "buenas! ¿pudiste entrar a turnospro? si necesitás una mano respondé este mensaje, te ayudamos 🙌";
             if (body.Contains("{code}"))
             {
                 var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
@@ -308,21 +308,35 @@ namespace BookingPro.API.Services
                 _logger.LogWarning("Evolution no configurado — no se puede mandar follow-up a {Phone}", phone);
                 return SendResult.TransientFail;
             }
+            // Cada "[[next]]" se manda como un mensaje SEPARADO, con un huequito entre medio
+            // (más humano que un bloque largo). Si una parte falla, cortamos la ráfaga.
+            var parts = text.Split("[[next]]", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (parts.Length == 0) return SendResult.Sent;
             try
             {
                 var client = _httpClientFactory.CreateClient();
                 client.DefaultRequestHeaders.Add("apikey", key);
-                var payload = JsonSerializer.Serialize(new { number = phone, text });
-                var content = new StringContent(payload, Encoding.UTF8, "application/json");
-                var resp = await client.PostAsync($"{url.TrimEnd('/')}/message/sendText/{instance}", content, ct);
-                if (resp.IsSuccessStatusCode) return SendResult.Sent;
-                if ((int)resp.StatusCode >= 400 && (int)resp.StatusCode < 500)
+                var sendUrl = $"{url.TrimEnd('/')}/message/sendText/{instance}";
+                for (int i = 0; i < parts.Length; i++)
                 {
-                    _logger.LogWarning("OTP follow-up send {Status} (número inválido) para {Phone}", resp.StatusCode, phone);
-                    return SendResult.BadNumber;
+                    if (i > 0)
+                    {
+                        try { await Task.Delay(TimeSpan.FromSeconds(Random.Shared.Next(2, 5)), ct); }
+                        catch (TaskCanceledException) { break; }
+                    }
+                    var payload = JsonSerializer.Serialize(new { number = phone, text = parts[i] });
+                    var content = new StringContent(payload, Encoding.UTF8, "application/json");
+                    var resp = await client.PostAsync(sendUrl, content, ct);
+                    if (resp.IsSuccessStatusCode) continue;
+                    if ((int)resp.StatusCode >= 400 && (int)resp.StatusCode < 500)
+                    {
+                        _logger.LogWarning("OTP follow-up send {Status} (número inválido) para {Phone}", resp.StatusCode, phone);
+                        return SendResult.BadNumber;
+                    }
+                    _logger.LogWarning("OTP follow-up send {Status} (transitorio) para {Phone}", resp.StatusCode, phone);
+                    return SendResult.TransientFail;
                 }
-                _logger.LogWarning("OTP follow-up send {Status} (transitorio) para {Phone}", resp.StatusCode, phone);
-                return SendResult.TransientFail;
+                return SendResult.Sent;
             }
             catch (Exception ex)
             {
