@@ -9,6 +9,14 @@ namespace BookingPro.API.Services
 
         /// <summary>Delega en SalesHub el envío de un WhatsApp B2B al dueño (encolado humanizado).</summary>
         Task SendAsync(string externalId, string text, CancellationToken ct = default);
+
+        /// <summary>Baja la config central de follow-up de esta app (contrato pull-and-persist).
+        /// Devuelve el JSON crudo { sequences: [...] } o null si no está configurado/falla.</summary>
+        Task<string?> GetFollowupConfigRawAsync(CancellationToken ct = default);
+
+        /// <summary>Reporta un evento de follow-up a SalesHub (telemetría, no dispara envíos).</summary>
+        Task ReportFollowupEventAsync(string trigger, string? externalRef, string eventType,
+            int stepIndex, string? channel, string? detail, CancellationToken ct = default);
     }
 
     /// <summary>
@@ -73,6 +81,56 @@ namespace BookingPro.API.Services
             catch (Exception ex)
             {
                 _log.LogWarning(ex, "SalesHub hub send falló para {Ext}", externalId);
+            }
+        }
+
+        public async Task<string?> GetFollowupConfigRawAsync(CancellationToken ct = default)
+        {
+            var baseUrl = _config["SalesHub:HubBaseUrl"];
+            var apiKey = _config["SalesHub:HubApiKey"];
+            if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(apiKey)) return null;
+
+            var productKey = _config["SalesHub:ProductKey"] ?? "turnospro";
+            try
+            {
+                var req = new HttpRequestMessage(HttpMethod.Get,
+                    $"{baseUrl.TrimEnd('/')}/api/hub/followup-config?productKey={Uri.EscapeDataString(productKey)}");
+                req.Headers.Add("X-Api-Key", apiKey);
+                var resp = await _http.SendAsync(req, ct);
+                if (!resp.IsSuccessStatusCode)
+                {
+                    _log.LogWarning("SalesHub followup-config {Code}", (int)resp.StatusCode);
+                    return null;
+                }
+                return await resp.Content.ReadAsStringAsync(ct);
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "SalesHub followup-config falló");
+                return null;
+            }
+        }
+
+        public async Task ReportFollowupEventAsync(string trigger, string? externalRef, string eventType,
+            int stepIndex, string? channel, string? detail, CancellationToken ct = default)
+        {
+            var baseUrl = _config["SalesHub:HubBaseUrl"];
+            var apiKey = _config["SalesHub:HubApiKey"];
+            if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(apiKey)) return;
+
+            var productKey = _config["SalesHub:ProductKey"] ?? "turnospro";
+            try
+            {
+                var req = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl.TrimEnd('/')}/api/hub/followup-events");
+                req.Headers.Add("X-Api-Key", apiKey);
+                req.Content = JsonContent.Create(new { productKey, trigger, externalRef, eventType, stepIndex, channel, detail });
+                var resp = await _http.SendAsync(req, ct);
+                if (!resp.IsSuccessStatusCode)
+                    _log.LogWarning("SalesHub followup-event {Code} ({Type})", (int)resp.StatusCode, eventType);
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "SalesHub followup-event falló ({Type})", eventType);
             }
         }
     }

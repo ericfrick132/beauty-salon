@@ -159,6 +159,8 @@ builder.Services.AddHostedService<BookingPro.API.Services.ChytapayTokenRefreshSe
 builder.Services.AddHostedService<BookingPro.API.Services.WhatsAppReminderService>();
 // Daily-ish scan that emails trial_ending_2d / trial_expired warnings
 builder.Services.AddHostedService<BookingPro.API.Services.TrialReminderBackgroundService>();
+// Recupera OTP abandonados (pidió código y no entró) — apagado por default (OtpFollowup:Enabled)
+builder.Services.AddHostedService<BookingPro.API.Services.OtpFollowupBackgroundService>();
 
 // Configure Swagger with JWT support
 builder.Services.AddEndpointsApiExplorer();

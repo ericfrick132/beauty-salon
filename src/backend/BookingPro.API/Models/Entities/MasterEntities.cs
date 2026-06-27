@@ -329,8 +329,37 @@ namespace BookingPro.API.Models.Entities
 
         public DateTime? ConsumedAt { get; set; }
 
+        /// <summary>Cuántos follow-ups de "pediste OTP y no entraste" se mandaron (recuperación de abandono).</summary>
+        public int FollowupCount { get; set; } = 0;
+
+        /// <summary>Cuándo se mandó el último follow-up (para espaciar los intentos).</summary>
+        public DateTime? LastFollowupAt { get; set; }
+
+        /// <summary>Ya reportamos el desenlace (converted/gave_up) a SalesHub — para no duplicar.</summary>
+        public bool FollowupDone { get; set; } = false;
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Copia LOCAL persistida de una secuencia de follow-up que vive central en SalesHub
+    /// (pull-and-persist). El motor corre sobre esta copia, así sigue andando aunque SalesHub
+    /// esté caído. Se sincroniza con GET /api/hub/followup-config.
+    /// </summary>
+    [Table("followup_sequences_local", Schema = "public")]
+    public class FollowupSequenceLocal
+    {
+        public int Id { get; set; }
+
+        /// <summary>Disparador (lo define esta app): ej. "otp_abandoned". Único.</summary>
+        [Required, MaxLength(64)]
+        public string Trigger { get; set; } = string.Empty;
+
+        /// <summary>Pasos serializados (JSON) tal cual vienen del contrato central.</summary>
+        public string StepsJson { get; set; } = "[]";
+
+        public DateTime SyncedAt { get; set; } = DateTime.UtcNow;
     }
 
     /// <summary>
