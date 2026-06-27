@@ -107,6 +107,7 @@ namespace BookingPro.API.Services
                 .OrderBy(p => p.CreatedAt >= liveWindowStart ? 0 : 1).ThenByDescending(p => p.CreatedAt)
                 .ToListAsync(ct);
 
+            var failsThisTick = 0;
             foreach (var v in candidates)
             {
                 if (ct.IsCancellationRequested) break;
@@ -145,8 +146,21 @@ namespace BookingPro.API.Services
                     continue;
                 }
 
-                var sent = await SendWhatsAppAsync(config, v.Phone, text, ct);
-                if (!sent) break;
+                var result = await SendWhatsAppAsync(config, v.Phone, text, ct);
+                if (result == SendResult.BadNumber)
+                {
+                    // Número inválido (Evolution lo rechaza con 4xx) — típico en el backlog viejo.
+                    // Lo damos por perdido y SEGUIMOS con el próximo, así un número malo no traba la cola.
+                    v.FollowupDone = true; v.UpdatedAt = now;
+                    await hub.ReportFollowupEventAsync(trigger, v.Phone, "gave_up", -1, null, "bad_number", ct);
+                    if (++failsThisTick >= 5) break;
+                    continue;
+                }
+                if (result == SendResult.TransientFail)
+                {
+                    v.LastFollowupAt = now; v.UpdatedAt = now; // transitorio: reintenta más tarde
+                    break;
+                }
 
                 if (idx == 0)
                     await hub.ReportFollowupEventAsync(trigger, v.Phone, "triggered", -1, isBacklog ? "backlog" : null, null, ct);
@@ -275,7 +289,9 @@ namespace BookingPro.API.Services
             return body;
         }
 
-        private async Task<bool> SendWhatsAppAsync(IConfiguration config, string phone, string text, CancellationToken ct)
+        private enum SendResult { Sent, BadNumber, TransientFail }
+
+        private async Task<SendResult> SendWhatsAppAsync(IConfiguration config, string phone, string text, CancellationToken ct)
         {
             var url = config["EVOLUTION_API_BASE_URL"] ?? "http://64.227.3.140:8080";
             var key = config["EVOLUTION_API_KEY"];
@@ -283,7 +299,7 @@ namespace BookingPro.API.Services
             if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(instance))
             {
                 _logger.LogWarning("Evolution no configurado — no se puede mandar follow-up a {Phone}", phone);
-                return false;
+                return SendResult.TransientFail;
             }
             try
             {
@@ -292,17 +308,19 @@ namespace BookingPro.API.Services
                 var payload = JsonSerializer.Serialize(new { number = phone, text });
                 var content = new StringContent(payload, Encoding.UTF8, "application/json");
                 var resp = await client.PostAsync($"{url.TrimEnd('/')}/message/sendText/{instance}", content, ct);
-                if (!resp.IsSuccessStatusCode)
+                if (resp.IsSuccessStatusCode) return SendResult.Sent;
+                if ((int)resp.StatusCode >= 400 && (int)resp.StatusCode < 500)
                 {
-                    _logger.LogWarning("OTP follow-up send {Status} para {Phone}", resp.StatusCode, phone);
-                    return false;
+                    _logger.LogWarning("OTP follow-up send {Status} (número inválido) para {Phone}", resp.StatusCode, phone);
+                    return SendResult.BadNumber;
                 }
-                return true;
+                _logger.LogWarning("OTP follow-up send {Status} (transitorio) para {Phone}", resp.StatusCode, phone);
+                return SendResult.TransientFail;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Excepción mandando OTP follow-up a {Phone}", phone);
-                return false;
+                return SendResult.TransientFail;
             }
         }
 
