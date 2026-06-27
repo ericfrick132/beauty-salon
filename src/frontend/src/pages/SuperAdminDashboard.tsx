@@ -76,6 +76,9 @@ interface Tenant {
   };
   status: string;
   createdAt: string;
+  // Derivado de pagos reales en el backend (approved + PeriodEnd > now).
+  subscriptionStatus?: 'ACTIVE' | 'EXPIRED' | 'NEVER_SUBSCRIBED';
+  plan?: { name: string; code: string; price: number; currency: string } | null;
 }
 
 interface Invitation {
@@ -187,10 +190,14 @@ const SuperAdminDashboard: React.FC = () => {
       const response = await superAdminApi.getTenants();
       const tenantsData = response.data || response;
       const totalTenants = tenantsData.length;
-      const activeTenants = tenantsData.filter((t: Tenant) =>
-        t.status.toLowerCase() === 'active'
-      ).length;
-      setStats(prev => ({ ...prev, totalTenants, activeTenants }));
+      // "Activos" = suscripción con pago real vigente (subscriptionStatus derivado
+      // en el backend), NO el flag status que queda stale e inflaba el número.
+      const activeList = tenantsData.filter((t: Tenant) => t.subscriptionStatus === 'ACTIVE');
+      const activeTenants = activeList.length;
+      // Ingresos mensuales = suma del precio de plan de los negocios que pagan
+      // (antes nunca se calculaba y mostraba siempre US$ 0.00).
+      const monthlyRevenue = activeList.reduce((s: number, t: Tenant) => s + (t.plan?.price || 0), 0);
+      setStats(prev => ({ ...prev, totalTenants, activeTenants, monthlyRevenue }));
     } catch (error: any) {
       console.error('Error loading tenants:', error);
     }
@@ -307,7 +314,7 @@ const SuperAdminDashboard: React.FC = () => {
           <Card>
             <CardHeader 
               title="Total de Negocios"
-              subheader="Negocios activos en la plataforma"
+              subheader="Negocios registrados (incluye trials)"
             />
             <CardContent>
               <Typography variant="h4">{stats.totalTenants}</Typography>
@@ -325,7 +332,7 @@ const SuperAdminDashboard: React.FC = () => {
               subheader="Total de suscripciones activas"
             />
             <CardContent>
-              <Typography variant="h4">US$ {stats.monthlyRevenue.toFixed(2)}</Typography>
+              <Typography variant="h4">$ {stats.monthlyRevenue.toLocaleString('es-AR')}</Typography>
               <Typography variant="body2" color="text.secondary">
                 Facturación mensual
               </Typography>
@@ -354,14 +361,14 @@ const SuperAdminDashboard: React.FC = () => {
           <Card>
             <CardHeader 
               title="Negocios Activos"
-              subheader="Con suscripción activa"
+              subheader="Con pago real vigente"
             />
             <CardContent>
               <Typography variant="h4" color="success.main">
                 {stats.activeTenants}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                {Math.round((stats.activeTenants / Math.max(stats.totalTenants, 1)) * 100)}% de retención
+                {Math.round((stats.activeTenants / Math.max(stats.totalTenants, 1)) * 100)}% pagan
               </Typography>
             </CardContent>
           </Card>
