@@ -8,16 +8,19 @@ using Microsoft.EntityFrameworkCore;
 namespace BookingPro.API.Services
 {
     /// <summary>
-    /// Ejecutor del follow-up de OTP abandonado, implementando el CONTRATO unificado:
-    ///   1. Baja la config central de SalesHub (GET /api/hub/followup-config) y la PERSISTE local
-    ///      (followup_sequences_local) — pull-and-persist: sigue andando si SalesHub está caído.
-    ///   2. Ejecuta los pasos de la secuencia del trigger (default "otp_abandoned") sobre los
-    ///      PhoneVerification no consumidos, mandando por el MISMO Evolution que envió el código.
-    ///      Si el body trae {code}, regenera un OTP válido y lo sustituye.
-    ///   3. Reporta a SalesHub: triggered / step_sent / converted / gave_up (telemetría, por app).
+    /// Ejecutor del follow-up de OTP abandonado (contrato unificado SalesHub):
+    ///   1. Baja la config central (GET /api/hub/followup-config) y la PERSISTE local (pull-and-persist).
+    ///   2. Ejecuta los pasos sobre los PhoneVerification no consumidos, por el MISMO Evolution del OTP.
+    ///   3. Reporta a SalesHub: triggered / step_sent / converted / gave_up.
     ///
-    /// Gate local de rollout: OtpFollowup:Enabled (default false). El resto (tiempos, mensaje,
-    /// canal) lo manda la config central. Para OTP el canal real es WhatsApp (no tenemos email).
+    /// Envío HUMANIZADO con un "gauge" por línea (el número que manda): de a uno, con hueco
+    /// aleatorio entre envíos, tope por hora y sólo en horario activo. Vale para el flujo en vivo
+    /// Y para el backlog de viejos (drena despacio).
+    ///
+    /// Backlog: si OtpFollowup:BacklogMaxAgeDays &gt; 0, incluye abandonos más viejos que la ventana
+    /// normal y les manda UN toque suave (OtpFollowup:BacklogMessage), no el blast de 3 pasos.
+    ///
+    /// Gate local de rollout: OtpFollowup:Enabled (default false).
     /// </summary>
     public class OtpFollowupBackgroundService : BackgroundService
     {
@@ -26,6 +29,11 @@ namespace BookingPro.API.Services
         private readonly ILogger<OtpFollowupBackgroundService> _logger;
         private static readonly TimeSpan TickInterval = TimeSpan.FromMinutes(1);
         private const string ProductName = "TurnosPro";
+
+        // --- Gauge humanizado por línea (en memoria; una línea OTP por proceso) ---
+        private static readonly object GaugeLock = new();
+        private static DateTime _nextAllowedAt = DateTime.MinValue;
+        private static readonly Queue<DateTime> _recentSends = new();
 
         public OtpFollowupBackgroundService(
             IServiceProvider serviceProvider,
@@ -71,76 +79,132 @@ namespace BookingPro.API.Services
             var trigger = config["OtpFollowup:Trigger"] ?? "otp_abandoned";
             var minSpacing = config.GetValue("OtpFollowup:MinSpacingMinutes", 4);
             var excludeExisting = config.GetValue("OtpFollowup:ExcludeExistingUsers", true);
-            var maxPerTick = config.GetValue("OtpFollowup:MaxPerTick", 5);
+            var backlogMaxAgeDays = config.GetValue("OtpFollowup:BacklogMaxAgeDays", 0);
 
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var hub = scope.ServiceProvider.GetRequiredService<ISalesHubHubClient>();
 
-            // 1) SYNC: bajar config central y persistir local (pull-and-persist).
             await SyncConfigAsync(db, hub, trigger, ct);
 
-            // 2) Cargar los pasos de la copia local.
             var local = await db.FollowupSequencesLocal.AsNoTracking().FirstOrDefaultAsync(x => x.Trigger == trigger, ct);
             var steps = ParseSteps(local?.StepsJson);
 
-            // 3) Reportar desenlaces (converted / gave_up) y ejecutar pasos pendientes.
             await ReportOutcomesAsync(db, hub, trigger, steps.Count, ct);
-
             if (steps.Count == 0) { await db.SaveChangesAsync(ct); return; }
 
+            // El gauge manda como mucho UNO por tick — si no es momento, ni buscamos candidatos.
+            if (!GaugeReady(config)) return;
+
             var now = DateTime.UtcNow;
-            var windowStart = now.AddMinutes(-(steps.Max(s => s.DelayMinutes) + 30));
+            var liveWindowStart = now.AddMinutes(-(steps.Max(s => s.DelayMinutes) + 30));
+            var backlogWindowStart = backlogMaxAgeDays > 0 ? now.AddDays(-backlogMaxAgeDays) : liveWindowStart;
+
             var candidates = await db.PhoneVerifications
                 .Where(p => p.ConsumedAt == null && !p.FollowupDone
-                         && p.CreatedAt >= windowStart && p.FollowupCount < steps.Count)
+                         && p.CreatedAt >= backlogWindowStart && p.FollowupCount < steps.Count)
+                .OrderBy(p => p.CreatedAt >= liveWindowStart ? 0 : 1).ThenBy(p => p.CreatedAt)
                 .ToListAsync(ct);
 
-            var sentThisTick = 0;
             foreach (var v in candidates)
             {
                 if (ct.IsCancellationRequested) break;
-                if (sentThisTick >= maxPerTick) break; // anti-ráfaga: tope de envíos por tick
+                var isBacklog = v.CreatedAt < liveWindowStart;
                 var idx = v.FollowupCount;
-                if (idx >= steps.Count) continue;
-                var step = steps[idx];
 
-                if ((now - v.CreatedAt).TotalMinutes < step.DelayMinutes) continue;
-                if (v.LastFollowupAt != null && (now - v.LastFollowupAt.Value).TotalMinutes < minSpacing) continue;
+                if (!isBacklog)
+                {
+                    if (idx >= steps.Count) continue;
+                    if ((now - v.CreatedAt).TotalMinutes < steps[idx].DelayMinutes) continue;
+                    if (v.LastFollowupAt != null && (now - v.LastFollowupAt.Value).TotalMinutes < minSpacing) continue;
+                }
+                else if (idx != 0) { continue; }
 
                 if (excludeExisting && await db.Users.IgnoreQueryFilters().AnyAsync(u => u.Phone == v.Phone, ct))
                 {
-                    v.FollowupDone = true; v.UpdatedAt = now; // no molestar logins de cuentas existentes
+                    v.FollowupDone = true; v.UpdatedAt = now;
                     continue;
                 }
 
-                // Para OTP el canal real es WhatsApp (no tenemos email del que pidió el código).
-                var channel = step.Channel.ToLowerInvariant();
-                if (channel != "whatsapp" && channel != "both")
+                string text;
+                if (isBacklog)
                 {
-                    // paso de otro canal no aplicable acá → lo damos por “enviado” para avanzar la secuencia.
+                    text = config["OtpFollowup:BacklogMessage"]
+                        ?? $"*{ProductName}* — hace un tiempo quisiste entrar y no llegaste a crear tu cuenta. ¿Seguís interesado? Si querés te paso un código nuevo para activarla 🙌";
+                    text = RenderBody(text, v, now);
+                }
+                else
+                {
+                    text = RenderBody(steps[idx].Body, v, now);
+                }
+
+                if (steps[Math.Min(idx, steps.Count - 1)].Channel.ToLowerInvariant() is var ch && ch != "whatsapp" && ch != "both" && !isBacklog)
+                {
                     v.FollowupCount++; v.LastFollowupAt = now; v.UpdatedAt = now;
                     continue;
                 }
 
-                var text = RenderBody(step.Body, v, now);
                 var sent = await SendWhatsAppAsync(config, v.Phone, text, ct);
-                if (!sent) continue;
+                if (!sent) break;
 
                 if (idx == 0)
-                    await hub.ReportFollowupEventAsync(trigger, v.Phone, "triggered", -1, null, null, ct);
-                await hub.ReportFollowupEventAsync(trigger, v.Phone, "step_sent", idx, "whatsapp", null, ct);
+                    await hub.ReportFollowupEventAsync(trigger, v.Phone, "triggered", -1, isBacklog ? "backlog" : null, null, ct);
+                await hub.ReportFollowupEventAsync(trigger, v.Phone, "step_sent", idx, "whatsapp", isBacklog ? "backlog" : null, ct);
 
-                v.FollowupCount++; v.LastFollowupAt = now; v.UpdatedAt = now;
-                sentThisTick++;
+                v.LastFollowupAt = now; v.UpdatedAt = now;
+                if (isBacklog) v.FollowupDone = true;
+                else v.FollowupCount++;
+
+                RecordGaugeSend(config);
+                break; // UNO por tick (el gauge define el ritmo)
             }
 
             await db.SaveChangesAsync(ct);
         }
 
+        // ---------- Gauge humanizado ----------
+
+        private static bool GaugeReady(IConfiguration config)
+        {
+            var maxPerHour = config.GetValue("OtpFollowup:MaxPerHour", 20);
+            var fromHour = config.GetValue("OtpFollowup:ActiveFromHour", 10);
+            var toHour = config.GetValue("OtpFollowup:ActiveToHour", 20);
+
+            var nowAr = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ArTz());
+            if (nowAr.Hour < fromHour || nowAr.Hour >= toHour) return false;
+
+            lock (GaugeLock)
+            {
+                var now = DateTime.UtcNow;
+                if (now < _nextAllowedAt) return false;
+                while (_recentSends.Count > 0 && (now - _recentSends.Peek()).TotalMinutes >= 60) _recentSends.Dequeue();
+                return _recentSends.Count < maxPerHour;
+            }
+        }
+
+        private static void RecordGaugeSend(IConfiguration config)
+        {
+            var minGap = config.GetValue("OtpFollowup:MinGapSeconds", 120);
+            var maxGap = config.GetValue("OtpFollowup:MaxGapSeconds", 240);
+            lock (GaugeLock)
+            {
+                var now = DateTime.UtcNow;
+                _recentSends.Enqueue(now);
+                _nextAllowedAt = now.AddSeconds(Random.Shared.Next(minGap, Math.Max(minGap + 1, maxGap + 1)));
+            }
+        }
+
+        private static TimeZoneInfo ArTz()
+        {
+            try { return TimeZoneInfo.FindSystemTimeZoneById("America/Argentina/Buenos_Aires"); }
+            catch { return TimeZoneInfo.CreateCustomTimeZone("AR", TimeSpan.FromHours(-3), "AR", "AR"); }
+        }
+
+        // ---------- Resto ----------
+
         private async Task SyncConfigAsync(ApplicationDbContext db, ISalesHubHubClient hub, string trigger, CancellationToken ct)
         {
             var raw = await hub.GetFollowupConfigRawAsync(ct);
-            if (raw == null) return; // sin red/config: nos quedamos con la copia local previa.
+            if (raw == null) return;
             try
             {
                 string? stepsJson = null;
@@ -162,10 +226,7 @@ namespace BookingPro.API.Services
                     local.StepsJson = stepsJson;
                     local.SyncedAt = DateTime.UtcNow;
                 }
-                else if (local != null)
-                {
-                    db.FollowupSequencesLocal.Remove(local); // desactivada/ausente central
-                }
+                else if (local != null) { db.FollowupSequencesLocal.Remove(local); }
                 await db.SaveChangesAsync(ct);
             }
             catch (Exception ex) { _logger.LogWarning(ex, "OtpFollowup sync parse falló"); }
@@ -174,8 +235,6 @@ namespace BookingPro.API.Services
         private async Task ReportOutcomesAsync(ApplicationDbContext db, ISalesHubHubClient hub, string trigger, int stepCount, CancellationToken ct)
         {
             var now = DateTime.UtcNow;
-
-            // Convirtieron (entraron) después de que los seguimos.
             var converted = await db.PhoneVerifications
                 .Where(p => p.ConsumedAt != null && p.FollowupCount > 0 && !p.FollowupDone)
                 .ToListAsync(ct);
@@ -184,8 +243,6 @@ namespace BookingPro.API.Services
                 await hub.ReportFollowupEventAsync(trigger, v.Phone, "converted", -1, null, null, ct);
                 v.FollowupDone = true; v.UpdatedAt = now;
             }
-
-            // Agotaron la secuencia sin entrar.
             if (stepCount > 0)
             {
                 var gaveUp = await db.PhoneVerifications
@@ -199,12 +256,11 @@ namespace BookingPro.API.Services
             }
         }
 
-        /// <summary>Renderiza el body. Si trae {code}, regenera un OTP válido y lo sustituye.</summary>
+        /// <summary>Si el body trae {code}, regenera un OTP válido y lo sustituye.</summary>
         private static string RenderBody(string body, PhoneVerification v, DateTime now)
         {
             if (string.IsNullOrWhiteSpace(body))
                 body = $"*{ProductName}* — ¿pudiste entrar? Si necesitás una mano, respondé este mensaje 🙌";
-
             if (body.Contains("{code}"))
             {
                 var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
