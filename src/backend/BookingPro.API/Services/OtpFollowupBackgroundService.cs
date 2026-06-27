@@ -131,8 +131,15 @@ namespace BookingPro.API.Services
                 string text;
                 if (isBacklog)
                 {
-                    text = config["OtpFollowup:BacklogMessage"]
-                        ?? $"*{ProductName}* — hace un tiempo quisiste entrar y no llegaste a crear tu cuenta. ¿Seguís interesado? Si querés te paso un código nuevo para activarla 🙌";
+                    // Cuanto MÁS VIEJO, más tono de reactivación. Tibio (≤ ColdAfterDays): ofrece código.
+                    // Reactivación (> ColdAfterDays): sin código, foco en el valor. Overridable por env.
+                    var ageDays = (now - v.CreatedAt).TotalDays;
+                    var coldAfterDays = config.GetValue("OtpFollowup:ColdAfterDays", 14);
+                    text = ageDays > coldAfterDays
+                        ? (config["OtpFollowup:ColdMessage"]
+                            ?? $"*{ProductName}* — hace un tiempo quisiste entrar y no llegaste a crear tu cuenta. ¿Seguís interesado/a? Si te sirve lo retomamos cuando quieras 🙌")
+                        : (config["OtpFollowup:WarmMessage"]
+                            ?? $"*{ProductName}* — ¿pudiste entrar? Te quedó la cuenta a medio crear 🙂 Te paso un código nuevo para activarla: {{code}}. Si necesitás una mano, respondé este mensaje 🙌");
                     text = RenderBody(text, v, now);
                 }
                 else
