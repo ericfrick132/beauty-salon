@@ -1130,7 +1130,7 @@ namespace BookingPro.API.Controllers
                 return false;
             }
 
-            var msg = $"*TurnosPro* — tu código para entrar es *{code}*.\n\nVence en 10 minutos. No lo compartas con nadie.";
+            var msg = $"*TurnosPro* — tu código para entrar es *{code}*.\n\nVence en 10 minutos. No lo compartas con nadie.\n\n👉 entrá en turnos-pro.com y poné tu WhatsApp para usarlo";
             try
             {
                 var client = _httpClientFactory.CreateClient();
