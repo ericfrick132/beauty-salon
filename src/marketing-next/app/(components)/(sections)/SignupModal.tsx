@@ -123,9 +123,22 @@ const initialState: ModalState = {
   info: '',
 };
 
+// Deep-link desde el WhatsApp del OTP: ?phone=549... → arrancamos con el número ya
+// cargado y en el paso 'otp' (el código ya está en ese mismo mensaje). NO llamamos
+// phone/start (no regeneramos); el botón "Reenviar código" cubre el caso de vencido.
+function buildInitialState(): ModalState {
+  if (typeof window !== 'undefined') {
+    const prefill = new URLSearchParams(window.location.search).get('phone');
+    if (prefill && prefill.replace(/[^0-9]/g, '').length >= 8) {
+      return { ...initialState, mobile: prefill, step: 'otp' };
+    }
+  }
+  return initialState;
+}
+
 function SignupModalInner() {
   const { isOpen, close } = useSignupModalInternal();
-  const [state, setState] = useState<ModalState>(initialState);
+  const [state, setState] = useState<ModalState>(buildInitialState);
 
   const startRegFlow = () => {
     (window as any).__regFlow = { started: Date.now(), actions: ['0s OPEN'], fieldTimes: {} as Record<string, number>, currentField: null as string | null, fieldStart: 0, data: {} as Record<string, string> };
@@ -873,7 +886,10 @@ export function SignupModalProvider({ children }: { children: ReactNode }) {
   useState(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get('register') === 'true') {
+    // ?register=true abre el modal en el paso del teléfono; ?phone=549... lo abre
+    // directo en el paso del código (SignupModalInner ya arranca en 'otp' con el
+    // número pre-cargado vía buildInitialState).
+    if (params.get('register') === 'true' || params.get('phone')) {
       setIsOpen(true);
     }
   });
