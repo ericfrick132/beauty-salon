@@ -1340,8 +1340,12 @@ namespace BookingPro.API.Controllers
     /// <summary>Payload del bot de WhatsApp para crear una cuenta de tenant automáticamente.</summary>
     public class BotRegisterDto
     {
+        // El bot manda como "nombre" lo que el lead responde a "cómo se llama tu negocio?",
+        // que a veces es una frase larga (ej. "Te comento estoy por abrir el lugar de estética…").
+        // NO rechazamos por largo: CleanBusinessName lo limpia/trunca a ≤60 antes de guardarlo.
+        // El tope alto es solo un techo de sanidad (sales-hub ya trunca a 160 al enviar).
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El nombre del negocio es requerido")]
-        [System.ComponentModel.DataAnnotations.StringLength(100, ErrorMessage = "El nombre no puede exceder 100 caracteres")]
+        [System.ComponentModel.DataAnnotations.StringLength(300, ErrorMessage = "El nombre no puede exceder 300 caracteres")]
         public string Name { get; set; } = string.Empty;
 
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El email es requerido")]
