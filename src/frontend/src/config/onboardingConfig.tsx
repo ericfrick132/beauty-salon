@@ -8,10 +8,12 @@
  * vertical here — the wizard is the moment we show the product-level brand.
  */
 
+import React from 'react';
 import type {
   OnboardingConfig,
   ThemePreset,
 } from '../components/onboarding/OnboardingWizard';
+import AiChatStoryPanel from '../components/onboarding/AiChatStoryPanel';
 
 // Images served via Unsplash CDN on beauty / salon / barber verticals.
 // Step panels are 4:5 (1200×1500) and the background is 16:9 hero.
@@ -95,6 +97,12 @@ export const turnosProOnboardingConfig: OnboardingConfig = {
       url: UNSPLASH('1487412947147-5cebf100ffc2'),
       alt: 'Espacio listo, luz natural',
     },
+  },
+  // Paso 2 (calificación: "¿cómo gestionás los turnos hoy?"): en lugar de la
+  // foto, mostramos al agente IA confirmando un turno por WhatsApp — el
+  // momento justo para vender el diferencial.
+  stepPanels: {
+    2: <AiChatStoryPanel />,
   },
   palette,
   typography: {

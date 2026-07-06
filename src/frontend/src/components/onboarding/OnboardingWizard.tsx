@@ -97,6 +97,8 @@ export interface OnboardingConfig {
   logoUrl: string;
   backgroundUrl: string;
   stepImages: Record<1 | 2 | 3 | 4 | 5, { url: string; alt: string }>;
+  // Panel custom por paso: reemplaza la foto del StoryPanel (e.g. demo del agente IA)
+  stepPanels?: Partial<Record<1 | 2 | 3 | 4 | 5, React.ReactNode>>;
   palette: Palette;
   typography: WizardTypography;
   copy: OnboardingCopy;
@@ -472,7 +474,9 @@ const StoryPanel: React.FC<{
   stepIndex: number;
   config: OnboardingConfig;
 }> = ({ stepIndex, config }) => {
-  const img = config.stepImages[(stepIndex + 1) as 1 | 2 | 3 | 4 | 5];
+  const stepNumber = (stepIndex + 1) as 1 | 2 | 3 | 4 | 5;
+  const img = config.stepImages[stepNumber];
+  const customPanel = config.stepPanels?.[stepNumber];
   return (
     <Box
       aria-hidden
@@ -484,23 +488,36 @@ const StoryPanel: React.FC<{
       }}
     >
       <AnimatePresence mode="wait">
-        <motion.img
-          key={stepIndex}
-          src={img.url}
-          alt={img.alt}
-          initial={{ opacity: 0, scale: 1.04 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.55, ease: [0.2, 0.7, 0.2, 1] }}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            filter: 'grayscale(40%) contrast(1.03)',
-          }}
-        />
+        {customPanel ? (
+          <motion.div
+            key={stepIndex}
+            initial={{ opacity: 0, scale: 1.04 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.55, ease: [0.2, 0.7, 0.2, 1] }}
+            style={{ position: 'absolute', inset: 0 }}
+          >
+            {customPanel}
+          </motion.div>
+        ) : (
+          <motion.img
+            key={stepIndex}
+            src={img.url}
+            alt={img.alt}
+            initial={{ opacity: 0, scale: 1.04 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.55, ease: [0.2, 0.7, 0.2, 1] }}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              filter: 'grayscale(40%) contrast(1.03)',
+            }}
+          />
+        )}
       </AnimatePresence>
       {/* Paper grain overlay for warmth — matches landing's body grain. */}
       <Box
