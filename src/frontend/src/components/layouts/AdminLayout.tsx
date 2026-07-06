@@ -26,6 +26,7 @@ import {
   BottomNavigation,
   BottomNavigationAction,
   SwipeableDrawer,
+  Chip,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import {
@@ -60,6 +61,7 @@ import {
   Storefront,
   WhatsApp,
   VpnKey,
+  SmartToy,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useAppDispatch, useAppSelector } from '../../store';
@@ -202,6 +204,7 @@ interface MenuItemType {
   path?: string;
   children?: MenuItemType[];
   adminOnly?: boolean;
+  badge?: string;
 }
 
 function filterMenu(items: MenuItemType[], canSeeAdmin: boolean): MenuItemType[] {
@@ -304,6 +307,7 @@ export const AdminLayout: React.FC = () => {
         { text: 'Equipo', path: '/team', icon: <Group fontSize="small" />, adminOnly: true },
         { text: 'Suscripción', path: '/subscription', icon: <CreditCard fontSize="small" />, adminOnly: true },
         { text: 'Mensajería', path: '/messaging', icon: <WhatsApp fontSize="small" /> },
+        { text: 'Bot de Confirmación', path: '/confirmation-bot', icon: <SmartToy fontSize="small" />, adminOnly: true, badge: 'Nuevo' },
         { text: 'MercadoPago', path: '/mercadopago-settings', icon: <MercadoPagoIcon fontSize="small" />, adminOnly: true },
         { text: 'Chytapay', path: '/chytapay-settings', icon: <AccountBalance fontSize="small" />, adminOnly: true },
       ],
@@ -507,6 +511,20 @@ export const AdminLayout: React.FC = () => {
                             {child.icon}
                           </ListItemIcon>
                           <ListItemText primary={child.text} />
+                          {child.badge && (
+                            <Chip
+                              label={child.badge}
+                              size="small"
+                              sx={{
+                                ml: 0.5,
+                                height: 18,
+                                fontSize: '0.65rem',
+                                fontWeight: 700,
+                                bgcolor: '#25d366',
+                                color: '#fff',
+                              }}
+                            />
+                          )}
                         </StyledListItemButton>
                       </ListItem>
                     ))}

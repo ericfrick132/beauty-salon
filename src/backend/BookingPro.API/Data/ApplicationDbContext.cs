@@ -51,6 +51,12 @@ namespace BookingPro.API.Data
         public DbSet<TenantMessageWallet> TenantMessageWallets { get; set; }
         public DbSet<MessagePurchase> MessagePurchases { get; set; }
         public DbSet<MessageLog> MessageLogs { get; set; }
+
+        // Feature add-ons (cobro modular) y bot de confirmación
+        public DbSet<FeatureAddon> FeatureAddons { get; set; }
+        public DbSet<TenantFeatureAddon> TenantFeatureAddons { get; set; }
+        public DbSet<FeatureAddonPurchase> FeatureAddonPurchases { get; set; }
+        public DbSet<BookingConfirmationRequest> BookingConfirmationRequests { get; set; }
         
         // Platform entities (B2B)
         public DbSet<PlatformMercadoPagoConfiguration> PlatformMercadoPagoConfigurations { get; set; }
@@ -710,6 +716,37 @@ namespace BookingPro.API.Data
                 entity.HasIndex(c => c.TenantId).IsUnique();
                 entity.HasIndex(c => c.InstanceName).IsUnique();
             });
+
+            // Feature add-ons y bot de confirmación
+            modelBuilder.Entity<FeatureAddon>(entity =>
+            {
+                entity.ToTable("feature_addons", schema: "public");
+                entity.HasIndex(a => a.Code).IsUnique();
+                entity.Property(a => a.MonthlyPrice).HasPrecision(18, 2);
+            });
+
+            modelBuilder.Entity<TenantFeatureAddon>(entity =>
+            {
+                entity.ToTable("tenant_feature_addons");
+                entity.HasIndex(a => new { a.TenantId, a.AddonCode }).IsUnique();
+            });
+
+            modelBuilder.Entity<FeatureAddonPurchase>(entity =>
+            {
+                entity.ToTable("feature_addon_purchases");
+                entity.HasIndex(p => p.TenantId);
+                entity.HasIndex(p => p.Status);
+                entity.HasIndex(p => p.ExternalReference);
+                entity.Property(p => p.Amount).HasPrecision(18, 2);
+            });
+
+            modelBuilder.Entity<BookingConfirmationRequest>(entity =>
+            {
+                entity.ToTable("booking_confirmation_requests");
+                entity.HasIndex(r => r.TenantId);
+                entity.HasIndex(r => r.BookingId).IsUnique();
+                entity.HasIndex(r => new { r.TenantId, r.Status });
+            });
         }
 
         private void ConfigureMultiTenantFilters(ModelBuilder modelBuilder)
@@ -756,6 +793,9 @@ namespace BookingPro.API.Data
             modelBuilder.Entity<MessagePurchase>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<MessageLog>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<TenantWhatsAppConnection>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<TenantFeatureAddon>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<FeatureAddonPurchase>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<BookingConfirmationRequest>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
 
             // Nota: Service ya tiene su filtro combinado en ConfigureTenantEntities
         }

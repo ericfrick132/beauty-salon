@@ -146,6 +146,15 @@ namespace BookingPro.API.Models.Entities
         // Template with tokens: {customer_name}, {service_name}, {date}, {time}, {business_name}
         public string ReminderTemplate { get; set; } = "Hola {customer_name}! Te recordamos tu turno para {service_name} el {date} a las {time}. Si no podés asistir, avisanos respondiendo este mensaje.";
 
+        // Bot de confirmación de turnos (add-on "confirmation_bot")
+        public bool ConfirmationBotEnabled { get; set; } = false;
+
+        // Minutos antes del turno para pedir confirmación (e.g. 1440 = 24h)
+        public int ConfirmationAdvanceMinutes { get; set; } = 1440;
+
+        // Template with tokens: {customer_name}, {service_name}, {date}, {time}, {business_name}
+        public string ConfirmationTemplate { get; set; } = "Hola {customer_name}! Te escribimos de {business_name} por tu turno de {service_name} el {date} a las {time}.";
+
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }

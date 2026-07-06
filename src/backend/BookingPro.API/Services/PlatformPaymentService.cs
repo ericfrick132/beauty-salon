@@ -19,17 +19,20 @@ namespace BookingPro.API.Services
         private readonly ILogger<PlatformPaymentService> _logger;
         private readonly IConfiguration _configuration;
         private readonly HttpClient _httpClient;
+        private readonly IFeatureAddonService _featureAddonService;
 
         public PlatformPaymentService(
             ApplicationDbContext context,
             ILogger<PlatformPaymentService> logger,
             IConfiguration configuration,
-            IHttpClientFactory httpClientFactory)
+            IHttpClientFactory httpClientFactory,
+            IFeatureAddonService featureAddonService)
         {
             _context = context;
             _logger = logger;
             _configuration = configuration;
             _httpClient = httpClientFactory.CreateClient();
+            _featureAddonService = featureAddonService;
         }
 
         public async Task<ServiceResult<PurchaseMessagePackageResponseDto>> CreateMessagePackagePurchaseAsync(Guid tenantId, Guid packageId)
@@ -288,6 +291,47 @@ namespace BookingPro.API.Services
                         await _context.SaveChangesAsync();
 
                         _logger.LogInformation("Credited {Qty} message credits to tenant {TenantId}", mpurchase.Quantity, mpurchase.TenantId);
+                    }
+
+                    await _context.SaveChangesAsync();
+                    return ServiceResult<bool>.Ok(true);
+                }
+
+                if (payment.ExternalReference.StartsWith("ADDON-"))
+                {
+                    // Feature add-on purchase (e.g. bot de confirmación)
+                    var addonPurchase = await _context.FeatureAddonPurchases
+                        .IgnoreQueryFilters()
+                        .FirstOrDefaultAsync(p => p.ExternalReference == payment.ExternalReference);
+
+                    if (addonPurchase == null)
+                    {
+                        _logger.LogWarning("Addon purchase not found for external reference: {ExternalReference}", payment.ExternalReference);
+                        return ServiceResult<bool>.Ok(true);
+                    }
+
+                    // Idempotencia: si ya se aplicó, no volver a extender la vigencia
+                    if (addonPurchase.Status == "approved")
+                    {
+                        return ServiceResult<bool>.Ok(true);
+                    }
+
+                    addonPurchase.PlatformPaymentId = paymentId;
+                    addonPurchase.Status = MapPaymentStatus(payment.Status);
+                    addonPurchase.UpdatedAt = DateTime.UtcNow;
+
+                    if (payment.Status == "approved")
+                    {
+                        addonPurchase.PaidAt = DateTime.UtcNow;
+                        await _context.SaveChangesAsync();
+
+                        var activateResult = await _featureAddonService.ActivateAsync(
+                            addonPurchase.TenantId, addonPurchase.AddonCode, addonPurchase.Months, "payment");
+                        if (activateResult.Success)
+                        {
+                            _logger.LogInformation("Activated addon {Code} for tenant {TenantId} via MercadoPago payment {PaymentId}",
+                                addonPurchase.AddonCode, addonPurchase.TenantId, paymentId);
+                        }
                     }
 
                     await _context.SaveChangesAsync();

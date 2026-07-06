@@ -39,6 +39,8 @@ import {
   ExpandLess,
   ContentCopy,
   OpenInNew,
+  SmartToy,
+  WhatsApp,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -74,7 +76,7 @@ import {
 } from '../utils/themeUtils';
 import { startOnboardingTour } from '../tours/onboarding';
 import TemplateSelectionModal from '../components/TemplateSelectionModal';
-import { templatesApi } from '../services/api';
+import { templatesApi, featureAddonsApi, messagingApi, FeatureAddonStatus } from '../services/api';
 
 const Dashboard: React.FC = () => {
   const { config, getTerm } = useTenant();
@@ -90,6 +92,8 @@ const Dashboard: React.FC = () => {
   const [loadingUnpaid, setLoadingUnpaid] = useState(false);
   const [showUnpaidDetails, setShowUnpaidDetails] = useState(false);
   const [copiedBookingLink, setCopiedBookingLink] = useState(false);
+  const [confirmationBotAddon, setConfirmationBotAddon] = useState<FeatureAddonStatus | null>(null);
+  const [confirmationBotStats, setConfirmationBotStats] = useState<any>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const bookingShareUrl = `${window.location.origin}/book`;
   const handleCopyBookingLink = async () => {
@@ -112,6 +116,25 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     fetchFinancialStats();
   }, []);
+
+  // Estado del Bot de Confirmación (add-on): promo si no está activo, stats si lo está
+  useEffect(() => {
+    if (!canSeeAdmin) return;
+    const loadConfirmationBot = async () => {
+      try {
+        const addons = await featureAddonsApi.list();
+        const bot = addons.find(a => a.code === 'confirmation_bot') || null;
+        setConfirmationBotAddon(bot);
+        if (bot?.active) {
+          const stats = await messagingApi.getConfirmationBotStats();
+          setConfirmationBotStats(stats);
+        }
+      } catch {
+        // Silencioso: la card de promo simplemente no se muestra
+      }
+    };
+    loadConfirmationBot();
+  }, [canSeeAdmin]);
 
   // Check if tenant has vertical assigned (show template picker if not)
   useEffect(() => {
@@ -438,6 +461,99 @@ const Dashboard: React.FC = () => {
             </Card>
           </Grid>
         </Grid>
+
+        {/* Bot de Confirmación: promo (no activo) o resumen (activo) */}
+        {canSeeAdmin && confirmationBotAddon && !confirmationBotAddon.active && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+          >
+            <Grid container spacing={3} sx={{ mb: 3 }}>
+              <Grid item xs={12}>
+                <Card
+                  sx={{
+                    background: 'linear-gradient(135deg, #075e54 0%, #128c7e 55%, #25d366 100%)',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                    '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 8px 24px rgba(18,140,126,0.35)' },
+                  }}
+                  onClick={() => navigate('/confirmation-bot')}
+                >
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                      <Box
+                        sx={{
+                          width: 56, height: 56, borderRadius: '50%', flexShrink: 0,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          bgcolor: 'rgba(255,255,255,0.18)',
+                        }}
+                      >
+                        <SmartToy sx={{ fontSize: 32 }} />
+                      </Box>
+                      <Box sx={{ flex: 1, minWidth: 240 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                            Nuevo: Bot de Confirmación de Turnos
+                          </Typography>
+                          <Chip label="NUEVO" size="small" sx={{ bgcolor: '#ffd54f', color: '#5d4000', fontWeight: 700, height: 20 }} />
+                        </Box>
+                        <Typography variant="body2" sx={{ opacity: 0.95, mt: 0.5 }}>
+                          Confirmá tus turnos automáticamente por WhatsApp y recuperá los horarios de los que no vienen.
+                          {confirmationBotAddon.monthlyPrice > 0 &&
+                            ` Desde $${Math.round(confirmationBotAddon.monthlyPrice).toLocaleString('es-AR')}/mes.`}
+                        </Typography>
+                      </Box>
+                      <Button
+                        variant="contained"
+                        startIcon={<WhatsApp />}
+                        sx={{
+                          bgcolor: '#fff', color: '#0b3d2e', fontWeight: 700, flexShrink: 0,
+                          '&:hover': { bgcolor: '#e8f5e9' },
+                        }}
+                        onClick={(e) => { e.stopPropagation(); navigate('/confirmation-bot'); }}
+                      >
+                        Conocelo
+                      </Button>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          </motion.div>
+        )}
+        {canSeeAdmin && confirmationBotAddon?.active && confirmationBotStats && (
+          <Grid container spacing={3} sx={{ mb: 3 }}>
+            <Grid item xs={12}>
+              <Card
+                sx={{ background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.08)', border: '1px solid #E5E7EB', cursor: 'pointer' }}
+                onClick={() => navigate('/confirmation-bot')}
+              >
+                <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                  <SmartToy sx={{ color: '#128c7e' }} />
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#111827', flex: 1, minWidth: 200 }}>
+                    Bot de Confirmación
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 700, color: '#128c7e' }}>{confirmationBotStats.sentLast30Days ?? 0}</Typography>
+                      <Typography variant="caption" sx={{ color: '#6B7280' }}>enviados (30d)</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 700, color: '#2e7d32' }}>{confirmationBotStats.confirmedLast30Days ?? 0}</Typography>
+                      <Typography variant="caption" sx={{ color: '#6B7280' }}>confirmados</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 700, color: '#c62828' }}>{confirmationBotStats.cancelledLast30Days ?? 0}</Typography>
+                      <Typography variant="caption" sx={{ color: '#6B7280' }}>cancelados</Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        )}
 
         {/* Financial Overview Card - Nueva sección */}
         {financialStats && (

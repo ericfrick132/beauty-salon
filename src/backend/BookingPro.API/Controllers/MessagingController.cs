@@ -16,12 +16,14 @@ namespace BookingPro.API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IPlatformPaymentService _platformPayments;
+        private readonly IFeatureAddonService _featureAddons;
         private readonly ILogger<MessagingController> _logger;
 
-        public MessagingController(ApplicationDbContext context, IPlatformPaymentService platformPayments, ILogger<MessagingController> logger)
+        public MessagingController(ApplicationDbContext context, IPlatformPaymentService platformPayments, IFeatureAddonService featureAddons, ILogger<MessagingController> logger)
         {
             _context = context;
             _platformPayments = platformPayments;
+            _featureAddons = featureAddons;
             _logger = logger;
         }
 
@@ -95,7 +97,10 @@ namespace BookingPro.API.Controllers
             {
                 whatsappRemindersEnabled = settings.WhatsAppRemindersEnabled,
                 reminderAdvanceMinutes = settings.ReminderAdvanceMinutes,
-                reminderTemplate = settings.ReminderTemplate
+                reminderTemplate = settings.ReminderTemplate,
+                confirmationBotEnabled = settings.ConfirmationBotEnabled,
+                confirmationAdvanceMinutes = settings.ConfirmationAdvanceMinutes,
+                confirmationTemplate = settings.ConfirmationTemplate
             });
         }
 
@@ -120,9 +125,66 @@ namespace BookingPro.API.Controllers
             {
                 settings.ReminderTemplate = (string)dto.reminderTemplate;
             }
+
+            var wantsConfirmationBot = (bool)(dto.confirmationBotEnabled ?? settings.ConfirmationBotEnabled);
+            if (wantsConfirmationBot && !settings.ConfirmationBotEnabled)
+            {
+                var hasAddon = await _featureAddons.HasActiveAddonAsync(tenantId, Models.Constants.FeatureCodes.ConfirmationBot);
+                if (!hasAddon)
+                {
+                    return StatusCode(402, new { code = "FEATURE_REQUIRED", feature = Models.Constants.FeatureCodes.ConfirmationBot, error = "El Bot de Confirmación requiere el add-on activo" });
+                }
+            }
+            settings.ConfirmationBotEnabled = wantsConfirmationBot;
+            if (dto.confirmationAdvanceMinutes != null)
+            {
+                settings.ConfirmationAdvanceMinutes = Math.Max(15, (int)dto.confirmationAdvanceMinutes);
+            }
+            if (dto.confirmationTemplate != null)
+            {
+                settings.ConfirmationTemplate = (string)dto.confirmationTemplate;
+            }
+
             settings.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
+
+            // Asegura que la instancia de Evolution reciba mensajes entrantes para el bot
+            if (settings.ConfirmationBotEnabled)
+            {
+                try
+                {
+                    var connectionService = HttpContext.RequestServices.GetRequiredService<IWhatsAppConnectionService>();
+                    await connectionService.EnsureInboundWebhookAsync(tenantId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Could not ensure inbound webhook for tenant {TenantId}", tenantId);
+                }
+            }
+
             return Ok();
+        }
+
+        /// <summary>Estadísticas del bot de confirmación de turnos.</summary>
+        [HttpGet("confirmation-bot/stats")]
+        public async Task<IActionResult> GetConfirmationBotStats()
+        {
+            var tenantId = GetTenantId();
+            if (tenantId == Guid.Empty) return Unauthorized();
+
+            var last30 = DateTime.UtcNow.AddDays(-30);
+            var requests = _context.BookingConfirmationRequests.Where(r => r.TenantId == tenantId);
+
+            return Ok(new ConfirmationBotStatsDto
+            {
+                TotalSent = await requests.CountAsync(),
+                Confirmed = await requests.CountAsync(r => r.Status == "confirmed"),
+                Cancelled = await requests.CountAsync(r => r.Status == "cancelled"),
+                NoResponse = await requests.CountAsync(r => r.Status == "expired"),
+                SentLast30Days = await requests.CountAsync(r => r.SentAt >= last30),
+                ConfirmedLast30Days = await requests.CountAsync(r => r.Status == "confirmed" && r.SentAt >= last30),
+                CancelledLast30Days = await requests.CountAsync(r => r.Status == "cancelled" && r.SentAt >= last30)
+            });
         }
 
         [HttpPost("send-due-reminders")]

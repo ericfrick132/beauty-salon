@@ -363,12 +363,37 @@ export const messagingApi = {
   purchase: (packageId: string) => api.post('/messaging/purchase', { packageId }).then(res => res.data),
   getBalance: () => api.get('/messaging/balance').then(res => res.data),
   getSettings: () => api.get('/messaging/settings').then(res => res.data),
-  updateSettings: (data: { whatsappRemindersEnabled: boolean; reminderAdvanceMinutes: number; reminderTemplate: string }) =>
+  updateSettings: (data: {
+    whatsappRemindersEnabled: boolean;
+    reminderAdvanceMinutes: number;
+    reminderTemplate?: string;
+    confirmationBotEnabled?: boolean;
+    confirmationAdvanceMinutes?: number;
+    confirmationTemplate?: string;
+  }) =>
     api.put('/messaging/settings', data).then(res => res.data),
+  getConfirmationBotStats: () => api.get('/messaging/confirmation-bot/stats').then(res => res.data),
   sendDueReminders: () => api.post('/messaging/send-due-reminders').then(res => res.data),
   getHistory: (page = 1, pageSize = 50, status?: string) =>
     api.get('/messaging/history', { params: { page, pageSize, status } }).then(res => res.data),
   getStats: () => api.get('/messaging/stats').then(res => res.data),
+};
+
+// Feature add-ons (cobro modular de features)
+export interface FeatureAddonStatus {
+  code: string;
+  name: string;
+  description?: string;
+  monthlyPrice: number;
+  currency: string;
+  active: boolean;
+  paidUntil?: string;
+  hasPendingPurchase: boolean;
+}
+
+export const featureAddonsApi = {
+  list: (): Promise<FeatureAddonStatus[]> => api.get('/feature-addons').then(res => res.data),
+  purchase: (code: string) => api.post('/feature-addons/purchase', { code }).then(res => res.data),
 };
 
 // WhatsApp Connection API

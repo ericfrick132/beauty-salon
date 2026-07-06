@@ -138,6 +138,7 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IWhatsAppConnectio
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IAppleAppStoreService, BookingPro.API.Services.AppleAppStoreService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ISubscriptionService, BookingPro.API.Services.SubscriptionService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ICouponService, BookingPro.API.Services.CouponService>();
+builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IFeatureAddonService, BookingPro.API.Services.FeatureAddonService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IInventoryService, BookingPro.API.Services.InventoryService>();
 builder.Services.AddScoped<ISettingsService, SettingsService>();
 
@@ -158,6 +159,8 @@ builder.Services.AddHttpClient();
 builder.Services.AddHostedService<BookingPro.API.Services.MercadoPagoTokenRefreshService>();
 builder.Services.AddHostedService<BookingPro.API.Services.ChytapayTokenRefreshService>();
 builder.Services.AddHostedService<BookingPro.API.Services.WhatsAppReminderService>();
+// Bot de confirmación de turnos por WhatsApp (add-on confirmation_bot)
+builder.Services.AddHostedService<BookingPro.API.Services.BookingConfirmationBotService>();
 // Daily-ish scan that emails trial_ending_2d / trial_expired warnings
 builder.Services.AddHostedService<BookingPro.API.Services.TrialReminderBackgroundService>();
 // Recupera OTP abandonados (pidió código y no entró) — apagado por default (OtpFollowup:Enabled)
@@ -279,6 +282,16 @@ using (var scope = app.Services.CreateScope())
     {
         Console.WriteLine($"Warning: Error initializing subscription plans: {ex.Message}");
         // Don't fail startup if plans can't be initialized
+    }
+
+    try
+    {
+        var featureAddonService = scope.ServiceProvider.GetRequiredService<BookingPro.API.Services.Interfaces.IFeatureAddonService>();
+        await featureAddonService.EnsureSeedAsync();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Warning: Error seeding feature addons: {ex.Message}");
     }
 }
 

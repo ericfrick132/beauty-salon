@@ -97,7 +97,7 @@ namespace BookingPro.API.Services
                             url = _webhookUrl,
                             webhook_by_events = true,
                             webhook_base64 = false,
-                            events = new[] { "CONNECTION_UPDATE", "MESSAGES_UPDATE" }
+                            events = new[] { "CONNECTION_UPDATE", "MESSAGES_UPDATE", "MESSAGES_UPSERT" }
                         };
                         var webhookContent = new StringContent(
                             JsonSerializer.Serialize(webhookPayload),
@@ -368,6 +368,35 @@ namespace BookingPro.API.Services
             return await _context.TenantWhatsAppConnections
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(c => c.TenantId == tenantId);
+        }
+
+        // Re-aplica la config de webhook incluyendo MESSAGES_UPSERT. Necesario para
+        // instancias conectadas antes de que existiera el bot de confirmación.
+        public async Task EnsureInboundWebhookAsync(Guid tenantId)
+        {
+            if (string.IsNullOrEmpty(_webhookUrl)) return;
+
+            var connection = await GetConnectionByTenantIdAsync(tenantId);
+            if (connection == null) return;
+
+            try
+            {
+                var webhookPayload = new
+                {
+                    url = _webhookUrl,
+                    webhook_by_events = true,
+                    webhook_base64 = false,
+                    events = new[] { "CONNECTION_UPDATE", "MESSAGES_UPDATE", "MESSAGES_UPSERT" }
+                };
+                var content = new StringContent(
+                    JsonSerializer.Serialize(webhookPayload),
+                    Encoding.UTF8, "application/json");
+                await _http.PostAsync($"{_baseUrl}/webhook/set/{connection.InstanceName}", content);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to ensure inbound webhook for {Instance}", connection.InstanceName);
+            }
         }
     }
 }

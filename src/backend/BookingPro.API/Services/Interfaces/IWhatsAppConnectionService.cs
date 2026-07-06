@@ -12,5 +12,6 @@ namespace BookingPro.API.Services.Interfaces
         Task<ServiceResult<bool>> DisconnectAsync();
         Task<ServiceResult<string>> SendTextAsync(Guid tenantId, string phone, string text);
         Task<TenantWhatsAppConnection?> GetConnectionByTenantIdAsync(Guid tenantId);
+        Task EnsureInboundWebhookAsync(Guid tenantId);
     }
 }

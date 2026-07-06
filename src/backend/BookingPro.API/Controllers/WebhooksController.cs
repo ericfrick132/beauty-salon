@@ -18,6 +18,8 @@ namespace BookingPro.API.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;
         private readonly ILogger<WebhooksController> _logger;
+        private readonly IWhatsAppConnectionService _whatsAppConnectionService;
+        private readonly IFeatureAddonService _featureAddonService;
 
         public WebhooksController(
             IMercadoPagoService mercadoPagoService,
@@ -25,7 +27,9 @@ namespace BookingPro.API.Controllers
             IChytapayService chytapayService,
             ApplicationDbContext context,
             IConfiguration configuration,
-            ILogger<WebhooksController> logger)
+            ILogger<WebhooksController> logger,
+            IWhatsAppConnectionService whatsAppConnectionService,
+            IFeatureAddonService featureAddonService)
         {
             _mercadoPagoService = mercadoPagoService;
             _subscriptionService = subscriptionService;
@@ -33,6 +37,8 @@ namespace BookingPro.API.Controllers
             _context = context;
             _configuration = configuration;
             _logger = logger;
+            _whatsAppConnectionService = whatsAppConnectionService;
+            _featureAddonService = featureAddonService;
         }
 
         [HttpPost("mercadopago/{tenantId}")]
@@ -176,7 +182,7 @@ namespace BookingPro.API.Controllers
                         break;
 
                     case "messages.upsert":
-                        _logger.LogInformation("Inbound message on {Instance}", instanceName);
+                        await HandleInboundMessage(instanceName, json);
                         break;
                 }
 
@@ -250,6 +256,261 @@ namespace BookingPro.API.Controllers
                 if (messageId != null && status != null)
                     await UpdateMessageLogStatus(messageId, status);
             }
+        }
+
+        // Bot de confirmación de turnos: procesa la respuesta del cliente
+        // (1/sí = confirmar, 2/no = cancelar) al pedido enviado por BookingConfirmationBotService.
+        private async Task HandleInboundMessage(string instanceName, JsonElement json)
+        {
+            if (!json.TryGetProperty("data", out var data)) return;
+
+            if (data.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in data.EnumerateArray())
+                {
+                    await ProcessInboundMessage(instanceName, item);
+                }
+            }
+            else
+            {
+                await ProcessInboundMessage(instanceName, data);
+            }
+        }
+
+        private async Task ProcessInboundMessage(string instanceName, JsonElement item)
+        {
+            if (!item.TryGetProperty("key", out var key)) return;
+
+            var fromMe = key.TryGetProperty("fromMe", out var fm) && fm.ValueKind == JsonValueKind.True;
+            if (fromMe) return;
+
+            var remoteJid = key.TryGetProperty("remoteJid", out var jid) ? jid.GetString() ?? "" : "";
+            if (string.IsNullOrEmpty(remoteJid) || remoteJid.Contains("@g.us")) return; // ignorar grupos
+
+            var text = ExtractMessageText(item);
+            if (string.IsNullOrWhiteSpace(text)) return;
+
+            var connection = await _context.TenantWhatsAppConnections
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(c => c.InstanceName == instanceName);
+            if (connection == null) return;
+
+            var tenantId = connection.TenantId;
+
+            var settings = await _context.TenantMessagingSettings
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(s => s.TenantId == tenantId);
+            if (settings == null || !settings.ConfirmationBotEnabled) return;
+
+            if (!await _featureAddonService.HasActiveAddonAsync(tenantId, BookingPro.API.Models.Constants.FeatureCodes.ConfirmationBot))
+            {
+                return;
+            }
+
+            // Matchear el remitente con un pedido de confirmación pendiente (sufijo de 8 dígitos
+            // para tolerar variantes de prefijo AR: 549..., 54..., 0..., 15...)
+            var senderDigits = new string(remoteJid.Split('@')[0].Where(char.IsDigit).ToArray());
+            if (senderDigits.Length < 8) return;
+            var senderSuffix = senderDigits[^8..];
+
+            var pendingRequests = await _context.BookingConfirmationRequests
+                .IgnoreQueryFilters()
+                .Where(r => r.TenantId == tenantId && r.Status == "sent")
+                .OrderByDescending(r => r.SentAt)
+                .Take(100)
+                .ToListAsync();
+
+            var request = pendingRequests.FirstOrDefault(r =>
+                r.Phone.Length >= 8 && r.Phone.EndsWith(senderSuffix));
+            if (request == null) return;
+
+            var booking = await _context.Bookings
+                .IgnoreQueryFilters()
+                .Include(b => b.Customer)
+                .Include(b => b.Service)
+                .FirstOrDefaultAsync(b => b.Id == request.BookingId && b.TenantId == tenantId);
+            if (booking == null) return;
+
+            if (booking.StartTime <= DateTime.UtcNow)
+            {
+                request.Status = "expired";
+                request.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                return;
+            }
+
+            var intent = ParseConfirmationIntent(text);
+            if (intent == null)
+            {
+                // Respuesta no reconocida: forzar la respuesta re-preguntando,
+                // con tope de reintentos para no loopear si el cliente se pone a chatear
+                const int maxReprompts = 2;
+                if (request.RepromptCount >= maxReprompts) return;
+
+                request.RepromptCount++;
+                request.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                var repromptTime = booking.StartTime.ToLocalTime();
+                var reprompt = $"No te entendí 🙂 Sobre tu turno del {repromptTime:dd/MM} a las {repromptTime:HH:mm}: " +
+                    "respondé solo *1* para confirmarlo ✅ o *2* para cancelarlo ❌";
+                try
+                {
+                    var repromptResult = await _whatsAppConnectionService.SendTextAsync(tenantId, senderDigits, reprompt);
+                    _context.MessageLogs.Add(new MessageLog
+                    {
+                        TenantId = tenantId,
+                        BookingId = booking.Id,
+                        CustomerId = booking.CustomerId,
+                        Channel = "whatsapp",
+                        MessageType = "confirmation_reprompt",
+                        Status = repromptResult.Success ? "sent" : "failed",
+                        To = senderDigits,
+                        Body = reprompt,
+                        SentAt = repromptResult.Success ? DateTime.UtcNow : null,
+                        ProviderMessageId = repromptResult.Data,
+                        ErrorMessage = repromptResult.Success ? null : repromptResult.Message
+                    });
+                    await _context.SaveChangesAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send confirmation reprompt to {Phone}", senderDigits);
+                }
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+            var timeLocal = booking.StartTime.ToLocalTime();
+            var firstName = booking.Customer?.FirstName ?? "";
+            string ack;
+
+            if (intent == "confirm")
+            {
+                if (booking.Status == "pending")
+                {
+                    _context.BookingStatusHistory.Add(new BookingStatusHistory
+                    {
+                        TenantId = tenantId,
+                        BookingId = booking.Id,
+                        FromStatus = booking.Status,
+                        ToStatus = "confirmed",
+                        Reason = "Confirmado por el cliente vía WhatsApp",
+                        ChangedAt = now,
+                        ChangedBy = "confirmation-bot"
+                    });
+                    booking.Status = "confirmed";
+                    booking.UpdatedAt = now;
+                }
+
+                request.Status = "confirmed";
+                ack = $"¡Gracias {firstName}! Tu turno del {timeLocal:dd/MM} a las {timeLocal:HH:mm} quedó confirmado. Te esperamos 😊";
+            }
+            else
+            {
+                if (booking.Status != "cancelled")
+                {
+                    _context.BookingStatusHistory.Add(new BookingStatusHistory
+                    {
+                        TenantId = tenantId,
+                        BookingId = booking.Id,
+                        FromStatus = booking.Status,
+                        ToStatus = "cancelled",
+                        Reason = "Cancelado por el cliente vía WhatsApp",
+                        ChangedAt = now,
+                        ChangedBy = "confirmation-bot"
+                    });
+                    booking.Status = "cancelled";
+                    booking.CancelledAt = now;
+                    booking.CancellationReason = "Cancelado por el cliente vía el bot de WhatsApp";
+                    booking.UpdatedAt = now;
+                }
+
+                request.Status = "cancelled";
+                ack = $"Listo {firstName}, tu turno del {timeLocal:dd/MM} a las {timeLocal:HH:mm} fue cancelado. ¡Podés reservar de nuevo cuando quieras!";
+            }
+
+            request.RespondedAt = now;
+            request.ResponseText = text.Length > 500 ? text[..500] : text;
+            request.UpdatedAt = now;
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Confirmation bot: booking {BookingId} -> {Intent} (tenant {TenantId})",
+                booking.Id, intent, tenantId);
+
+            // Ack al cliente: no descuenta créditos del wallet
+            try
+            {
+                var sendResult = await _whatsAppConnectionService.SendTextAsync(tenantId, senderDigits, ack);
+                _context.MessageLogs.Add(new MessageLog
+                {
+                    TenantId = tenantId,
+                    BookingId = booking.Id,
+                    CustomerId = booking.CustomerId,
+                    Channel = "whatsapp",
+                    MessageType = "confirmation_reply",
+                    Status = sendResult.Success ? "sent" : "failed",
+                    To = senderDigits,
+                    Body = ack,
+                    SentAt = sendResult.Success ? DateTime.UtcNow : null,
+                    ProviderMessageId = sendResult.Data,
+                    ErrorMessage = sendResult.Success ? null : sendResult.Message
+                });
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send confirmation ack to {Phone}", senderDigits);
+            }
+        }
+
+        private static string? ExtractMessageText(JsonElement item)
+        {
+            if (!item.TryGetProperty("message", out var message)) return null;
+
+            if (message.TryGetProperty("conversation", out var conv))
+                return conv.GetString();
+
+            if (message.TryGetProperty("extendedTextMessage", out var ext) &&
+                ext.TryGetProperty("text", out var extText))
+                return extText.GetString();
+
+            // Mensajes efímeros envuelven el contenido real
+            if (message.TryGetProperty("ephemeralMessage", out var eph) &&
+                eph.TryGetProperty("message", out var ephMsg))
+            {
+                if (ephMsg.TryGetProperty("conversation", out var ephConv))
+                    return ephConv.GetString();
+                if (ephMsg.TryGetProperty("extendedTextMessage", out var ephExt) &&
+                    ephExt.TryGetProperty("text", out var ephText))
+                    return ephText.GetString();
+            }
+
+            return null;
+        }
+
+        private static string? ParseConfirmationIntent(string text)
+        {
+            var normalized = text.Trim().ToLowerInvariant()
+                .Replace("í", "i").Replace("é", "e").Replace("á", "a").Replace("ó", "o").Replace("ú", "u")
+                .TrimEnd('.', '!', '?', ' ');
+
+            // Cancelación primero: "no puedo confirmar" debe cancelar, no confirmar
+            if (normalized == "2" || normalized == "no" ||
+                normalized.Contains("cancel") || normalized.Contains("no puedo") ||
+                normalized.Contains("no voy") || normalized.Contains("no llego"))
+            {
+                return "cancel";
+            }
+
+            if (normalized == "1" || normalized == "si" || normalized == "ok" ||
+                normalized == "dale" || normalized == "sip" ||
+                normalized.Contains("confirm") || normalized.StartsWith("si,") || normalized.StartsWith("si "))
+            {
+                return "confirm";
+            }
+
+            return null;
         }
 
         private async Task UpdateMessageLogStatus(string providerMessageId, string status)
