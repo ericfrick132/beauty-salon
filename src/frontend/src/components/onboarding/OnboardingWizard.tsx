@@ -1376,6 +1376,19 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
             </motion.div>
           </AnimatePresence>
         </Box>
+        {/* Panel custom del paso (e.g. demo del agente IA): en mobile va
+            inline debajo del contenido, en desktop es la columna izquierda. */}
+        {config.stepPanels?.[(stepIndex + 1) as 1 | 2 | 3 | 4 | 5] && (
+          <Box
+            sx={{
+              mt: 3,
+              mx: -2.5,
+              borderTop: `1.5px solid ${palette.ink}`,
+            }}
+          >
+            {config.stepPanels[(stepIndex + 1) as 1 | 2 | 3 | 4 | 5]}
+          </Box>
+        )}
         {error && (
           <Alert severity="error" sx={{ mt: 2, borderRadius: 0 }}>
             {error}

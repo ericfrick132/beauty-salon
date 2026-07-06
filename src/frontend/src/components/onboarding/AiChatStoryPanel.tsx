@@ -29,17 +29,20 @@ const CHAT: { from: 'bot' | 'client'; text: string }[] = [
   },
 ];
 
+// Ocupa todo el alto en el StoryPanel de desktop (el wrapper es absolute
+// inset-0); inline en mobile toma la altura natural del contenido.
 const AiChatStoryPanel: React.FC = () => (
   <Box
     sx={{
-      position: 'absolute',
-      inset: 0,
+      width: '100%',
+      height: '100%',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 2.5,
-      px: 4,
+      px: { xs: 2.5, md: 4 },
+      py: { xs: 3, md: 0 },
       background: paper,
     }}
   >
