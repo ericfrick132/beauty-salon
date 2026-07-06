@@ -148,7 +148,7 @@ export default function HeroSection() {
                     display: 'inline-block',
                   }}
                 />
-                Turnos · Cobros · WhatsApp
+                Turnos · Cobros · Agente IA
               </Box>
             </FadeUp>
 
@@ -225,11 +225,11 @@ export default function HeroSection() {
                   mb: 4,
                 }}
               >
-                Publicá tu web de turnos, activá pagos anticipados y recordatorios
-                por WhatsApp.{' '}
+                Publicá tu web de turnos, activá pagos anticipados y dejá que{' '}
                 <Box component="span" sx={{ color: palette.ink, fontWeight: 600 }}>
-                  Sin apps ni descargas.
-                </Box>
+                  la IA confirme tus turnos por WhatsApp.
+                </Box>{' '}
+                Sin apps ni descargas.
               </Typography>
             </FadeUp>
 

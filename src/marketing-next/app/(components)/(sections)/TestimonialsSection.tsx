@@ -40,7 +40,7 @@ export default function TestimonialsSection() {
     <Box component="section" sx={{ py: { xs: 9, md: 14 } }}>
       <Container maxWidth="lg">
         <AnimatedSection>
-          <SectionLabel number="06" label="Testimonios" />
+          <SectionLabel number="07" label="Testimonios" />
         </AnimatedSection>
 
         <AnimatedSection>

@@ -233,7 +233,7 @@ export default function AgendaSection() {
     <Box component="section" sx={{ py: { xs: 9, md: 14 } }}>
       <Container maxWidth="lg">
         <AnimatedSection>
-          <SectionLabel number="03" label="Agenda" />
+          <SectionLabel number="04" label="Agenda" />
         </AnimatedSection>
 
         <Grid container spacing={{ xs: 5, md: 8 }} alignItems="center">

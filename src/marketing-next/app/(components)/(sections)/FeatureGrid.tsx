@@ -5,6 +5,7 @@ import MenuBookIcon from '@mui/icons-material/MenuBook';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import PaymentIcon from '@mui/icons-material/Payment';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 import PeopleIcon from '@mui/icons-material/People';
 import AnimatedSection from './AnimatedSection';
 import SectionLabel from './SectionLabel';
@@ -18,6 +19,7 @@ const iconMap: Record<string, SvgIconComponent> = {
   EventAvailable: EventAvailableIcon,
   Payment: PaymentIcon,
   NotificationsActive: NotificationsActiveIcon,
+  SmartToy: SmartToyIcon,
   People: PeopleIcon,
 };
 

@@ -7,6 +7,7 @@ import LogoCarousel from './LogoCarousel';
 import SolutionSection from './SolutionSection';
 import FeatureHighlight from './FeatureHighlight';
 import FeatureGrid from './FeatureGrid';
+import AiBotSection from './AiBotSection';
 import AgendaSection from './AgendaSection';
 import BusinessTypes from './BusinessTypes';
 import HowItWorks from './HowItWorks';
@@ -27,6 +28,7 @@ export default function LandingClient() {
         <SolutionSection />
         <FeatureHighlight />
         <FeatureGrid />
+        <AiBotSection />
         <AgendaSection />
         <BusinessTypes />
         <HowItWorks />

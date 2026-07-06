@@ -5,13 +5,13 @@ import { faqs } from '@/app/(lib)/content';
 import LandingClient from '@/app/(components)/(sections)/LandingClient';
 
 export const metadata: Metadata = {
-  title: 'TurnosPro | Reservas con seña, MercadoPago y WhatsApp',
+  title: 'TurnosPro | Agenda con IA, señas con MercadoPago y WhatsApp',
   description:
-    '80% menos cancelaciones: señas con MercadoPago, confirmación automática y recordatorios por WhatsApp.',
+    '80% menos cancelaciones: agente de IA que confirma turnos por WhatsApp, señas con MercadoPago y recordatorios automáticos.',
   openGraph: {
-    title: 'TurnosPro | Reservas con seña, MercadoPago y WhatsApp',
+    title: 'TurnosPro | Agenda con IA, señas con MercadoPago y WhatsApp',
     description:
-      'Publica tu web de turnos, activa pagos anticipados y recordatorios por WhatsApp. Sin descargas ni apps nativas.',
+      'Publica tu web de turnos, activa pagos anticipados y un agente de IA que confirma tus turnos por WhatsApp. Sin descargas ni apps nativas.',
     url: `${brand.brand_domain}${brand.marketing_path}`,
     siteName: brand.brand_name,
     images: [{ url: brand.og_image, width: 1200, height: 630 }],

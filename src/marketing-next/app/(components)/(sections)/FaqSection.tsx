@@ -140,7 +140,7 @@ export default function FaqSection() {
     <Box id="faq" component="section" sx={{ py: { xs: 9, md: 14 }, bgcolor: palette.paperDeep }}>
       <Container maxWidth="md">
         <AnimatedSection>
-          <SectionLabel number="07" label="Preguntas" />
+          <SectionLabel number="09" label="Preguntas" />
         </AnimatedSection>
 
         <AnimatedSection>

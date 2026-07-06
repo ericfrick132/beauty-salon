@@ -12,7 +12,7 @@ export default function HowItWorks() {
     <Box id="como-funciona" component="section" sx={{ py: { xs: 9, md: 14 } }}>
       <Container maxWidth="lg">
         <AnimatedSection>
-          <SectionLabel number="05" label="Paso a paso" />
+          <SectionLabel number="06" label="Paso a paso" />
         </AnimatedSection>
 
         <Box

@@ -22,7 +22,7 @@ export default function BusinessTypes() {
     >
       <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
         <AnimatedSection>
-          <SectionLabel number="04" label="Verticales" />
+          <SectionLabel number="05" label="Verticales" />
         </AnimatedSection>
 
         <Grid container spacing={{ xs: 5, md: 8 }} alignItems="flex-start">

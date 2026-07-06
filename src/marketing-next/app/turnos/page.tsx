@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Turnos Pro | Reservas con seña, MercadoPago y WhatsApp',
-  description: '80% menos cancelaciones: señas con MercadoPago, confirmación automática y recordatorios por WhatsApp.',
+  title: 'Turnos Pro | Agenda con IA, señas con MercadoPago y WhatsApp',
+  description: '80% menos cancelaciones: agente de IA que confirma turnos por WhatsApp, señas con MercadoPago y recordatorios automáticos.',
 };
 
 export { default } from '../page';

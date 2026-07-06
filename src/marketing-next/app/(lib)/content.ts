@@ -1,8 +1,8 @@
 export const heroContent = {
-  eyebrow: 'Agenda y cobros online',
+  eyebrow: 'Agenda con IA y cobros online',
   headline: 'Agenda más con tu sitio listo para reservas',
   subheadline:
-    'Publica tu web de turnos, activa pagos anticipados y recordatorios por WhatsApp. Sin descargas ni apps nativas.',
+    'Publica tu web de turnos, activa pagos anticipados y un agente de IA que confirma tus turnos por WhatsApp. Sin descargas ni apps nativas.',
   cta: 'Quiero mi sitio de reservas',
   secondaryCta: 'Ver demo',
   microcopy: 'Sin tarjeta. Cancela cuando quieras.',
@@ -31,9 +31,9 @@ export const features = [
     description: 'Señas con MercadoPago integrado. Reduce ausencias y asegura tus ingresos.',
   },
   {
-    icon: 'NotificationsActive' as const,
-    title: 'Recordatorios automáticos',
-    description: 'WhatsApp y email automáticos para que tus clientes nunca olviden su turno.',
+    icon: 'SmartToy' as const,
+    title: 'Agente IA por WhatsApp',
+    description: 'Una IA que pide confirmación antes de cada turno y responde sola: confirma o libera el horario, desde tu propio número.',
   },
   {
     icon: 'People' as const,
@@ -45,7 +45,7 @@ export const features = [
 export const solutionContent = {
   headline: 'Una solución integral para tu negocio',
   description:
-    'Entrega a tus clientes una web rápida para reservar, pagar anticipos y recibir recordatorios. Sin depender de descargas ni tiendas de apps.',
+    'Entrega a tus clientes una web rápida para reservar, pagar anticipos y recibir la confirmación de una IA por WhatsApp. Sin depender de descargas ni tiendas de apps.',
   blocks: [
     {
       title: 'Arma tu catálogo de servicios',
@@ -61,16 +61,37 @@ export const solutionContent = {
 };
 
 export const featureHighlightText =
-  'Mientras vos descansás, **TurnosPro** potencia tu negocio las 24hs.';
+  'Mientras vos descansás, la **IA de TurnosPro** confirma turnos y potencia tu negocio las 24hs.';
 
 export const agendaContent = {
   headline: 'Tu agenda online, tus turnos siempre organizados',
   bullets: [
     'Vista diaria, semanal y mensual para cada profesional.',
     'Bloqueos de horario y turnos recurrentes.',
+    'El agente IA confirma o libera cada turno solo, por WhatsApp.',
     'Notificaciones en tiempo real ante nuevas reservas.',
     'Reportes de ocupación y facturación.',
   ],
+};
+
+// Sección del agente IA de confirmación (Nº 03)
+export const aiBotContent = {
+  headline: 'Conocé a tu nuevo empleado: un agente IA',
+  description:
+    'La IA de TurnosPro le escribe a cada cliente antes de su turno, entiende la respuesta y actúa sola: confirma la asistencia o cancela y te libera el horario. Todo por WhatsApp, desde el número de tu negocio.',
+  bullets: [
+    'Pide confirmación con la anticipación que elijas (horas o minutos).',
+    'La IA entiende la respuesta y actualiza tu agenda al instante.',
+    'Si el cliente cancela, el horario queda libre para otro turno.',
+    'Sale de tu propio número de WhatsApp, con tu tono y tu marca.',
+  ],
+  cta: 'Quiero mi agente IA',
+  chat: [
+    { from: 'bot' as const, text: 'Hola Juan! Te escribimos de Estudio Belén por tu turno de Corte y Color el viernes a las 15:30.\n\nRespondé 1 para confirmar tu turno ✅ o 2 para cancelarlo ❌' },
+    { from: 'client' as const, text: '1' },
+    { from: 'bot' as const, text: '¡Gracias Juan! Tu turno del viernes a las 15:30 quedó confirmado. Te esperamos 😊' },
+  ],
+  chatFooter: 'Turno confirmado en tu agenda · Sin que muevas un dedo',
 };
 
 export const businessTypesContent = {
@@ -84,7 +105,7 @@ export const howItWorksSteps = [
   { number: 1, title: 'Crea tu cuenta', description: 'Registrate gratis en 2 minutos.', time: '2 min' },
   { number: 2, title: 'Configura servicios', description: 'Carga horarios, servicios y especialistas.', time: '5 min' },
   { number: 3, title: 'Comparte tu link', description: 'Enviá tu web de turnos por WhatsApp o redes.', time: '3 min' },
-  { number: 4, title: 'Automatiza cobros', description: 'Activa señas con MercadoPago y recordatorios.', time: '5 min' },
+  { number: 4, title: 'Automatiza con IA', description: 'Activa señas con MercadoPago y tu agente IA de confirmación.', time: '5 min' },
   { number: 5, title: 'Crecé tu negocio', description: 'Analizá reportes y optimizá tu agenda.', time: '' },
 ];
 
@@ -110,6 +131,10 @@ export const testimonials = [
 ];
 
 export const faqs = [
+  {
+    q: '¿Qué hace el agente de IA por WhatsApp?',
+    a: 'Antes de cada turno, la IA le escribe a tu cliente desde tu propio número para pedirle confirmación. Entiende la respuesta y actúa sola: confirma el turno en tu agenda o lo cancela y te libera el horario. Vos elegís con cuánta anticipación y con qué mensaje.',
+  },
   {
     q: '¿Es mi sitio realmente propio?',
     a: 'Sí. Configuramos una experiencia exclusiva con tu marca, sin listados compartidos con otros negocios.',
@@ -137,7 +162,7 @@ export const faqs = [
 ];
 
 export const pricingContent = {
-  eyebrow: 'Nº 07 · Precios',
+  eyebrow: 'Nº 08 · Precios',
   headline: 'Elegí el plan que se adapta a tu negocio',
   subheadline:
     'Mismo plan, distinto compromiso. Cuanto más largo, mayor el descuento. Todos los planes incluyen prueba gratis, sin tarjeta.',
@@ -146,6 +171,7 @@ export const pricingContent = {
     'Reservas online ilimitadas',
     'Cobros con MercadoPago',
     'Recordatorios por WhatsApp',
+    'Agente IA de confirmación (add-on)',
     'Agenda multi-profesional',
     'Reportes y métricas',
     'Soporte prioritario',
@@ -198,7 +224,7 @@ export const pricingContent = {
 
 export const finalCtaContent = {
   headline: '¿Qué esperás para llevar tu negocio al siguiente nivel?',
-  subtext: 'Configúralo en 15 min. Soporte humano para onboarding.',
+  subtext: 'Configúralo en 15 min y dejá que la IA trabaje por vos. Soporte humano para onboarding.',
   cta: 'Comenzar',
   guarantees: ['Garantía 30 días', 'Pago seguro', 'Soporte prioritario'],
 };
