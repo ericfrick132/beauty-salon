@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -373,6 +373,12 @@ function App() {
                     <Route path="/invitation/:token" element={<InvitationPage />} />
                     <Route path="/subscription/plans" element={<SubscriptionPlans />} />
                     <Route path="/subscription/success" element={<SubscriptionSuccess />} />
+                    {/* El backend manda este link por WhatsApp/email (trial por vencer);
+                        nunca tuvo pantalla propia: va a la selección de planes. */}
+                    <Route path="/subscription/upgrade" element={<Navigate to="/subscription/plans" replace />} />
+                    {/* Catch-all: cualquier link roto cae en la landing del tenant
+                        en vez de una pantalla blanca. */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
                   </>
                 )}
                 
