@@ -18,8 +18,9 @@ import {
   QueryStats,
   WhatsApp,
   AccessTime,
+  InfoOutlined,
 } from '@mui/icons-material';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { featureAddonsApi, whatsappApi, FeatureAddonStatus } from '../services/api';
 
 const AI_AGENT_CODE = 'ai_agent';
@@ -31,6 +32,26 @@ const Benefit: React.FC<{ icon: React.ReactNode; title: string; text: string }> 
       <Typography variant="subtitle2" fontWeight={700}>{title}</Typography>
       <Typography variant="body2" color="text.secondary">{text}</Typography>
     </Box>
+  </Box>
+);
+
+const Bubble: React.FC<{ from: 'client' | 'bot'; children: React.ReactNode }> = ({ from, children }) => (
+  <Box
+    sx={{
+      alignSelf: from === 'client' ? 'flex-end' : 'flex-start',
+      maxWidth: '85%',
+      bgcolor: from === 'client' ? '#d9fdd3' : '#fff',
+      color: '#111b21',
+      borderRadius: 2,
+      px: 1.5,
+      py: 0.9,
+      boxShadow: '0 1px 1px rgba(0,0,0,0.13)',
+      fontSize: 14,
+      lineHeight: 1.4,
+      whiteSpace: 'pre-line',
+    }}
+  >
+    {children}
   </Box>
 );
 
@@ -50,13 +71,11 @@ const AiAgent: React.FC = () => {
       const addons = await featureAddonsApi.list();
       const found = addons.find(a => a.code === AI_AGENT_CODE) || null;
       setAddon(found);
-      if (found?.active) {
-        try {
-          const status = await whatsappApi.getStatus();
-          setWhatsappOpen(status?.status === 'open');
-        } catch {
-          /* estado secundario, no bloquea */
-        }
+      try {
+        const status = await whatsappApi.getStatus();
+        setWhatsappOpen(status?.status === 'open');
+      } catch {
+        /* estado secundario, no bloquea */
       }
     } catch {
       setError('No se pudo cargar la información del Agente IA.');
@@ -144,6 +163,23 @@ const AiAgent: React.FC = () => {
       )}
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
+      {whatsappOpen === false && (
+        <Alert
+          severity="warning"
+          sx={{ mb: 2 }}
+          action={<Button color="inherit" size="small" component={RouterLink} to="/whatsapp">Conectar WhatsApp</Button>}
+        >
+          <strong>Primero conectá tu WhatsApp.</strong> El agente atiende desde tu propio número: hasta que no lo vincules
+          (escaneás un QR), recibe los mensajes pero no puede responder.
+        </Alert>
+      )}
+
+      <Alert severity="info" icon={<InfoOutlined />} sx={{ mb: 3 }}>
+        <strong>¿En qué se diferencia del Bot de Confirmación?</strong> El bot de confirmación solo pide
+        “1 = confirmo / 2 = cancelo” antes de cada turno ya agendado. El <strong>Agente IA</strong> conversa de verdad:
+        responde precios y disponibilidad y <strong>reserva turnos nuevos</strong> por su cuenta. Podés tener los dos.
+      </Alert>
+
       <Grid container spacing={3}>
         <Grid item xs={12} md={7}>
           <Card sx={{ height: '100%' }}>
@@ -179,8 +215,11 @@ const AiAgent: React.FC = () => {
                     El Agente IA está activo.
                   </Alert>
                   {whatsappOpen === false && (
-                    <Alert severity="warning">
-                      Para que el agente atienda, tu WhatsApp tiene que estar conectado. Revisá la sección de conexión de WhatsApp.
+                    <Alert
+                      severity="warning"
+                      action={<Button color="inherit" size="small" component={RouterLink} to="/whatsapp">Conectar</Button>}
+                    >
+                      Falta conectar tu WhatsApp para que el agente atienda.
                     </Alert>
                   )}
                   {whatsappOpen === true && (
@@ -212,6 +251,25 @@ const AiAgent: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+
+      <Card sx={{ mt: 3 }}>
+        <CardContent>
+          <Typography variant="h6" fontWeight={700}>Así atiende a tus clientes</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Ejemplo de una reserva por WhatsApp, de principio a fin:
+          </Typography>
+          <Box sx={{ bgcolor: '#efeae2', borderRadius: 2, p: 2, display: 'flex', flexDirection: 'column', gap: 1, maxWidth: 560 }}>
+            <Bubble from="client">Hola! quería sacar un turno</Bubble>
+            <Bubble from="bot">{'¡Hola! 👋 ¿Qué servicio te interesa?\n1️⃣ Corte de pelo — $8.000\n2️⃣ Color — $15.000'}</Bubble>
+            <Bubble from="client">corte, mañana a la tarde</Bubble>
+            <Bubble from="bot">{'Mañana (jue 09/07) hay lugar:\n1️⃣ 15:00   2️⃣ 16:00   3️⃣ 17:00\n¿Cuál te conviene?'}</Bubble>
+            <Bubble from="client">16hs, a nombre de Eric</Bubble>
+            <Bubble from="bot">Te confirmo: Corte, jueves 09/07 a las 16:00, a nombre de Eric. ¿Va? ✅</Bubble>
+            <Bubble from="client">sí, dale</Bubble>
+            <Bubble from="bot">¡Listo Eric! Tu turno quedó reservado 🎉 Te esperamos.</Bubble>
+          </Box>
+        </CardContent>
+      </Card>
     </Box>
   );
 };
