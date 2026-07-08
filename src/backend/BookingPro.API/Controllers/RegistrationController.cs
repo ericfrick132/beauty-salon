@@ -602,7 +602,10 @@ namespace BookingPro.API.Controllers
                 var host = HttpContext.Request.Host.Host;
                 var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");
 
-                // Si ya existe una cuenta con este email, devolver el link de login (no es error).
+                // Si ya existe una cuenta con este email, devolver un link de ACCESO REAL (no es error).
+                // OJO: antes devolvía /login?email=... pelado — pero el lead del bot nunca eligió
+                // contraseña, así que quedaba con una cuenta a la que no podía entrar. Ahora esta
+                // rama también emite el auto-login con impersonationToken, igual que la cuenta nueva.
                 var existingUser = await _context.Users
                     .IgnoreQueryFilters()
                     .FirstOrDefaultAsync(u => u.Email.ToLower() == emailLower);
@@ -614,9 +617,11 @@ namespace BookingPro.API.Controllers
                     if (existingTenant == null)
                         return StatusCode(500, new { success = false, message = "No encontramos tu negocio. Contactanos." });
 
-                    var loginUrl = isLocal
-                        ? $"http://{existingTenant.Subdomain}.localhost:3001/login?email={Uri.EscapeDataString(emailLower)}"
-                        : $"https://{existingTenant.Subdomain}.turnos-pro.com/login?email={Uri.EscapeDataString(emailLower)}";
+                    var existingToken = _authService.GenerateJwtToken(existingUser);
+                    var existingBase = isLocal
+                        ? $"http://{existingTenant.Subdomain}.localhost:3001"
+                        : $"https://{existingTenant.Subdomain}.turnos-pro.com";
+                    var loginUrl = $"{existingBase}/dashboard?impersonationToken={existingToken}";
 
                     return Ok(new
                     {

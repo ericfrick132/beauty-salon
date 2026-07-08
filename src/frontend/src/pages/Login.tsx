@@ -51,8 +51,10 @@ const Login: React.FC = () => {
   const dispatch = useAppDispatch();
   const prefersReducedMotion = useReducedMotion();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  // Autocompletar email (y password legacy) desde la query string: los links del bot
+  // de WhatsApp llegan como /login?email=...&password=... — el lead no tipea nada.
+  const [email, setEmail] = useState(() => new URLSearchParams(window.location.search).get('email') ?? '');
+  const [password, setPassword] = useState(() => new URLSearchParams(window.location.search).get('password') ?? '');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
