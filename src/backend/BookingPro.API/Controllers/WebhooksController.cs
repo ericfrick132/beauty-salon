@@ -20,6 +20,7 @@ namespace BookingPro.API.Controllers
         private readonly ILogger<WebhooksController> _logger;
         private readonly IWhatsAppConnectionService _whatsAppConnectionService;
         private readonly IFeatureAddonService _featureAddonService;
+        private readonly BookingPro.API.Services.IWhatsAppAgentService _whatsAppAgentService;
 
         public WebhooksController(
             IMercadoPagoService mercadoPagoService,
@@ -29,7 +30,8 @@ namespace BookingPro.API.Controllers
             IConfiguration configuration,
             ILogger<WebhooksController> logger,
             IWhatsAppConnectionService whatsAppConnectionService,
-            IFeatureAddonService featureAddonService)
+            IFeatureAddonService featureAddonService,
+            BookingPro.API.Services.IWhatsAppAgentService whatsAppAgentService)
         {
             _mercadoPagoService = mercadoPagoService;
             _subscriptionService = subscriptionService;
@@ -39,6 +41,7 @@ namespace BookingPro.API.Controllers
             _logger = logger;
             _whatsAppConnectionService = whatsAppConnectionService;
             _featureAddonService = featureAddonService;
+            _whatsAppAgentService = whatsAppAgentService;
         }
 
         [HttpPost("mercadopago/{tenantId}")]
@@ -300,10 +303,17 @@ namespace BookingPro.API.Controllers
             var settings = await _context.TenantMessagingSettings
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(s => s.TenantId == tenantId);
-            if (settings == null || !settings.ConfirmationBotEnabled) return;
 
-            if (!await _featureAddonService.HasActiveAddonAsync(tenantId, BookingPro.API.Models.Constants.FeatureCodes.ConfirmationBot))
+            var hasAiAgent = await _featureAddonService.HasActiveAddonAsync(tenantId, BookingPro.API.Models.Constants.FeatureCodes.AiAgent);
+            var confirmationEnabled = settings != null && settings.ConfirmationBotEnabled
+                && await _featureAddonService.HasActiveAddonAsync(tenantId, BookingPro.API.Models.Constants.FeatureCodes.ConfirmationBot);
+
+            if (!hasAiAgent && !confirmationEnabled) return;
+
+            // Sin bot de confirmación pero con Agente IA → el agente atiende cualquier mensaje entrante.
+            if (!confirmationEnabled)
             {
+                await HandleAiAgentMessageAsync(tenantId, remoteJid, text);
                 return;
             }
 
@@ -322,7 +332,12 @@ namespace BookingPro.API.Controllers
 
             var request = pendingRequests.FirstOrDefault(r =>
                 r.Phone.Length >= 8 && r.Phone.EndsWith(senderSuffix));
-            if (request == null) return;
+            if (request == null)
+            {
+                // No es respuesta a una confirmación pendiente → si tiene el add-on de IA, lo atiende el agente.
+                if (hasAiAgent) await HandleAiAgentMessageAsync(tenantId, remoteJid, text);
+                return;
+            }
 
             var booking = await _context.Bookings
                 .IgnoreQueryFilters()
@@ -461,6 +476,51 @@ namespace BookingPro.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to send confirmation ack to {Phone}", senderDigits);
+            }
+        }
+
+        // Agente IA (add-on ai_agent): delega el turno del cliente al asistente conversacional,
+        // que responde servicios/precios/disponibilidad y crea reservas reales. Envía la respuesta
+        // por WhatsApp y la registra en MessageLogs.
+        private async Task HandleAiAgentMessageAsync(Guid tenantId, string remoteJid, string text)
+        {
+            if (!_whatsAppAgentService.IsEnabled) return;
+
+            var senderDigits = new string(remoteJid.Split('@')[0].Where(char.IsDigit).ToArray());
+            if (senderDigits.Length < 8) return;
+
+            string? reply;
+            try
+            {
+                reply = await _whatsAppAgentService.HandleMessageAsync(tenantId, senderDigits, text);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "AI agent failed to handle message for tenant {TenantId}", tenantId);
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(reply)) return;
+
+            try
+            {
+                var sendResult = await _whatsAppConnectionService.SendTextAsync(tenantId, senderDigits, reply);
+                _context.MessageLogs.Add(new MessageLog
+                {
+                    TenantId = tenantId,
+                    Channel = "whatsapp",
+                    MessageType = "ai_agent_reply",
+                    Status = sendResult.Success ? "sent" : "failed",
+                    To = senderDigits,
+                    Body = reply,
+                    SentAt = sendResult.Success ? DateTime.UtcNow : null,
+                    ProviderMessageId = sendResult.Data,
+                    ErrorMessage = sendResult.Success ? null : sendResult.Message
+                });
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send AI agent reply to {Phone}", senderDigits);
             }
         }
 

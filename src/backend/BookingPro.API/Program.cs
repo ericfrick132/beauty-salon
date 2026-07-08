@@ -135,6 +135,8 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IChytapayOAuthServ
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IChytapayService, BookingPro.API.Services.ChytapayService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IWhatsAppService, BookingPro.API.Services.WhatsAppService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IWhatsAppConnectionService, BookingPro.API.Services.WhatsAppConnectionService>();
+// Agente IA de WhatsApp (add-on ai_agent): reserva turnos y responde precios/disponibilidad
+builder.Services.AddScoped<BookingPro.API.Services.IWhatsAppAgentService, BookingPro.API.Services.WhatsAppAgentService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IAppleAppStoreService, BookingPro.API.Services.AppleAppStoreService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ISubscriptionService, BookingPro.API.Services.SubscriptionService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ICouponService, BookingPro.API.Services.CouponService>();

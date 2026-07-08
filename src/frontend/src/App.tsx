@@ -54,6 +54,7 @@ import MessagingCredits from './pages/MessagingCredits';
 import MessagingSettings from './pages/MessagingSettings';
 import WhatsAppSettings from './pages/WhatsAppSettings';
 import ConfirmationBot from './pages/ConfirmationBot';
+import AiAgent from './pages/AiAgent';
 import MessageHistory from './pages/MessageHistory';
 import MessagingHub from './pages/MessagingHub';
 import TeamUsers from './pages/TeamUsers';
@@ -418,6 +419,7 @@ function App() {
                   <Route path="/messaging/history" element={<MessageHistory />} />
                   <Route path="/whatsapp" element={<WhatsAppSettings />} />
                   <Route path="/confirmation-bot" element={<ConfirmationBot />} />
+                  <Route path="/agente-ia" element={<AiAgent />} />
                 </Route>
               </Routes>
               </SubscriptionProvider>

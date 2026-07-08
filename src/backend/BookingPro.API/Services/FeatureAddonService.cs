@@ -28,21 +28,43 @@ namespace BookingPro.API.Services
 
         public async Task EnsureSeedAsync()
         {
-            var exists = await _context.FeatureAddons.AnyAsync(a => a.Code == FeatureCodes.ConfirmationBot);
-            if (exists) return;
+            var changed = false;
 
-            _context.FeatureAddons.Add(new FeatureAddon
+            if (!await _context.FeatureAddons.AnyAsync(a => a.Code == FeatureCodes.ConfirmationBot))
             {
-                Code = FeatureCodes.ConfirmationBot,
-                Name = "Bot de Confirmación de Turnos",
-                Description = "Asistente automático por WhatsApp que pide confirmación de asistencia antes de cada turno y procesa las respuestas: confirma o cancela el turno solo, desde tu propio número.",
-                MonthlyPrice = _configuration.GetValue("FeatureAddons:ConfirmationBotMonthlyPrice", 8000m),
-                Currency = "ARS",
-                IsActive = true,
-                DisplayOrder = 1
-            });
-            await _context.SaveChangesAsync();
-            _logger.LogInformation("Seeded feature addon {Code}", FeatureCodes.ConfirmationBot);
+                _context.FeatureAddons.Add(new FeatureAddon
+                {
+                    Code = FeatureCodes.ConfirmationBot,
+                    Name = "Bot de Confirmación de Turnos",
+                    Description = "Asistente automático por WhatsApp que pide confirmación de asistencia antes de cada turno y procesa las respuestas: confirma o cancela el turno solo, desde tu propio número.",
+                    MonthlyPrice = _configuration.GetValue("FeatureAddons:ConfirmationBotMonthlyPrice", 8000m),
+                    Currency = "ARS",
+                    IsActive = true,
+                    DisplayOrder = 1
+                });
+                changed = true;
+            }
+
+            if (!await _context.FeatureAddons.AnyAsync(a => a.Code == FeatureCodes.AiAgent))
+            {
+                _context.FeatureAddons.Add(new FeatureAddon
+                {
+                    Code = FeatureCodes.AiAgent,
+                    Name = "Agente IA de WhatsApp",
+                    Description = "Asistente con IA que atiende a tus clientes por WhatsApp desde tu número: responde servicios, precios y disponibilidad y RESERVA turnos solo, las 24 horas.",
+                    MonthlyPrice = _configuration.GetValue("FeatureAddons:AiAgentMonthlyPrice", 20000m),
+                    Currency = "ARS",
+                    IsActive = true,
+                    DisplayOrder = 2
+                });
+                changed = true;
+            }
+
+            if (changed)
+            {
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Feature addons seed ensured (confirmation_bot, ai_agent)");
+            }
         }
 
         public async Task<bool> HasActiveAddonAsync(Guid tenantId, string code)
@@ -130,6 +152,7 @@ namespace BookingPro.API.Services
                 MercadoPagoConfig.AccessToken = platformConfig.AccessToken;
 
                 var externalRef = $"ADDON-{tenantId}-{code}-{DateTime.UtcNow:yyyyMMddHHmmss}";
+                var returnPath = code == FeatureCodes.AiAgent ? "agente-ia" : "confirmation-bot";
 
                 var prefReq = new PreferenceRequest
                 {
@@ -152,9 +175,9 @@ namespace BookingPro.API.Services
                     },
                     BackUrls = new PreferenceBackUrlsRequest
                     {
-                        Success = $"{_configuration["FrontendUrl"]}/confirmation-bot?payment=success",
-                        Failure = $"{_configuration["FrontendUrl"]}/confirmation-bot?payment=failure",
-                        Pending = $"{_configuration["FrontendUrl"]}/confirmation-bot?payment=pending"
+                        Success = $"{_configuration["FrontendUrl"]}/{returnPath}?payment=success",
+                        Failure = $"{_configuration["FrontendUrl"]}/{returnPath}?payment=failure",
+                        Pending = $"{_configuration["FrontendUrl"]}/{returnPath}?payment=pending"
                     },
                     AutoReturn = "approved",
                     NotificationUrl = $"{_configuration["BaseUrl"]}/api/webhooks/platform/mercadopago",
