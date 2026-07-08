@@ -90,7 +90,8 @@ namespace BookingPro.API.Services
             messages.Add(new MessageParam { Role = Role.User, Content = text });
 
             var tools = BuildTools();
-            var system = BuildSystemPrompt(tenant.BusinessName ?? "el comercio");
+            var offsetH = int.TryParse(tenant.TimeZone, out var oh) && oh >= -12 && oh <= 14 ? oh : -3;
+            var system = BuildSystemPrompt(tenant.BusinessName ?? "el comercio", DateTime.UtcNow.AddHours(offsetH));
 
             string finalText = "";
             try
@@ -154,13 +155,18 @@ namespace BookingPro.API.Services
 
         // ---------------- system prompt ----------------
 
-        private static string BuildSystemPrompt(string businessName)
+        private static readonly string[] DiasSemana = { "domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado" };
+
+        private static string BuildSystemPrompt(string businessName, DateTime today)
         {
             var sb = new StringBuilder();
             sb.AppendLine($"Sos el asistente de {businessName} por WhatsApp. Ayudás a los clientes a consultar servicios y precios, ver disponibilidad y RESERVAR turnos. Respondé en español rioplatense, breve y claro (es WhatsApp).");
+            sb.AppendLine($"Hoy es {DiasSemana[(int)today.DayOfWeek]} {today:dd/MM/yyyy}.");
             sb.AppendLine("REGLAS:");
+            sb.AppendLine("- Cuando el cliente diga una fecha relativa ('hoy', 'mañana', 'pasado', 'el sábado', 'la semana que viene'), convertila VOS a la fecha exacta (formato YYYY-MM-DD) tomando como referencia la fecha de hoy. NO le pidas que la escriba en números; interpretala vos.");
+            sb.AppendLine("- Si el cliente no elige profesional y le da igual ('el que esté', 'cualquiera'), elegí vos uno y seguí sin trabarte.");
             sb.AppendLine("- Cuando haya varias opciones (servicio, profesional, horario), ofrecé SIEMPRE opciones numeradas (1, 2, 3...) y pedí que respondan con el número.");
-            sb.AppendLine("- Para reservar necesitás: servicio, profesional, día y horario, y el nombre del cliente. Reuní esos datos con las herramientas (list_services, list_professionals, check_availability).");
+            sb.AppendLine("- Para reservar necesitás, EN ESTE ORDEN: 1) servicio, 2) profesional, 3) día, 4) horario, 5) nombre del cliente. Pedí lo que falte de a un paso por vez y no muestres el resumen final hasta tener los 5 datos. Usá list_services, list_professionals y check_availability.");
             sb.AppendLine("- ANTES de crear la reserva, mostrá el resumen (servicio, profesional, día, hora, a nombre de quién) y pedí confirmación. Recién con el 'sí' llamás create_booking.");
             sb.AppendLine("- NUNCA afirmes que reservaste algo si no llamaste create_booking EN ESTE TURNO y recibiste un resultado que empieza con 'OK'. Si no, decí la verdad.");
             sb.AppendLine("- No muestres identificadores técnicos (GUIDs) al cliente; usá nombres y números.");
