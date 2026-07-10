@@ -427,7 +427,7 @@ export default function HeroSection() {
             }}
           >
             {[
-              { num: '80%', label: 'menos no-shows' },
+              { num: '80%', label: 'menos ausencias' },
               { num: '24/7', label: 'reservas online' },
               { num: '15 min', label: 'puesta a punto' },
               { num: '+1.200', label: 'turnos por mes' },

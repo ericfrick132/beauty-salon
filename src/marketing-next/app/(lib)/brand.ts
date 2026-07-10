@@ -4,7 +4,7 @@ export const brand = {
   marketing_path: '/turnos',
   lang: 'es-AR',
   primary_keyword: 'reservas con seña y recordatorios automáticos',
-  secondary_keywords: ['señas con MercadoPago', 'recordatorios por WhatsApp', 'agenda online 24/7', 'software de turnos', 'menos no-shows'],
+  secondary_keywords: ['señas con MercadoPago', 'recordatorios por WhatsApp', 'agenda online 24/7', 'software de turnos', 'menos ausencias'],
   city_country_variants: ['Argentina', 'Buenos Aires', 'LatAm'],
   og_image: '/og-cover.jpg',
   logo_url: '/logo.png',

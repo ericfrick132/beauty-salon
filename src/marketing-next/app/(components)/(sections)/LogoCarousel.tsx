@@ -2,14 +2,13 @@
 import { Box, Container } from '@mui/material';
 import { palette } from '@/app/(lib)/theme';
 
-const logos = [
+// Solo integraciones reales: MercadoPago (señas/pagos) y WhatsApp (recordatorios, bot y agente IA).
+// Se repiten para que el carrusel tenga largo suficiente.
+const baseLogos = [
   { src: '/landing/assets/img/logos/mercado_pago.png', alt: 'MercadoPago' },
   { src: '/landing/assets/img/logos/whatsapp.png', alt: 'WhatsApp' },
-  { src: '/landing/assets/img/logos/google_calendar.png', alt: 'Google Calendar' },
-  { src: '/landing/assets/img/logos/zoom.png', alt: 'Zoom' },
-  { src: '/landing/assets/img/logos/paypal.png', alt: 'PayPal' },
-  { src: '/landing/assets/img/logos/google-meet-logo-1-scaled.png', alt: 'Google Meet' },
 ];
+const logos = [...baseLogos, ...baseLogos, ...baseLogos];
 
 const scrollKeyframes = `
 @keyframes tpLogoScroll {

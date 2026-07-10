@@ -35,7 +35,7 @@ export function softwareAppSchema() {
       'Recordatorios automáticos por WhatsApp',
       'Agenda online 24/7',
       'Reportes en vivo',
-      'Reducción de no-shows',
+      'Reducción de ausencias',
     ],
   } as const;
 }

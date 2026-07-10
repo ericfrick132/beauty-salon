@@ -78,7 +78,7 @@ export const agendaContent = {
 export const aiBotContent = {
   headline: 'Conocé a tu nuevo empleado: un agente IA',
   description:
-    'La IA de TurnosPro le escribe a cada cliente antes de su turno, entiende la respuesta y actúa sola: confirma la asistencia o cancela y te libera el horario. Todo por WhatsApp, desde el número de tu negocio.',
+    'La IA de TurnosPro le escribe a cada cliente antes de su turno, entiende la respuesta y actúa sola: confirma la asistencia o cancela y te libera el horario. Todo por WhatsApp, desde el número de tu negocio. Es un add-on que podés sumar a cualquier plan.',
   bullets: [
     'Pide confirmación con la anticipación que elijas (horas o minutos).',
     'La IA entiende la respuesta y actualiza tu agenda al instante.',
@@ -133,7 +133,7 @@ export const testimonials = [
 export const faqs = [
   {
     q: '¿Qué hace el agente de IA por WhatsApp?',
-    a: 'Antes de cada turno, la IA le escribe a tu cliente desde tu propio número para pedirle confirmación. Entiende la respuesta y actúa sola: confirma el turno en tu agenda o lo cancela y te libera el horario. Vos elegís con cuánta anticipación y con qué mensaje.',
+    a: 'Antes de cada turno, la IA le escribe a tu cliente desde tu propio número para pedirle confirmación. Entiende la respuesta y actúa sola: confirma el turno en tu agenda o lo cancela y te libera el horario. Vos elegís con cuánta anticipación y con qué mensaje. Es un add-on: lo sumás a cualquier plan.',
   },
   {
     q: '¿Es mi sitio realmente propio?',
@@ -144,8 +144,8 @@ export const faqs = [
     a: 'Logo, colores y la información de tus servicios. En la puesta en marcha guiada la dejamos lista en días.',
   },
   {
-    q: '¿Puedo integrarla con otros sistemas?',
-    a: 'Evaluamos las integraciones que necesites (pagos, reportes, CRM) y las habilitamos según tu plan.',
+    q: '¿Con qué se integra TurnosPro?',
+    a: 'Hoy se integra con MercadoPago (señas y pagos anticipados con tu propia cuenta) y WhatsApp (recordatorios, bot de confirmación y agente IA desde tu número). Si necesitás otra integración, escribinos y la evaluamos.',
   },
   {
     q: '¿Puedo agregar funcionalidades a medida?',
@@ -229,7 +229,7 @@ export const finalCtaContent = {
   guarantees: ['Garantía 30 días', 'Pago seguro', 'Soporte prioritario'],
 };
 
-export const logoCarouselTitle = 'Integra a tu tienda las aplicaciones que ya usas';
+export const logoCarouselTitle = 'Funciona con MercadoPago y WhatsApp';
 
 export const businessTypeOptions = [
   { value: 'peluqueria', label: 'Peluquería' },
