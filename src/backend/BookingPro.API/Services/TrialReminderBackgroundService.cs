@@ -10,18 +10,26 @@ namespace BookingPro.API.Services
     ///   - trial_ending_2d  when trial expires in ~2 days (once per tenant per day)
     ///   - trial_expired    when trial just expired          (once per tenant)
     /// De-duplication is done against EmailLog.
+    ///
+    /// El aviso por WhatsApp sale por la MISMA línea de plataforma que el OTP y el resto del
+    /// follow-up (regla: al tenant siempre le escribe el mismo número — antes se delegaba al hub).
+    /// El tick entero se difiere a horario activo AR para que ni el email ni el WhatsApp salgan
+    /// de madrugada; las ventanas (24h/48h) aguantan el corrimiento de 12h.
     /// </summary>
     public class TrialReminderBackgroundService : BackgroundService
     {
         private readonly IServiceProvider _serviceProvider;
+        private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger<TrialReminderBackgroundService> _logger;
         private static readonly TimeSpan TickInterval = TimeSpan.FromHours(12);
 
         public TrialReminderBackgroundService(
             IServiceProvider serviceProvider,
+            IHttpClientFactory httpClientFactory,
             ILogger<TrialReminderBackgroundService> logger)
         {
             _serviceProvider = serviceProvider;
+            _httpClientFactory = httpClientFactory;
             _logger = logger;
         }
 
@@ -35,27 +43,33 @@ namespace BookingPro.API.Services
 
             while (!stoppingToken.IsCancellationRequested)
             {
+                var ranTick = false;
                 try
                 {
-                    await RunTickAsync(stoppingToken);
+                    ranTick = await RunTickAsync(stoppingToken);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "TrialReminderBackgroundService tick failed");
+                    ranTick = true; // no reintentar en caliente ante un error
                 }
 
-                try { await Task.Delay(TickInterval, stoppingToken); }
+                // Fuera de horario AR el tick se difiere: reintento cada hora hasta caer adentro
+                // (con 12h fijas, dos ticks seguidos podrían caer ambos de madrugada y no correr nunca).
+                var delay = ranTick ? TickInterval : TimeSpan.FromHours(1);
+                try { await Task.Delay(delay, stoppingToken); }
                 catch (TaskCanceledException) { break; }
             }
         }
 
-        private async Task RunTickAsync(CancellationToken ct)
+        private async Task<bool> RunTickAsync(CancellationToken ct)
         {
             using var scope = _serviceProvider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
-            var hub = scope.ServiceProvider.GetRequiredService<ISalesHubHubClient>();
             var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+
+            if (!WhatsAppLine.WithinActiveHours(config)) return false;
 
             var now = DateTime.UtcNow;
             var upgradeUrl = $"{(config["FrontendUrl"] ?? "https://turnos-pro.com").TrimEnd('/')}/subscription/upgrade";
@@ -76,20 +90,21 @@ namespace BookingPro.API.Services
                 // Window: about 2 days out
                 if (hoursLeft > 36 && hoursLeft <= 60)
                 {
-                    await TrySendOncePerDayAsync(db, emailService, hub, sub, "trial_ending_2d", upgradeUrl, daysLeft: 2, ct);
+                    await TrySendOncePerDayAsync(db, emailService, config, sub, "trial_ending_2d", upgradeUrl, daysLeft: 2, ct);
                 }
                 // Recently expired (within 48h of expiry)
                 else if (hoursLeft <= 0 && hoursLeft >= -48)
                 {
-                    await TrySendOnceAsync(db, emailService, hub, sub, "trial_expired", upgradeUrl, daysLeft: 0, ct);
+                    await TrySendOnceAsync(db, emailService, config, sub, "trial_expired", upgradeUrl, daysLeft: 0, ct);
                 }
             }
+            return true;
         }
 
         private async Task TrySendOncePerDayAsync(
             ApplicationDbContext db,
             IEmailService emailService,
-            ISalesHubHubClient hub,
+            IConfiguration config,
             Subscription sub,
             string templateKey,
             string upgradeUrl,
@@ -119,11 +134,15 @@ namespace BookingPro.API.Services
                     : upgradeUrl;
                 await emailService.SendTrialEndingAsync(tenant.OwnerEmail, recipient, daysLeft, tenantUpgradeUrl, sub.TenantId);
 
-                // Además del email, delegamos el aviso B2B por WhatsApp a SalesHub (encolado humanizado).
-                var waText = daysLeft > 0
-                    ? $"¡Hola! Te quedan {daysLeft} día(s) de prueba en TurnosPro. Activá tu suscripción acá 👉 {tenantUpgradeUrl}"
-                    : $"Tu prueba de TurnosPro venció. Reactivá tu cuenta para no perder tus turnos 👉 {tenantUpgradeUrl}";
-                await hub.SendAsync(tenant.Id.ToString(), waText, ct);
+                // WhatsApp por la línea de plataforma (la misma del OTP): el tenant ve siempre el mismo número.
+                if (!string.IsNullOrWhiteSpace(tenant.OwnerPhone))
+                {
+                    var waText = daysLeft > 0
+                        ? $"buenas! te quedan {daysLeft} días de prueba en turnospro 🙌 si te está sirviendo, activá tu plan acá: {tenantUpgradeUrl}[[next]]y si algo no te cerró contame por acá, te doy una mano"
+                        : $"buenas! se te venció la prueba de turnospro. la reactivás acá y seguís con tu agenda como estaba: {tenantUpgradeUrl}[[next]]si te quedó alguna duda escribime por acá";
+                    var waResult = await WhatsAppLine.SendAsync(_httpClientFactory, config, _logger, "TrialReminder", tenant.OwnerPhone, waText, ct);
+                    if (waResult == WaSendResult.Sent) WhatsAppLine.RecordSend(config);
+                }
             }
             catch (Exception ex)
             {
@@ -134,7 +153,7 @@ namespace BookingPro.API.Services
         private async Task TrySendOnceAsync(
             ApplicationDbContext db,
             IEmailService emailService,
-            ISalesHubHubClient hub,
+            IConfiguration config,
             Subscription sub,
             string templateKey,
             string upgradeUrl,
@@ -162,11 +181,15 @@ namespace BookingPro.API.Services
                     : upgradeUrl;
                 await emailService.SendTrialEndingAsync(tenant.OwnerEmail, recipient, daysLeft, tenantUpgradeUrl, sub.TenantId);
 
-                // Además del email, delegamos el aviso B2B por WhatsApp a SalesHub (encolado humanizado).
-                var waText = daysLeft > 0
-                    ? $"¡Hola! Te quedan {daysLeft} día(s) de prueba en TurnosPro. Activá tu suscripción acá 👉 {tenantUpgradeUrl}"
-                    : $"Tu prueba de TurnosPro venció. Reactivá tu cuenta para no perder tus turnos 👉 {tenantUpgradeUrl}";
-                await hub.SendAsync(tenant.Id.ToString(), waText, ct);
+                // WhatsApp por la línea de plataforma (la misma del OTP): el tenant ve siempre el mismo número.
+                if (!string.IsNullOrWhiteSpace(tenant.OwnerPhone))
+                {
+                    var waText = daysLeft > 0
+                        ? $"buenas! te quedan {daysLeft} días de prueba en turnospro 🙌 si te está sirviendo, activá tu plan acá: {tenantUpgradeUrl}[[next]]y si algo no te cerró contame por acá, te doy una mano"
+                        : $"buenas! se te venció la prueba de turnospro. la reactivás acá y seguís con tu agenda como estaba: {tenantUpgradeUrl}[[next]]si te quedó alguna duda escribime por acá";
+                    var waResult = await WhatsAppLine.SendAsync(_httpClientFactory, config, _logger, "TrialReminder", tenant.OwnerPhone, waText, ct);
+                    if (waResult == WaSendResult.Sent) WhatsAppLine.RecordSend(config);
+                }
             }
             catch (Exception ex)
             {

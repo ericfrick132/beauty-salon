@@ -10,15 +10,16 @@ namespace BookingPro.API.Services
     /// <summary>
     /// Ejecutor del follow-up de OTP abandonado (contrato unificado SalesHub):
     ///   1. Baja la config central (GET /api/hub/followup-config) y la PERSISTE local (pull-and-persist).
-    ///   2. Ejecuta los pasos sobre los PhoneVerification no consumidos, por el MISMO Evolution del OTP.
-    ///   3. Reporta a SalesHub: triggered / step_sent / converted / gave_up.
+    ///   2. Manda UN ÚNICO toque (single-touch) al que pidió OTP y no entró, con el body del
+    ///      primer paso de la secuencia — aunque la secuencia central tenga más pasos.
+    ///   3. Reporta a SalesHub: triggered / step_sent / converted / gave_up (el gave_up cierra
+    ///      recién a las OtpFollowup:GaveUpAfterHours sin conversión, para no pisar los converted).
     ///
-    /// Envío HUMANIZADO con un "gauge" por línea (el número que manda): de a uno, con hueco
-    /// aleatorio entre envíos, tope por hora y sólo en horario activo. Vale para el flujo en vivo
-    /// Y para el backlog de viejos (drena despacio).
+    /// Envío humanizado por el gauge compartido de la línea (WhatsAppLine): de a uno, hueco
+    /// aleatorio, tope por hora, sólo en horario activo. Vale también para el backlog.
     ///
     /// Backlog: si OtpFollowup:BacklogMaxAgeDays &gt; 0, incluye abandonos más viejos que la ventana
-    /// normal y les manda UN toque suave (OtpFollowup:BacklogMessage), no el blast de 3 pasos.
+    /// normal y les manda UN toque suave tibio/frío.
     ///
     /// Gate local de rollout: OtpFollowup:Enabled (default false).
     /// </summary>
@@ -29,11 +30,6 @@ namespace BookingPro.API.Services
         private readonly ILogger<OtpFollowupBackgroundService> _logger;
         private static readonly TimeSpan TickInterval = TimeSpan.FromMinutes(1);
         private const string ProductName = "TurnosPro";
-
-        // --- Gauge humanizado por línea (en memoria; una línea OTP por proceso) ---
-        private static readonly object GaugeLock = new();
-        private static DateTime _nextAllowedAt = DateTime.MinValue;
-        private static readonly Queue<DateTime> _recentSends = new();
 
         public OtpFollowupBackgroundService(
             IServiceProvider serviceProvider,
@@ -89,19 +85,20 @@ namespace BookingPro.API.Services
             var local = await db.FollowupSequencesLocal.AsNoTracking().FirstOrDefaultAsync(x => x.Trigger == trigger, ct);
             var steps = ParseSteps(local?.StepsJson);
 
-            await ReportOutcomesAsync(db, hub, trigger, steps.Count, ct);
+            await ReportOutcomesAsync(db, hub, config, trigger, ct);
             if (steps.Count == 0) { await db.SaveChangesAsync(ct); return; }
 
             // El gauge manda como mucho UNO por tick — si no es momento, ni buscamos candidatos.
-            if (!GaugeReady(config)) return;
+            if (!WhatsAppLine.GaugeReady(config)) return;
 
             var now = DateTime.UtcNow;
             var liveWindowStart = now.AddMinutes(-(steps.Max(s => s.DelayMinutes) + 30));
             var backlogWindowStart = backlogMaxAgeDays > 0 ? now.AddDays(-backlogMaxAgeDays) : liveWindowStart;
 
+            // SINGLE-TOUCH: sólo candidatos que nunca fueron tocados (FollowupCount == 0).
             var candidates = await db.PhoneVerifications
                 .Where(p => p.ConsumedAt == null && !p.FollowupDone
-                         && p.CreatedAt >= backlogWindowStart && p.FollowupCount < steps.Count)
+                         && p.CreatedAt >= backlogWindowStart && p.FollowupCount == 0)
                 // En vivo primero; backlog del MÁS NUEVO al más viejo (los tibios recientes primero,
                 // los rancios al final → si el número bloquea, bajás BacklogMaxAgeDays y no blasteás los viejos).
                 .OrderBy(p => p.CreatedAt >= liveWindowStart ? 0 : 1).ThenByDescending(p => p.CreatedAt)
@@ -157,8 +154,12 @@ namespace BookingPro.API.Services
                     continue;
                 }
 
-                var result = await SendWhatsAppAsync(config, v.Phone, text, ct);
-                if (result == SendResult.BadNumber)
+                var result = await WhatsAppLine.SendAsync(_httpClientFactory, config, _logger, "OtpFollowup", v.Phone, text, ct);
+                if (result == WaSendResult.SkippedAllowlist)
+                {
+                    continue; // modo prueba: no avanza estado, probamos el siguiente
+                }
+                if (result == WaSendResult.BadNumber)
                 {
                     // Número inválido (Evolution lo rechaza con 4xx) — típico en el backlog viejo.
                     // Lo damos por perdido y SEGUIMOS con el próximo, así un número malo no traba la cola.
@@ -167,7 +168,7 @@ namespace BookingPro.API.Services
                     if (++failsThisTick >= 5) break;
                     continue;
                 }
-                if (result == SendResult.TransientFail)
+                if (result == WaSendResult.TransientFail)
                 {
                     v.LastFollowupAt = now; v.UpdatedAt = now; // transitorio: reintenta más tarde
                     break;
@@ -181,49 +182,11 @@ namespace BookingPro.API.Services
                 if (isBacklog) v.FollowupDone = true;
                 else v.FollowupCount++;
 
-                RecordGaugeSend(config);
+                WhatsAppLine.RecordSend(config);
                 break; // UNO por tick (el gauge define el ritmo)
             }
 
             await db.SaveChangesAsync(ct);
-        }
-
-        // ---------- Gauge humanizado ----------
-
-        private static bool GaugeReady(IConfiguration config)
-        {
-            var maxPerHour = config.GetValue("OtpFollowup:MaxPerHour", 20);
-            var fromHour = config.GetValue("OtpFollowup:ActiveFromHour", 10);
-            var toHour = config.GetValue("OtpFollowup:ActiveToHour", 20);
-
-            var nowAr = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ArTz());
-            if (nowAr.Hour < fromHour || nowAr.Hour >= toHour) return false;
-
-            lock (GaugeLock)
-            {
-                var now = DateTime.UtcNow;
-                if (now < _nextAllowedAt) return false;
-                while (_recentSends.Count > 0 && (now - _recentSends.Peek()).TotalMinutes >= 60) _recentSends.Dequeue();
-                return _recentSends.Count < maxPerHour;
-            }
-        }
-
-        private static void RecordGaugeSend(IConfiguration config)
-        {
-            var minGap = config.GetValue("OtpFollowup:MinGapSeconds", 120);
-            var maxGap = config.GetValue("OtpFollowup:MaxGapSeconds", 240);
-            lock (GaugeLock)
-            {
-                var now = DateTime.UtcNow;
-                _recentSends.Enqueue(now);
-                _nextAllowedAt = now.AddSeconds(Random.Shared.Next(minGap, Math.Max(minGap + 1, maxGap + 1)));
-            }
-        }
-
-        private static TimeZoneInfo ArTz()
-        {
-            try { return TimeZoneInfo.FindSystemTimeZoneById("America/Argentina/Buenos_Aires"); }
-            catch { return TimeZoneInfo.CreateCustomTimeZone("AR", TimeSpan.FromHours(-3), "AR", "AR"); }
         }
 
         // ---------- Resto ----------
@@ -271,7 +234,7 @@ namespace BookingPro.API.Services
             catch (Exception ex) { _logger.LogWarning(ex, "OtpFollowup sync parse falló"); }
         }
 
-        private async Task ReportOutcomesAsync(ApplicationDbContext db, ISalesHubHubClient hub, string trigger, int stepCount, CancellationToken ct)
+        private async Task ReportOutcomesAsync(ApplicationDbContext db, ISalesHubHubClient hub, IConfiguration config, string trigger, CancellationToken ct)
         {
             var now = DateTime.UtcNow;
             var converted = await db.PhoneVerifications
@@ -282,16 +245,18 @@ namespace BookingPro.API.Services
                 await hub.ReportFollowupEventAsync(trigger, v.Phone, "converted", -1, null, null, ct);
                 v.FollowupDone = true; v.UpdatedAt = now;
             }
-            if (stepCount > 0)
+
+            // Single-touch: tocado y sin convertir tras la gracia → gave_up (recién ahí, para
+            // darle tiempo a que el converted gane la carrera).
+            var gaveUpCutoff = now.AddHours(-config.GetValue("OtpFollowup:GaveUpAfterHours", 48));
+            var gaveUp = await db.PhoneVerifications
+                .Where(p => p.ConsumedAt == null && !p.FollowupDone && p.FollowupCount >= 1
+                         && p.LastFollowupAt != null && p.LastFollowupAt < gaveUpCutoff)
+                .ToListAsync(ct);
+            foreach (var v in gaveUp)
             {
-                var gaveUp = await db.PhoneVerifications
-                    .Where(p => p.ConsumedAt == null && !p.FollowupDone && p.FollowupCount >= stepCount)
-                    .ToListAsync(ct);
-                foreach (var v in gaveUp)
-                {
-                    await hub.ReportFollowupEventAsync(trigger, v.Phone, "gave_up", -1, null, null, ct);
-                    v.FollowupDone = true; v.UpdatedAt = now;
-                }
+                await hub.ReportFollowupEventAsync(trigger, v.Phone, "gave_up", -1, null, null, ct);
+                v.FollowupDone = true; v.UpdatedAt = now;
             }
         }
 
@@ -310,55 +275,6 @@ namespace BookingPro.API.Services
                 body = body.Replace("{code}", code);
             }
             return body;
-        }
-
-        private enum SendResult { Sent, BadNumber, TransientFail }
-
-        private async Task<SendResult> SendWhatsAppAsync(IConfiguration config, string phone, string text, CancellationToken ct)
-        {
-            var url = config["EVOLUTION_API_BASE_URL"] ?? "http://64.227.3.140:8080";
-            var key = config["EVOLUTION_API_KEY"];
-            var instance = config["EVOLUTION_API_INSTANCE"];
-            if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(instance))
-            {
-                _logger.LogWarning("Evolution no configurado — no se puede mandar follow-up a {Phone}", phone);
-                return SendResult.TransientFail;
-            }
-            // Cada "[[next]]" se manda como un mensaje SEPARADO, con un huequito entre medio
-            // (más humano que un bloque largo). Si una parte falla, cortamos la ráfaga.
-            var parts = text.Split("[[next]]", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (parts.Length == 0) return SendResult.Sent;
-            try
-            {
-                var client = _httpClientFactory.CreateClient();
-                client.DefaultRequestHeaders.Add("apikey", key);
-                var sendUrl = $"{url.TrimEnd('/')}/message/sendText/{instance}";
-                for (int i = 0; i < parts.Length; i++)
-                {
-                    if (i > 0)
-                    {
-                        try { await Task.Delay(TimeSpan.FromSeconds(Random.Shared.Next(2, 5)), ct); }
-                        catch (TaskCanceledException) { break; }
-                    }
-                    var payload = JsonSerializer.Serialize(new { number = phone, text = parts[i] });
-                    var content = new StringContent(payload, Encoding.UTF8, "application/json");
-                    var resp = await client.PostAsync(sendUrl, content, ct);
-                    if (resp.IsSuccessStatusCode) continue;
-                    if ((int)resp.StatusCode >= 400 && (int)resp.StatusCode < 500)
-                    {
-                        _logger.LogWarning("OTP follow-up send {Status} (número inválido) para {Phone}", resp.StatusCode, phone);
-                        return SendResult.BadNumber;
-                    }
-                    _logger.LogWarning("OTP follow-up send {Status} (transitorio) para {Phone}", resp.StatusCode, phone);
-                    return SendResult.TransientFail;
-                }
-                return SendResult.Sent;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Excepción mandando OTP follow-up a {Phone}", phone);
-                return SendResult.TransientFail;
-            }
         }
 
         private static List<StepDto> ParseSteps(string? json)

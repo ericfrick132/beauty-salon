@@ -142,6 +142,12 @@ namespace BookingPro.API.Models.Entities
         // null = nunca exportado (lo levanta el endpoint /api/platform/leads-export).
         public DateTime? ExportedToSalesHubAt { get; set; }
 
+        // Follow-up de onboarding incompleto (trigger onboarding_incomplete, secuencia central
+        // en SalesHub, ejecuta OnboardingFollowupBackgroundService). Progreso del drip:
+        public int OnboardingFollowupCount { get; set; }
+        public DateTime? OnboardingLastFollowupAt { get; set; }
+        public bool OnboardingFollowupDone { get; set; }
+
         // Default payment provider when both MercadoPago and Chytapay are
         // connected. Values: "mercadopago" (default) | "chytapay".
         [MaxLength(20)]

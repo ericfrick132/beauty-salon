@@ -17,6 +17,31 @@ namespace BookingPro.API.Services
         /// <summary>Reporta un evento de follow-up a SalesHub (telemetría, no dispara envíos).</summary>
         Task ReportFollowupEventAsync(string trigger, string? externalRef, string eventType,
             int stepIndex, string? channel, string? detail, CancellationToken ct = default);
+
+        /// <summary>Reenvía al hub un WhatsApp INBOUND recibido por la Evolution de esta app
+        /// (POST /api/hub/inbound) para que el cerebro central lo procese.</summary>
+        Task ForwardInboundAsync(string phone, string text, string? providerMessageId,
+            long? timestampUnix, CancellationToken ct = default);
+
+        /// <summary>Espeja en el hub un WhatsApp OUTBOUND que esta app mandó por su cuenta
+        /// (POST /api/hub/outbound-log): el cerebro necesita el contexto de qué le mandamos.</summary>
+        Task LogOutboundAsync(string phone, string text, CancellationToken ct = default);
+
+        /// <summary>Baja los mensajes que el hub compuso y ESTA app debe transportar por su
+        /// Evolution (GET /api/hub/outbound, modelo AppManagedTransport).</summary>
+        Task<List<HubOutboundMessage>> GetOutboundAsync(CancellationToken ct = default);
+
+        /// <summary>Confirma el resultado del envío de un mensaje bajado de /hub/outbound.</summary>
+        Task AckOutboundAsync(string id, bool sent, string? error, CancellationToken ct = default);
+    }
+
+    public class HubOutboundMessage
+    {
+        public string Id { get; set; } = "";
+        public string? LeadId { get; set; }
+        public string? Phone { get; set; }
+        public string? Text { get; set; }
+        public int Priority { get; set; }
     }
 
     /// <summary>
@@ -131,6 +156,99 @@ namespace BookingPro.API.Services
             catch (Exception ex)
             {
                 _log.LogWarning(ex, "SalesHub followup-event falló ({Type})", eventType);
+            }
+        }
+
+        public async Task ForwardInboundAsync(string phone, string text, string? providerMessageId,
+            long? timestampUnix, CancellationToken ct = default)
+        {
+            var baseUrl = _config["SalesHub:HubBaseUrl"];
+            var apiKey = _config["SalesHub:HubApiKey"];
+            if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(apiKey)) return;
+
+            var productKey = _config["SalesHub:ProductKey"] ?? "turnospro";
+            try
+            {
+                var req = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl.TrimEnd('/')}/api/hub/inbound");
+                req.Headers.Add("X-Api-Key", apiKey);
+                req.Content = JsonContent.Create(new { productKey, phone, text, providerMessageId, timestampUnix });
+                var resp = await _http.SendAsync(req, ct);
+                if (!resp.IsSuccessStatusCode)
+                    _log.LogWarning("SalesHub inbound {Code}", (int)resp.StatusCode);
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "SalesHub inbound falló");
+            }
+        }
+
+        public async Task LogOutboundAsync(string phone, string text, CancellationToken ct = default)
+        {
+            var baseUrl = _config["SalesHub:HubBaseUrl"];
+            var apiKey = _config["SalesHub:HubApiKey"];
+            if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(apiKey)) return;
+
+            var productKey = _config["SalesHub:ProductKey"] ?? "turnospro";
+            try
+            {
+                var req = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl.TrimEnd('/')}/api/hub/outbound-log");
+                req.Headers.Add("X-Api-Key", apiKey);
+                req.Content = JsonContent.Create(new { productKey, phone, text });
+                var resp = await _http.SendAsync(req, ct);
+                if (!resp.IsSuccessStatusCode)
+                    _log.LogWarning("SalesHub outbound-log {Code}", (int)resp.StatusCode);
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "SalesHub outbound-log falló");
+            }
+        }
+
+        public async Task<List<HubOutboundMessage>> GetOutboundAsync(CancellationToken ct = default)
+        {
+            var baseUrl = _config["SalesHub:HubBaseUrl"];
+            var apiKey = _config["SalesHub:HubApiKey"];
+            if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(apiKey)) return new();
+
+            var productKey = _config["SalesHub:ProductKey"] ?? "turnospro";
+            try
+            {
+                var req = new HttpRequestMessage(HttpMethod.Get,
+                    $"{baseUrl.TrimEnd('/')}/api/hub/outbound?productKey={Uri.EscapeDataString(productKey)}");
+                req.Headers.Add("X-Api-Key", apiKey);
+                var resp = await _http.SendAsync(req, ct);
+                if (!resp.IsSuccessStatusCode)
+                {
+                    _log.LogWarning("SalesHub outbound {Code}", (int)resp.StatusCode);
+                    return new();
+                }
+                return await resp.Content.ReadFromJsonAsync<List<HubOutboundMessage>>(cancellationToken: ct) ?? new();
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "SalesHub outbound falló");
+                return new();
+            }
+        }
+
+        public async Task AckOutboundAsync(string id, bool sent, string? error, CancellationToken ct = default)
+        {
+            var baseUrl = _config["SalesHub:HubBaseUrl"];
+            var apiKey = _config["SalesHub:HubApiKey"];
+            if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(apiKey)) return;
+
+            try
+            {
+                var req = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl.TrimEnd('/')}/api/hub/outbound/ack");
+                req.Headers.Add("X-Api-Key", apiKey);
+                req.Content = JsonContent.Create(new { id, status = sent ? "sent" : "failed", error });
+                var resp = await _http.SendAsync(req, ct);
+                if (!resp.IsSuccessStatusCode)
+                    _log.LogWarning("SalesHub outbound/ack {Code}", (int)resp.StatusCode);
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "SalesHub outbound/ack falló");
             }
         }
     }

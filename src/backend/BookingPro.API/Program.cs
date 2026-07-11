@@ -167,6 +167,11 @@ builder.Services.AddHostedService<BookingPro.API.Services.BookingConfirmationBot
 builder.Services.AddHostedService<BookingPro.API.Services.TrialReminderBackgroundService>();
 // Recupera OTP abandonados (pidió código y no entró) — apagado por default (OtpFollowup:Enabled)
 builder.Services.AddHostedService<BookingPro.API.Services.OtpFollowupBackgroundService>();
+// Follow-up de onboarding incompleto, milestone-aware — apagado por default (OnboardingFollowup:Enabled)
+builder.Services.AddScoped<BookingPro.API.Services.IOnboardingMilestoneResolver, BookingPro.API.Services.OnboardingMilestoneResolver>();
+builder.Services.AddHostedService<BookingPro.API.Services.OnboardingFollowupBackgroundService>();
+// Transporta por la línea de la app los mensajes que compone sales-hub — apagado por default (SalesHub:RelayEnabled)
+builder.Services.AddHostedService<BookingPro.API.Services.OutboundRelayBackgroundService>();
 
 // Configure Swagger with JWT support
 builder.Services.AddEndpointsApiExplorer();

@@ -21,6 +21,7 @@ namespace BookingPro.API.Controllers
         private readonly IWhatsAppConnectionService _whatsAppConnectionService;
         private readonly IFeatureAddonService _featureAddonService;
         private readonly BookingPro.API.Services.IWhatsAppAgentService _whatsAppAgentService;
+        private readonly BookingPro.API.Services.ISalesHubHubClient _salesHubClient;
 
         public WebhooksController(
             IMercadoPagoService mercadoPagoService,
@@ -31,7 +32,8 @@ namespace BookingPro.API.Controllers
             ILogger<WebhooksController> logger,
             IWhatsAppConnectionService whatsAppConnectionService,
             IFeatureAddonService featureAddonService,
-            BookingPro.API.Services.IWhatsAppAgentService whatsAppAgentService)
+            BookingPro.API.Services.IWhatsAppAgentService whatsAppAgentService,
+            BookingPro.API.Services.ISalesHubHubClient salesHubClient)
         {
             _mercadoPagoService = mercadoPagoService;
             _subscriptionService = subscriptionService;
@@ -42,6 +44,7 @@ namespace BookingPro.API.Controllers
             _whatsAppConnectionService = whatsAppConnectionService;
             _featureAddonService = featureAddonService;
             _whatsAppAgentService = whatsAppAgentService;
+            _salesHubClient = salesHubClient;
         }
 
         [HttpPost("mercadopago/{tenantId}")]
@@ -280,6 +283,38 @@ namespace BookingPro.API.Controllers
             }
         }
 
+        // Relay al cerebro de sales-hub de un inbound de la línea de PLATAFORMA, sólo si el
+        // teléfono corresponde a alguien que estamos siguiendo (OTP abandonado u onboarding).
+        // Gate: SalesHub:RelayEnabled (default false). El hub igual descarta lo que no matchea
+        // un lead; este filtro es defensa contra ruido, no correctness.
+        private async Task RelayPlatformInboundAsync(string remoteJid, string text, JsonElement key, JsonElement item)
+        {
+            if (!_configuration.GetValue("SalesHub:RelayEnabled", false)) return;
+
+            var phone = remoteJid.Split('@')[0];
+            var digits = new string(phone.Where(char.IsDigit).ToArray());
+            if (digits.Length < 8) return;
+            var suffix = digits[^Math.Min(10, digits.Length)..];
+
+            var followed = await _context.PhoneVerifications
+                .AnyAsync(p => p.FollowupCount > 0 && p.Phone.Replace(" ", "").Replace("-", "").Replace("+", "").EndsWith(suffix))
+                || await _context.Tenants
+                .AnyAsync(t => t.OnboardingFollowupCount > 0 && t.OwnerPhone != null
+                            && t.OwnerPhone.Replace(" ", "").Replace("-", "").Replace("+", "").EndsWith(suffix));
+            if (!followed)
+            {
+                _logger.LogInformation("Inbound de línea plataforma sin seguimiento activo ({Phone}) — no se relaya", digits);
+                return;
+            }
+
+            var providerMessageId = key.TryGetProperty("id", out var mid) ? mid.GetString() : null;
+            long? timestampUnix = item.TryGetProperty("messageTimestamp", out var ts) && ts.ValueKind == JsonValueKind.Number
+                ? ts.GetInt64() : null;
+
+            await _salesHubClient.ForwardInboundAsync(phone, text, providerMessageId, timestampUnix);
+            _logger.LogInformation("Inbound de línea plataforma relayado al hub ({Phone})", digits);
+        }
+
         private async Task ProcessInboundMessage(string instanceName, JsonElement item)
         {
             if (!item.TryGetProperty("key", out var key)) return;
@@ -292,6 +327,16 @@ namespace BookingPro.API.Controllers
 
             var text = ExtractMessageText(item);
             if (string.IsNullOrWhiteSpace(text)) return;
+
+            // LÍNEA DE PLATAFORMA (la que manda OTPs y follow-ups al DUEÑO del negocio): si el
+            // que escribe es un lead/tenant que estamos siguiendo, la respuesta va al cerebro
+            // central de sales-hub (relay). No toca el flujo de las líneas de los tenants.
+            var platformInstance = _configuration["EVOLUTION_API_INSTANCE"];
+            if (!string.IsNullOrEmpty(platformInstance) && instanceName == platformInstance)
+            {
+                await RelayPlatformInboundAsync(remoteJid, text, key, item);
+                return;
+            }
 
             var connection = await _context.TenantWhatsAppConnections
                 .IgnoreQueryFilters()
