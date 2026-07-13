@@ -617,11 +617,17 @@ namespace BookingPro.API.Controllers
                     if (existingTenant == null)
                         return StatusCode(500, new { success = false, message = "No encontramos tu negocio. Contactanos." });
 
-                    var existingToken = _authService.GenerateJwtToken(existingUser);
+                    // El lead del bot nunca eligió contraseña, así que no podemos mandarle una que
+                    // sirva sin resetearla. Generamos una fresca y la ponemos en el link — mismo
+                    // patrón que GymHero. Al ser una cuenta creada por el bot no rompemos nada.
+                    var freshPassword = GenerateBotPassword();
+                    existingUser.PasswordHash = Services.Security.PasswordHasher.Hash(freshPassword);
+                    await _context.SaveChangesAsync();
+
                     var existingBase = isLocal
                         ? $"http://{existingTenant.Subdomain}.localhost:3001"
                         : $"https://{existingTenant.Subdomain}.turnos-pro.com";
-                    var loginUrl = $"{existingBase}/dashboard?impersonationToken={existingToken}";
+                    var loginUrl = $"{existingBase}/login?email={Uri.EscapeDataString(emailLower)}&password={Uri.EscapeDataString(freshPassword)}";
 
                     return Ok(new
                     {
@@ -673,9 +679,8 @@ namespace BookingPro.API.Controllers
                     lastName = "";
                 }
 
-                // Password aleatoria: el dueño nunca la tipea, entra por el link de auto-login (impersonationToken).
-                var generatedPassword = Convert.ToBase64String(Guid.NewGuid().ToByteArray())
-                    .Replace("+", "").Replace("/", "").Replace("=", "").Substring(0, 12);
+                // Password aleatoria: el dueño no la elige; le llega prellenada en el link de /login.
+                var generatedPassword = GenerateBotPassword();
 
                 using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -737,12 +742,15 @@ namespace BookingPro.API.Controllers
 
                 await transaction.CommitAsync();
 
-                // Link de acceso directo: auto-login con impersonationToken (lo consume App.tsx).
-                var token = _authService.GenerateJwtToken(adminUser);
+                // Link de acceso directo con email + contraseña en la query: la página /login
+                // los prefila y el dueño solo toca "entrar". Es una cuenta privada creada por el
+                // bot (la contraseña la generamos nosotros), así que mandarla en el link es
+                // aceptable — mismo patrón que GymHero. El impersonationToken quedó deprecado
+                // (no lo consumía App.tsx de forma confiable → el lead no podía entrar).
                 var tenantUrl = isLocal
                     ? $"http://{subdomain}.localhost:3001"
                     : $"https://{subdomain}.turnos-pro.com";
-                var accessUrl = $"{tenantUrl}/dashboard?impersonationToken={token}&onboarding=1";
+                var accessUrl = $"{tenantUrl}/login?email={Uri.EscapeDataString(emailLower)}&password={Uri.EscapeDataString(generatedPassword)}";
 
                 _logger.LogInformation("bot-register: cuenta creada para {BusinessName} ({Subdomain}) email {Email} — utm {Source}/{Medium}/{Campaign}",
                     cleanName, subdomain, emailLower,
@@ -768,6 +776,15 @@ namespace BookingPro.API.Controllers
                 return StatusCode(500, new { success = false, message = "Error interno. Intentá de nuevo." });
             }
         }
+
+        /// <summary>
+        /// Contraseña aleatoria para cuentas creadas por el bot: el dueño no la elige, le llega
+        /// prellenada en el link de /login. 12 chars alfanuméricos (sin +/= para que viaje limpia
+        /// en la query string).
+        /// </summary>
+        private static string GenerateBotPassword()
+            => Convert.ToBase64String(Guid.NewGuid().ToByteArray())
+                .Replace("+", "").Replace("/", "").Replace("=", "").Substring(0, 12);
 
         /// <summary>
         /// Extrae un nombre de negocio limpio de una frase libre del bot
