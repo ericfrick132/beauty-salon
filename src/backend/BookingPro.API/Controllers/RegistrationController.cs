@@ -5,6 +5,7 @@ using BookingPro.API.Models.Entities;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Services;
 using BookingPro.API.Services.Interfaces;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -787,8 +788,31 @@ namespace BookingPro.API.Controllers
                 .Replace("+", "").Replace("/", "").Replace("=", "").Substring(0, 12);
 
         /// <summary>
+        /// Saludos/respuestas basura que el bot a veces pasa como nombre de negocio
+        /// ("hola", "ok", "test"...). Si el nombre limpio cae acá, usamos el fallback.
+        /// </summary>
+        private static readonly HashSet<string> _junkBusinessNames = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "hola", "holis", "hello", "hey", "ola", "buenas", "buenass", "buen dia",
+            "buenos dias", "buenas tardes", "buenas noches", "que tal", "si", "sí", "no",
+            "ok", "dale", "gracias", "test", "prueba", "asd", "asdasd", "jaja", "jeje",
+            "xd", "na", "n/a", "no se", "no sé", "ninguno", "ninguna", "nada"
+        };
+
+        /// <summary>
+        /// True si el candidato a nombre es un saludo/basura de la lista (match exacto,
+        /// case-insensitive) o si tiene menos de 3 letras reales.
+        /// </summary>
+        private static bool IsJunkBusinessName(string name)
+        {
+            if (_junkBusinessNames.Contains(name.Trim())) return true;
+            return name.Count(char.IsLetter) < 3;
+        }
+
+        /// <summary>
         /// Extrae un nombre de negocio limpio de una frase libre del bot
         /// (ej. "es un salon se llama Glow" -> "Glow"). Si queda vacío, usa el texto original.
+        /// Si el resultado es un saludo/basura, cae al fallback "Mi negocio".
         /// </summary>
         private static string CleanBusinessName(string raw)
         {
@@ -812,7 +836,12 @@ namespace BookingPro.API.Controllers
             }
 
             s = s.Trim(' ', '.', ',', ';', ':', '!', '¡', '?', '¿', '"', '\'', '*');
-            if (s.Length < 2) return raw.Trim();
+            if (s.Length < 2)
+            {
+                var fallback = raw.Trim();
+                return IsJunkBusinessName(fallback) ? "Mi negocio" : fallback;
+            }
+            if (IsJunkBusinessName(s)) return "Mi negocio";
 
             // Title-case simple.
             var words = s.Split(' ', StringSplitOptions.RemoveEmptyEntries)
@@ -1111,10 +1140,30 @@ namespace BookingPro.API.Controllers
             }
         }
 
+        /// <summary>
+        /// Slugifica el nombre para usarlo de subdominio: baja acentos a ASCII ("Peña" -> "pena")
+        /// en vez de borrarlos, y convierte espacios/símbolos en guiones ("Glow Studio" ->
+        /// "glow-studio") en vez de pegar las palabras. Tope de 40 caracteres.
+        /// </summary>
         private string SanitizeSubdomain(string subdomain)
         {
-            if (string.IsNullOrEmpty(subdomain)) return string.Empty;
-            return Regex.Replace(subdomain.ToLowerInvariant(), @"[^a-z0-9-]", "");
+            if (string.IsNullOrWhiteSpace(subdomain)) return string.Empty;
+
+            // Descomponer (FormD) y descartar las marcas diacríticas para quedarnos con la base ASCII.
+            var decomposed = subdomain.Trim().ToLowerInvariant().Normalize(NormalizationForm.FormD);
+            var sb = new StringBuilder(decomposed.Length);
+            foreach (var c in decomposed)
+            {
+                if (CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
+                    sb.Append(c);
+            }
+            var s = sb.ToString().Normalize(NormalizationForm.FormC);
+
+            // Cada corrida de caracteres no alfanuméricos se vuelve un guion; sin guiones dobles ni en los bordes.
+            s = Regex.Replace(s, @"[^a-z0-9]+", "-");
+            s = Regex.Replace(s, @"-{2,}", "-").Trim('-');
+            if (s.Length > 40) s = s.Substring(0, 40).Trim('-');
+            return s;
         }
 
         /// <summary>
