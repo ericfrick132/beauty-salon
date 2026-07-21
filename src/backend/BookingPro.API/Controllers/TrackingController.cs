@@ -194,7 +194,12 @@ namespace BookingPro.API.Controllers
                 {
                     var evolutionUrl = _config["EVOLUTION_API_BASE_URL"] ?? "http://64.227.3.140:8080";
                     var evolutionKey = _config["EVOLUTION_API_KEY"];
-                    var evolutionInstance = _config["EVOLUTION_API_INSTANCE"];
+                    // Si TrackingNotifyInstance está configurada, el resumen de sesión sale por esa
+                    // instancia única (mismo número para todas las apps); si no, la de siempre.
+                    var trackingNotifyInstance = _config["TrackingNotifyInstance"];
+                    var evolutionInstance = !string.IsNullOrEmpty(trackingNotifyInstance)
+                        ? trackingNotifyInstance
+                        : _config["EVOLUTION_API_INSTANCE"];
                     if (!string.IsNullOrEmpty(evolutionKey) && !string.IsNullOrEmpty(evolutionInstance))
                     {
                         var origin = ClassifyReferrer(request.Referrer);
