@@ -45,7 +45,9 @@ public class LeadsExportController : ControllerBase
 
         var q = _db.Tenants.AsNoTracking()
             .Where(t => t.ExportedToSalesHubAt == null)
-            .Where(t => t.Status == "trial" || t.IsDemo)
+            // Solo trials ESTANCADOS (>14 días): los frescos los persigue el follow-up propio
+            // de la app; exportarlos de una duplicaba el toque desde el hub.
+            .Where(t => (t.Status == "trial" || t.IsDemo) && t.CreatedAt < DateTime.UtcNow.AddDays(-14))
             .Where(t => (t.OwnerPhone != null && t.OwnerPhone != "") || t.OwnerEmail != "");
         if (since.HasValue) q = q.Where(t => t.CreatedAt >= since.Value);
 
