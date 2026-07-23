@@ -100,6 +100,67 @@ namespace BookingPro.API.Controllers
             return referrer.Length > 40 ? referrer[..40] : referrer;
         }
 
+        /// <summary>
+        /// Aviso al admin por Evolution, fire-and-forget. Antes cada bloque hacía su propio
+        /// PostAsync sin mirar la respuesta: si Evolution rechazaba el mensaje o la instancia
+        /// estaba desconectada, no llegaba nada y no quedaba rastro en ningún lado.
+        /// </summary>
+        /// <param name="useNotifyInstance">
+        /// true para el resumen de sesión, que sale por la instancia única compartida entre
+        /// apps (TrackingNotifyInstance) en vez de la línea propia de TurnosPro.
+        /// </param>
+        private void QueueAdminWhatsApp(string? adminPhone, string msg, string eventType, bool useNotifyInstance = false)
+        {
+            var evolutionUrl = _config["EVOLUTION_API_BASE_URL"] ?? "http://64.227.3.140:8080";
+            var evolutionKey = _config["EVOLUTION_API_KEY"];
+            var trackingNotifyInstance = _config["TrackingNotifyInstance"];
+            var evolutionInstance = useNotifyInstance && !string.IsNullOrEmpty(trackingNotifyInstance)
+                ? trackingNotifyInstance
+                : _config["EVOLUTION_API_INSTANCE"];
+
+            // Se loguea en vez de salir en silencio: el modo de falla más caro de esto es
+            // creer que avisa cuando en realidad falta configuración.
+            if (string.IsNullOrEmpty(adminPhone))
+            {
+                _logger.LogWarning("AdminNotificationPhone sin configurar — {Event} no se notificó", eventType);
+                return;
+            }
+            if (string.IsNullOrEmpty(evolutionKey) || string.IsNullOrEmpty(evolutionInstance))
+            {
+                _logger.LogWarning("Evolution sin configurar (key/instancia) — {Event} no se notificó", eventType);
+                return;
+            }
+
+            var logger = _logger;
+            var httpClientFactory = _httpClientFactory;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var client = httpClientFactory.CreateClient();
+                    client.DefaultRequestHeaders.Add("apikey", evolutionKey);
+                    var payload = JsonSerializer.Serialize(new { number = adminPhone, text = msg });
+                    var content = new StringContent(payload, Encoding.UTF8, "application/json");
+                    var resp = await client.PostAsync($"{evolutionUrl.TrimEnd('/')}/message/sendText/{evolutionInstance}", content);
+                    var body = await resp.Content.ReadAsStringAsync();
+                    if (!resp.IsSuccessStatusCode)
+                    {
+                        logger.LogWarning("{Event} vía instancia {Instance} falló ({Status}): {Body}",
+                            eventType, evolutionInstance, resp.StatusCode, body);
+                    }
+                    else
+                    {
+                        // Evolution acepta con 2xx aunque la instancia esté desconectada, así que
+                        // dejamos su respuesta: es lo único que distingue "salió" de "lo aceptó
+                        // y nunca llegó al teléfono".
+                        logger.LogInformation("{Event} enviado a {Phone} vía {Instance}: {Body}",
+                            eventType, adminPhone, evolutionInstance, body.Length > 300 ? body[..300] : body);
+                    }
+                }
+                catch (Exception ex) { logger.LogWarning(ex, "Failed to send {Event} WhatsApp", eventType); }
+            });
+        }
+
         [HttpPost("event")]
         [AllowAnonymous]
         public async Task<IActionResult> TrackEvent([FromBody] TrackEventRequest request)
@@ -190,48 +251,27 @@ namespace BookingPro.API.Controllers
                 var summary = request.Name ?? "";
                 var durationMatch = Regex.Match(summary, @"^(\d+)s");
                 var duration = durationMatch.Success ? int.Parse(durationMatch.Groups[1].Value) : 0;
-                if (!string.IsNullOrEmpty(adminPhone) && duration >= 3)
+                if (duration >= 3)
                 {
-                    var evolutionUrl = _config["EVOLUTION_API_BASE_URL"] ?? "http://64.227.3.140:8080";
-                    var evolutionKey = _config["EVOLUTION_API_KEY"];
-                    // Si TrackingNotifyInstance está configurada, el resumen de sesión sale por esa
-                    // instancia única (mismo número para todas las apps); si no, la de siempre.
-                    var trackingNotifyInstance = _config["TrackingNotifyInstance"];
-                    var evolutionInstance = !string.IsNullOrEmpty(trackingNotifyInstance)
-                        ? trackingNotifyInstance
-                        : _config["EVOLUTION_API_INSTANCE"];
-                    if (!string.IsNullOrEmpty(evolutionKey) && !string.IsNullOrEmpty(evolutionInstance))
-                    {
-                        var origin = ClassifyReferrer(request.Referrer);
-                        var campaign = request.UtmCampaign ?? "orgánico";
-                        // Real visitor scrolling 100% in <90s with zero clicks is almost
-                        // always a bot that slipped past the UA filter.
-                        var scrollMatch = Regex.Match(summary, @"Scroll\s+(\d+)%");
-                        var scrollPct = scrollMatch.Success ? int.Parse(scrollMatch.Groups[1].Value) : 0;
-                        var noClicks = summary.Contains("Clicks: Ninguno", StringComparison.OrdinalIgnoreCase);
-                        var suspiciousTag = (scrollPct >= 100 && noClicks && duration < 90)
-                            ? "⚠️ *posible bot*\n"
-                            : "";
-                        var msg = $"\ud83d\udcca *SESIÓN - TurnosPro*\n" +
-                                  suspiciousTag +
-                                  $"{summary}\n" +
-                                  $"Campaña: {campaign}\n" +
-                                  $"Origen: {origin}\n" +
-                                  $"Dispositivo: {request.Device ?? "?"}\n" +
-                                  $"Hora: {DateTime.UtcNow.AddHours(-3):HH:mm} hs";
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                var client = _httpClientFactory.CreateClient();
-                                client.DefaultRequestHeaders.Add("apikey", evolutionKey);
-                                var payload = JsonSerializer.Serialize(new { number = adminPhone, text = msg });
-                                var content = new StringContent(payload, Encoding.UTF8, "application/json");
-                                await client.PostAsync($"{evolutionUrl.TrimEnd('/')}/message/sendText/{evolutionInstance}", content);
-                            }
-                            catch (Exception ex) { _logger.LogWarning(ex, "Failed to send SessionExit WhatsApp"); }
-                        });
-                    }
+                    var origin = ClassifyReferrer(request.Referrer);
+                    var campaign = request.UtmCampaign ?? "orgánico";
+                    // Real visitor scrolling 100% in <90s with zero clicks is almost
+                    // always a bot that slipped past the UA filter.
+                    var scrollMatch = Regex.Match(summary, @"Scroll\s+(\d+)%");
+                    var scrollPct = scrollMatch.Success ? int.Parse(scrollMatch.Groups[1].Value) : 0;
+                    var noClicks = summary.Contains("Clicks: Ninguno", StringComparison.OrdinalIgnoreCase);
+                    var suspiciousTag = (scrollPct >= 100 && noClicks && duration < 90)
+                        ? "\u26a0\ufe0f *posible bot*\n"
+                        : "";
+                    var msg = $"\ud83d\udcca *SESIÓN - TurnosPro*\n" +
+                              suspiciousTag +
+                              $"{summary}\n" +
+                              $"Campaña: {campaign}\n" +
+                              $"Origen: {origin}\n" +
+                              $"Dispositivo: {request.Device ?? "?"}\n" +
+                              $"Hora: {DateTime.UtcNow.AddHours(-3):HH:mm} hs";
+                    // El resumen de sesión sale por la instancia compartida entre apps.
+                    QueueAdminWhatsApp(adminPhone, msg, "SessionExit", useNotifyInstance: true);
                 }
                 return Ok();
             }
@@ -240,10 +280,6 @@ namespace BookingPro.API.Controllers
             if (request.EventType == "RegisterFlow")
             {
                 var adminPhone = _config["AdminNotificationPhone"];
-                var evolutionUrl2 = _config["EVOLUTION_API_BASE_URL"] ?? "http://64.227.3.140:8080";
-                var evolutionKey2 = _config["EVOLUTION_API_KEY"];
-                var evolutionInstance2 = _config["EVOLUTION_API_INSTANCE"];
-                if (!string.IsNullOrEmpty(adminPhone) && !string.IsNullOrEmpty(evolutionKey2) && !string.IsNullOrEmpty(evolutionInstance2))
                 {
                     var summary = request.Name ?? "";
                     var isAbandoned = summary.StartsWith("[ABANDONED]");
@@ -268,18 +304,7 @@ namespace BookingPro.API.Controllers
                               $"Campaña: {campaign} | Origen: {origin}\n" +
                               $"Dispositivo: {request.Device ?? "?"}\n" +
                               $"Hora: {DateTime.UtcNow.AddHours(-3):HH:mm} hs";
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            var client = _httpClientFactory.CreateClient();
-                            client.DefaultRequestHeaders.Add("apikey", evolutionKey2);
-                            var payload = JsonSerializer.Serialize(new { number = adminPhone, text = msg });
-                            var content = new StringContent(payload, Encoding.UTF8, "application/json");
-                            await client.PostAsync($"{evolutionUrl2.TrimEnd('/')}/message/sendText/{evolutionInstance2}", content);
-                        }
-                        catch (Exception ex) { _logger.LogWarning(ex, "Failed to send RegisterFlow WhatsApp"); }
-                    });
+                    QueueAdminWhatsApp(adminPhone, msg, "RegisterFlow");
                 }
                 return Ok();
             }
@@ -290,51 +315,28 @@ namespace BookingPro.API.Controllers
             var shouldNotify = notifSetting?.WhatsAppEnabled ?? (request.EventType is "Lead" or "CompleteRegistration");
             if (shouldNotify)
             {
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        var adminPhone = _config["AdminNotificationPhone"];
-                        var evolutionUrl = _config["EVOLUTION_API_BASE_URL"] ?? "http://64.227.3.140:8080";
-                        var evolutionKey = _config["EVOLUTION_API_KEY"];
-                        var evolutionInstance = _config["EVOLUTION_API_INSTANCE"];
+                var adminPhone = _config["AdminNotificationPhone"];
+                var emoji = request.EventType == "CompleteRegistration" ? "\ud83c\udf89" : "\ud83d\udce5";
+                var label = request.EventType == "CompleteRegistration" ? "NUEVO REGISTRO" : "NUEVO LEAD";
+                var campaign = request.UtmCampaign ?? "org\u00e1nico";
+                var source = request.UtmSource ?? "directo";
+                var device = request.Device ?? "?";
+                var origin = ClassifyReferrer(request.Referrer);
 
-                        if (string.IsNullOrEmpty(adminPhone) || string.IsNullOrEmpty(evolutionKey) || string.IsNullOrEmpty(evolutionInstance))
-                            return;
+                var name = request.Name ?? "—";
+                var email = request.Email ?? "—";
+                var reqPhone = request.Phone ?? "—";
 
-                        var emoji = request.EventType == "CompleteRegistration" ? "\ud83c\udf89" : "\ud83d\udce5";
-                        var label = request.EventType == "CompleteRegistration" ? "NUEVO REGISTRO" : "NUEVO LEAD";
-                        var campaign = request.UtmCampaign ?? "org\u00e1nico";
-                        var source = request.UtmSource ?? "directo";
-                        var device = request.Device ?? "?";
-                        var origin = ClassifyReferrer(request.Referrer);
-
-                        var name = request.Name ?? "—";
-                        var email = request.Email ?? "—";
-                        var reqPhone = request.Phone ?? "—";
-
-                        var msg = $"{emoji} *{label} - TurnosPro*\n\n" +
-                                  $"Nombre: {name}\n" +
-                                  $"Email: {email}\n" +
-                                  $"Tel: {reqPhone}\n" +
-                                  $"Campa\u00f1a: {campaign}\n" +
-                                  $"Fuente: {source}\n" +
-                                  $"Origen: {origin}\n" +
-                                  $"Dispositivo: {device}\n" +
-                                  $"Hora: {DateTime.UtcNow.AddHours(-3):HH:mm} hs";
-
-                        var client = _httpClientFactory.CreateClient();
-                        client.DefaultRequestHeaders.Add("apikey", evolutionKey);
-
-                        var payload = JsonSerializer.Serialize(new { number = adminPhone, text = msg });
-                        var content = new StringContent(payload, Encoding.UTF8, "application/json");
-                        await client.PostAsync($"{evolutionUrl.TrimEnd('/')}/message/sendText/{evolutionInstance}", content);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Failed to send WhatsApp notification for tracking event");
-                    }
-                });
+                var msg = $"{emoji} *{label} - TurnosPro*\n\n" +
+                          $"Nombre: {name}\n" +
+                          $"Email: {email}\n" +
+                          $"Tel: {reqPhone}\n" +
+                          $"Campa\u00f1a: {campaign}\n" +
+                          $"Fuente: {source}\n" +
+                          $"Origen: {origin}\n" +
+                          $"Dispositivo: {device}\n" +
+                          $"Hora: {DateTime.UtcNow.AddHours(-3):HH:mm} hs";
+                QueueAdminWhatsApp(adminPhone, msg, request.EventType);
             }
 
             // Auto follow-up based on configurable settings
