@@ -818,7 +818,7 @@ namespace BookingPro.API.Data
         public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             var tenantId = GetCurrentTenantId();
-            
+
             // Asignar TenantId a nuevas entidades
             foreach (var entry in ChangeTracker.Entries<ITenantEntity>())
             {
@@ -827,14 +827,16 @@ namespace BookingPro.API.Data
                     entry.Entity.TenantId = tenantId;
                 }
             }
-            
+
+            NormalizeUserEmails();
+
             return await base.SaveChangesAsync(cancellationToken);
         }
-        
+
         public override int SaveChanges()
         {
             var tenantId = GetCurrentTenantId();
-            
+
             // Asignar TenantId a nuevas entidades
             foreach (var entry in ChangeTracker.Entries<ITenantEntity>())
             {
@@ -843,8 +845,30 @@ namespace BookingPro.API.Data
                     entry.Entity.TenantId = tenantId;
                 }
             }
-            
+
+            NormalizeUserEmails();
+
             return base.SaveChanges();
+        }
+
+        // Normaliza el email de los usuarios (trim + minúsculas) de forma centralizada
+        // en cada guardado, para que el login (que compara case-insensitive) siempre
+        // matchee. Evita depender de que cada uno de los ~11 puntos que crean usuarios
+        // (registro, bot, invitaciones, alta desde el panel, etc.) se acuerde de
+        // normalizar. El super admin usa igualmente un email en minúsculas.
+        private void NormalizeUserEmails()
+        {
+            foreach (var entry in ChangeTracker.Entries<User>())
+            {
+                if (entry.State != EntityState.Added && entry.State != EntityState.Modified)
+                    continue;
+
+                var email = entry.Entity.Email;
+                if (!string.IsNullOrWhiteSpace(email))
+                {
+                    entry.Entity.Email = email.Trim().ToLowerInvariant();
+                }
+            }
         }
     }
 }
