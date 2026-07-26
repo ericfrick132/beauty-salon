@@ -179,6 +179,29 @@ namespace BookingPro.API.Controllers
             return NoContent();
         }
 
+        // Borra (soft-delete) todos los servicios activos del tenant de una sola vez.
+        // Pensado para limpiar rápidamente los servicios cargados por defecto al crear
+        // el tenant. Igual que el borrado individual, marca IsActive = false (no destruye
+        // el historial de reservas asociado).
+        [HttpDelete("all")]
+        public async Task<IActionResult> DeleteAllServices()
+        {
+            var tenantId = _tenantProvider.GetCurrentTenantId();
+
+            var services = await _context.Services
+                .Where(s => s.TenantId == tenantId && s.IsActive)
+                .ToListAsync();
+
+            foreach (var service in services)
+            {
+                service.IsActive = false;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { deleted = services.Count });
+        }
+
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteService(Guid id)
         {

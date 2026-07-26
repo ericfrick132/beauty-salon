@@ -33,6 +33,7 @@ import {
   Add,
   Edit,
   Delete,
+  DeleteSweep,
   AttachMoney,
   Schedule,
   Category,
@@ -96,6 +97,8 @@ const Services: React.FC = () => {
   const [errors, setErrors] = useState<any>({});
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [serviceToDelete, setServiceToDelete] = useState<Service | null>(null);
+  const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [newCategory, setNewCategory] = useState({ name: '', description: '' });
   const [categoryError, setCategoryError] = useState<string | null>(null);
@@ -290,6 +293,19 @@ const Services: React.FC = () => {
     }
   };
 
+  const handleDeleteAllServices = async () => {
+    setDeletingAll(true);
+    try {
+      await api.delete('/services/all');
+      await fetchServices();
+      setDeleteAllConfirmOpen(false);
+    } catch (error) {
+      console.error('Error deleting all services:', error);
+    } finally {
+      setDeletingAll(false);
+    }
+  };
+
   const filteredServices = services.filter(service => {
     const matchesSearch = service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           service.description.toLowerCase().includes(searchTerm.toLowerCase());
@@ -315,13 +331,25 @@ const Services: React.FC = () => {
               Gestionar Servicios
             </Typography>
           </Box>
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={() => handleOpenDialog()}
-          >
-            Nuevo Servicio
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
+            {services.length > 0 && (
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<DeleteSweep />}
+                onClick={() => setDeleteAllConfirmOpen(true)}
+              >
+                Borrar todos
+              </Button>
+            )}
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={() => handleOpenDialog()}
+            >
+              Nuevo Servicio
+            </Button>
+          </Box>
         </Box>
 
         <Paper sx={{ p: 3, mb: 3 }}>
@@ -729,6 +757,32 @@ const Services: React.FC = () => {
             <Button onClick={() => setDeleteConfirmOpen(false)}>Cancelar</Button>
             <Button onClick={handleDeleteService} color="error" variant="contained">
               Eliminar
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Dialog de confirmación para borrar todos los servicios */}
+        <Dialog open={deleteAllConfirmOpen} onClose={() => !deletingAll && setDeleteAllConfirmOpen(false)}>
+          <DialogTitle>Borrar todos los servicios</DialogTitle>
+          <DialogContent>
+            <Typography>
+              ¿Estás seguro que querés borrar <strong>todos los servicios</strong>
+              {services.length > 0 ? ` (${services.length})` : ''}? Esta acción no se
+              puede deshacer y tendrás que volver a cargarlos manualmente.
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setDeleteAllConfirmOpen(false)} disabled={deletingAll}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleDeleteAllServices}
+              color="error"
+              variant="contained"
+              startIcon={<DeleteSweep />}
+              disabled={deletingAll}
+            >
+              {deletingAll ? 'Borrando...' : 'Borrar todos'}
             </Button>
           </DialogActions>
         </Dialog>
