@@ -55,25 +55,22 @@ namespace BookingPro.API.Services
                 changed = true;
             }
 
-            if (!await _context.FeatureAddons.AnyAsync(a => a.Code == FeatureCodes.AiAgent))
+            // El Agente IA se discontinuó como producto: ya no se ofrece ni se puede
+            // comprar. Si quedó sembrado de antes, lo desactivamos para que no aparezca
+            // en el catálogo (GetTenantAddonsAsync filtra por IsActive). No se borra el
+            // registro para no romper a quien ya lo tuviera activo.
+            var aiAgent = await _context.FeatureAddons
+                .FirstOrDefaultAsync(a => a.Code == FeatureCodes.AiAgent);
+            if (aiAgent != null && aiAgent.IsActive)
             {
-                _context.FeatureAddons.Add(new FeatureAddon
-                {
-                    Code = FeatureCodes.AiAgent,
-                    Name = "Agente IA de WhatsApp",
-                    Description = "Asistente con IA que atiende a tus clientes por WhatsApp desde tu número: responde servicios, precios y disponibilidad y RESERVA turnos solo, las 24 horas.",
-                    MonthlyPrice = _configuration.GetValue("FeatureAddons:AiAgentMonthlyPrice", 20000m),
-                    Currency = "ARS",
-                    IsActive = true,
-                    DisplayOrder = 2
-                });
+                aiAgent.IsActive = false;
                 changed = true;
             }
 
             if (changed)
             {
                 await _context.SaveChangesAsync();
-                _logger.LogInformation("Feature addons seed ensured (confirmation_bot, ai_agent)");
+                _logger.LogInformation("Feature addons seed ensured (confirmation_bot activo; ai_agent desactivado)");
             }
         }
 

@@ -594,23 +594,50 @@ namespace BookingPro.API.Controllers
             return null;
         }
 
+        // Interpreta la respuesta del cliente al bot de confirmación.
+        // Reglas (sin IA, matcheo determinístico):
+        //  - Se normaliza: minúsculas, sin acentos, sin signos al final.
+        //  - CANCELAR se evalúa PRIMERO, para que frases como "no puedo confirmar"
+        //    cancelen en vez de confirmar.
+        //  - Devuelve "confirm", "cancel" o null (no entendido → se re-pregunta).
         private static string? ParseConfirmationIntent(string text)
         {
-            var normalized = text.Trim().ToLowerInvariant()
-                .Replace("í", "i").Replace("é", "e").Replace("á", "a").Replace("ó", "o").Replace("ú", "u")
-                .TrimEnd('.', '!', '?', ' ');
+            if (string.IsNullOrWhiteSpace(text)) return null;
 
-            // Cancelación primero: "no puedo confirmar" debe cancelar, no confirmar
-            if (normalized == "2" || normalized == "no" ||
-                normalized.Contains("cancel") || normalized.Contains("no puedo") ||
-                normalized.Contains("no voy") || normalized.Contains("no llego"))
+            var normalized = text.Trim().ToLowerInvariant()
+                .Replace("í", "i").Replace("é", "e").Replace("á", "a").Replace("ó", "o").Replace("ú", "u").Replace("ü", "u")
+                .TrimEnd('.', '!', '?', ',', ' ');
+
+            // 1) CANCELAR — número 2, negaciones y frases de "no puedo / reprogramar"
+            string[] cancelExact = { "2", "no", "nop", "nope", "cancelar", "cancelo", "cancela" };
+            string[] cancelContains =
+            {
+                "cancel", "no puedo", "no voy", "no llego", "no podre", "no asisto",
+                "no me queda", "no la voy a poder", "reprogram", "posponer",
+                "otro dia", "otra fecha", "mas adelante"
+            };
+            if (Array.Exists(cancelExact, o => normalized == o)
+                || Array.Exists(cancelContains, o => normalized.Contains(o))
+                || text.Contains("❌") || text.Contains("👎"))
             {
                 return "cancel";
             }
 
-            if (normalized == "1" || normalized == "si" || normalized == "ok" ||
-                normalized == "dale" || normalized == "sip" ||
-                normalized.Contains("confirm") || normalized.StartsWith("si,") || normalized.StartsWith("si "))
+            // 2) CONFIRMAR — número 1, afirmaciones y frases de "ahí voy / cuenten conmigo"
+            string[] confirmExact =
+            {
+                "1", "si", "sii", "siii", "sip", "sisi", "ok", "oka", "okey", "okis",
+                "dale", "listo", "perfecto", "confirmo", "confirmado", "va", "voy",
+                "asisto", "obvio", "claro", "genial", "buenisimo"
+            };
+            string[] confirmContains =
+            {
+                "confirm", "ahi voy", "ahi estare", "ahi estoy", "voy a ir", "si voy",
+                "cuenten conmigo", "alli estare", "nos vemos", "de una"
+            };
+            if (Array.Exists(confirmExact, o => normalized == o)
+                || Array.Exists(confirmContains, o => normalized.Contains(o))
+                || text.Contains("✅") || text.Contains("👍"))
             {
                 return "confirm";
             }

@@ -383,6 +383,34 @@ const ConfirmationBot: React.FC = () => {
                 <Alert icon={<CheckCircle fontSize="inherit" />} severity="success" sx={{ mt: 2 }}>
                   El turno queda confirmado en tu agenda, sin que muevas un dedo.
                 </Alert>
+
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, my: 2 }}>
+                  <Box sx={{ flex: 1, height: '1px', bgcolor: 'rgba(0,0,0,0.15)' }} />
+                  <Typography variant="caption" sx={{ color: '#54656f', fontWeight: 600 }}>
+                    o si no puede venir
+                  </Typography>
+                  <Box sx={{ flex: 1, height: '1px', bgcolor: 'rgba(0,0,0,0.15)' }} />
+                </Box>
+
+                <ChatBubble from="client">2</ChatBubble>
+                <ChatBubble from="bot">
+                  Listo Juan, cancelamos tu turno del viernes a las 15:30. ¡Te esperamos la próxima! 🙌
+                </ChatBubble>
+                <Alert icon={<EventBusy fontSize="inherit" />} severity="info" sx={{ mt: 2 }}>
+                  El horario se libera solo y queda disponible para otro cliente.
+                </Alert>
+
+                <Box sx={{ mt: 2.5, p: 1.5, borderRadius: 2, bgcolor: 'rgba(0,0,0,0.04)' }}>
+                  <Typography variant="caption" sx={{ color: '#111b21', display: 'block', fontWeight: 700, mb: 0.5 }}>
+                    No hace falta que respondan exacto:
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#54656f', display: 'block' }}>
+                    ✅ Confirman con <strong>1</strong>, "dale", "listo", "confirmo", "ahí voy"…
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#54656f', display: 'block' }}>
+                    ❌ Cancelan con <strong>2</strong>, "no puedo", "cancelar", "reprogramar"…
+                  </Typography>
+                </Box>
               </CardContent>
             </Card>
           </Grid>
