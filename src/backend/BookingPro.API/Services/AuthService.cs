@@ -224,8 +224,14 @@ namespace BookingPro.API.Services
 
         public async Task<User?> GetUserByEmailAsync(string email, Guid tenantId)
         {
+            // Normalizar el email (trim + minúsculas) para que el login sea
+            // case-insensitive, igual que el reset del super admin, el login con
+            // Google y el forgot-password. Sin esto, un email guardado con distinta
+            // capitalización (p. ej. al crear el tenant desde el panel) nunca matchea
+            // y el usuario ve "Credenciales inválidas" aunque la contraseña sea correcta.
+            var normalizedEmail = (email ?? string.Empty).Trim().ToLower();
             return await _context.Users
-                .FirstOrDefaultAsync(u => u.Email == email && u.TenantId == tenantId);
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail && u.TenantId == tenantId);
         }
 
         public async Task<ServiceResult<string>> GeneratePasswordResetTokenAsync(string email)
