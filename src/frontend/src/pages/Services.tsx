@@ -21,7 +21,9 @@ import {
   FormControl,
   InputLabel,
   Select,
+  Menu,
   MenuItem,
+  ListItemIcon,
   Switch,
   FormControlLabel,
   Divider,
@@ -34,6 +36,7 @@ import {
   Edit,
   Delete,
   DeleteSweep,
+  MoreVert,
   AttachMoney,
   Schedule,
   Category,
@@ -99,6 +102,7 @@ const Services: React.FC = () => {
   const [serviceToDelete, setServiceToDelete] = useState<Service | null>(null);
   const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false);
   const [deletingAll, setDeletingAll] = useState(false);
+  const [moreMenuAnchor, setMoreMenuAnchor] = useState<null | HTMLElement>(null);
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [newCategory, setNewCategory] = useState({ name: '', description: '' });
   const [categoryError, setCategoryError] = useState<string | null>(null);
@@ -332,16 +336,32 @@ const Services: React.FC = () => {
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 1.5 }}>
-            {services.length > 0 && (
-              <Button
-                variant="outlined"
-                color="error"
-                startIcon={<DeleteSweep />}
-                onClick={() => setDeleteAllConfirmOpen(true)}
+            <Button
+              variant="outlined"
+              endIcon={<MoreVert />}
+              onClick={(e) => setMoreMenuAnchor(e.currentTarget)}
+            >
+              Más
+            </Button>
+            <Menu
+              anchorEl={moreMenuAnchor}
+              open={Boolean(moreMenuAnchor)}
+              onClose={() => setMoreMenuAnchor(null)}
+            >
+              <MenuItem
+                disabled={services.length === 0}
+                onClick={() => {
+                  setMoreMenuAnchor(null);
+                  setDeleteAllConfirmOpen(true);
+                }}
+                sx={{ color: 'error.main' }}
               >
-                Borrar todos
-              </Button>
-            )}
+                <ListItemIcon sx={{ color: 'error.main' }}>
+                  <DeleteSweep fontSize="small" />
+                </ListItemIcon>
+                Borrar todos los servicios
+              </MenuItem>
+            </Menu>
             <Button
               variant="contained"
               startIcon={<Add />}
