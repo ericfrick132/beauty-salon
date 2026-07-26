@@ -268,8 +268,9 @@ const ConfirmationBot: React.FC = () => {
             )}
           </Box>
           <Typography variant="body1" sx={{ maxWidth: 640, opacity: 0.95 }}>
-            Tu asistente automático por WhatsApp: le pide a cada cliente que confirme su turno antes de
-            la cita y, si no puede venir, lo cancela solo y te libera el horario. Todo desde tu propio número.
+            Cada turno que no se confirma es plata que podés perder. El bot le escribe solo a cada
+            cliente por WhatsApp, confirma a los que vienen y libera al instante el horario de los que no
+            &mdash; para que esa hora se la lleve otro. Todo automático y desde tu propio número.
           </Typography>
           {addon?.active && addon.paidUntil && (
             <Typography variant="body2" sx={{ mt: 1.5, opacity: 0.9 }}>
@@ -305,18 +306,18 @@ const ConfirmationBot: React.FC = () => {
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, mt: 2 }}>
                   <BenefitItem
                     icon={<PersonOff />}
-                    title="Menos ausencias"
-                    text="Los clientes que no van a venir cancelan con un mensaje, y vos recuperás ese horario para otro cliente."
+                    title="Menos ausencias, más facturación"
+                    text="El que no va a venir te avisa con un mensaje y ese horario queda libre para vender de nuevo. Menos sillas vacías a fin de mes."
                   />
                   <BenefitItem
                     icon={<Bolt />}
-                    title="Responde solo, al instante"
-                    text="El bot entiende la respuesta del cliente y confirma o cancela el turno en tu agenda automáticamente."
+                    title="Trabaja solo, al instante"
+                    text="Entiende la respuesta del cliente —aunque conteste 'dale' o 'no puedo'— y confirma o cancela el turno en tu agenda sin que hagas nada."
                   />
                   <BenefitItem
                     icon={<PhoneIphone />}
                     title="Desde tu propio número"
-                    text="Los mensajes salen del WhatsApp de tu negocio (el que escaneaste), no de un número desconocido."
+                    text="Los mensajes salen del WhatsApp de tu negocio, no de un número desconocido: tus clientes te reconocen y te responden más."
                   />
                   <BenefitItem
                     icon={<EventAvailable />}
@@ -344,7 +345,7 @@ const ConfirmationBot: React.FC = () => {
                       {priceLabel}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      Se activa automáticamente al acreditarse el pago. Sin permanencia.
+                      Con recuperar un solo turno por mes ya se paga. Se activa al acreditarse el pago. Sin permanencia.
                     </Typography>
                   </Box>
                   <Button
