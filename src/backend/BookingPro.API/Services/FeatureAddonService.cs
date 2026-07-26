@@ -30,18 +30,28 @@ namespace BookingPro.API.Services
         {
             var changed = false;
 
-            if (!await _context.FeatureAddons.AnyAsync(a => a.Code == FeatureCodes.ConfirmationBot))
+            var confirmationBotPrice = _configuration.GetValue("FeatureAddons:ConfirmationBotMonthlyPrice", 20000m);
+            var confirmationBot = await _context.FeatureAddons
+                .FirstOrDefaultAsync(a => a.Code == FeatureCodes.ConfirmationBot);
+            if (confirmationBot == null)
             {
                 _context.FeatureAddons.Add(new FeatureAddon
                 {
                     Code = FeatureCodes.ConfirmationBot,
                     Name = "Bot de Confirmación de Turnos",
                     Description = "Asistente automático por WhatsApp que pide confirmación de asistencia antes de cada turno y procesa las respuestas: confirma o cancela el turno solo, desde tu propio número.",
-                    MonthlyPrice = _configuration.GetValue("FeatureAddons:ConfirmationBotMonthlyPrice", 8000m),
+                    MonthlyPrice = confirmationBotPrice,
                     Currency = "ARS",
                     IsActive = true,
                     DisplayOrder = 1
                 });
+                changed = true;
+            }
+            else if (confirmationBot.MonthlyPrice != confirmationBotPrice)
+            {
+                // Mantener el precio sincronizado con la configuración (el seed original
+                // insertaba a 8000 y nunca lo actualizaba).
+                confirmationBot.MonthlyPrice = confirmationBotPrice;
                 changed = true;
             }
 

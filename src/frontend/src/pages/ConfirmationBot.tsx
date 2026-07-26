@@ -171,11 +171,17 @@ const ConfirmationBot: React.FC = () => {
       const result = await featureAddonsApi.purchase(CONFIRMATION_BOT_CODE);
       if (result?.paymentLink) {
         window.location.href = result.paymentLink;
-      } else {
-        setError('No se pudo generar el link de pago.');
+        return;
       }
+      // Respondió OK pero sin link de pago (típicamente MercadoPago de la
+      // plataforma no configurado). Mostramos el aviso y lo hacemos visible.
+      setError('No se pudo generar el link de pago. Volvé a intentar en unos minutos o escribinos si sigue igual.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e: any) {
-      setError(e?.response?.data?.error || 'Error generando el pago.');
+      setError(e?.response?.data?.error || 'No se pudo iniciar el pago. Intentá de nuevo.');
+      // El aviso de error se renderiza arriba de todo; si el usuario tocó el
+      // botón desde el fondo de la página, hay que llevarlo hasta el mensaje.
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setPurchasing(false);
     }
