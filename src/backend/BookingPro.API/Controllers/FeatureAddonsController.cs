@@ -24,7 +24,12 @@ namespace BookingPro.API.Controllers
 
         private Guid GetTenantId()
         {
-            var tid = User.FindFirst("tenantId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            // El JWT emite el tenant en el claim "tenant_id" (ver AuthService).
+            // OJO: no usar ClaimTypes.NameIdentifier como fallback porque ese claim es
+            // el ID del USUARIO, no del tenant: usarlo hacía que todo (compra del add-on,
+            // settings, stats) operara sobre un "tenant" inexistente y, p. ej., el botón
+            // "Activar con MercadoPago" fallara con "Tenant not found" sin redirigir a pagar.
+            var tid = User.FindFirst("tenant_id")?.Value ?? User.FindFirst("tenantId")?.Value;
             return Guid.TryParse(tid, out var id) ? id : Guid.Empty;
         }
 

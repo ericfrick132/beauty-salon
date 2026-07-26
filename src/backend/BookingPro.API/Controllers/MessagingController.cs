@@ -29,7 +29,11 @@ namespace BookingPro.API.Controllers
 
         private Guid GetTenantId()
         {
-            var tid = User.FindFirst("tenantId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            // El JWT emite el tenant en el claim "tenant_id" (ver AuthService).
+            // No usar ClaimTypes.NameIdentifier como fallback: ese claim es el ID del
+            // USUARIO, no del tenant, y hacía que settings/stats del bot operaran sobre
+            // un tenant equivocado.
+            var tid = User.FindFirst("tenant_id")?.Value ?? User.FindFirst("tenantId")?.Value;
             return Guid.TryParse(tid, out var id) ? id : Guid.Empty;
         }
 
