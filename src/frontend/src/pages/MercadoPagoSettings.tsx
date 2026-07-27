@@ -70,39 +70,28 @@ const MercadoPagoSettings: React.FC = () => {
   const [connectionStatus, setConnectionStatus] = useState<MercadoPagoConnectionStatus | null>(null);
   const [expirationMinutes, setExpirationMinutes] = useState(5);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
-  const [oauthPopup, setOauthPopup] = useState<Window | null>(null);
+  const [connecting, setConnecting] = useState(false);
   const [disconnectDialog, setDisconnectDialog] = useState(false);
-  const closeCheckRef = React.useRef<number | null>(null);
-  const resultReceivedRef = React.useRef(false);
 
   useEffect(() => {
-    fetchConfiguration();
-    
-    // Listen for OAuth popup messages
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data.type === 'mercadopago-oauth-result') {
-        resultReceivedRef.current = true;
-        if (closeCheckRef.current) {
-          window.clearInterval(closeCheckRef.current);
-          closeCheckRef.current = null;
-        }
-        if (oauthPopup) {
-          oauthPopup.close();
-          setOauthPopup(null);
-        }
-        
-        if (event.data.success) {
-          setMessage({ type: 'success', text: 'MercadoPago conectado exitosamente' });
-          fetchConfiguration();
-        } else {
-          setMessage({ type: 'error', text: event.data.error || 'Error conectando MercadoPago' });
-        }
-      }
-    };
+    // Volvemos de MercadoPago: el callback nos manda el resultado por query string.
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get('mp');
+    if (result === 'connected') {
+      setMessage({ type: 'success', text: 'MercadoPago conectado exitosamente' });
+    } else if (result === 'error') {
+      const reason = params.get('reason');
+      setMessage({ type: 'error', text: reason ? `No pudimos conectar MercadoPago: ${reason}` : 'No pudimos conectar MercadoPago' });
+    }
+    if (result) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('mp');
+      url.searchParams.delete('reason');
+      window.history.replaceState({}, '', url.toString());
+    }
 
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [oauthPopup]);
+    fetchConfiguration();
+  }, []);
 
   const fetchConfiguration = async () => {
     try {
@@ -177,39 +166,23 @@ const MercadoPagoSettings: React.FC = () => {
 
   const handleConnect = async () => {
     try {
+      setConnecting(true);
       const response = await api.post('/mercadopago/oauth/initiate', {
-        redirectUrl: window.location.origin + '/admin/mercadopago-settings'
+        redirectUrl: window.location.origin + '/mercadopago-settings'
       });
-      
+
       if (response.data.success) {
-        // Open OAuth popup
-        const popup = window.open(
-          response.data.authorizationUrl,
-          'mercadopago-oauth',
-          'width=500,height=600,scrollbars=yes,resizable=yes'
-        );
-        
-        setOauthPopup(popup);
-        
-        // Check if popup was closed manually
-        closeCheckRef.current = window.setInterval(() => {
-          if (popup?.closed) {
-            if (closeCheckRef.current) {
-              window.clearInterval(closeCheckRef.current);
-              closeCheckRef.current = null;
-            }
-            setOauthPopup(null);
-            if (!resultReceivedRef.current) {
-              setMessage({ type: 'info', text: 'Conexión cancelada por el usuario' });
-            }
-          }
-        }, 1000);
-        
+        // Redirección en la misma pestaña, no popup: así el usuario ve
+        // mercadopago.com.ar en su propia barra de direcciones. Una ventanita
+        // chica pidiendo credenciales de MP se lee como phishing.
+        window.location.assign(response.data.authorizationUrl);
       } else {
+        setConnecting(false);
         setMessage({ type: 'error', text: response.data.error || 'Error iniciando OAuth' });
       }
     } catch (error) {
       console.error('Error getting auth URL:', error);
+      setConnecting(false);
       setMessage({ type: 'error', text: 'Error al conectar con MercadoPago' });
     }
   };
@@ -436,10 +409,10 @@ const MercadoPagoSettings: React.FC = () => {
                     <strong>¿Cómo funciona?</strong>
                   </Typography>
                   <Typography variant="body2" component="ul" sx={{ mb: 0, pl: 2 }}>
-                    <li>Conexión segura sin compartir credenciales</li>
-                    <li>Tus clientes pagan directamente en tu cuenta de MercadoPago</li>
-                    <li>Ideal para pagos de señas y servicios completos</li>
-                    <li>Control total desde tu cuenta de MercadoPago</li>
+                    <li>Te llevamos al sitio oficial de Mercado Pago (<strong>mercadopago.com.ar</strong>) para que autorices</li>
+                    <li>Nunca vemos ni te pedimos tu usuario y contraseña de Mercado Pago</li>
+                    <li>Al terminar volvés solo a esta página</li>
+                    <li>Tus clientes pagan directamente en tu cuenta; podés desconectarla cuando quieras</li>
                   </Typography>
                 </Alert>
                 <Button
@@ -447,15 +420,20 @@ const MercadoPagoSettings: React.FC = () => {
                   size="large"
                   startIcon={<LinkIcon />}
                   onClick={handleConnect}
-                  sx={{ 
+                  disabled={connecting}
+                  sx={{
                     backgroundColor: '#009ee3',
                     '&:hover': {
                       backgroundColor: '#0084c7',
                     }
                   }}
                 >
-                  Conectar con MercadoPago
+                  {connecting ? 'Llevándote a Mercado Pago…' : 'Conectar con MercadoPago'}
                 </Button>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
+                  Vas a salir de esta página y continuar en mercadopago.com.ar. Verificá que el candado y ese
+                  dominio aparezcan en la barra de tu navegador antes de ingresar tus datos.
+                </Typography>
               </>
             )}
           </CardContent>

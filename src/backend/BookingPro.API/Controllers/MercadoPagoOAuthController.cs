@@ -351,16 +351,28 @@ namespace BookingPro.API.Controllers
 
         #region Private Methods
 
+        /// <summary>
+        /// Serializa un string como literal JS. Los mensajes de error de MP pueden traer
+        /// comillas y romperían el script si se interpolaran crudos.
+        /// </summary>
+        private static string JsString(string value) => System.Text.Json.JsonSerializer.Serialize(value);
+
         private string GenerateCallbackHtml(bool success, string message, string? error, string? tenantSubdomain = null)
         {
             var statusClass = success ? "success" : "error";
             var icon = success ? "✅" : "❌";
-            
+
             // Build redirect URL with tenant subdomain if available
-            var redirectUrl = !string.IsNullOrEmpty(tenantSubdomain) 
+            var basePath = !string.IsNullOrEmpty(tenantSubdomain)
                 ? $"https://{tenantSubdomain}.turnos-pro.com/mercadopago-settings"
                 : "/dashboard/settings/payments";
-            
+
+            // El resultado viaja en la query para que la página lo muestre al volver
+            // (el flujo es una redirección en la misma pestaña, no un popup).
+            var redirectUrl = success
+                ? $"{basePath}?mp=connected"
+                : $"{basePath}?mp=error{(string.IsNullOrEmpty(error) ? "" : $"&reason={Uri.EscapeDataString(error)}")}";
+
             return $@"
 <!DOCTYPE html>
 <html>
@@ -414,29 +426,30 @@ namespace BookingPro.API.Controllers
         <div class='icon'>{icon}</div>
         <div class='message {statusClass}'>{message}</div>
         {(error != null ? $"<div class='error'>Error: {error}</div>" : "")}
-        <div class='loading'>Esta ventana se cerrará automáticamente...</div>
+        <div class='loading' id='loading'>Te llevamos de vuelta...</div>
     </div>
-    
+
     <script>
-        // Send result to parent window if opened in popup
+        // Popup (flujo viejo): avisamos al opener y cerramos.
         if (window.opener) {{
+            document.getElementById('loading').textContent = 'Esta ventana se cerrará automáticamente...';
             window.opener.postMessage({{
                 type: 'mercadopago-oauth-result',
                 success: {success.ToString().ToLower()},
-                message: '{message}',
-                error: '{error ?? ""}',
-                tenantSubdomain: '{tenantSubdomain ?? ""}',
-                redirectUrl: '{redirectUrl}'
+                message: {JsString(message)},
+                error: {JsString(error ?? "")},
+                tenantSubdomain: {JsString(tenantSubdomain ?? "")},
+                redirectUrl: {JsString(redirectUrl)}
             }}, '*');
-            
+
             setTimeout(() => {{
                 window.close();
             }}, 2000);
         }} else {{
-            // If not in popup, redirect to app after 3 seconds
+            // Misma pestaña: volvemos enseguida, el resultado va en la query string.
             setTimeout(() => {{
-                window.location.href = '{redirectUrl}';
-            }}, 3000);
+                window.location.replace({JsString(redirectUrl)});
+            }}, 1200);
         }}
     </script>
 </body>
