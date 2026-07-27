@@ -76,7 +76,7 @@ import {
 } from '../utils/themeUtils';
 import { startOnboardingTour } from '../tours/onboarding';
 import TemplateSelectionModal from '../components/TemplateSelectionModal';
-import { templatesApi, featureAddonsApi, messagingApi, FeatureAddonStatus } from '../services/api';
+import api, { templatesApi, featureAddonsApi, messagingApi, FeatureAddonStatus } from '../services/api';
 
 const Dashboard: React.FC = () => {
   const { config, getTerm } = useTenant();
@@ -95,6 +95,7 @@ const Dashboard: React.FC = () => {
   const [confirmationBotAddon, setConfirmationBotAddon] = useState<FeatureAddonStatus | null>(null);
   const [confirmationBotStats, setConfirmationBotStats] = useState<any>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [mpActive, setMpActive] = useState<boolean | null>(null);
   const bookingShareUrl = `${window.location.origin}/book`;
   const handleCopyBookingLink = async () => {
     try {
@@ -134,6 +135,21 @@ const Dashboard: React.FC = () => {
       }
     };
     loadConfirmationBot();
+  }, [canSeeAdmin]);
+
+  // ¿MercadoPago conectado? Se usa para avisar si hay servicios con seña pero
+  // sin forma de cobrarla.
+  useEffect(() => {
+    if (!canSeeAdmin) return;
+    const loadMpStatus = async () => {
+      try {
+        const res = await api.get('/mercadopago/configuration');
+        setMpActive(!!res.data?.isActive);
+      } catch {
+        setMpActive(null); // ante la duda, no molestamos con el aviso
+      }
+    };
+    loadMpStatus();
   }, [canSeeAdmin]);
 
   // Check if tenant has vertical assigned (show template picker if not)
@@ -394,6 +410,23 @@ const Dashboard: React.FC = () => {
 
   return (
     <Box>
+        {/* Aviso: hay servicios con seña pero MercadoPago no está conectado */}
+        {canSeeAdmin && mpActive === false && services.some((s: any) => s.requiresDeposit) && (
+          <Alert
+            severity="warning"
+            icon={<Warning />}
+            action={
+              <Button color="inherit" size="small" onClick={() => navigate('/mercadopago-settings')}>
+                Conectar
+              </Button>
+            }
+            sx={{ mb: 3 }}
+          >
+            Tenés servicios con <strong>seña</strong> configurada, pero MercadoPago no está conectado.
+            Conectá tu cuenta para poder cobrar las señas — hasta entonces esos turnos se confirman sin cobro.
+          </Alert>
+        )}
+
         {/* Welcome Section */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}

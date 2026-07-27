@@ -24,8 +24,11 @@ namespace BookingPro.API.Controllers
 
         private string GetTenantId()
         {
-            return User.FindFirst("tenantId")?.Value ?? 
-                   User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? 
+            // El JWT emite el tenant en "tenant_id" (ver AuthService). NO usar
+            // NameIdentifier como fallback: es el ID del usuario, no del tenant, y hacía
+            // que la config/estado de MercadoPago se resolviera sobre un tenant equivocado.
+            return User.FindFirst("tenant_id")?.Value ??
+                   User.FindFirst("tenantId")?.Value ??
                    throw new UnauthorizedAccessException("TenantId not found in claims");
         }
 
