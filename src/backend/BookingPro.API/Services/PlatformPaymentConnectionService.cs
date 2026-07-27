@@ -33,7 +33,7 @@ namespace BookingPro.API.Services
         bool ValidatePlatformState(string? state);
         string GetMercadoPagoRedirectUri(string? baseUrl = null);
         string BuildMercadoPagoAuthorizationUrl(string state, string? baseUrl = null);
-        Task<PlatformPaymentConnection> HandleMercadoPagoCallbackAsync(string code, string? baseUrl = null);
+        Task<PlatformPaymentConnection> HandleMercadoPagoCallbackAsync(string code, string state, string? baseUrl = null);
         Task<PlatformPaymentConnection> SaveManualMercadoPagoTokenAsync(string accessToken, string? publicKey);
         Task<PlatformAccountInfo?> FetchMercadoPagoAccountAsync(string accessToken);
         Task DisconnectAsync(string providerCode);
@@ -166,12 +166,40 @@ namespace BookingPro.API.Services
             return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(expected, actual);
         }
 
+        private static string? IssuedFromState(string? state)
+        {
+            if (string.IsNullOrEmpty(state) || !state.StartsWith(IPlatformPaymentConnectionService.PlatformStatePrefix, StringComparison.Ordinal))
+                return null;
+            var payload = state.Substring(IPlatformPaymentConnectionService.PlatformStatePrefix.Length);
+            var separator = payload.IndexOf('_');
+            return separator <= 0 ? null : payload.Substring(0, separator);
+        }
+
+        /// <summary>
+        /// MercadoPago exige PKCE. Derivamos el verifier del state firmado en vez de
+        /// guardarlo: el server lo puede recalcular en el callback sin tabla ni sesión,
+        /// y nunca sale del backend.
+        /// </summary>
+        private (string Verifier, string Challenge) DerivePkce(string issued)
+        {
+            var key = _configuration["Jwt:Key"] ?? "platform-oauth-state";
+            using var hmac = new System.Security.Cryptography.HMACSHA256(System.Text.Encoding.UTF8.GetBytes(key));
+            var verifier = Base64Url(hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes($"platform-mp-pkce:{issued}")));
+
+            using var sha256 = System.Security.Cryptography.SHA256.Create();
+            var challenge = Base64Url(sha256.ComputeHash(System.Text.Encoding.ASCII.GetBytes(verifier)));
+
+            return (verifier, challenge);
+        }
+
+        private static string Base64Url(byte[] bytes)
+            => Convert.ToBase64String(bytes).Replace("+", "-").Replace("/", "_").TrimEnd('=');
+
         private string SignState(string issued)
         {
             var key = _configuration["Jwt:Key"] ?? "platform-oauth-state";
             using var hmac = new System.Security.Cryptography.HMACSHA256(System.Text.Encoding.UTF8.GetBytes(key));
-            var hash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes($"platform-mp-oauth:{issued}"));
-            return Convert.ToBase64String(hash).Replace("+", "-").Replace("/", "_").TrimEnd('=');
+            return Base64Url(hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes($"platform-mp-oauth:{issued}")));
         }
 
         /// <summary>
@@ -192,18 +220,25 @@ namespace BookingPro.API.Services
         {
             var clientId = _configuration["MercadoPago:ClientId"] ?? string.Empty;
             var redirectUri = GetMercadoPagoRedirectUri(baseUrl);
+            var issued = IssuedFromState(state) ?? throw new InvalidOperationException("State de plataforma inválido");
+            var (_, challenge) = DerivePkce(issued);
+
             return $"https://auth.mercadopago.com.ar/authorization" +
                    $"?client_id={Uri.EscapeDataString(clientId)}" +
                    $"&response_type=code&platform_id=mp" +
                    $"&state={Uri.EscapeDataString(state)}" +
-                   $"&redirect_uri={Uri.EscapeDataString(redirectUri)}";
+                   $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
+                   $"&code_challenge={Uri.EscapeDataString(challenge)}" +
+                   $"&code_challenge_method=S256";
         }
 
-        public async Task<PlatformPaymentConnection> HandleMercadoPagoCallbackAsync(string code, string? baseUrl = null)
+        public async Task<PlatformPaymentConnection> HandleMercadoPagoCallbackAsync(string code, string state, string? baseUrl = null)
         {
             var clientId = _configuration["MercadoPago:ClientId"] ?? throw new InvalidOperationException("MercadoPago:ClientId not configured");
             var clientSecret = _configuration["MercadoPago:ClientSecret"] ?? throw new InvalidOperationException("MercadoPago:ClientSecret not configured");
             var redirectUri = GetMercadoPagoRedirectUri(baseUrl);
+            var issued = IssuedFromState(state) ?? throw new InvalidOperationException("State de plataforma inválido");
+            var (verifier, _) = DerivePkce(issued);
 
             var form = new FormUrlEncodedContent(new[]
             {
@@ -212,6 +247,7 @@ namespace BookingPro.API.Services
                 new KeyValuePair<string, string>("client_secret", clientSecret),
                 new KeyValuePair<string, string>("code", code),
                 new KeyValuePair<string, string>("redirect_uri", redirectUri),
+                new KeyValuePair<string, string>("code_verifier", verifier),
             });
 
             var response = await _httpClient.PostAsync("https://api.mercadopago.com/oauth/token", form);

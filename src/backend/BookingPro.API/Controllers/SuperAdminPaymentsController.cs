@@ -105,7 +105,7 @@ namespace BookingPro.API.Controllers
 
             try
             {
-                await _connectionService.HandleMercadoPagoCallbackAsync(code, RequestBaseUrl());
+                await _connectionService.HandleMercadoPagoCallbackAsync(code, state!, RequestBaseUrl());
                 return Redirect(successRedirect);
             }
             catch (Exception ex)

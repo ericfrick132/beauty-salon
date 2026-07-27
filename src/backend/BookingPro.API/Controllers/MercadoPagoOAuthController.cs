@@ -162,7 +162,7 @@ namespace BookingPro.API.Controllers
 
             try
             {
-                var conn = await _platformConnections.HandleMercadoPagoCallbackAsync(code, RequestBaseUrl());
+                var conn = await _platformConnections.HandleMercadoPagoCallbackAsync(code, state, RequestBaseUrl());
                 _logger.LogInformation("Platform MercadoPago account linked: {Account}", conn.AccountEmail ?? conn.ExternalAccountId);
                 return Redirect(successRedirect);
             }
