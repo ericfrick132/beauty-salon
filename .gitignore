@@ -101,6 +101,11 @@ public
 !src/marketing-next/public/
 !src/marketing-next/public/**
 
+# Allow the CRA static assets (el `public` de arriba se los tragaba y el logo de
+# MercadoPago nunca llegaba a la imagen deployada: 404 en prod)
+!src/frontend/public/
+!src/frontend/public/**
+
 # Allow tenant-facing public pages (source code, not build assets)
 !src/frontend/src/pages/public/
 !src/frontend/src/pages/public/**
