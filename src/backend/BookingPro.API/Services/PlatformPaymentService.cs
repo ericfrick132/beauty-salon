@@ -20,19 +20,22 @@ namespace BookingPro.API.Services
         private readonly IConfiguration _configuration;
         private readonly HttpClient _httpClient;
         private readonly IFeatureAddonService _featureAddonService;
+        private readonly IPlatformPaymentConnectionService _platformConnections;
 
         public PlatformPaymentService(
             ApplicationDbContext context,
             ILogger<PlatformPaymentService> logger,
             IConfiguration configuration,
             IHttpClientFactory httpClientFactory,
-            IFeatureAddonService featureAddonService)
+            IFeatureAddonService featureAddonService,
+            IPlatformPaymentConnectionService platformConnections)
         {
             _context = context;
             _logger = logger;
             _configuration = configuration;
             _httpClient = httpClientFactory.CreateClient();
             _featureAddonService = featureAddonService;
+            _platformConnections = platformConnections;
         }
 
         public async Task<ServiceResult<PurchaseMessagePackageResponseDto>> CreateMessagePackagePurchaseAsync(Guid tenantId, Guid packageId)
@@ -452,7 +455,11 @@ namespace BookingPro.API.Services
         {
             try
             {
-                // Deactivate any existing configurations
+                // Guardamos en la misma conexión que usa super admin → Cobros para no
+                // tener dos lugares donde vive la cuenta que cobra.
+                await _platformConnections.SaveManualMercadoPagoTokenAsync(accessToken, null);
+
+                // Desactivamos la config legacy para que no quede un token viejo compitiendo.
                 var existingConfigs = await _context.PlatformMercadoPagoConfigurations
                     .Where(c => c.IsActive)
                     .ToListAsync();
@@ -463,22 +470,15 @@ namespace BookingPro.API.Services
                     config.DisconnectedAt = DateTime.UtcNow;
                     config.UpdatedAt = DateTime.UtcNow;
                 }
-
-                // Create new configuration
-                var newConfig = new PlatformMercadoPagoConfiguration
-                {
-                    AccessToken = accessToken,
-                    RefreshToken = refreshToken,
-                    IsSandbox = isSandbox,
-                    IsActive = true,
-                    ConnectedAt = DateTime.UtcNow
-                };
-
-                _context.PlatformMercadoPagoConfigurations.Add(newConfig);
                 await _context.SaveChangesAsync();
 
                 _logger.LogInformation("Platform MercadoPago configuration updated successfully");
                 return ServiceResult<bool>.Ok(true);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "MercadoPago rejected the platform access token");
+                return ServiceResult<bool>.Fail(ex.Message);
             }
             catch (Exception ex)
             {
@@ -694,10 +694,26 @@ namespace BookingPro.API.Services
 
         #region Private Methods
 
+        /// <summary>
+        /// Cuenta de cobro de la plataforma. La fuente es la conexión que se arma desde
+        /// super admin → Cobros; el servicio cae solo a la tabla legacy y a appsettings.
+        /// </summary>
         private async Task<PlatformMercadoPagoConfiguration?> GetActivePlatformConfigAsync()
         {
-            return await _context.PlatformMercadoPagoConfigurations
-                .FirstOrDefaultAsync(c => c.IsActive);
+            var accessToken = await _platformConnections.GetAccessTokenAsync("mercadopago");
+            if (string.IsNullOrWhiteSpace(accessToken)) return null;
+
+            var conn = await _platformConnections.GetActiveAsync("mercadopago");
+            return new PlatformMercadoPagoConfiguration
+            {
+                AccessToken = accessToken,
+                RefreshToken = conn?.RefreshToken,
+                PublicKey = conn?.PublicKey,
+                UserId = conn?.ExternalAccountId,
+                IsActive = true,
+                TokenExpiresAt = conn?.ExpiresAt,
+                ConnectedAt = conn?.ConnectedAt
+            };
         }
 
         private (DateTime startDate, DateTime endDate) CalculatePeriodDates(string period)

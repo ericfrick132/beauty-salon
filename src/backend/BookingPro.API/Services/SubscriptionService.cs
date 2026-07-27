@@ -26,6 +26,7 @@ namespace BookingPro.API.Services
         private readonly IEmailService _emailService;
         private readonly IAppleAppStoreService _appleService;
         private readonly ICouponService _couponService;
+        private readonly IPlatformPaymentConnectionService _platformConnections;
 
         public SubscriptionService(
             ApplicationDbContext context,
@@ -34,7 +35,8 @@ namespace BookingPro.API.Services
             IHttpClientFactory httpClientFactory,
             IEmailService emailService,
             IAppleAppStoreService appleService,
-            ICouponService couponService)
+            ICouponService couponService,
+            IPlatformPaymentConnectionService platformConnections)
         {
             _context = context;
             _configuration = configuration;
@@ -43,7 +45,15 @@ namespace BookingPro.API.Services
             _emailService = emailService;
             _appleService = appleService;
             _couponService = couponService;
+            _platformConnections = platformConnections;
         }
+
+        /// <summary>
+        /// Cuenta con la que la plataforma le cobra a los tenants. Se configura desde
+        /// super admin → Cobros; cae a appsettings solo como fallback legacy.
+        /// </summary>
+        private Task<string?> GetPlatformAccessTokenAsync()
+            => _platformConnections.GetAccessTokenAsync("mercadopago");
 
         private string BuildUpgradeUrl()
         {
@@ -160,7 +170,7 @@ namespace BookingPro.API.Services
                     if (existingPlan == null)
                     {
                         // Create plan in MercadoPago if we have credentials
-                        var accessToken = _configuration["MercadoPago:AccessToken"];
+                        var accessToken = await GetPlatformAccessTokenAsync();
                         if (!string.IsNullOrEmpty(accessToken))
                         {
                             try
@@ -273,7 +283,7 @@ namespace BookingPro.API.Services
                 };
 
                 // Create MercadoPago subscription if we have credentials
-                var accessToken = _configuration["MercadoPago:AccessToken"];
+                var accessToken = await GetPlatformAccessTokenAsync();
                 string? initPoint = null;
                 if (!string.IsNullOrEmpty(accessToken))
                 {
@@ -395,7 +405,7 @@ namespace BookingPro.API.Services
                     return ServiceResult<string>.Fail("Tenant no encontrado");
 
                 // Create MercadoPago payment preference for QR
-                var accessToken = _configuration["MercadoPago:AccessToken"];
+                var accessToken = await GetPlatformAccessTokenAsync();
                 if (string.IsNullOrEmpty(accessToken))
                     return ServiceResult<string>.Fail("MercadoPago no configurado");
 
@@ -654,7 +664,7 @@ namespace BookingPro.API.Services
         {
             try
             {
-                var accessToken = _configuration["MercadoPago:AccessToken"];
+                var accessToken = await GetPlatformAccessTokenAsync();
                 
                 _httpClient.DefaultRequestHeaders.Authorization = 
                     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
@@ -738,7 +748,7 @@ namespace BookingPro.API.Services
                 if (subscription == null)
                     return;
 
-                var accessToken = _configuration["MercadoPago:AccessToken"];
+                var accessToken = await GetPlatformAccessTokenAsync();
                 
                 _httpClient.DefaultRequestHeaders.Authorization = 
                     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
@@ -807,7 +817,7 @@ namespace BookingPro.API.Services
                 // Cancel in MercadoPago if we have the ID
                 if (!string.IsNullOrEmpty(subscription.MercadoPagoPreapprovalId))
                 {
-                    var accessToken = _configuration["MercadoPago:AccessToken"];
+                    var accessToken = await GetPlatformAccessTokenAsync();
                     
                     var updateRequest = new { status = "cancelled" };
                     var json = JsonSerializer.Serialize(updateRequest);
@@ -943,7 +953,7 @@ namespace BookingPro.API.Services
                     return ServiceResult<PaymentQRResultDto>.Fail("Tenant no encontrado");
 
                 // Create MercadoPago payment preference for QR
-                var accessToken = _configuration["MercadoPago:AccessToken"];
+                var accessToken = await GetPlatformAccessTokenAsync();
                 if (string.IsNullOrEmpty(accessToken))
                     return ServiceResult<PaymentQRResultDto>.Fail("MercadoPago no configurado");
 

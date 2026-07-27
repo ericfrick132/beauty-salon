@@ -80,17 +80,27 @@ namespace BookingPro.API.Services
 
         private const string MP_API_BASE = "https://api.mercadopago.com";
 
+        private readonly IPlatformPaymentConnectionService _platformConnections;
+
         public PreapprovalService(
             ApplicationDbContext context,
             IHttpClientFactory httpClientFactory,
             IConfiguration configuration,
-            ILogger<PreapprovalService> logger)
+            ILogger<PreapprovalService> logger,
+            IPlatformPaymentConnectionService platformConnections)
         {
             _context = context;
             _httpClientFactory = httpClientFactory;
             _configuration = configuration;
             _logger = logger;
+            _platformConnections = platformConnections;
         }
+
+        /// <summary>
+        /// Token de la cuenta que cobra, configurada en super admin → Cobros.
+        /// </summary>
+        private Task<string?> GetPlatformAccessTokenAsync()
+            => _platformConnections.GetAccessTokenAsync("mercadopago");
 
         public async Task<ServiceResult<TenantPreapproval>> CreatePreapprovalAsync(
             Guid tenantId,
@@ -124,11 +134,9 @@ namespace BookingPro.API.Services
                 }
 
                 // Obtener credenciales de la plataforma
-                var platformConfig = await _context.PlatformMercadoPagoConfigurations
-                    .Where(c => c.IsActive)
-                    .FirstOrDefaultAsync();
+                var platformAccessToken = await GetPlatformAccessTokenAsync();
 
-                if (platformConfig == null || string.IsNullOrEmpty(platformConfig.AccessToken))
+                if (string.IsNullOrWhiteSpace(platformAccessToken))
                 {
                     return ServiceResult<TenantPreapproval>.Fail("Platform MercadoPago not configured");
                 }
@@ -166,7 +174,7 @@ namespace BookingPro.API.Services
                 // Llamar a MercadoPago API
                 var client = _httpClientFactory.CreateClient();
                 client.DefaultRequestHeaders.Clear();
-                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {platformConfig.AccessToken}");
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {platformAccessToken}");
 
                 var jsonContent = JsonSerializer.Serialize(requestBody);
                 _logger.LogInformation("Creating preapproval for tenant {TenantId}: {Request}", tenantId, jsonContent);
@@ -227,18 +235,16 @@ namespace BookingPro.API.Services
         {
             try
             {
-                var platformConfig = await _context.PlatformMercadoPagoConfigurations
-                    .Where(c => c.IsActive)
-                    .FirstOrDefaultAsync();
+                var platformAccessToken = await GetPlatformAccessTokenAsync();
 
-                if (platformConfig == null)
+                if (string.IsNullOrWhiteSpace(platformAccessToken))
                 {
                     return ServiceResult<PreapprovalInfo>.Fail("Platform not configured");
                 }
 
                 var client = _httpClientFactory.CreateClient();
                 client.DefaultRequestHeaders.Clear();
-                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {platformConfig.AccessToken}");
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {platformAccessToken}");
 
                 var response = await client.GetAsync($"{MP_API_BASE}/preapproval/{preapprovalId}");
                 var responseBody = await response.Content.ReadAsStringAsync();
@@ -302,18 +308,16 @@ namespace BookingPro.API.Services
         {
             try
             {
-                var platformConfig = await _context.PlatformMercadoPagoConfigurations
-                    .Where(c => c.IsActive)
-                    .FirstOrDefaultAsync();
+                var platformAccessToken = await GetPlatformAccessTokenAsync();
 
-                if (platformConfig == null)
+                if (string.IsNullOrWhiteSpace(platformAccessToken))
                 {
                     return ServiceResult<bool>.Fail("Platform not configured");
                 }
 
                 var client = _httpClientFactory.CreateClient();
                 client.DefaultRequestHeaders.Clear();
-                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {platformConfig.AccessToken}");
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {platformAccessToken}");
 
                 var requestBody = new { status = newStatus };
                 var response = await client.PutAsync(
@@ -435,18 +439,16 @@ namespace BookingPro.API.Services
                 _logger.LogInformation("Processing authorized payment webhook: {Id}", authorizedPaymentId);
 
                 // Obtener info del pago desde MercadoPago
-                var platformConfig = await _context.PlatformMercadoPagoConfigurations
-                    .Where(c => c.IsActive)
-                    .FirstOrDefaultAsync();
+                var platformAccessToken = await GetPlatformAccessTokenAsync();
 
-                if (platformConfig == null)
+                if (string.IsNullOrWhiteSpace(platformAccessToken))
                 {
                     return ServiceResult<bool>.Fail("Platform not configured");
                 }
 
                 var client = _httpClientFactory.CreateClient();
                 client.DefaultRequestHeaders.Clear();
-                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {platformConfig.AccessToken}");
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {platformAccessToken}");
 
                 // Obtener info del authorized_payment
                 var response = await client.GetAsync($"{MP_API_BASE}/authorized_payments/{authorizedPaymentId}");

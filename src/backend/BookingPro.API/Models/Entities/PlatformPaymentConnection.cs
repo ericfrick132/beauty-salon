@@ -32,6 +32,13 @@ namespace BookingPro.API.Models.Entities
         [MaxLength(500)]
         public string? Scope { get; set; }
 
+        /// <summary>
+        /// "oauth" cuando se vinculó con el flujo OAuth de MP, "manual" cuando se pegó
+        /// un access token a mano desde el panel de super admin.
+        /// </summary>
+        [MaxLength(20)]
+        public string ConnectionMode { get; set; } = "oauth";
+
         public DateTime? ExpiresAt { get; set; }
         public bool IsActive { get; set; } = true;
         public DateTime ConnectedAt { get; set; } = DateTime.UtcNow;

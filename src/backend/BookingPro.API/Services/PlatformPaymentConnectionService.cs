@@ -5,17 +5,44 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BookingPro.API.Services
 {
+    /// <summary>
+    /// De dónde salió el token con el que la plataforma cobra hoy.
+    /// </summary>
+    public enum PlatformTokenSource
+    {
+        None,
+        OAuth,
+        Manual,
+        LegacyDatabase,
+        AppSettings
+    }
+
+    public record PlatformTokenResolution(string? AccessToken, PlatformTokenSource Source);
+
+    public record PlatformAccountInfo(string? Email, string? Nickname, string? UserId, string? SiteId);
+
     public interface IPlatformPaymentConnectionService
     {
+        /// <summary>Prefijo de state que marca un OAuth de la plataforma (vs. el de un tenant).</summary>
+        const string PlatformStatePrefix = "platform_";
+
         Task<PlatformPaymentConnection?> GetActiveAsync(string providerCode);
         Task<string?> GetAccessTokenAsync(string providerCode);
-        string BuildMercadoPagoAuthorizationUrl(string state);
-        Task<PlatformPaymentConnection> HandleMercadoPagoCallbackAsync(string code);
+        Task<PlatformTokenResolution> ResolveAccessTokenAsync(string providerCode);
+        string CreatePlatformState();
+        bool ValidatePlatformState(string? state);
+        string GetMercadoPagoRedirectUri(string? baseUrl = null);
+        string BuildMercadoPagoAuthorizationUrl(string state, string? baseUrl = null);
+        Task<PlatformPaymentConnection> HandleMercadoPagoCallbackAsync(string code, string? baseUrl = null);
+        Task<PlatformPaymentConnection> SaveManualMercadoPagoTokenAsync(string accessToken, string? publicKey);
+        Task<PlatformAccountInfo?> FetchMercadoPagoAccountAsync(string accessToken);
         Task DisconnectAsync(string providerCode);
     }
 
     public class PlatformPaymentConnectionService : IPlatformPaymentConnectionService
     {
+        private const string DefaultBaseUrl = "https://turnos-pro.com";
+
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;
         private readonly HttpClient _httpClient;
@@ -41,31 +68,130 @@ namespace BookingPro.API.Services
                 .FirstOrDefaultAsync();
 
         public async Task<string?> GetAccessTokenAsync(string providerCode)
+            => (await ResolveAccessTokenAsync(providerCode)).AccessToken;
+
+        /// <summary>
+        /// Orden de resolución: conexión del super admin (OAuth o token manual) →
+        /// tabla legacy platform_mercadopago_config → appsettings/env.
+        /// </summary>
+        public async Task<PlatformTokenResolution> ResolveAccessTokenAsync(string providerCode)
         {
             var conn = await GetActiveAsync(providerCode);
-            if (conn is null)
+            if (conn is not null)
             {
-                return providerCode switch
+                if (conn.ExpiresAt.HasValue && conn.ExpiresAt.Value < DateTime.UtcNow.AddMinutes(5))
                 {
-                    "mercadopago" => _configuration["MercadoPago:AccessToken"],
-                    "stripe" => _configuration["Stripe:SecretKey"],
-                    _ => null
-                };
+                    var refreshed = await TryRefreshAsync(conn);
+                    if (refreshed is not null)
+                        return new PlatformTokenResolution(refreshed.AccessToken, ModeToSource(refreshed.ConnectionMode));
+                }
+
+                return new PlatformTokenResolution(conn.AccessToken, ModeToSource(conn.ConnectionMode));
             }
 
-            if (conn.ExpiresAt.HasValue && conn.ExpiresAt.Value < DateTime.UtcNow.AddMinutes(5))
+            if (providerCode == "mercadopago")
             {
-                var refreshed = await TryRefreshAsync(conn);
-                if (refreshed is not null) return refreshed.AccessToken;
+                var legacy = await _context.PlatformMercadoPagoConfigurations
+                    .IgnoreQueryFilters()
+                    .Where(c => c.IsActive && c.AccessToken != "")
+                    .OrderByDescending(c => c.ConnectedAt)
+                    .FirstOrDefaultAsync();
+                if (legacy is not null)
+                    return new PlatformTokenResolution(legacy.AccessToken, PlatformTokenSource.LegacyDatabase);
             }
 
-            return conn.AccessToken;
+            var fromConfig = providerCode switch
+            {
+                "mercadopago" => _configuration["MercadoPago:AccessToken"],
+                "stripe" => _configuration["Stripe:SecretKey"],
+                _ => null
+            };
+
+            return string.IsNullOrWhiteSpace(fromConfig)
+                ? new PlatformTokenResolution(null, PlatformTokenSource.None)
+                : new PlatformTokenResolution(fromConfig, PlatformTokenSource.AppSettings);
         }
 
-        public string BuildMercadoPagoAuthorizationUrl(string state)
+        private static PlatformTokenSource ModeToSource(string? mode)
+            => string.Equals(mode, "manual", StringComparison.OrdinalIgnoreCase)
+                ? PlatformTokenSource.Manual
+                : PlatformTokenSource.OAuth;
+
+        /// <summary>
+        /// Base pública del backend. Preferimos la URL de la request (la app se sirve
+        /// bajo el mismo dominio que la API) porque BackendUrl no siempre está seteada.
+        /// </summary>
+        private string ResolveBaseUrl(string? baseUrl)
+        {
+            var candidate = baseUrl
+                ?? _configuration["BackendUrl"]
+                ?? _configuration["ApiUrl"];
+
+            if (string.IsNullOrWhiteSpace(candidate) || candidate.Contains("localhost"))
+                candidate = DefaultBaseUrl;
+
+            return candidate.TrimEnd('/');
+        }
+
+        /// <summary>
+        /// State firmado: el callback es anónimo, así que sin firma cualquiera podría
+        /// postear un code y desviar la cuenta que cobra. Se valida solo (sin tabla) para
+        /// que funcione con más de una instancia.
+        /// </summary>
+        public string CreatePlatformState()
+        {
+            var issued = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+            return $"{IPlatformPaymentConnectionService.PlatformStatePrefix}{issued}_{SignState(issued)}";
+        }
+
+        public bool ValidatePlatformState(string? state)
+        {
+            if (string.IsNullOrEmpty(state) || !state.StartsWith(IPlatformPaymentConnectionService.PlatformStatePrefix, StringComparison.Ordinal))
+                return false;
+
+            // La firma es base64url y puede traer '_', así que cortamos solo en el primer separador.
+            var payload = state.Substring(IPlatformPaymentConnectionService.PlatformStatePrefix.Length);
+            var separator = payload.IndexOf('_');
+            if (separator <= 0 || separator == payload.Length - 1) return false;
+
+            var issuedRaw = payload.Substring(0, separator);
+            var signature = payload.Substring(separator + 1);
+            if (!long.TryParse(issuedRaw, out var issued)) return false;
+
+            var age = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - issued;
+            if (age < -60 || age > 900) return false; // 15 minutos de ventana
+
+            var expected = System.Text.Encoding.UTF8.GetBytes(SignState(issuedRaw));
+            var actual = System.Text.Encoding.UTF8.GetBytes(signature);
+            return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(expected, actual);
+        }
+
+        private string SignState(string issued)
+        {
+            var key = _configuration["Jwt:Key"] ?? "platform-oauth-state";
+            using var hmac = new System.Security.Cryptography.HMACSHA256(System.Text.Encoding.UTF8.GetBytes(key));
+            var hash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes($"platform-mp-oauth:{issued}"));
+            return Convert.ToBase64String(hash).Replace("+", "-").Replace("/", "_").TrimEnd('=');
+        }
+
+        /// <summary>
+        /// MercadoPago solo acepta la redirect URI dada de alta en la aplicación, así que
+        /// reusamos la que ya está registrada (la del flujo por tenant) y distinguimos el
+        /// flujo de plataforma por el prefijo del state.
+        /// </summary>
+        public string GetMercadoPagoRedirectUri(string? baseUrl = null)
+        {
+            var configured = _configuration["MercadoPago:RedirectUri"];
+            if (!string.IsNullOrWhiteSpace(configured) && !configured.Contains("localhost"))
+                return configured.Trim();
+
+            return $"{ResolveBaseUrl(baseUrl)}/api/mercadopago/oauth/callback";
+        }
+
+        public string BuildMercadoPagoAuthorizationUrl(string state, string? baseUrl = null)
         {
             var clientId = _configuration["MercadoPago:ClientId"] ?? string.Empty;
-            var redirectUri = $"{(_configuration["BackendUrl"] ?? "").TrimEnd('/')}/api/super-admin/payments/mercadopago/callback";
+            var redirectUri = GetMercadoPagoRedirectUri(baseUrl);
             return $"https://auth.mercadopago.com.ar/authorization" +
                    $"?client_id={Uri.EscapeDataString(clientId)}" +
                    $"&response_type=code&platform_id=mp" +
@@ -73,11 +199,11 @@ namespace BookingPro.API.Services
                    $"&redirect_uri={Uri.EscapeDataString(redirectUri)}";
         }
 
-        public async Task<PlatformPaymentConnection> HandleMercadoPagoCallbackAsync(string code)
+        public async Task<PlatformPaymentConnection> HandleMercadoPagoCallbackAsync(string code, string? baseUrl = null)
         {
             var clientId = _configuration["MercadoPago:ClientId"] ?? throw new InvalidOperationException("MercadoPago:ClientId not configured");
             var clientSecret = _configuration["MercadoPago:ClientSecret"] ?? throw new InvalidOperationException("MercadoPago:ClientSecret not configured");
-            var redirectUri = $"{(_configuration["BackendUrl"] ?? "").TrimEnd('/')}/api/super-admin/payments/mercadopago/callback";
+            var redirectUri = GetMercadoPagoRedirectUri(baseUrl);
 
             var form = new FormUrlEncodedContent(new[]
             {
@@ -106,9 +232,88 @@ namespace BookingPro.API.Services
             var scope = token.TryGetValue("scope", out var sc) ? sc.GetString() : null;
             var expiresIn = token.TryGetValue("expires_in", out var ei) ? ei.GetInt32() : 15552000;
 
+            var account = await FetchMercadoPagoAccountAsync(accessToken);
+
+            return await SaveConnectionAsync(new PlatformPaymentConnection
+            {
+                ProviderCode = "mercadopago",
+                AccessToken = accessToken,
+                RefreshToken = refreshToken,
+                PublicKey = publicKey,
+                ExternalAccountId = userId ?? account?.UserId,
+                AccountEmail = account?.Email ?? account?.Nickname,
+                Scope = scope,
+                ConnectionMode = "oauth",
+                ExpiresAt = DateTime.UtcNow.AddSeconds(expiresIn),
+                IsActive = true
+            });
+        }
+
+        /// <summary>
+        /// Guarda un access token pegado a mano (el que aparece en el panel de
+        /// desarrolladores de MP). Sirve cuando todavía no hay redirect URI habilitada
+        /// para el flujo OAuth.
+        /// </summary>
+        public async Task<PlatformPaymentConnection> SaveManualMercadoPagoTokenAsync(string accessToken, string? publicKey)
+        {
+            if (string.IsNullOrWhiteSpace(accessToken))
+                throw new ArgumentException("El access token no puede estar vacío", nameof(accessToken));
+
+            accessToken = accessToken.Trim();
+
+            var account = await FetchMercadoPagoAccountAsync(accessToken)
+                ?? throw new InvalidOperationException("MercadoPago rechazó ese access token");
+
+            return await SaveConnectionAsync(new PlatformPaymentConnection
+            {
+                ProviderCode = "mercadopago",
+                AccessToken = accessToken,
+                PublicKey = string.IsNullOrWhiteSpace(publicKey) ? null : publicKey.Trim(),
+                ExternalAccountId = account.UserId,
+                AccountEmail = account.Email ?? account.Nickname,
+                ConnectionMode = "manual",
+                ExpiresAt = null,
+                IsActive = true
+            });
+        }
+
+        /// <summary>
+        /// Consulta /users/me para saber a qué cuenta pertenece el token (y de paso validarlo).
+        /// </summary>
+        public async Task<PlatformAccountInfo?> FetchMercadoPagoAccountAsync(string accessToken)
+        {
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.mercadopago.com/users/me");
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+                var response = await _httpClient.SendAsync(request);
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("MP /users/me returned {Status}", response.StatusCode);
+                    return null;
+                }
+
+                var json = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
+                    await response.Content.ReadAsStringAsync());
+                if (json is null) return null;
+
+                string? Str(string key) => json.TryGetValue(key, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+                string? Raw(string key) => json.TryGetValue(key, out var v) ? v.GetRawText().Trim('"') : null;
+
+                return new PlatformAccountInfo(Str("email"), Str("nickname"), Raw("id"), Str("site_id"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error querying MP /users/me");
+                return null;
+            }
+        }
+
+        private async Task<PlatformPaymentConnection> SaveConnectionAsync(PlatformPaymentConnection connection)
+        {
             var existing = await _context.PlatformPaymentConnections
                 .IgnoreQueryFilters()
-                .Where(c => c.ProviderCode == "mercadopago" && c.IsActive)
+                .Where(c => c.ProviderCode == connection.ProviderCode && c.IsActive)
                 .ToListAsync();
             foreach (var e in existing)
             {
@@ -117,20 +322,9 @@ namespace BookingPro.API.Services
                 e.UpdatedAt = DateTime.UtcNow;
             }
 
-            var conn = new PlatformPaymentConnection
-            {
-                ProviderCode = "mercadopago",
-                AccessToken = accessToken,
-                RefreshToken = refreshToken,
-                PublicKey = publicKey,
-                ExternalAccountId = userId,
-                Scope = scope,
-                ExpiresAt = DateTime.UtcNow.AddSeconds(expiresIn),
-                IsActive = true
-            };
-            _context.PlatformPaymentConnections.Add(conn);
+            _context.PlatformPaymentConnections.Add(connection);
             await _context.SaveChangesAsync();
-            return conn;
+            return connection;
         }
 
         private async Task<PlatformPaymentConnection?> TryRefreshAsync(PlatformPaymentConnection conn)

@@ -15,15 +15,18 @@ namespace BookingPro.API.Services
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;
         private readonly ILogger<FeatureAddonService> _logger;
+        private readonly IPlatformPaymentConnectionService _platformConnections;
 
         public FeatureAddonService(
             ApplicationDbContext context,
             IConfiguration configuration,
-            ILogger<FeatureAddonService> logger)
+            ILogger<FeatureAddonService> logger,
+            IPlatformPaymentConnectionService platformConnections)
         {
             _context = context;
             _configuration = configuration;
             _logger = logger;
+            _platformConnections = platformConnections;
         }
 
         public async Task EnsureSeedAsync()
@@ -137,9 +140,8 @@ namespace BookingPro.API.Services
         {
             try
             {
-                var platformConfig = await _context.PlatformMercadoPagoConfigurations
-                    .FirstOrDefaultAsync(c => c.IsActive);
-                if (platformConfig == null)
+                var platformAccessToken = await _platformConnections.GetAccessTokenAsync("mercadopago");
+                if (string.IsNullOrWhiteSpace(platformAccessToken))
                 {
                     return ServiceResult<PurchaseFeatureAddonResponseDto>.Fail("Platform MercadoPago not configured");
                 }
@@ -156,7 +158,7 @@ namespace BookingPro.API.Services
                     return ServiceResult<PurchaseFeatureAddonResponseDto>.Fail("Addon not found");
                 }
 
-                MercadoPagoConfig.AccessToken = platformConfig.AccessToken;
+                MercadoPagoConfig.AccessToken = platformAccessToken;
 
                 var externalRef = $"ADDON-{tenantId}-{code}-{DateTime.UtcNow:yyyyMMddHHmmss}";
                 var returnPath = code == FeatureCodes.AiAgent ? "agente-ia" : "confirmation-bot";

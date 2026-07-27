@@ -56,14 +56,16 @@ import {
   CardMembership,
   WhatsApp as WhatsAppIcon,
   TrendingUp as TrendIcon,
+  CreditCard,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import TenantsManagement from './TenantsManagement';
 import SuperAdminPlans from './SuperAdminPlans';
 import TrackingDashboard from './TrackingDashboard';
 import SuperAdminWhatsApp from './SuperAdminWhatsApp';
+import SuperAdminPayments from './admin/SuperAdminPayments';
 import { useNavigate } from 'react-router-dom';
-import { superAdminApi } from '../services/api';
+import api, { superAdminApi } from '../services/api';
 
 interface Tenant {
   id: string;
@@ -161,6 +163,9 @@ const SuperAdminDashboard: React.FC = () => {
     expiringTrials: 0
   });
 
+  // Cuenta con la que la plataforma le cobra a los tenants (tab Cobros).
+  const [mpStatus, setMpStatus] = useState<{ connected: boolean; canCharge: boolean; accountEmail?: string | null } | null>(null);
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -178,10 +183,21 @@ const SuperAdminDashboard: React.FC = () => {
       setLoading(true);
       await Promise.all([
         loadTenants(),
-        loadInvitations()
+        loadInvitations(),
+        loadPaymentStatus()
       ]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPaymentStatus = async () => {
+    try {
+      const response = await api.get('/super-admin/payments/providers');
+      const mp = (response.data || []).find((p: any) => p.code === 'mercadopago');
+      if (mp) setMpStatus({ connected: !!mp.connected, canCharge: !!mp.canCharge, accountEmail: mp.accountEmail });
+    } catch (error) {
+      console.error('Error loading payment status:', error);
     }
   };
 
@@ -308,6 +324,21 @@ const SuperAdminDashboard: React.FC = () => {
 
   const renderDashboard = () => (
     <Box sx={{ p: 3 }}>
+      {/* Sin cuenta de MercadoPago no hay forma de cobrarle a los negocios: lo avisamos arriba de todo */}
+      {mpStatus && !mpStatus.canCharge && (
+        <Alert
+          severity="error"
+          sx={{ mb: 3 }}
+          action={
+            <Button color="inherit" size="small" startIcon={<CreditCard />} onClick={() => setCurrentTab(6)}>
+              Configurar
+            </Button>
+          }
+        >
+          No hay cuenta de MercadoPago configurada: la plataforma <strong>no puede cobrarle a los negocios</strong>.
+        </Alert>
+      )}
+
       <Grid container spacing={3}>
         {/* Stats Cards */}
         <Grid item xs={12} md={6} lg={3}>
@@ -359,7 +390,7 @@ const SuperAdminDashboard: React.FC = () => {
         
         <Grid item xs={12} md={6} lg={3}>
           <Card>
-            <CardHeader 
+            <CardHeader
               title="Negocios Activos"
               subheader="Con pago real vigente"
             />
@@ -373,7 +404,30 @@ const SuperAdminDashboard: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-        
+
+        <Grid item xs={12} md={6} lg={3}>
+          <Card>
+            <CardHeader
+              title="Cobro a Negocios"
+              subheader="Cuenta de MercadoPago de la plataforma"
+            />
+            <CardContent>
+              <Chip
+                label={!mpStatus ? 'Cargando…' : mpStatus.connected ? 'Cuenta vinculada' : mpStatus.canCharge ? 'Token del servidor' : 'Sin configurar'}
+                color={!mpStatus ? 'default' : mpStatus.connected ? 'success' : mpStatus.canCharge ? 'warning' : 'error'}
+                size="small"
+                sx={{ mb: 1 }}
+              />
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                {mpStatus?.accountEmail || (mpStatus?.canCharge ? 'Configurada fuera del panel' : 'Nadie puede pagar la suscripción')}
+              </Typography>
+              <Button size="small" variant="outlined" startIcon={<CreditCard />} onClick={() => setCurrentTab(6)}>
+                Configurar cobros
+              </Button>
+            </CardContent>
+          </Card>
+        </Grid>
+
         {/* Activity Panel */}
         <Grid item xs={12}>
           <Card>
@@ -429,6 +483,14 @@ const SuperAdminDashboard: React.FC = () => {
                   size="large"
                 >
                   Gestionar Planes
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<CreditCard />}
+                  onClick={() => setCurrentTab(6)}
+                  size="large"
+                >
+                  Configurar Cobros (MercadoPago)
                 </Button>
                 <Button
                   variant="outlined"
@@ -608,6 +670,7 @@ const SuperAdminDashboard: React.FC = () => {
             <Tab icon={<People />} label="Negocios" />
             <Tab icon={<CardMembership />} label="Planes" />
             <Tab icon={<AttachMoney />} label="Facturación" />
+            <Tab icon={<CreditCard />} label="Cobros" />
             <Tab icon={<WhatsAppIcon />} label="WhatsApp" />
             <Tab icon={<TrendIcon />} label="Marketing" />
             <Tab icon={<Settings />} label="Configuración" />
@@ -652,19 +715,27 @@ const SuperAdminDashboard: React.FC = () => {
           </div>
 
           <div role="tabpanel" hidden={currentTab !== 6}>
-            {currentTab === 6 && <SuperAdminWhatsApp />}
+            {currentTab === 6 && (
+              <Box sx={{ p: 0 }}>
+                <SuperAdminPayments embedded />
+              </Box>
+            )}
           </div>
 
           <div role="tabpanel" hidden={currentTab !== 7}>
-            {currentTab === 7 && (
+            {currentTab === 7 && <SuperAdminWhatsApp />}
+          </div>
+
+          <div role="tabpanel" hidden={currentTab !== 8}>
+            {currentTab === 8 && (
               <Box sx={{ p: 0 }}>
                 <TrackingDashboard />
               </Box>
             )}
           </div>
 
-          <div role="tabpanel" hidden={currentTab !== 8}>
-            {currentTab === 8 && (
+          <div role="tabpanel" hidden={currentTab !== 9}>
+            {currentTab === 9 && (
               <Box sx={{ p: 3 }}>
                 <Typography variant="h5">Configuración</Typography>
                 <Typography color="text.secondary">Próximamente...</Typography>

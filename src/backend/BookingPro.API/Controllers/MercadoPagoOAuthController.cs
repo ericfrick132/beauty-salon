@@ -15,15 +15,21 @@ namespace BookingPro.API.Controllers
         private readonly IMercadoPagoOAuthService _oauthService;
         private readonly ILogger<MercadoPagoOAuthController> _logger;
         private readonly ApplicationDbContext _context;
+        private readonly BookingPro.API.Services.IPlatformPaymentConnectionService _platformConnections;
+        private readonly IConfiguration _configuration;
 
         public MercadoPagoOAuthController(
             IMercadoPagoOAuthService oauthService,
             ILogger<MercadoPagoOAuthController> logger,
-            ApplicationDbContext context)
+            ApplicationDbContext context,
+            BookingPro.API.Services.IPlatformPaymentConnectionService platformConnections,
+            IConfiguration configuration)
         {
             _oauthService = oauthService;
             _logger = logger;
             _context = context;
+            _platformConnections = platformConnections;
+            _configuration = configuration;
         }
 
         /// <summary>
@@ -67,10 +73,18 @@ namespace BookingPro.API.Controllers
         {
             try
             {
-                _logger.LogInformation("OAuth callback received - Code: {Code}, State: {State}, Error: {Error}", 
-                    code?.Substring(0, Math.Min(10, code?.Length ?? 0)) ?? "null", 
-                    state ?? "null", 
+                _logger.LogInformation("OAuth callback received - Code: {Code}, State: {State}, Error: {Error}",
+                    code?.Substring(0, Math.Min(10, code?.Length ?? 0)) ?? "null",
+                    state ?? "null",
                     error ?? "none");
+
+                // La cuenta de cobro de la plataforma comparte esta redirect URI (es la única
+                // dada de alta en MP); la reconocemos por el prefijo del state.
+                if (!string.IsNullOrEmpty(state) &&
+                    state.StartsWith(BookingPro.API.Services.IPlatformPaymentConnectionService.PlatformStatePrefix, StringComparison.Ordinal))
+                {
+                    return await HandlePlatformCallback(code, state, error, error_description);
+                }
 
                 // Extract tenant ID from state to get subdomain
                 string? tenantSubdomain = null;
@@ -123,6 +137,50 @@ namespace BookingPro.API.Controllers
                 var errorHtml = GenerateCallbackHtml(false, "Error procesando callback", ex.Message, null);
                 return Content(errorHtml, "text/html");
             }
+        }
+
+        /// <summary>
+        /// Vinculación de la cuenta con la que la plataforma le cobra a los tenants
+        /// (super admin → Cobros). Vuelve al panel, no al popup del tenant.
+        /// </summary>
+        private async Task<IActionResult> HandlePlatformCallback(string? code, string state, string? error, string? errorDescription)
+        {
+            var frontendUrl = FrontendBaseUrl();
+            var successRedirect = $"{frontendUrl}/super-admin/payments?mp=connected";
+            var errorRedirect = $"{frontendUrl}/super-admin/payments?mp=error";
+
+            if (!_platformConnections.ValidatePlatformState(state))
+            {
+                _logger.LogWarning("Platform MP callback rejected: invalid or expired state");
+                return Redirect($"{errorRedirect}&reason=invalid_state");
+            }
+
+            if (!string.IsNullOrEmpty(error))
+                return Redirect($"{errorRedirect}&reason={Uri.EscapeDataString(errorDescription ?? error)}");
+            if (string.IsNullOrEmpty(code))
+                return Redirect($"{errorRedirect}&reason=missing_code");
+
+            try
+            {
+                var conn = await _platformConnections.HandleMercadoPagoCallbackAsync(code, RequestBaseUrl());
+                _logger.LogInformation("Platform MercadoPago account linked: {Account}", conn.AccountEmail ?? conn.ExternalAccountId);
+                return Redirect(successRedirect);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Platform MP OAuth callback error");
+                return Redirect($"{errorRedirect}&reason=exchange_failed");
+            }
+        }
+
+        private string RequestBaseUrl() => $"{Request.Scheme}://{Request.Host}";
+
+        private string FrontendBaseUrl()
+        {
+            var configured = _configuration["FrontendUrl"];
+            if (!string.IsNullOrWhiteSpace(configured) && !configured.Contains("localhost"))
+                return configured.TrimEnd('/');
+            return RequestBaseUrl();
         }
 
         /// <summary>
