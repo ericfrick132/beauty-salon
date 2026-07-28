@@ -847,12 +847,22 @@ namespace BookingPro.API.Services
         {
             var ctx = _bookingRepository.GetContext();
             var dow = (int)startTime.DayOfWeek;
-            var schedules = await ctx.Set<Schedule>()
-                .Where(s => s.EmployeeId == employeeId && s.IsActive && s.DayOfWeek == dow)
+            var allSchedules = await ctx.Set<Schedule>()
+                .Where(s => s.EmployeeId == employeeId && s.IsActive)
                 .ToListAsync();
+            var schedules = allSchedules.Where(s => s.DayOfWeek == dow).ToList();
 
             _logger.LogInformation("ValidateWithinEmployeeSchedule: employeeId={EmployeeId}, dayOfWeek={DayOfWeek}, schedulesFound={Count}",
                 employeeId, dow, schedules.Count);
+
+            // Si el empleado no tiene ningún régimen horario cargado, atiende en el horario
+            // del negocio (ya validado antes). Mismo criterio que GetAvailableTimeSlotsAsync,
+            // que en ese caso ofrece los slots del horario del negocio.
+            if (!allSchedules.Any())
+            {
+                _logger.LogInformation("Employee {EmployeeId} has no schedules configured; falling back to business hours", employeeId);
+                return ServiceResult.Ok();
+            }
 
             if (!schedules.Any())
             {
