@@ -49,6 +49,7 @@ import {
   Cancel,
   Block,
   Schedule as ScheduleIcon,
+  ContentCopy,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -58,6 +59,9 @@ import { format } from 'date-fns';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
+
+// Indexado por DayOfWeek de .NET: 0 = domingo.
+const DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
 interface Employee {
   id: string;
@@ -432,6 +436,10 @@ const Employees: React.FC = () => {
       setBlocks([]);
     }
   };
+
+  // Día que se usa como molde para "Repetir en todos los días": el primero que tenga
+  // entrada y salida cargadas, recorriendo de lunes a domingo como se ven en el modal.
+  const scheduleSourceDay = scheduleForm.find(r => r.start && r.end) || null;
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -942,7 +950,7 @@ const Employees: React.FC = () => {
               {scheduleForm.map((row, idx) => (
                 <React.Fragment key={row.day}>
                   <Grid item xs={4}>
-                    <Typography sx={{ mt: 1 }}>{['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][row.day]}</Typography>
+                    <Typography sx={{ mt: 1 }}>{DAY_NAMES[row.day]}</Typography>
                   </Grid>
                   <Grid item xs={4}>
                     <TextField fullWidth type="time" label="Entrada" value={row.start} onChange={(e)=>{
@@ -960,6 +968,28 @@ const Employees: React.FC = () => {
                   </Grid>
                 </React.Fragment>
               ))}
+              <Grid item xs={12}>
+                <Button
+                  size="small"
+                  startIcon={<ContentCopy />}
+                  disabled={!scheduleSourceDay}
+                  onClick={() => {
+                    if (!scheduleSourceDay) return;
+                    setScheduleForm(scheduleForm.map(r => ({
+                      ...r,
+                      start: scheduleSourceDay.start,
+                      end: scheduleSourceDay.end,
+                    })));
+                  }}
+                >
+                  Repetir en todos los días
+                </Button>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                  {scheduleSourceDay
+                    ? `Copia ${scheduleSourceDay.start} a ${scheduleSourceDay.end} (${DAY_NAMES[scheduleSourceDay.day]}) a los siete días.`
+                    : 'Cargá la entrada y la salida de un día para poder repetirlo.'}
+                </Typography>
+              </Grid>
               <Grid item xs={12}>
                 <Divider sx={{ my: 1 }} />
                 <Typography variant="subtitle1">Descanso fijo (opcional)</Typography>
