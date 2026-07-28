@@ -53,6 +53,68 @@ import api from '../../services/api';
 // Steps are computed dynamically depending on whether the service requires a deposit
 const baseSteps = ['Servicio', 'Profesional', 'Fecha y Hora', 'Tus Datos'] as const;
 
+/**
+ * Tokens de la página pública de reservas.
+ *
+ * Esta pantalla es la vidriera del negocio, no del producto: el único color es
+ * el del tenant (theme.palette.primary). Todo lo demás es papel e tinta, para
+ * que funcione igual en una barbería, un centro de estética o una cancha.
+ * La paleta y las tipografías son las de la landing ("Editorial Agenda").
+ */
+const ui = {
+  paper: '#F4EFE6',
+  surface: '#FAF7F0',
+  ink: '#171410',
+  inkSoft: '#5C5347',
+  inkMute: '#8C8275',
+  rule: 'rgba(23, 20, 16, 0.14)',
+  ruleSoft: 'rgba(23, 20, 16, 0.08)',
+  display: '"Fraunces", Georgia, serif',
+  mono: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
+};
+
+const money = new Intl.NumberFormat('es-AR', {
+  style: 'currency',
+  currency: 'ARS',
+  maximumFractionDigits: 0,
+});
+
+/** Los precios llegan como number; sin formato se leen "75000" en vez de "$75.000". */
+const formatPrice = (value?: number | null) =>
+  typeof value === 'number' && !Number.isNaN(value) ? money.format(value) : '';
+
+/**
+ * Algunas descripciones vienen con markdown escapado desde el panel y se
+ * muestran con las barras a la vista ("líquidos\. ✨Reduce"). Las limpiamos al
+ * renderizar para no tener que migrar datos.
+ */
+const cleanText = (value?: string | null) =>
+  (value || '').replace(/\\([\\`*_{}[\]()#+\-.!>])/g, '$1').trim();
+
+/** Encabezado de cada paso. Alineado a la izquierda: el texto instructivo
+ *  centrado es lo que hacía que la página se leyera como una plantilla. */
+const StepHeading: React.FC<{ title: string; hint?: string }> = ({ title, hint }) => (
+  <>
+    <Typography
+      component="h2"
+      sx={{
+        fontFamily: ui.display,
+        fontSize: { xs: '1.6rem', md: '2rem' },
+        fontWeight: 500,
+        lineHeight: 1.1,
+        letterSpacing: '-0.02em',
+        color: ui.ink,
+        mb: 0.75,
+      }}
+    >
+      {title}
+    </Typography>
+    {hint && (
+      <Typography sx={{ fontSize: '0.9rem', color: ui.inkSoft, mb: 3 }}>{hint}</Typography>
+    )}
+  </>
+);
+
 interface Service {
   id: string;
   name: string;
@@ -359,12 +421,7 @@ const BookingPage: React.FC = () => {
           <Fade in timeout={500}>
             <Grid container spacing={3}>
               <Grid item xs={12}>
-                <Typography variant="h5" gutterBottom align="center">
-                  Selecciona el servicio que deseas
-                </Typography>
-                <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
-                  Busca o elige entre nuestra variedad de servicios profesionales
-                </Typography>
+                <StepHeading title="Elegí el servicio" hint="Buscalo por nombre o elegilo de la lista." />
               </Grid>
               
               {/* Autocomplete search */}
@@ -448,20 +505,25 @@ const BookingPage: React.FC = () => {
               ) : (
                 services.map((service) => (
                 <Grid item xs={12} sm={6} md={4} key={service.id}>
-                  <motion.div
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
+                  <motion.div whileTap={{ scale: 0.99 }} style={{ height: '100%' }}>
                     <Card
+                      elevation={0}
                       sx={{
                         cursor: 'pointer',
                         height: '100%',
-                        border: bookingData.serviceId === service.id ? '2px solid' : '1px solid',
-                        borderColor: bookingData.serviceId === service.id ? 'primary.main' : 'divider',
-                        transition: 'all 0.3s',
+                        bgcolor: '#fff',
+                        borderRadius: 2,
+                        // El borde marca la selección; no escalamos la tarjeta al pasar
+                        // el mouse porque desenfoca el texto y se siente genérico.
+                        border: '1px solid',
+                        borderColor: bookingData.serviceId === service.id ? 'primary.main' : ui.rule,
+                        ...(bookingData.serviceId === service.id && {
+                          boxShadow: (t: any) => `inset 0 0 0 1px ${t.palette.primary.main}`,
+                        }),
+                        transition: 'border-color .18s ease, box-shadow .18s ease',
                         position: 'relative',
                         '&:hover': {
-                          boxShadow: 4,
+                          borderColor: 'primary.main',
                         },
                       }}
                       onClick={() => {
@@ -476,40 +538,70 @@ const BookingPage: React.FC = () => {
                       }}
                     >
                       {service.bookingCount != null && service.bookingCount > 5 && (
-                        <Chip
-                          icon={<TrendingUp />}
-                          label="Popular"
-                          size="small"
-                          color="primary"
+                        <Typography
                           sx={{
                             position: 'absolute',
-                            top: 8,
-                            right: 8,
+                            top: 14,
+                            right: 16,
                             zIndex: 1,
+                            fontFamily: ui.mono,
+                            fontSize: '0.6rem',
+                            letterSpacing: '0.16em',
+                            textTransform: 'uppercase',
+                            color: 'primary.main',
                           }}
-                        />
+                        >
+                          Popular
+                        </Typography>
                       )}
-                      <CardContent>
-                        <Typography variant="h6" gutterBottom>
+                      <CardContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                        <Typography
+                          sx={{
+                            fontFamily: ui.display,
+                            fontSize: '1.15rem',
+                            fontWeight: 500,
+                            lineHeight: 1.15,
+                            letterSpacing: '-0.015em',
+                            color: ui.ink,
+                            pr: service.bookingCount != null && service.bookingCount > 5 ? 6 : 0,
+                          }}
+                        >
                           {service.name}
                         </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, minHeight: 40 }}>
-                          {service.description}
+                        <Typography
+                          sx={{
+                            mt: 1,
+                            mb: 2.5,
+                            fontSize: '0.85rem',
+                            lineHeight: 1.5,
+                            color: ui.inkSoft,
+                            // Recortamos a 2 líneas para que la grilla no quede despareja
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            minHeight: '2.55em',
+                          }}
+                        >
+                          {cleanText(service.description)}
                         </Typography>
-                        <Divider sx={{ my: 1 }} />
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <Schedule sx={{ fontSize: 18, mr: 0.5, color: 'text.secondary' }} />
-                            <Typography variant="body2">
-                              {service.durationMinutes} min
-                            </Typography>
-                          </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <AttachMoney sx={{ fontSize: 18, color: 'primary.main' }} />
-                            <Typography variant="h6" color="primary">
-                              {service.price}
-                            </Typography>
-                          </Box>
+                        <Box
+                          sx={{
+                            mt: 'auto',
+                            pt: 1.5,
+                            borderTop: `1px solid ${ui.ruleSoft}`,
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'baseline',
+                            fontFamily: ui.mono,
+                          }}
+                        >
+                          <Typography sx={{ fontFamily: ui.mono, fontSize: '0.75rem', color: ui.inkMute }}>
+                            {service.durationMinutes} min
+                          </Typography>
+                          <Typography sx={{ fontFamily: ui.mono, fontSize: '1rem', fontWeight: 600, color: ui.ink }}>
+                            {formatPrice(service.price)}
+                          </Typography>
                         </Box>
                       </CardContent>
                     </Card>
@@ -526,12 +618,7 @@ const BookingPage: React.FC = () => {
           <Fade in timeout={500}>
             <Grid container spacing={3}>
               <Grid item xs={12}>
-                <Typography variant="h5" gutterBottom align="center">
-                  ¿Con quién te gustaría agendar?
-                </Typography>
-                <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
-                  Selecciona el profesional de tu preferencia
-                </Typography>
+                <StepHeading title="¿Con quién?" hint="Elegí el profesional que te va a atender." />
               </Grid>
               {professionals.map((professional) => (
                 <Grid item xs={12} sm={6} md={4} key={professional.id}>
@@ -608,12 +695,7 @@ const BookingPage: React.FC = () => {
           <Fade in timeout={500}>
             <Grid container spacing={3}>
               <Grid item xs={12}>
-                <Typography variant="h5" gutterBottom align="center">
-                  Selecciona fecha y hora
-                </Typography>
-                <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
-                  Elige el momento que mejor se adapte a tu agenda
-                </Typography>
+                <StepHeading title="Fecha y hora" hint="Elegí el día y después el horario que te quede cómodo." />
               </Grid>
               <Grid item xs={12} md={6}>
                 <Paper sx={{ p: 2 }}>
@@ -678,12 +760,7 @@ const BookingPage: React.FC = () => {
         return (
           <Fade in timeout={500}>
             <Box>
-              <Typography variant="h5" gutterBottom align="center">
-                Completa tus datos
-              </Typography>
-              <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
-                Necesitamos esta información para confirmar tu reserva
-              </Typography>
+              <StepHeading title="Tus datos" hint="Los usamos para confirmarte el turno y avisarte si algo cambia." />
               <Grid container spacing={2} sx={{ maxWidth: 600, margin: '0 auto' }}>
                 <Grid item xs={12}>
                   <TextField
@@ -739,42 +816,83 @@ const BookingPage: React.FC = () => {
               {bookingConfirmed ? (
                 // Mostrar confirmación final cuando no se requiere pago
                 <Container maxWidth="sm" sx={{ py: 2 }}>
-                  <Paper sx={{ p: 4, textAlign: 'center' }}>
+                  <Box sx={{ textAlign: 'center' }}>
                     <Zoom in timeout={300}>
-                      <Avatar sx={{ width: 80, height: 80, bgcolor: 'success.main', margin: '0 auto 24px' }}>
-                        <Check sx={{ fontSize: 48 }} />
+                      <Avatar sx={{ width: 56, height: 56, bgcolor: 'primary.main', margin: '0 auto 20px' }}>
+                        <Check sx={{ fontSize: 30 }} />
                       </Avatar>
                     </Zoom>
-                    <Typography variant="h4" gutterBottom color="success.main">
-                      ¡Reserva Confirmada!
+
+                    {/* Lo primero es lo que la persona vino a saber: cuándo. */}
+                    <Typography
+                      component="p"
+                      sx={{
+                        fontFamily: ui.mono,
+                        fontSize: '0.68rem',
+                        letterSpacing: '0.18em',
+                        textTransform: 'uppercase',
+                        color: ui.inkMute,
+                        mb: 1.5,
+                      }}
+                    >
+                      Turno confirmado
                     </Typography>
-                    <Paper sx={{ p: 2, bgcolor: 'grey.100', mb: 3 }}>
-                      <Typography variant="h6" gutterBottom>
-                        Código de confirmación:
+                    <Typography
+                      component="h2"
+                      sx={{
+                        fontFamily: ui.display,
+                        fontSize: { xs: '1.9rem', md: '2.5rem' },
+                        fontWeight: 500,
+                        lineHeight: 1.08,
+                        letterSpacing: '-0.025em',
+                        color: ui.ink,
+                        textTransform: 'capitalize',
+                      }}
+                    >
+                      {format(bookingData.date, "EEEE d 'de' MMMM", { locale: es })}
+                    </Typography>
+                    <Typography
+                      sx={{ fontFamily: ui.mono, fontSize: '1.5rem', fontWeight: 600, color: ui.ink, mt: 0.5 }}
+                    >
+                      {bookingData.time}
+                    </Typography>
+
+                    <Box
+                      sx={{
+                        mt: 3,
+                        py: 2,
+                        borderTop: `1px solid ${ui.rule}`,
+                        borderBottom: `1px solid ${ui.rule}`,
+                      }}
+                    >
+                      <Typography sx={{ fontSize: '0.75rem', color: ui.inkMute, mb: 0.5 }}>
+                        Código de confirmación
                       </Typography>
-                      <Typography variant="h4" color="primary" sx={{ fontFamily: 'monospace' }}>
+                      <Typography
+                        sx={{
+                          fontFamily: ui.mono,
+                          fontSize: '1.6rem',
+                          fontWeight: 600,
+                          letterSpacing: '0.12em',
+                          color: 'primary.main',
+                        }}
+                      >
                         {confirmationCode}
                       </Typography>
-                    </Paper>
-                    <Alert severity="info" sx={{ mb: 3 }}>
-                      Hemos enviado los detalles de tu reserva a {bookingData.customerEmail}
-                    </Alert>
-                    <Typography variant="body2" color="text.secondary" paragraph>
-                      Te esperamos el {format(bookingData.date, "EEEE d 'de' MMMM", { locale: es })} a las {bookingData.time}
+                    </Box>
+
+                    <Typography sx={{ mt: 2.5, fontSize: '0.85rem', color: ui.inkSoft }}>
+                      Te mandamos los detalles a {bookingData.customerEmail}
                     </Typography>
-                    <Button variant="outlined" size="large" onClick={() => window.location.reload()}>
-                      Hacer otra reserva
+
+                    <Button variant="outlined" size="large" sx={{ mt: 3 }} onClick={() => window.location.reload()}>
+                      Reservar otro turno
                     </Button>
-                  </Paper>
+                  </Box>
                 </Container>
               ) : (
                 <>
-                  <Typography variant="h5" gutterBottom align="center">
-                    Confirma tu reserva
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
-                    Revisa los detalles de tu reserva antes de continuar al pago
-                  </Typography>
+                  <StepHeading title="Revisá el turno" hint="Confirmá que esté todo bien antes de continuar al pago." />
                   <Paper sx={{ p: 3, maxWidth: 600, margin: '0 auto', bgcolor: 'background.default' }}>
                     <Grid container spacing={2}>
                       <Grid item xs={12}>
@@ -912,12 +1030,7 @@ const BookingPage: React.FC = () => {
             <Box>
               {!bookingConfirmed ? (
                 <>
-                  <Typography variant="h5" gutterBottom align="center">
-                    Pago con MercadoPago
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
-                    Generá el pago y completalo para confirmar tu reserva
-                  </Typography>
+                  <StepHeading title="Pago de la seña" hint="Generá el pago y completalo para dejar el turno confirmado." />
                   <Paper sx={{ p: 3, textAlign: 'center' }}>
                     {errors.submit && (
                       <Alert severity="error" sx={{ mb: 2 }}>{errors.submit}</Alert>
@@ -948,33 +1061,79 @@ const BookingPage: React.FC = () => {
                 </>
               ) : (
                 <Container maxWidth="sm" sx={{ py: 2 }}>
-                  <Paper sx={{ p: 4, textAlign: 'center' }}>
+                  <Box sx={{ textAlign: 'center' }}>
                     <Zoom in timeout={300}>
-                      <Avatar sx={{ width: 80, height: 80, bgcolor: 'success.main', margin: '0 auto 24px' }}>
-                        <Check sx={{ fontSize: 48 }} />
+                      <Avatar sx={{ width: 56, height: 56, bgcolor: 'primary.main', margin: '0 auto 20px' }}>
+                        <Check sx={{ fontSize: 30 }} />
                       </Avatar>
                     </Zoom>
-                    <Typography variant="h4" gutterBottom color="success.main">
-                      ¡Reserva Confirmada!
+
+                    {/* Lo primero es lo que la persona vino a saber: cuándo. */}
+                    <Typography
+                      component="p"
+                      sx={{
+                        fontFamily: ui.mono,
+                        fontSize: '0.68rem',
+                        letterSpacing: '0.18em',
+                        textTransform: 'uppercase',
+                        color: ui.inkMute,
+                        mb: 1.5,
+                      }}
+                    >
+                      Turno confirmado
                     </Typography>
-                    <Paper sx={{ p: 2, bgcolor: 'grey.100', mb: 3 }}>
-                      <Typography variant="h6" gutterBottom>
-                        Código de confirmación:
+                    <Typography
+                      component="h2"
+                      sx={{
+                        fontFamily: ui.display,
+                        fontSize: { xs: '1.9rem', md: '2.5rem' },
+                        fontWeight: 500,
+                        lineHeight: 1.08,
+                        letterSpacing: '-0.025em',
+                        color: ui.ink,
+                        textTransform: 'capitalize',
+                      }}
+                    >
+                      {format(bookingData.date, "EEEE d 'de' MMMM", { locale: es })}
+                    </Typography>
+                    <Typography
+                      sx={{ fontFamily: ui.mono, fontSize: '1.5rem', fontWeight: 600, color: ui.ink, mt: 0.5 }}
+                    >
+                      {bookingData.time}
+                    </Typography>
+
+                    <Box
+                      sx={{
+                        mt: 3,
+                        py: 2,
+                        borderTop: `1px solid ${ui.rule}`,
+                        borderBottom: `1px solid ${ui.rule}`,
+                      }}
+                    >
+                      <Typography sx={{ fontSize: '0.75rem', color: ui.inkMute, mb: 0.5 }}>
+                        Código de confirmación
                       </Typography>
-                      <Typography variant="h4" color="primary" sx={{ fontFamily: 'monospace' }}>
+                      <Typography
+                        sx={{
+                          fontFamily: ui.mono,
+                          fontSize: '1.6rem',
+                          fontWeight: 600,
+                          letterSpacing: '0.12em',
+                          color: 'primary.main',
+                        }}
+                      >
                         {confirmationCode}
                       </Typography>
-                    </Paper>
-                    <Alert severity="info" sx={{ mb: 3 }}>
-                      Hemos enviado los detalles de tu reserva a {bookingData.customerEmail}
-                    </Alert>
-                    <Typography variant="body2" color="text.secondary" paragraph>
-                      Te esperamos el {format(bookingData.date, "EEEE d 'de' MMMM", { locale: es })} a las {bookingData.time}
+                    </Box>
+
+                    <Typography sx={{ mt: 2.5, fontSize: '0.85rem', color: ui.inkSoft }}>
+                      Te mandamos los detalles a {bookingData.customerEmail}
                     </Typography>
-                    <Button variant="outlined" size="large" onClick={() => window.location.reload()}>
-                      Hacer otra reserva
+
+                    <Button variant="outlined" size="large" sx={{ mt: 3 }} onClick={() => window.location.reload()}>
+                      Reservar otro turno
                     </Button>
-                  </Paper>
+                  </Box>
                 </Container>
               )}
             </Box>
@@ -989,27 +1148,71 @@ const BookingPage: React.FC = () => {
   // No early return; el contenido final se muestra como último paso del stepper
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50', py: 4 }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: ui.paper, py: { xs: 3, md: 6 } }}>
       <Container maxWidth="lg">
-        {/* Header */}
-        <Paper sx={{ p: 3, mb: 3, textAlign: 'center' }}>
-          <Typography variant="h3" gutterBottom sx={{ fontWeight: 600 }}>
-            {businessInfo?.businessName || 'Reserva tu cita'}
+        {/* Header: el nombre del negocio es lo primero y lo más grande de la página */}
+        <Box sx={{ mb: { xs: 3, md: 5 }, textAlign: 'center' }}>
+          <Typography
+            component="h1"
+            sx={{
+              fontFamily: ui.display,
+              fontWeight: 500,
+              color: ui.ink,
+              fontSize: { xs: '2.5rem', sm: '3.25rem', md: '4rem' },
+              lineHeight: 0.98,
+              letterSpacing: '-0.035em',
+              fontVariationSettings: '"opsz" 120, "SOFT" 30',
+            }}
+          >
+            {businessInfo?.businessName || 'Reservá tu turno'}
           </Typography>
-          <Typography variant="subtitle1" color="text.secondary">
-            Agenda tu cita en simples pasos
+          <Typography
+            sx={{
+              mt: 1.5,
+              fontFamily: ui.mono,
+              fontSize: '0.7rem',
+              letterSpacing: '0.18em',
+              textTransform: 'uppercase',
+              color: ui.inkMute,
+            }}
+          >
+            Reservá online · Confirmación inmediata
           </Typography>
-        </Paper>
+        </Box>
 
         {/* Stepper */}
-        <Paper sx={{ p: 2, mb: 3 }}>
+        <Paper
+          elevation={0}
+          sx={{
+            p: { xs: 2, md: 2.5 },
+            mb: 3,
+            bgcolor: 'transparent',
+            border: `1px solid ${ui.rule}`,
+            borderRadius: 2,
+          }}
+        >
           {(() => {
             const requiresDeposit = services.find(s => s.id === bookingData.serviceId)?.requiresDeposit;
             const steps = requiresDeposit
               ? [...baseSteps, 'Pago', 'Confirmación']
               : [...baseSteps, 'Confirmación'];
             return (
-              <Stepper activeStep={activeStep} alternativeLabel>
+              <Stepper
+                activeStep={activeStep}
+                alternativeLabel
+                sx={{
+                  '& .MuiStepConnector-line': { borderColor: ui.rule },
+                  '& .MuiStepIcon-root': { color: ui.ruleSoft, '& text': { fill: ui.inkSoft } },
+                  '& .MuiStepIcon-root.Mui-active text': { fill: '#fff' },
+                  '& .MuiStepLabel-label': {
+                    fontSize: '0.75rem',
+                    letterSpacing: '0.04em',
+                    color: ui.inkMute,
+                    '&.Mui-active': { color: ui.ink, fontWeight: 600 },
+                    '&.Mui-completed': { color: ui.inkSoft },
+                  },
+                }}
+              >
                 {steps.map((label) => (
                   <Step key={label}>
                     <StepLabel>{label}</StepLabel>
@@ -1021,7 +1224,16 @@ const BookingPage: React.FC = () => {
         </Paper>
 
         {/* Content */}
-        <Paper sx={{ p: 4, minHeight: 400 }}>
+        <Paper
+          elevation={0}
+          sx={{
+            p: { xs: 2.5, md: 4 },
+            minHeight: 400,
+            bgcolor: ui.surface,
+            border: `1px solid ${ui.rule}`,
+            borderRadius: 2,
+          }}
+        >
           {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
               <CircularProgress />
