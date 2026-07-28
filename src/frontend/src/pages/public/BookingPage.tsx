@@ -564,6 +564,12 @@ const BookingPage: React.FC = () => {
                             letterSpacing: '-0.015em',
                             color: ui.ink,
                             pr: service.bookingCount != null && service.bookingCount > 5 ? 6 : 0,
+                            // Los nombres largos rompían la altura de la fila
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            minHeight: '2.3em',
                           }}
                         >
                           {service.name}
@@ -1165,18 +1171,6 @@ const BookingPage: React.FC = () => {
             }}
           >
             {businessInfo?.businessName || 'Reservá tu turno'}
-          </Typography>
-          <Typography
-            sx={{
-              mt: 1.5,
-              fontFamily: ui.mono,
-              fontSize: '0.7rem',
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color: ui.inkMute,
-            }}
-          >
-            Reservá online · Confirmación inmediata
           </Typography>
         </Box>
 
