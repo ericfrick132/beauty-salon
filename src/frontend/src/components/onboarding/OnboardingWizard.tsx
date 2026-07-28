@@ -1012,11 +1012,17 @@ const StepPersonal: React.FC<StepProps> = ({
 }) => {
   const { palette, typography, copy } = config;
   const phonePrefilled = Boolean(config.prefill?.phone && config.prefill.phone.trim().length > 0);
-  // Email + password are optional, but if one is filled the other must be valid.
+  // El login web es opcional: quien se registró por WhatsApp o Google puede
+  // seguir sin configurarlo. Solo pedimos el par completo si la persona
+  // realmente quiso darlo de alta — es decir, si escribió una contraseña o si
+  // puso un email distinto del que vino precargado (Google lo precarga, y
+  // tomarlo como "empezó a completar" dejaba el paso trabado pese al "opcional").
   const emailTrim = (formData.email ?? '').trim();
   const pwd = formData.password ?? '';
+  const prefilledEmail = (config.prefill?.email ?? '').trim();
   const emailLooksValid = /\S+@\S+\.\S+/.test(emailTrim);
-  const credsTouched = emailTrim.length > 0 || pwd.length > 0;
+  const emailIsUserProvided = emailTrim.length > 0 && emailTrim !== prefilledEmail;
+  const credsTouched = pwd.length > 0 || emailIsUserProvided;
   const credsValid = !credsTouched || (emailLooksValid && pwd.length >= 8);
   const canNext = isValidDMY(formData.ownerBirthday) && !!formData.ownerPhone && credsValid;
   return (
@@ -1082,6 +1088,18 @@ const StepPersonal: React.FC<StepProps> = ({
             }}
           >
             Para entrar también desde la web (opcional)
+          </Typography>
+          <Typography
+            sx={{
+              fontFamily: typography.body,
+              fontSize: 12.5,
+              color: palette.inkFaint,
+              mt: -1.2,
+              mb: 2,
+            }}
+          >
+            Podés dejarlo vacío y seguir: vas a entrar por WhatsApp. Si querés
+            usuario y contraseña, completá los dos campos.
           </Typography>
           <Stack spacing={3}>
             <Box>
