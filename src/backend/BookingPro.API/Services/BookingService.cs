@@ -551,7 +551,7 @@ namespace BookingPro.API.Services
             if (businessConfig.ClosedDays.Contains((int)localStart.DayOfWeek))
             {
                 _logger.LogWarning("Validation failed: Business closed on day {DayOfWeek}", (int)localStart.DayOfWeek);
-                return ServiceResult.Fail("El negocio está cerrado en ese día");
+                return ServiceResult.Fail("El negocio está cerrado en ese día", BookingFailureReasons.BusinessClosed);
             }
 
             // 1. Validar horario de negocio (general window) - use local time
@@ -559,7 +559,7 @@ namespace BookingPro.API.Services
             {
                 _logger.LogWarning("Validation failed: Outside business hours. Start={StartTime}, End={EndTime}, Opening={Opening}, Closing={Closing}",
                     localStart.TimeOfDay, localEnd.TimeOfDay, businessConfig.Opening, businessConfig.Closing);
-                return ServiceResult.Fail("La cita está fuera del horario de atención del negocio");
+                return ServiceResult.Fail("La cita está fuera del horario de atención del negocio", BookingFailureReasons.OutsideBusinessHours);
             }
 
             // 1b. Validar horario del empleado (turno de trabajo) - use local time
@@ -628,7 +628,7 @@ namespace BookingPro.API.Services
             var conflictingBooking = await query.FirstOrDefaultAsync();
             if (conflictingBooking != null)
             {
-                return ServiceResult.Fail($"El empleado ya tiene una cita programada de {conflictingBooking.StartTime:HH:mm} a {conflictingBooking.EndTime:HH:mm}");
+                return ServiceResult.Fail($"El empleado ya tiene una cita programada de {conflictingBooking.StartTime:HH:mm} a {conflictingBooking.EndTime:HH:mm}", BookingFailureReasons.SlotTaken);
             }
 
             return ServiceResult.Ok();
@@ -700,7 +700,7 @@ namespace BookingPro.API.Services
             var nearbyBooking = await query.FirstOrDefaultAsync();
             if (nearbyBooking != null)
             {
-                return ServiceResult.Fail($"Debe haber al menos {gapMinutes} minutos entre citas. Hay una cita muy cerca programada de {nearbyBooking.StartTime:HH:mm} a {nearbyBooking.EndTime:HH:mm}");
+                return ServiceResult.Fail($"Debe haber al menos {gapMinutes} minutos entre citas. Hay una cita muy cerca programada de {nearbyBooking.StartTime:HH:mm} a {nearbyBooking.EndTime:HH:mm}", BookingFailureReasons.MinimumGap);
             }
 
             return ServiceResult.Ok();
@@ -867,7 +867,7 @@ namespace BookingPro.API.Services
             if (!schedules.Any())
             {
                 _logger.LogWarning("No schedules found for employee {EmployeeId} on day {DayOfWeek}", employeeId, dow);
-                return ServiceResult.Fail("El profesional no atiende en ese día");
+                return ServiceResult.Fail("El profesional no atiende en ese día", BookingFailureReasons.EmployeeDayOff);
             }
 
             var startTod = startTime.TimeOfDay;
@@ -883,7 +883,7 @@ namespace BookingPro.API.Services
             _logger.LogInformation("Time check: bookingStart={BookingStart}, bookingEnd={BookingEnd}, withinSchedule={Ok}",
                 startTod, endTod, ok);
 
-            if (!ok) return ServiceResult.Fail("El profesional no atiende en ese horario");
+            if (!ok) return ServiceResult.Fail("El profesional no atiende en ese horario", BookingFailureReasons.EmployeeOutsideShift);
             return ServiceResult.Ok();
         }
 
@@ -902,7 +902,7 @@ namespace BookingPro.API.Services
                 .Any(occ => occ.Start < endTime && occ.End > startTime);
             if (hasBlock)
             {
-                return ServiceResult.Fail("El profesional tiene un bloqueo en ese horario");
+                return ServiceResult.Fail("El profesional tiene un bloqueo en ese horario", BookingFailureReasons.EmployeeBlocked);
             }
             return ServiceResult.Ok();
         }

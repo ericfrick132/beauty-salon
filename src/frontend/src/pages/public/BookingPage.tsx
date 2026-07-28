@@ -104,6 +104,9 @@ const BookingPage: React.FC = () => {
   });
   
   const [errors, setErrors] = useState<any>({});
+  // Próximos horarios libres que devuelve el backend cuando rechaza la reserva, para
+  // no dejar al cliente sin salida.
+  const [alternatives, setAlternatives] = useState<{ date: string; times: string[] }[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [bookingConfirmed, setBookingConfirmed] = useState(false);
   const [confirmationCode, setConfirmationCode] = useState('');
@@ -254,8 +257,9 @@ const BookingPage: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!validateStep()) return;
-    
+
     setSubmitting(true);
+    setAlternatives([]);
     try {
       const selectedService = services.find(s => s.id === bookingData.serviceId);
       const [hours, minutes] = bookingData.time.split(':');
@@ -292,10 +296,22 @@ const BookingPage: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error creating booking:', error);
-      setErrors({ submit: error.response?.data?.message || 'Error al crear la reserva. Por favor intenta nuevamente.' });
+      const data = error.response?.data;
+      setAlternatives(Array.isArray(data?.alternatives) ? data.alternatives : []);
+      setErrors({ submit: data?.message || 'Error al crear la reserva. Por favor intenta nuevamente.' });
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // El cliente eligió uno de los horarios alternativos: lo dejamos seleccionado y lo
+  // devolvemos al paso de fecha y hora, sin perder los datos que ya cargó.
+  const handlePickAlternative = (dateStr: string, time: string) => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    setBookingData(prev => ({ ...prev, date: new Date(year, month - 1, day), time }));
+    setErrors({});
+    setAlternatives([]);
+    setActiveStep(2);
   };
 
   const selectedService = services.find(s => s.id === bookingData.serviceId);
@@ -849,6 +865,37 @@ const BookingPage: React.FC = () => {
                     {errors.submit && (
                       <Alert severity="error" sx={{ mt: 2 }}>
                         {errors.submit}
+                        {alternatives.length > 0 && (
+                          <Box sx={{ mt: 2 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                              Estos horarios sí están disponibles:
+                            </Typography>
+                            {alternatives.map((alt) => {
+                              const [y, m, d] = alt.date.split('-').map(Number);
+                              const altDate = new Date(y, m - 1, d);
+                              return (
+                                <Box key={alt.date} sx={{ mb: 1.5 }}>
+                                  <Typography variant="caption" sx={{ textTransform: 'capitalize' }}>
+                                    {format(altDate, "EEEE d 'de' MMMM", { locale: es })}
+                                  </Typography>
+                                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+                                    {alt.times.map((t) => (
+                                      <Chip
+                                        key={`${alt.date}-${t}`}
+                                        label={t}
+                                        size="small"
+                                        color="primary"
+                                        variant="outlined"
+                                        clickable
+                                        onClick={() => handlePickAlternative(alt.date, t)}
+                                      />
+                                    ))}
+                                  </Box>
+                                </Box>
+                              );
+                            })}
+                          </Box>
+                        )}
                       </Alert>
                     )}
                   </Paper>

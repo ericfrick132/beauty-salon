@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using BookingPro.API.Data;
+using BookingPro.API.Models.Common;
 using BookingPro.API.Models.Entities;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Services;
@@ -302,7 +303,22 @@ namespace BookingPro.API.Controllers
                     dto.EmployeeId, dto.StartTime, dto.EndTime, dto.ServiceId);
                 if (!validation.Success)
                 {
-                    return BadRequest(new { message = validation.Message ?? "Este horario no está disponible" });
+                    // Al cliente final le hablamos en su idioma (no le contamos la
+                    // configuración interna del negocio) y, sobre todo, no lo dejamos en
+                    // un callejón sin salida: le ofrecemos cuándo sí puede reservar.
+                    _logger.LogInformation(
+                        "Public booking rejected: reason={Reason}, internalMessage={Message}, employeeId={EmployeeId}, startTime={StartTime}",
+                        validation.Reason, validation.Message, dto.EmployeeId, dto.StartTime);
+
+                    var alternatives = await FindAlternativeSlotsAsync(
+                        dto.EmployeeId, dto.ServiceId, dto.StartTime);
+
+                    return BadRequest(new
+                    {
+                        message = BookingFailureReasons.ToCustomerMessage(validation.Reason),
+                        reason = validation.Reason,
+                        alternatives
+                    });
                 }
 
                 // Check if customer exists or create new one
@@ -507,6 +523,57 @@ namespace BookingPro.API.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
+        }
+
+        /// <summary>
+        /// Busca los próximos horarios libres de ese profesional para ese servicio, para
+        /// no dejar al cliente sin salida cuando el turno que eligió se rechaza.
+        /// Arranca por el día que intentó y sigue con los siguientes.
+        /// </summary>
+        private async Task<List<object>> FindAlternativeSlotsAsync(
+            Guid employeeId, Guid serviceId, DateTime attemptedStartUtc, int daysToScan = 14, int maxDays = 3)
+        {
+            var alternatives = new List<object>();
+            try
+            {
+                var tenantInfo = _tenantService.GetCurrentTenant();
+                int offsetHours = 0;
+                int.TryParse(tenantInfo?.TimeZone ?? "0", out offsetHours);
+
+                var attemptedLocalDate = attemptedStartUtc.AddHours(offsetHours).Date;
+                var todayLocal = DateTime.UtcNow.AddHours(offsetHours).Date;
+                var firstDay = attemptedLocalDate < todayLocal ? todayLocal : attemptedLocalDate;
+
+                for (var i = 0; i < daysToScan && alternatives.Count < maxDays; i++)
+                {
+                    var day = firstDay.AddDays(i);
+                    var slotsResult = await _bookingService.GetAvailableTimeSlotsAsync(employeeId, day, serviceId);
+                    if (!slotsResult.Success || slotsResult.Data == null) continue;
+
+                    // Los slots ya pasados vienen marcados con el prefijo PAST:
+                    var times = slotsResult.Data
+                        .Where(t => !t.StartsWith("PAST:"))
+                        .Take(6)
+                        .ToList();
+
+                    if (times.Any())
+                    {
+                        alternatives.Add(new
+                        {
+                            date = day.ToString("yyyy-MM-dd"),
+                            times
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Las alternativas son una ayuda, no parte del contrato: si fallan, el
+                // cliente igual recibe el motivo del rechazo.
+                _logger.LogWarning(ex, "No se pudieron calcular alternativas para el empleado {EmployeeId}", employeeId);
+            }
+
+            return alternatives;
         }
 
         private async Task<int> GetMinAdvanceMinutesAsync()

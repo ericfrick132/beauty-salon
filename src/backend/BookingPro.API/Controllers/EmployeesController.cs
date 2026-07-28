@@ -108,6 +108,9 @@ namespace BookingPro.API.Controllers
                         allowSimultaneousBookings = e.AllowSimultaneousBookings,
                         isActive = e.IsActive,
                         createdAt = e.CreatedAt,
+                        // Sin horarios cargados el profesional atiende en todo el horario
+                        // del negocio. El panel avisa para que sea una decisión y no un olvido.
+                        hasSchedule = _context.Schedules.Any(s => s.EmployeeId == e.Id && s.IsActive),
                         pendingCommissions = _context.Payments
                             .Where(p => p.EmployeeId == e.Id && p.CommissionAmount != null)
                             .Sum(p => p.CommissionAmount ?? 0)

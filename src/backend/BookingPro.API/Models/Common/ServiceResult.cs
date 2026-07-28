@@ -10,6 +10,15 @@ namespace BookingPro.API.Models.Common
     {
         public bool Success { get; set; }
         public string? Message { get; set; }
+
+        /// <summary>
+        /// Código estable del motivo del fallo (ej: "employee_day_off"). Permite que la
+        /// capa de presentación decida qué mostrarle a cada audiencia sin comparar
+        /// mensajes por string: el panel muestra el detalle y el sitio público un texto
+        /// pensado para el cliente final.
+        /// </summary>
+        public string? Reason { get; set; }
+
         public List<string>? Errors { get; set; }
         public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 
@@ -29,6 +38,16 @@ namespace BookingPro.API.Models.Common
             {
                 Success = false,
                 Message = message
+            };
+        }
+
+        public static ServiceResult Fail(string message, string reason)
+        {
+            return new ServiceResult
+            {
+                Success = false,
+                Message = message,
+                Reason = reason
             };
         }
 

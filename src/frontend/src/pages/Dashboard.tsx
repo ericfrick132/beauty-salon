@@ -408,6 +408,12 @@ const Dashboard: React.FC = () => {
 
   const stats = calculateStats();
 
+  // Profesionales que pueden tomar turnos pero no tienen horarios cargados: la página
+  // pública les ofrece todo el horario del negocio, que rara vez es lo que se quiere.
+  const employeesWithoutSchedule = (employees as any[]).filter(
+    (e) => e?.isActive && e?.canPerformServices && e?.hasSchedule === false
+  );
+
   return (
     <Box>
         {/* Aviso: hay servicios con seña pero MercadoPago no está conectado */}
@@ -424,6 +430,30 @@ const Dashboard: React.FC = () => {
           >
             Tenés servicios con <strong>seña</strong> configurada, pero MercadoPago no está conectado.
             Conectá tu cuenta para poder cobrar las señas — hasta entonces esos turnos se confirman sin cobro.
+          </Alert>
+        )}
+
+        {/* Aviso: profesionales que toman turnos pero no tienen horarios cargados */}
+        {canSeeAdmin && employeesWithoutSchedule.length > 0 && (
+          <Alert
+            severity="warning"
+            icon={<Warning />}
+            action={
+              <Button color="inherit" size="small" onClick={() => navigate('/employees')}>
+                Cargar horarios
+              </Button>
+            }
+            sx={{ mb: 3 }}
+          >
+            {employeesWithoutSchedule.length === 1 ? (
+              <><strong>{employeesWithoutSchedule[0].name}</strong> no tiene horarios cargados.</>
+            ) : (
+              <>
+                <strong>{employeesWithoutSchedule.length} profesionales</strong> no tienen horarios
+                cargados ({employeesWithoutSchedule.map((e: any) => e.name).join(', ')}).
+              </>
+            )}{' '}
+            Mientras tanto se ofrecen turnos en todo el horario del negocio, cualquier día que esté abierto.
           </Alert>
         )}
 
