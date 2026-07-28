@@ -949,8 +949,11 @@ const Employees: React.FC = () => {
             <Grid container spacing={2} sx={{ mt: 1 }}>
               {scheduleForm.map((row, idx) => (
                 <React.Fragment key={row.day}>
-                  <Grid item xs={4}>
+                  <Grid item xs={3}>
                     <Typography sx={{ mt: 1 }}>{DAY_NAMES[row.day]}</Typography>
+                    {!row.start && !row.end && (
+                      <Typography variant="caption" color="text.secondary">No atiende</Typography>
+                    )}
                   </Grid>
                   <Grid item xs={4}>
                     <TextField fullWidth type="time" label="Entrada" value={row.start} onChange={(e)=>{
@@ -965,6 +968,24 @@ const Employees: React.FC = () => {
                       arr[idx] = { ...row, end: e.target.value };
                       setScheduleForm(arr);
                     }} InputLabelProps={{ shrink: true }} />
+                  </Grid>
+                  <Grid item xs={1} sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Tooltip title={row.start || row.end ? `No atender los ${DAY_NAMES[row.day].toLowerCase()}` : 'Ya no atiende este día'}>
+                      <span>
+                        <IconButton
+                          size="small"
+                          aria-label={`Borrar el horario del ${DAY_NAMES[row.day].toLowerCase()}`}
+                          disabled={!row.start && !row.end}
+                          onClick={() => {
+                            const arr = [...scheduleForm];
+                            arr[idx] = { ...row, start: '', end: '' };
+                            setScheduleForm(arr);
+                          }}
+                        >
+                          <Delete fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                   </Grid>
                 </React.Fragment>
               ))}
