@@ -729,11 +729,34 @@ namespace BookingPro.API.Services
             }
         }
 
+        /// <summary>
+        /// Lee una propiedad como string tolerando que venga como número o booleano, y
+        /// devolviendo "" si no está. /users/me de MercadoPago manda "id" como número, y
+        /// GetString() sobre un JsonValueKind.Number tira InvalidOperationException.
+        /// </summary>
+        private static string ReadStringProperty(JsonElement source, string propertyName)
+        {
+            if (!source.TryGetProperty(propertyName, out var el))
+            {
+                return string.Empty;
+            }
+
+            return el.ValueKind switch
+            {
+                JsonValueKind.String => el.GetString() ?? string.Empty,
+                JsonValueKind.Number => el.TryGetInt64(out var n) ? n.ToString() : el.GetRawText(),
+                JsonValueKind.True => "true",
+                JsonValueKind.False => "false",
+                JsonValueKind.Null or JsonValueKind.Undefined => string.Empty,
+                _ => el.GetRawText()
+            };
+        }
+
         private async Task<ServiceResult<MercadoPagoUserInfoDto>> GetUserInfoAsync(string accessToken)
         {
             try
             {
-                _httpClient.DefaultRequestHeaders.Authorization = 
+                _httpClient.DefaultRequestHeaders.Authorization =
                     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
                 _httpClient.DefaultRequestHeaders.Accept.Clear();
                 _httpClient.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
@@ -751,13 +774,25 @@ namespace BookingPro.API.Services
                 
                 var result = new MercadoPagoUserInfoDto
                 {
-                    Id = userInfo.GetProperty("id").GetString() ?? "",
-                    Nickname = userInfo.GetProperty("nickname").GetString() ?? "",
-                    Email = userInfo.GetProperty("email").GetString() ?? "",
-                    CountryId = userInfo.GetProperty("country_id").GetString() ?? "",
-                    CurrencyId = userInfo.TryGetProperty("currency_id", out var curr) ? curr.GetString() ?? "" : "",
-                    SiteStatus = userInfo.TryGetProperty("site_status", out var status) ? status.GetString() == "active" : true
+                    Id = ReadStringProperty(userInfo, "id"),
+                    Nickname = ReadStringProperty(userInfo, "nickname"),
+                    Email = ReadStringProperty(userInfo, "email"),
+                    CountryId = ReadStringProperty(userInfo, "country_id"),
+                    CurrencyId = ReadStringProperty(userInfo, "currency_id"),
+                    SiteStatus = !userInfo.TryGetProperty("site_status", out _)
+                                 || string.Equals(ReadStringProperty(userInfo, "site_status"), "active", StringComparison.OrdinalIgnoreCase)
                 };
+
+                if (string.IsNullOrEmpty(result.CurrencyId) && !string.IsNullOrEmpty(result.CountryId))
+                {
+                    // /users/me no siempre trae currency_id; derivarlo del país evita
+                    // que quede vacío y que el panel muestre N/A.
+                    result.CurrencyId = result.CountryId switch
+                    {
+                        "AR" => "ARS", "BR" => "BRL", "MX" => "MXN", "CL" => "CLP",
+                        "CO" => "COP", "PE" => "PEN", "UY" => "UYU", _ => ""
+                    };
+                }
 
                 return ServiceResult<MercadoPagoUserInfoDto>.Ok(result);
             }

@@ -344,8 +344,14 @@ const BookingPage: React.FC = () => {
 
       setConfirmationCode(response.data.confirmationCode);
       setCreatedBookingId(response.data.bookingId);
-      const requiresDeposit = services.find(s => s.id === bookingData.serviceId)?.requiresDeposit;
-      if (requiresDeposit && response.data?.requiresPayment) {
+      // El backend es la única fuente de verdad de si hay que cobrar. Antes esto además
+      // exigía services.find(...)?.requiresDeposit de la lista en memoria: si esa lista
+      // estaba desactualizada mostrábamos "Turno confirmado" mientras el backend había
+      // dejado la reserva en pending_payment, o sea sin cobrar la seña.
+      const requiresPayment = Boolean(response.data?.requiresPayment);
+      const hasDepositStep = Boolean(services.find(s => s.id === bookingData.serviceId)?.requiresDeposit) || requiresPayment;
+
+      if (requiresPayment) {
         // Ir al paso de Pago y esperar acción del usuario
         setPaymentRequired(true);
         setPaymentInfo({ initPoint: response.data.payment?.initPoint || response.data.payment?.sandboxInitPoint, amount: response.data.payment?.amount });
@@ -353,7 +359,7 @@ const BookingPage: React.FC = () => {
       } else {
         // Sin pago requerido, ir al paso final
         setBookingConfirmed(true);
-        const finalIndex = requiresDeposit ? 5 : 4; // Confirmación depende de si existe paso de Pago
+        const finalIndex = hasDepositStep ? 5 : 4; // Confirmación depende de si existe paso de Pago
         setActiveStep(finalIndex);
       }
     } catch (error: any) {
