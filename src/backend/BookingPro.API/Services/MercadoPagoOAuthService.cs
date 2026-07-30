@@ -503,6 +503,29 @@ namespace BookingPro.API.Services
                 }
 
                 var userInfoResult = await GetUserInfoAsync(tokenResult.Data!);
+
+                // Backfill: las conexiones hechas mientras GetUserInfoAsync estaba roto quedaron
+                // con AccountEmail/Nickname/País/Moneda vacíos en la config. Los persistimos acá
+                // para que el panel y el guard anti-autopago tengan datos sin reconectar.
+                if (userInfoResult.Success && userInfoResult.Data != null)
+                {
+                    var tenantId = _tenantProvider.GetCurrentTenantId();
+                    var config = await _context.Set<MercadoPagoOAuthConfiguration>()
+                        .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.IsActive);
+                    var ui = userInfoResult.Data;
+                    if (config != null &&
+                        (config.AccountEmail != ui.Email || config.AccountNickname != ui.Nickname ||
+                         config.CountryId != ui.CountryId || config.CurrencyId != ui.CurrencyId))
+                    {
+                        config.AccountEmail = ui.Email;
+                        config.AccountNickname = ui.Nickname;
+                        config.CountryId = ui.CountryId;
+                        config.CurrencyId = ui.CurrencyId;
+                        config.UpdatedAt = DateTime.UtcNow;
+                        await _context.SaveChangesAsync();
+                    }
+                }
+
                 return userInfoResult;
             }
             catch (Exception ex)

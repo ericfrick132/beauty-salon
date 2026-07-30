@@ -103,12 +103,20 @@ namespace BookingPro.API.Services
                 // Use per-request options instead of static MercadoPagoConfig.AccessToken for thread safety
                 var requestOptions = new MercadoPago.Client.RequestOptions { AccessToken = accessToken };
 
-                // Validación: evitar que el comprador sea la misma cuenta del comercio (collector)
+                // Validación: evitar que el comprador sea la misma cuenta del comercio (collector).
+                // El email del comercio vive en la config OAuth (AccountEmail); la tabla legacy
+                // mercadopago_configurations sólo aplica a tenants con credenciales manuales.
                 try
                 {
-                    var oauthConfig = await _context.MercadoPagoConfigurations
+                    var oauthAccount = await _context.Set<MercadoPagoOAuthConfiguration>()
                         .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.IsActive);
-                    var merchantEmail = oauthConfig?.UserEmail?.Trim().ToLowerInvariant();
+                    var merchantEmail = oauthAccount?.AccountEmail?.Trim().ToLowerInvariant();
+                    if (string.IsNullOrEmpty(merchantEmail))
+                    {
+                        var legacyConfig = await _context.MercadoPagoConfigurations
+                            .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.IsActive);
+                        merchantEmail = legacyConfig?.UserEmail?.Trim().ToLowerInvariant();
+                    }
                     var buyerEmail = (booking.Customer?.Email ?? dto.CustomerEmail ?? string.Empty).Trim().ToLowerInvariant();
                     if (!string.IsNullOrEmpty(merchantEmail) && !string.IsNullOrEmpty(buyerEmail) && merchantEmail == buyerEmail)
                     {
