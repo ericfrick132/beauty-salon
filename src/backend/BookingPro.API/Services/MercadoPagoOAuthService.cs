@@ -712,12 +712,12 @@ namespace BookingPro.API.Services
                 
                 var result = new MercadoPagoTokenResponseDto
                 {
-                    AccessToken = tokenResponse.GetProperty("access_token").GetString() ?? "",
-                    RefreshToken = tokenResponse.TryGetProperty("refresh_token", out var rt) ? rt.GetString() ?? "" : "",
+                    AccessToken = ReadStringProperty(tokenResponse, "access_token"),
+                    RefreshToken = ReadStringProperty(tokenResponse, "refresh_token"),
                     ExpiresIn = tokenResponse.GetProperty("expires_in").GetInt32(),
-                    TokenType = tokenResponse.GetProperty("token_type").GetString() ?? "",
-                    Scope = tokenResponse.TryGetProperty("scope", out var scope) ? scope.GetString() ?? "" : "",
-                    UserId = tokenResponse.TryGetProperty("user_id", out var userId) ? userId.GetString() ?? "" : ""
+                    TokenType = ReadStringProperty(tokenResponse, "token_type"),
+                    Scope = ReadStringProperty(tokenResponse, "scope"),
+                    UserId = ReadStringProperty(tokenResponse, "user_id")
                 };
 
                 return ServiceResult<MercadoPagoTokenResponseDto>.Ok(result);
