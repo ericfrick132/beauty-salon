@@ -66,6 +66,35 @@ import SuperAdminWhatsApp from './SuperAdminWhatsApp';
 import SuperAdminPayments from './admin/SuperAdminPayments';
 import { useNavigate } from 'react-router-dom';
 import api, { superAdminApi } from '../services/api';
+import { slugify } from '../utils/slug';
+
+/** Rol de super admin con permisos mínimos — espejo de Roles.SuperAdminSales en el backend. */
+const SALES_ROLE = 'super_admin_sales';
+
+/** Tabs que ve el rol de ventas: negocios en lectura + alta/listado de invitaciones. */
+const SALES_TAB_LABELS = ['Crear Invitación', 'Invitaciones Enviadas', 'Negocios'];
+
+/**
+ * Rol del super admin logueado. Cae al claim del JWT si no está el usuario guardado
+ * (sesiones viejas); sin rol conocido no se restringe nada — el backend igual corta.
+ */
+const getSuperAdminRole = (): string => {
+  try {
+    const fromUser = JSON.parse(localStorage.getItem('superAdminUser') || '{}').role;
+    if (fromUser) return fromUser;
+  } catch {
+    /* sigue con el token */
+  }
+
+  try {
+    const token = localStorage.getItem('superAdminToken');
+    if (!token) return '';
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.role || payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] || '';
+  } catch {
+    return '';
+  }
+};
 
 interface Tenant {
   id: string;
@@ -123,7 +152,27 @@ interface CreateInvitationData {
 }
 
 const SuperAdminDashboard: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState(0);
+  const isSales = getSuperAdminRole() === SALES_ROLE;
+
+  // Orden canónico de los tabs: `index` es el que usan los paneles de abajo,
+  // mientras que el Tabs de MUI trabaja sobre la lista ya filtrada por rol.
+  const ALL_TABS = [
+    { index: 0, label: 'Dashboard', icon: <Dashboard /> },
+    { index: 1, label: 'Crear Invitación', icon: <Email /> },
+    { index: 2, label: 'Invitaciones Enviadas', icon: <Email /> },
+    { index: 3, label: 'Negocios', icon: <People /> },
+    { index: 4, label: 'Planes', icon: <CardMembership /> },
+    { index: 5, label: 'Facturación', icon: <AttachMoney /> },
+    { index: 6, label: 'Cobros', icon: <CreditCard /> },
+    { index: 7, label: 'WhatsApp', icon: <WhatsAppIcon /> },
+    { index: 8, label: 'Marketing', icon: <TrendIcon /> },
+    { index: 9, label: 'Configuración', icon: <Settings /> },
+  ];
+  const visibleTabs = ALL_TABS.filter(t => !isSales || SALES_TAB_LABELS.includes(t.label));
+
+  const [currentTab, setCurrentTab] = useState(visibleTabs[0]?.index ?? 0);
+  // El subdominio sigue al nombre del negocio mientras no se edite a mano.
+  const [subdomainTouched, setSubdomainTouched] = useState(false);
   // tenants list itself is rendered by the embedded TenantsManagement;
   // we only need the count for the dashboard stats below.
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -181,10 +230,12 @@ const SuperAdminDashboard: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
+      // El rol de ventas no tiene permiso sobre la config de cobros: se omite
+      // para no disparar un 403 en cada carga del panel.
       await Promise.all([
         loadTenants(),
         loadInvitations(),
-        loadPaymentStatus()
+        ...(isSales ? [] : [loadPaymentStatus()])
       ]);
     } finally {
       setLoading(false);
@@ -262,7 +313,8 @@ const SuperAdminDashboard: React.FC = () => {
         demoDays: 7,
         expiresInDays: 30
       });
-      
+      setSubdomainTouched(false);
+
       await loadInvitations(); // Recargar invitaciones
       setSuccess('Invitación creada exitosamente');
     } catch (error: any) {
@@ -594,16 +646,20 @@ const SuperAdminDashboard: React.FC = () => {
                               <ContentCopy fontSize="small" />
                             </IconButton>
                           </Tooltip>
+                          {!isSales && (
                           <Tooltip title="Reenviar invitación">
                             <IconButton size="small" color="primary" onClick={() => handleResendInvitation(inv.id)}>
                               <Send fontSize="small" />
                             </IconButton>
                           </Tooltip>
+                          )}
+                          {!isSales && (
                           <Tooltip title="Cancelar invitación">
                             <IconButton size="small" color="error" onClick={() => handleCancelInvitation(inv.id)}>
                               <Cancel fontSize="small" />
                             </IconButton>
                           </Tooltip>
+                          )}
                         </Box>
                       </TableCell>
                     </TableRow>
@@ -659,21 +715,14 @@ const SuperAdminDashboard: React.FC = () => {
         {/* Tabs */}
         <Paper>
           <Tabs
-            value={currentTab}
-            onChange={(_, newValue) => setCurrentTab(newValue)}
+            value={Math.max(0, visibleTabs.findIndex(t => t.index === currentTab))}
+            onChange={(_, newValue) => setCurrentTab(visibleTabs[newValue].index)}
             variant="scrollable"
             scrollButtons="auto"
           >
-            <Tab icon={<Dashboard />} label="Dashboard" />
-            <Tab icon={<Email />} label="Crear Invitación" />
-            <Tab icon={<Email />} label="Invitaciones Enviadas" />
-            <Tab icon={<People />} label="Negocios" />
-            <Tab icon={<CardMembership />} label="Planes" />
-            <Tab icon={<AttachMoney />} label="Facturación" />
-            <Tab icon={<CreditCard />} label="Cobros" />
-            <Tab icon={<WhatsAppIcon />} label="WhatsApp" />
-            <Tab icon={<TrendIcon />} label="Marketing" />
-            <Tab icon={<Settings />} label="Configuración" />
+            {visibleTabs.map(tab => (
+              <Tab key={tab.index} icon={tab.icon} label={tab.label} />
+            ))}
           </Tabs>
 
           {/* Tab Panels */}
@@ -692,7 +741,7 @@ const SuperAdminDashboard: React.FC = () => {
           <div role="tabpanel" hidden={currentTab !== 3}>
             {currentTab === 3 && (
               <Box sx={{ p: 0 }}>
-                <TenantsManagement embedded />
+                <TenantsManagement embedded readOnly={isSales} />
               </Box>
             )}
           </div>
@@ -767,8 +816,17 @@ const SuperAdminDashboard: React.FC = () => {
                 fullWidth
                 label="Nombre del Negocio"
                 value={createInvitationData.businessName}
-                onChange={(e) => setCreateInvitationData({...createInvitationData, businessName: e.target.value})}
+                onChange={(e) => {
+                  const businessName = e.target.value;
+                  setCreateInvitationData(prev => ({
+                    ...prev,
+                    businessName,
+                    // Se copia letra por letra al subdominio hasta que lo editen a mano.
+                    subdomain: subdomainTouched ? prev.subdomain : slugify(businessName),
+                  }));
+                }}
                 required
+                helperText={subdomainTouched ? ' ' : 'Se copia automáticamente al subdominio'}
               />
             </Grid>
             
@@ -777,9 +835,16 @@ const SuperAdminDashboard: React.FC = () => {
                 fullWidth
                 label="Subdominio"
                 value={createInvitationData.subdomain}
-                onChange={(e) => setCreateInvitationData({...createInvitationData, subdomain: e.target.value})}
+                onChange={(e) => {
+                  setSubdomainTouched(true);
+                  setCreateInvitationData({ ...createInvitationData, subdomain: e.target.value });
+                }}
                 required
-                helperText="Solo letras minúsculas, números y guiones"
+                helperText={
+                  subdomainTouched
+                    ? 'Solo letras minúsculas, números y guiones'
+                    : 'Se completa con el nombre del negocio (podés editarlo)'
+                }
               />
             </Grid>
             

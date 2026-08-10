@@ -35,20 +35,10 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { registrationApi } from '../services/api';
 import GoogleSignInButton from '../components/auth/GoogleSignInButton';
 import AuthShell, { authPalette, authFonts } from '../components/auth/AuthShell';
+import { slugify } from '../utils/slug';
 
 type FlowStep = 'signup' | 'email-sent' | 'business' | 'success';
 
-// Turn a business name into a URL slug (lowercase, hyphen-separated, ASCII-
-// safe). Used to auto-derive the tenant link so end users never have to
-// think about "subdomains".
-const slugify = (s: string): string =>
-  s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 30);
 
 // ────────────────────── Editorial field style ──────────────────────
 // Underline-only inputs: 1px ink border-bottom, forest-green glow on focus.

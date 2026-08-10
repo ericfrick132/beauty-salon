@@ -224,6 +224,10 @@ using (var scope = app.Services.CreateScope())
             await ApplicationDbContextSeed.SeedAsync(context);
             await SuperAdminSeeder.SeedSuperAdminAsync(context);
         }
+
+        // Cuenta de super admin con permisos mínimos (solo lectura de negocios + invitaciones).
+        // Idempotente, corre en cada arranque.
+        await SuperAdminSeeder.EnsureSalesSuperAdminAsync(context);
     }
     catch (Exception ex)
     {

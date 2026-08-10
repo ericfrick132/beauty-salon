@@ -70,6 +70,48 @@ namespace BookingPro.API.Data
             Console.WriteLine("=== CAMBIAR PASSWORD DESPUÉS DEL PRIMER LOGIN ===");
         }
 
+        /// <summary>
+        /// Cuenta de super admin con permisos mínimos (rol <see cref="Roles.SuperAdminSales"/>):
+        /// ve el listado de negocios en modo lectura y puede crear invitaciones, nada más.
+        /// Idempotente — corre en cada arranque y no pisa la contraseña si la cuenta ya existe.
+        /// Email/contraseña se pueden sobreescribir con SALES_SUPERADMIN_EMAIL / SALES_SUPERADMIN_PASSWORD.
+        /// </summary>
+        public static async Task EnsureSalesSuperAdminAsync(ApplicationDbContext context)
+        {
+            var email = (Environment.GetEnvironmentVariable("SALES_SUPERADMIN_EMAIL") ?? "ventas@turnos-pro.com").Trim().ToLowerInvariant();
+            var password = Environment.GetEnvironmentVariable("SALES_SUPERADMIN_PASSWORD") ?? "Ver2026!";
+
+            // El panel de super admin vive en el tenant "system"; sin él no hay dónde crearla.
+            var systemTenant = await context.Tenants.FirstOrDefaultAsync(t => t.Subdomain == "system");
+            if (systemTenant == null)
+            {
+                Console.WriteLine("[SalesSuperAdmin] No existe el tenant 'system', se omite la creación.");
+                return;
+            }
+
+            if (await context.Users.AnyAsync(u => u.Email == email && u.TenantId == systemTenant.Id))
+            {
+                Console.WriteLine($"[SalesSuperAdmin] {email} ya existe, no se modifica.");
+                return;
+            }
+
+            context.Users.Add(new User
+            {
+                Id = Guid.NewGuid(),
+                TenantId = systemTenant.Id,
+                Email = email,
+                PasswordHash = BookingPro.API.Services.Security.PasswordHasher.Hash(password),
+                FirstName = "Ventas",
+                LastName = "TurnosPro",
+                Role = Roles.SuperAdminSales,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await context.SaveChangesAsync();
+            Console.WriteLine($"[SalesSuperAdmin] Cuenta creada: {email} (rol {Roles.SuperAdminSales})");
+        }
+
         // Password hashing centralized in Services.Security.PasswordHasher
     }
 }

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Services.Interfaces;
+using BookingPro.API.Models.Constants;
 
 namespace BookingPro.API.Controllers
 {
@@ -21,7 +22,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "super_admin")]
+        [Authorize(Roles = Roles.AnySuperAdmin)]
         public async Task<IActionResult> CreateInvitation([FromBody] CreateInvitationDto dto)
         {
             if (!ModelState.IsValid)
@@ -84,7 +85,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = "super_admin")]
+        [Authorize(Roles = Roles.AnySuperAdmin)]
         public async Task<IActionResult> GetPendingInvitations()
         {
             var result = await _invitationService.GetPendingInvitationsAsync();
@@ -101,7 +102,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpPost("{id}/cancel")]
-        [Authorize(Roles = "super_admin")]
+        [Authorize(Roles = Roles.SuperAdmin)]
         public async Task<IActionResult> CancelInvitation(Guid id)
         {
             var result = await _invitationService.CancelInvitationAsync(id);
@@ -118,7 +119,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpPost("{id}/resend")]
-        [Authorize(Roles = "super_admin")]
+        [Authorize(Roles = Roles.SuperAdmin)]
         public async Task<IActionResult> ResendInvitation(Guid id)
         {
             var result = await _invitationService.ResendInvitationAsync(id);

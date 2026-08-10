@@ -7,12 +7,15 @@ using BookingPro.API.Models.Entities;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Services;
 using BookingPro.API.Services.Interfaces;
+using BookingPro.API.Models.Constants;
 
 namespace BookingPro.API.Controllers
 {
     [ApiController]
     [Route("api/super-admin")]
-    [Authorize(Roles = "super_admin")]
+    // Admite también al rol de ventas (solo lectura). Cada endpoint fuera del
+    // listado de negocios lleva su propio [Authorize(Roles = "super_admin")].
+    [Authorize(Roles = Roles.AnySuperAdmin)]
     public class SuperAdminController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -35,6 +38,7 @@ namespace BookingPro.API.Controllers
         // ─── WhatsApp de plataforma (número que envía los OTP de registro/login) ───
 
         [HttpGet("whatsapp/status")]
+        [Authorize(Roles = Roles.SuperAdmin)]
         public async Task<IActionResult> GetPlatformWhatsAppStatus()
         {
             try
@@ -50,6 +54,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpPost("whatsapp/connect")]
+        [Authorize(Roles = Roles.SuperAdmin)]
         public async Task<IActionResult> ConnectPlatformWhatsApp()
         {
             try
@@ -65,6 +70,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpPost("whatsapp/refresh-qr")]
+        [Authorize(Roles = Roles.SuperAdmin)]
         public async Task<IActionResult> RefreshPlatformWhatsAppQr()
         {
             try
@@ -80,6 +86,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpPost("whatsapp/disconnect")]
+        [Authorize(Roles = Roles.SuperAdmin)]
         public async Task<IActionResult> DisconnectPlatformWhatsApp()
         {
             try
@@ -199,6 +206,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpGet("tenant-payments")]
+        [Authorize(Roles = Roles.SuperAdmin)]
         public async Task<IActionResult> GetTenantPayments()
         {
             try
@@ -215,6 +223,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpGet("platform-config")]
+        [Authorize(Roles = Roles.SuperAdmin)]
         public async Task<IActionResult> GetPlatformConfig()
         {
             try
@@ -237,6 +246,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpPut("platform-config")]
+        [Authorize(Roles = Roles.SuperAdmin)]
         public async Task<IActionResult> UpdatePlatformConfig([FromBody] PlatformConfigDto config)
         {
             try
@@ -252,6 +262,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpPost("tenants/{tenantId}/create-payment")]
+        [Authorize(Roles = Roles.SuperAdmin)]
         public async Task<IActionResult> CreateTenantPayment(Guid tenantId)
         {
             try
@@ -273,6 +284,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpPost("tenants/{tenantId}/impersonate")]
+        [Authorize(Roles = Roles.SuperAdmin)]
         public async Task<IActionResult> ImpersonateTenant(Guid tenantId)
         {
             try
@@ -311,6 +323,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpGet("tenants/{tenantId}/message-wallet")]
+        [Authorize(Roles = Roles.SuperAdmin)]
         public async Task<IActionResult> GetTenantMessageWallet(Guid tenantId)
         {
             try
@@ -343,6 +356,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpPost("tenants/{tenantId}/message-credits")]
+        [Authorize(Roles = Roles.SuperAdmin)]
         public async Task<IActionResult> AddMessageCredits(Guid tenantId, [FromBody] AddMessageCreditsDto dto)
         {
             try
@@ -412,6 +426,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpPost("tenants/{tenantId}/assign-plan")]
+        [Authorize(Roles = Roles.SuperAdmin)]
         public async Task<IActionResult> AssignTenantPlan(Guid tenantId, [FromBody] AssignTenantPlanDto dto)
         {
             if (dto == null || dto.SubscriptionPlanId == Guid.Empty)
@@ -465,6 +480,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpPost("tenants/{tenantId}/reset-password")]
+        [Authorize(Roles = Roles.SuperAdmin)]
         public async Task<IActionResult> ResetTenantAdminPassword(Guid tenantId, [FromBody] ResetTenantPasswordDto? dto)
         {
             var adminEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? "unknown";
@@ -548,6 +564,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpDelete("tenants/{tenantId}")]
+        [Authorize(Roles = Roles.SuperAdmin)]
         public async Task<IActionResult> DeleteTenant(Guid tenantId)
         {
             var adminEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? "unknown";
@@ -572,6 +589,7 @@ namespace BookingPro.API.Controllers
         }
 
         [HttpGet("tenants/list")]
+        [Authorize(Roles = Roles.SuperAdmin)]
         public async Task<IActionResult> GetTenantsForImpersonation()
         {
             try

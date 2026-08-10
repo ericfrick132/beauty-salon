@@ -40,9 +40,9 @@ namespace BookingPro.API.Controllers
                 // Buscar usuario super admin
                 var user = await _context.Users
                     .Include(u => u.Tenant)
-                    .FirstOrDefaultAsync(u => 
-                        u.Email == loginDto.Email && 
-                        u.Role == Roles.SuperAdmin &&
+                    .FirstOrDefaultAsync(u =>
+                        u.Email == loginDto.Email &&
+                        Roles.SuperAdminRoles.Contains(u.Role) &&
                         u.Tenant.Subdomain == "system");
 
                 if (user == null)
@@ -110,9 +110,9 @@ namespace BookingPro.API.Controllers
             try
             {
                 var user = await _context.Users
-                    .FirstOrDefaultAsync(u => 
-                        u.Email == dto.Email && 
-                        u.Role == Roles.SuperAdmin);
+                    .FirstOrDefaultAsync(u =>
+                        u.Email == dto.Email &&
+                        Roles.SuperAdminRoles.Contains(u.Role));
 
                 if (user == null)
                 {
@@ -149,7 +149,9 @@ namespace BookingPro.API.Controllers
                 new("tenant_id", user.TenantId.ToString()),
                 new("first_name", user.FirstName ?? ""),
                 new("last_name", user.LastName ?? ""),
-                new("is_super_admin", "true")
+                // Solo el super admin completo; el rol de ventas no debe pasar chequeos
+                // que se apoyan en este claim (ej. impersonación).
+                new("is_super_admin", user.Role == Roles.SuperAdmin ? "true" : "false")
             };
 
             var tokenDescriptor = new SecurityTokenDescriptor

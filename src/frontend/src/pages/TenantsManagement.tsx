@@ -135,9 +135,11 @@ interface SubscriptionPlan {
 
 type TenantsManagementProps = {
   embedded?: boolean;
+  /** Modo lectura (rol de ventas): se ve el listado de negocios pero sin acciones. */
+  readOnly?: boolean;
 };
 
-const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false }) => {
+const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false, readOnly = false }) => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -202,12 +204,16 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
   const fetchData = async () => {
     try {
       setLoading(true);
+      // En modo lectura (rol de ventas) solo se permite el listado de negocios:
+      // pagos, config de plataforma y planes están fuera de su alcance.
       const [tenantsResponse, paymentsResponse, configResponse, plansResponse] = await Promise.allSettled([
         api.get('/super-admin/tenants'),
-        api.get('/super-admin/tenant-payments'),
-        api.get('/super-admin/platform-config'),
-        api.get('/subscription-plans/admin'),
-      ]);
+        ...(readOnly ? [] : [
+          api.get('/super-admin/tenant-payments'),
+          api.get('/super-admin/platform-config'),
+          api.get('/subscription-plans/admin'),
+        ]),
+      ] as const) as PromiseSettledResult<any>[];
       
       let allTenants: Tenant[] = [];
       let allPayments: TenantSubscription[] = [];
@@ -220,18 +226,18 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
         setMessage({ type: 'error', text: 'Error cargando tenants' });
       }
       
-      if (paymentsResponse.status === 'fulfilled') {
+      if (paymentsResponse?.status === 'fulfilled') {
         allPayments = paymentsResponse.value.data || [];
         setPayments(allPayments);
       } else {
-        console.error('Error fetching payments:', paymentsResponse.reason);
+        console.error('Error fetching payments:', paymentsResponse?.reason);
       }
       
-      if (configResponse.status === 'fulfilled') {
+      if (configResponse?.status === 'fulfilled') {
         setPlatformConfig(configResponse.value.data);
       }
 
-      if (plansResponse.status === 'fulfilled') {
+      if (plansResponse?.status === 'fulfilled') {
         const activePlans = (plansResponse.value.data || []).filter((p: SubscriptionPlan) => p.isActive);
         setPlans(activePlans);
       }
@@ -566,13 +572,15 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
           >
             Actualizar
           </Button>
-          <Button
-            variant="contained"
-            startIcon={<PaymentIcon />}
-            onClick={() => setConfigDialog(true)}
-          >
-            Configuración
-          </Button>
+          {!readOnly && (
+            <Button
+              variant="contained"
+              startIcon={<PaymentIcon />}
+              onClick={() => setConfigDialog(true)}
+            >
+              Configuración
+            </Button>
+          )}
         </Box>
 
         {message && (
@@ -627,26 +635,31 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={2}>
-            <Card>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <Typography variant="h6" color="primary">
-                  ${stats.monthlyRevenue.toLocaleString()}
-                </Typography>
-                <Typography variant="body2">Ingresos del Mes</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={2}>
-            <Card>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <Typography variant="h6" color="primary">
-                  ${stats.totalRevenue.toLocaleString()}
-                </Typography>
-                <Typography variant="body2">Ingresos Totales</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
+          {/* Los ingresos salen de /tenant-payments, endpoint fuera del alcance del rol de ventas. */}
+          {!readOnly && (
+            <>
+              <Grid item xs={12} sm={6} md={2}>
+                <Card>
+                  <CardContent sx={{ textAlign: 'center' }}>
+                    <Typography variant="h6" color="primary">
+                      ${stats.monthlyRevenue.toLocaleString()}
+                    </Typography>
+                    <Typography variant="body2">Ingresos del Mes</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <Card>
+                  <CardContent sx={{ textAlign: 'center' }}>
+                    <Typography variant="h6" color="primary">
+                      ${stats.totalRevenue.toLocaleString()}
+                    </Typography>
+                    <Typography variant="body2">Ingresos Totales</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </>
+          )}
         </Grid>
 
         {/* Filters */}
@@ -707,8 +720,8 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
                       <TableCell>Registro</TableCell>
                       <TableCell>Último Acceso</TableCell>
                       <TableCell>Facturado este mes</TableCell>
-                      <TableCell>Facturación Total</TableCell>
-                      <TableCell>Acciones</TableCell>
+                      {!readOnly && <TableCell>Facturación Total</TableCell>}
+                      {!readOnly && <TableCell>Acciones</TableCell>}
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -779,14 +792,18 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false 
                             {new Date().toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })}
                           </Typography>
                         </TableCell>
-                        <TableCell>
-                          ${getTenantTotalRevenue(tenant).toLocaleString()} {platformConfig.currency}
-                        </TableCell>
-                        <TableCell>
-                          <IconButton onClick={(e) => { setActionMenuAnchor(e.currentTarget); setActionMenuTenant(tenant); }}>
-                            <MoreVertIcon />
-                          </IconButton>
-                        </TableCell>
+                        {!readOnly && (
+                          <TableCell>
+                            ${getTenantTotalRevenue(tenant).toLocaleString()} {platformConfig.currency}
+                          </TableCell>
+                        )}
+                        {!readOnly && (
+                          <TableCell>
+                            <IconButton onClick={(e) => { setActionMenuAnchor(e.currentTarget); setActionMenuTenant(tenant); }}>
+                              <MoreVertIcon />
+                            </IconButton>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
