@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import type { CSSProperties } from 'react';
+import { pageAlternates } from '@/app/(lib)/seo';
 
 export const metadata: Metadata = {
   title: 'Política de Privacidad — TurnosPro',
   description: 'Política de privacidad de TurnosPro.',
+  alternates: pageAlternates('/privacidad'),
 };
 
 const h2: CSSProperties = { fontSize: '1.2rem', marginTop: '2rem' };

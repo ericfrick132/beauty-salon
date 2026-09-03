@@ -2,6 +2,7 @@ import { Box, Container, Grid, IconButton, Link as MuiLink } from '@mui/material
 import Link from 'next/link';
 import { brand } from '@/app/(lib)/brand';
 import { palette } from '@/app/(lib)/theme';
+import { verticalLinks, blogLinks } from '@/app/(lib)/vertical-links';
 
 function InstagramIcon() {
   return (
@@ -60,7 +61,7 @@ export default function Footer() {
     >
       <Container maxWidth="lg">
         <Grid container spacing={{ xs: 4, md: 6 }}>
-          <Grid item xs={12} md={5}>
+          <Grid item xs={12} md={4}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, mb: 1.8 }}>
               <FootMark />
               <Box
@@ -115,7 +116,7 @@ export default function Footer() {
             </Box>
           </Grid>
 
-          <Grid item xs={6} md={3}>
+          <Grid item xs={6} md={2}>
             <Box
               sx={{
                 fontFamily: 'var(--font-mono), monospace',
@@ -172,7 +173,54 @@ export default function Footer() {
             </Box>
           </Grid>
 
-          <Grid item xs={6} md={4}>
+          <Grid item xs={6} md={3}>
+            <Box
+              sx={{
+                fontFamily: 'var(--font-mono), monospace',
+                fontSize: '0.66rem',
+                letterSpacing: '0.16em',
+                textTransform: 'uppercase',
+                color: palette.amber,
+                mb: 2,
+              }}
+            >
+              Recursos
+            </Box>
+            <Box component="nav" aria-label="Recursos" sx={{ display: 'flex', flexDirection: 'column', gap: 1.2 }}>
+              {verticalLinks.map((v) => (
+                <MuiLink
+                  key={v.path}
+                  component={Link}
+                  href={v.path}
+                  underline="hover"
+                  sx={{ color: 'rgba(244,239,230,0.7)', fontSize: '0.92rem', '&:hover': { color: palette.paper } }}
+                >
+                  Turnos para {v.label.toLowerCase()}
+                </MuiLink>
+              ))}
+              {blogLinks.map((b) => (
+                <MuiLink
+                  key={b.path}
+                  component={Link}
+                  href={b.path}
+                  underline="hover"
+                  sx={{ color: 'rgba(244,239,230,0.7)', fontSize: '0.92rem', '&:hover': { color: palette.paper } }}
+                >
+                  {b.label}
+                </MuiLink>
+              ))}
+              <MuiLink
+                component={Link}
+                href="/blog"
+                underline="hover"
+                sx={{ color: 'rgba(244,239,230,0.7)', fontSize: '0.92rem', '&:hover': { color: palette.paper } }}
+              >
+                Blog
+              </MuiLink>
+            </Box>
+          </Grid>
+
+          <Grid item xs={6} md={3}>
             <Box
               sx={{
                 fontFamily: 'var(--font-mono), monospace',

@@ -71,3 +71,49 @@ export function videoSchema({ url, name, description }: { url: string; name: str
     },
   } as const;
 }
+
+export function breadcrumbSchema(items: { name: string; path: string }[]) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((it, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: it.name,
+      item: new URL(it.path, brand.brand_domain).toString(),
+    })),
+  } as const;
+}
+
+export function articleSchema({
+  headline,
+  description,
+  path,
+  datePublished,
+  dateModified,
+}: {
+  headline: string;
+  description: string;
+  path: string;
+  datePublished: string;
+  dateModified?: string;
+}) {
+  const url = new URL(path, brand.brand_domain).toString();
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline,
+    description,
+    inLanguage: brand.lang,
+    datePublished,
+    dateModified: dateModified ?? datePublished,
+    mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+    image: [`${brand.brand_domain}${brand.og_image}`],
+    author: { '@type': 'Organization', name: brand.brand_name, url: brand.brand_domain },
+    publisher: {
+      '@type': 'Organization',
+      name: brand.brand_name,
+      logo: { '@type': 'ImageObject', url: `${brand.brand_domain}${brand.logo_url}` },
+    },
+  } as const;
+}

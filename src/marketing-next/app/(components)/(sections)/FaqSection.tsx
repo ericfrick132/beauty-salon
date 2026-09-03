@@ -133,14 +133,29 @@ function FaqItem({ q, a, index, total, open, onToggle }: ItemProps) {
   );
 }
 
-export default function FaqSection() {
+interface FaqSectionProps {
+  /** Preguntas a mostrar. Por defecto, las FAQ de la home (content.ts). */
+  items?: { q: string; a: string }[];
+  number?: string;
+  label?: string;
+  title?: string;
+  titleAccent?: string;
+}
+
+export default function FaqSection({
+  items = faqs,
+  number = '09',
+  label = 'Preguntas',
+  title = 'Lo que todos preguntan',
+  titleAccent = 'antes de empezar.',
+}: FaqSectionProps = {}) {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   return (
     <Box id="faq" component="section" sx={{ py: { xs: 9, md: 14 }, bgcolor: palette.paperDeep }}>
       <Container maxWidth="md">
         <AnimatedSection>
-          <SectionLabel number="09" label="Preguntas" />
+          <SectionLabel number={number} label={label} />
         </AnimatedSection>
 
         <AnimatedSection>
@@ -153,20 +168,20 @@ export default function FaqSection() {
               mb: { xs: 5, md: 7 },
             }}
           >
-            Lo que todos preguntan{' '}
+            {title}{' '}
             <Box component="span" sx={{ fontStyle: 'italic', color: palette.forest }}>
-              antes de empezar.
+              {titleAccent}
             </Box>
           </Typography>
         </AnimatedSection>
 
         <AnimatedSection>
           <Box>
-            {faqs.map((faq, i) => (
+            {items.map((faq, i) => (
               <FaqItem
                 key={faq.q}
                 index={i}
-                total={faqs.length}
+                total={items.length}
                 q={faq.q}
                 a={faq.a}
                 open={openIndex === i}

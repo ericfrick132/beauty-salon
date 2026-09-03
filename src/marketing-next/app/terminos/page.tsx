@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import type { CSSProperties } from 'react';
+import { pageAlternates } from '@/app/(lib)/seo';
 
 export const metadata: Metadata = {
   title: 'Términos y Condiciones — TurnosPro',
   description: 'Términos y condiciones de uso de TurnosPro.',
+  alternates: pageAlternates('/terminos'),
 };
 
 const h2: CSSProperties = { fontSize: '1.2rem', marginTop: '2rem' };

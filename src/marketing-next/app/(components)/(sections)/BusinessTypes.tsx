@@ -1,9 +1,11 @@
 'use client';
 import { Box, Container, Grid, Typography } from '@mui/material';
+import Link from 'next/link';
 import AnimatedSection from './AnimatedSection';
 import SectionLabel from './SectionLabel';
 import { businessTypesContent } from '@/app/(lib)/content';
 import { palette } from '@/app/(lib)/theme';
+import { verticalPathByBusinessType } from '@/app/(lib)/vertical-links';
 
 export default function BusinessTypes() {
   const types = businessTypesContent.types;
@@ -66,7 +68,11 @@ export default function BusinessTypes() {
                 {types.map((t) => (
                   <Box
                     key={t}
+                    {...(verticalPathByBusinessType[t]
+                      ? { component: Link, href: verticalPathByBusinessType[t], 'aria-label': `Sistema de turnos para ${t.toLowerCase()}` }
+                      : {})}
                     sx={{
+                      textDecoration: 'none',
                       px: 1.6,
                       py: 0.6,
                       border: `1.5px solid ${palette.ink}`,
@@ -127,7 +133,17 @@ export default function BusinessTypes() {
                       },
                     }}
                   >
-                    {t}
+                    {verticalPathByBusinessType[t] ? (
+                      <Link
+                        href={verticalPathByBusinessType[t]}
+                        style={{ color: 'inherit', textDecoration: 'none' }}
+                        aria-label={`Sistema de turnos para ${t.toLowerCase()}`}
+                      >
+                        {t}
+                      </Link>
+                    ) : (
+                      t
+                    )}
                     <Box
                       component="span"
                       sx={{

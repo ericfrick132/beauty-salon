@@ -26,10 +26,15 @@ const mono = JetBrains_Mono({
 });
 
 const pixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
+// GA4 + Search Console: se activan solo si la env está seteada en el build (ver src/frontend/Dockerfile).
+const ga4Id = process.env.NEXT_PUBLIC_GA4_ID;
+const gscVerification = process.env.NEXT_PUBLIC_GSC_VERIFICATION;
 
+// Canonical + hreflang se definen por página (ver app/(lib)/seo.ts → pageAlternates)
+// para que cada URL sea auto-referencial y no apunte a la home.
 export const metadata: Metadata = {
   metadataBase: new URL(brand.brand_domain),
-  alternates: { languages: { [brand.lang]: `${brand.brand_domain}${brand.marketing_path}` } },
+  ...(gscVerification ? { verification: { google: gscVerification } } : {}),
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -45,6 +50,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
           </ThemeProvider>
         </ThemeRegistry>
+        {ga4Id && (
+          <>
+            <Script
+              id="ga4-src"
+              src={`https://www.googletagmanager.com/gtag/js?id=${ga4Id}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga4-init" strategy="afterInteractive">
+              {`
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', '${ga4Id}');
+              `}
+            </Script>
+          </>
+        )}
         {pixelId && (
           <>
             <Script id="meta-pixel" strategy="afterInteractive">
