@@ -201,7 +201,6 @@ export default function Footer() {
               {blogLinks.map((b) => (
                 <MuiLink
                   key={b.path}
-                  component={Link}
                   href={b.path}
                   underline="hover"
                   sx={{ color: 'rgba(244,239,230,0.7)', fontSize: '0.92rem', '&:hover': { color: palette.paper } }}
@@ -210,12 +209,11 @@ export default function Footer() {
                 </MuiLink>
               ))}
               <MuiLink
-                component={Link}
-                href="/guias"
+                href="/blog/"
                 underline="hover"
                 sx={{ color: 'rgba(244,239,230,0.7)', fontSize: '0.92rem', '&:hover': { color: palette.paper } }}
               >
-                Guías
+                Blog
               </MuiLink>
             </Box>
           </Grid>

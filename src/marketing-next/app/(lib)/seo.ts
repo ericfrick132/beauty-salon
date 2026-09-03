@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { brand } from '@/app/(lib)/brand';
 
-/** URL absoluta a partir de un path relativo ('/', '/guias/...'). */
+/** URL absoluta a partir de un path relativo ('/', '/terminos'). */
 export function absUrl(path: string) {
   return new URL(path, brand.brand_domain).toString();
 }

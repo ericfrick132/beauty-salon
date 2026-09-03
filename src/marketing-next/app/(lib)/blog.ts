@@ -1,4 +1,5 @@
-// Artículos del export estático, servidos bajo /guias. /blog NO va acá: el ingress de DO lo enruta al backend (blog central de sales-hub).
+// Artículos del blog central (sales-hub), publicados por el backend en /blog/<slug>/ (el ingress de DO enruta /blog al backend).
+// Este export NO genera esas páginas: acá solo queda el registro para linkearlas desde el sitio estático.
 export type BlogArticle = {
   slug: string;
   path: string;
@@ -13,7 +14,7 @@ export type BlogArticle = {
 export const blogArticles: BlogArticle[] = [
   {
     slug: 'mejor-sistema-de-turnos-online-argentina',
-    path: '/guias/mejor-sistema-de-turnos-online-argentina',
+    path: '/blog/mejor-sistema-de-turnos-online-argentina/',
     title: 'Mejor sistema de turnos online en Argentina (2026)',
     h1: '¿Cuál es el mejor sistema de turnos online en Argentina en 2026?',
     description:

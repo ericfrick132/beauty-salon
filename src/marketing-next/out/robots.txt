@@ -2,3 +2,4 @@ User-Agent: *
 Allow: /
 
 Sitemap: https://turnos-pro.com/sitemap.xml
+Sitemap: https://turnos-pro.com/blog/sitemap.xml

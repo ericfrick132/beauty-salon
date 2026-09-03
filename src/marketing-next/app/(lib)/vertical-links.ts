@@ -14,6 +14,7 @@ export const verticalPathByBusinessType: Record<string, string> = Object.fromEnt
   verticalLinks.map((v) => [v.businessTypeLabel, v.path]),
 );
 
+// /blog lo sirve el backend (blog central), no el export: se linkea con <a> común, no con next/link.
 export const blogLinks = [
-  { path: '/guias/mejor-sistema-de-turnos-online-argentina', label: 'Mejor sistema de turnos online en Argentina' },
+  { path: '/blog/mejor-sistema-de-turnos-online-argentina/', label: 'Mejor sistema de turnos online en Argentina' },
 ];
