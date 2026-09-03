@@ -11,14 +11,14 @@ import Prose from '@/app/(components)/(content)/Prose';
 import FinalCta from '@/app/(components)/(sections)/FinalCta';
 
 export const metadata: Metadata = {
-  title: 'Blog de TurnosPro: guías sobre turnos online',
+  title: 'Guías de TurnosPro sobre turnos online',
   description:
     'Guías y comparativas para elegir y sacarle provecho a un sistema de turnos online en Argentina: señas, WhatsApp, precios y casos por rubro.',
-  alternates: pageAlternates('/blog'),
+  alternates: pageAlternates('/guias'),
   openGraph: {
-    title: 'Blog de TurnosPro: guías sobre turnos online',
+    title: 'Guías de TurnosPro sobre turnos online',
     description: 'Guías y comparativas para elegir un sistema de turnos online en Argentina.',
-    url: `${brand.brand_domain}/blog`,
+    url: `${brand.brand_domain}/guias`,
     siteName: brand.brand_name,
     images: [{ url: brand.og_image, width: 1200, height: 630 }],
     locale: brand.lang,
@@ -29,11 +29,11 @@ export const metadata: Metadata = {
 const fmtDate = (iso: string) =>
   new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
 
-export default function BlogIndexPage() {
+export default function GuiasIndexPage() {
   const jsonLd = [
     breadcrumbSchema([
       { name: 'Inicio', path: '/' },
-      { name: 'Blog', path: '/blog' },
+      { name: 'Guías', path: '/guias' },
     ]),
   ];
 
@@ -45,14 +45,14 @@ export default function BlogIndexPage() {
       <ContentShell>
         <PageHero
           number="01"
-          label="Blog"
+          label="Guías"
           h1="Guías sobre turnos online para negocios de servicios"
           intro={[
             'Comparativas, criterios y casos por rubro para que elijas bien y le saques el jugo a tu agenda online.',
           ]}
           crumbs={[
             { name: 'Inicio', path: '/' },
-            { name: 'Blog', path: '/blog' },
+            { name: 'Guías', path: '/guias' },
           ]}
         />
         <Prose>

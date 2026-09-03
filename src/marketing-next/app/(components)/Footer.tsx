@@ -211,11 +211,11 @@ export default function Footer() {
               ))}
               <MuiLink
                 component={Link}
-                href="/blog"
+                href="/guias"
                 underline="hover"
                 sx={{ color: 'rgba(244,239,230,0.7)', fontSize: '0.92rem', '&:hover': { color: palette.paper } }}
               >
-                Blog
+                Guías
               </MuiLink>
             </Box>
           </Grid>

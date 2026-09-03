@@ -73,7 +73,7 @@ export default function ArticlePage() {
     }),
     breadcrumbSchema([
       { name: 'Inicio', path: '/' },
-      { name: 'Blog', path: '/blog' },
+      { name: 'Guías', path: '/guias' },
       { name: article.h1, path: article.path },
     ]),
     softwareAppSchema(),
@@ -99,7 +99,7 @@ export default function ArticlePage() {
           ]}
           crumbs={[
             { name: 'Inicio', path: '/' },
-            { name: 'Blog', path: '/blog' },
+            { name: 'Guías', path: '/guias' },
             { name: 'Mejor sistema de turnos online en Argentina', path: article.path },
           ]}
         />

@@ -15,5 +15,5 @@ export const verticalPathByBusinessType: Record<string, string> = Object.fromEnt
 );
 
 export const blogLinks = [
-  { path: '/blog/mejor-sistema-de-turnos-online-argentina', label: 'Mejor sistema de turnos online en Argentina' },
+  { path: '/guias/mejor-sistema-de-turnos-online-argentina', label: 'Mejor sistema de turnos online en Argentina' },
 ];

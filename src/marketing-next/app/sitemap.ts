@@ -19,8 +19,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.8,
   }));
 
-  const blog: MetadataRoute.Sitemap = [
-    { url: `${base}/blog`, lastModified: now, changeFrequency: 'weekly', priority: 0.5 },
+  const guias: MetadataRoute.Sitemap = [
+    { url: `${base}/guias`, lastModified: now, changeFrequency: 'weekly', priority: 0.5 },
     ...blogArticles.map((a) => ({
       url: `${base}${a.path}`,
       lastModified: new Date(a.dateModified),
@@ -36,5 +36,5 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.3,
   }));
 
-  return [...home, ...verticalPages, ...blog, ...legal];
+  return [...home, ...verticalPages, ...guias, ...legal];
 }
