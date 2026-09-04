@@ -417,6 +417,96 @@ export const verticals: VerticalContent[] = [
     datePublished: '2026-09-03',
     dateModified: '2026-09-03',
   },
+  {
+    // Landing de funcionalidad (no es un rubro): no va en verticalLinks para no aparecer en BusinessTypes/Footer.
+    slug: 'reservas-online',
+    path: '/reservas-online',
+    label: 'Reservas online',
+    businessTypeLabel: 'Reservas online',
+    title: 'Sistema de reservas online con recordatorios por WhatsApp | TurnosPro',
+    description:
+      'Sistema de reservas online para tu negocio: web de turnos 24/7, señas con MercadoPago sin comisión y recordatorios y confirmación por WhatsApp. Probá gratis, sin tarjeta.',
+    h1: 'Sistema de reservas online con recordatorios por WhatsApp',
+    eyebrow: 'Reservas online',
+    intro: [
+      'Un sistema de reservas online tiene que hacer tres cosas: dejar que el cliente reserve solo a cualquier hora, cobrarle una seña para que no falte y recordarle el turno por el canal que sí lee. TurnosPro hace las tres desde una sola cuenta: tu propia web de turnos disponible 24/7, señas con MercadoPago directo en tu cuenta y recordatorios y confirmación por WhatsApp desde tu propio número.',
+      'Sirve para peluquerías, barberías, centros de estética, consultorios, estudios y cualquier negocio que trabaje con turnos. Se configura en 15 minutos, se prueba gratis sin tarjeta y no tiene permanencia.',
+    ],
+    sections: [
+      {
+        h2: 'Tu web de reservas, abierta las 24 horas',
+        paragraphs: [
+          'TurnosPro te da un sitio de reservas propio, rápido y pensado para el celular. Cargás tu catálogo de servicios con duración y precio, tus profesionales con sus horarios y, si tenés más de una, tus sucursales. El cliente entra desde el link que compartís en Instagram, en tu perfil de Google o en el estado de WhatsApp, elige servicio, profesional y horario, y reserva sin descargar ninguna app ni crear una cuenta.',
+          'La disponibilidad se calcula en tiempo real: dos clientes no pueden tomar el mismo horario, los bloqueos que cargás (almuerzo, cursos, vacaciones) no se ofrecen y los turnos recurrentes se repiten solos. Vos ves todo en una agenda por profesional con vista diaria, semanal y mensual.',
+        ],
+      },
+      {
+        h2: 'Señas con MercadoPago, sin comisión',
+        paragraphs: [
+          'La reserva online sin seña es una promesa; con seña es un compromiso. En TurnosPro definís, servicio por servicio, si pedís una seña parcial o el pago completo. El cliente paga con MercadoPago desde el celular en el mismo momento en que reserva, y la plata entra directo en tu cuenta. TurnosPro no cobra comisión por turno ni por cobro: pagás solo la cuota del plan.',
+        ],
+        bullets: [
+          'Seña parcial o pago total, configurable por servicio.',
+          'Cobro con tu propia cuenta de MercadoPago.',
+          '0% de comisión sobre cada turno.',
+          'El horario queda tomado recién cuando entra el pago.',
+        ],
+      },
+      {
+        h2: 'Recordatorios y confirmación por WhatsApp desde tu número',
+        paragraphs: [
+          'Tus clientes no leen el mail: leen WhatsApp. TurnosPro manda el recordatorio de cada turno por WhatsApp desde el número de tu negocio, no desde uno genérico, y está incluido en el plan sin paquetes de mensajes. Con el agente de IA de confirmación, además, el sistema le escribe al cliente antes del turno, entiende la respuesta y actúa solo: confirma la asistencia o cancela y te libera el horario para que otra persona lo tome.',
+          'Los negocios que combinan señas y recordatorios con TurnosPro reportan hasta un 80% menos de ausencias. Es la diferencia entre agendar turnos y cobrarlos.',
+        ],
+      },
+      {
+        h2: 'Gestión de clientes y reportes',
+        paragraphs: [
+          'Cada cliente tiene su ficha con historial de turnos y preferencias, así que la persona que atiende sabe quién viene y qué se hizo la última vez. Los reportes te muestran ocupación y facturación por profesional y por sucursal, para saber qué horarios se llenan, qué servicios se venden y a quién conviene darle más agenda.',
+        ],
+      },
+      {
+        h2: 'Cómo empezar',
+        bullets: [
+          'Creás tu cuenta gratis, sin tarjeta.',
+          'Cargás servicios, precios, profesionales y horarios.',
+          'Compartís tu link de reservas en redes y en tu perfil de Google.',
+          'Activás las señas con tu cuenta de MercadoPago y el agente de IA de confirmación.',
+        ],
+        after: [
+          'Todo el proceso lleva 15 minutos. Si venís de un cuaderno, una planilla o de otro sistema, importás tus clientes y seguís.',
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: '¿Qué es un sistema de reservas online?',
+        a: 'Es una web donde tus clientes reservan solos un turno, eligiendo servicio, profesional y horario, sin llamarte ni escribirte. TurnosPro suma a eso la seña con MercadoPago y los recordatorios por WhatsApp, que son lo que baja las ausencias.',
+      },
+      {
+        q: '¿Los recordatorios por WhatsApp están incluidos?',
+        a: 'Sí. Los recordatorios salen desde tu propio número y están incluidos en el plan, sin paquetes de mensajes. El agente de IA que pide confirmación y entiende la respuesta se activa como complemento.',
+      },
+      {
+        q: '¿TurnosPro cobra comisión por las reservas o por las señas?',
+        a: 'No. La seña o el pago completo entran directo en tu cuenta de MercadoPago y no hay comisión por turno ni por cobro. Pagás solo la cuota del plan.',
+      },
+      {
+        q: '¿Mis clientes tienen que instalar una app?',
+        a: 'No. Reservan desde el navegador del celular, con un link, sin descargar nada ni crear una cuenta. El recordatorio les llega por WhatsApp.',
+      },
+      {
+        q: '¿Cuánto cuesta el sistema de reservas online?',
+        a: 'TurnosPro cuesta ARS 50.000 por mes en el plan mensual, y baja a ARS 45.000, ARS 40.000 y ARS 37.500 por mes en los planes de 3, 6 y 12 meses. Todos con prueba gratis sin tarjeta, reservas ilimitadas, profesionales y sucursales incluidos y sin permanencia.',
+      },
+      {
+        q: '¿Sirve para varios profesionales o varias sucursales?',
+        a: 'Sí. Cada profesional tiene su agenda, sus servicios y sus horarios, y podés cargar más de una sucursal bajo la misma cuenta, sin pagar por profesional.',
+      },
+    ],
+    datePublished: '2026-09-04',
+    dateModified: '2026-09-04',
+  },
 ];
 
 export function getVertical(slug: string): VerticalContent {
