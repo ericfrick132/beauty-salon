@@ -103,6 +103,36 @@ namespace BookingPro.API.Models.Entities
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+        // === Adquisición / atribución Meta Ads (id del anuncio en cada alta + click ids para CAPI) ===
+        [MaxLength(100)]
+        public string? UtmSource { get; set; }
+        [MaxLength(100)]
+        public string? UtmMedium { get; set; }
+        [MaxLength(200)]
+        public string? UtmCampaign { get; set; }
+        /// <summary>utm_content del link del anuncio. En Meta se carga {{ad.id}} → id del anuncio.</summary>
+        [MaxLength(200)]
+        public string? UtmContent { get; set; }
+        /// <summary>fbclid del click en un anuncio web (para armar el fbc de CAPI).</summary>
+        [MaxLength(255)]
+        public string? Fbclid { get; set; }
+        [MaxLength(100)]
+        public string? Fbp { get; set; }
+        /// <summary>Click id de click-to-WhatsApp (externalAdReply.ctwaClid). Con esto CAPI atribuye la compra al anuncio.</summary>
+        [MaxLength(255)]
+        public string? CtwaClid { get; set; }
+        /// <summary>Id del anuncio de Meta que originó el alta (CTWA sourceId, leadgen ad_id o utm_content).</summary>
+        [MaxLength(50)]
+        public string? MetaAdId { get; set; }
+        [MaxLength(50)]
+        public string? MetaAdsetId { get; set; }
+        [MaxLength(50)]
+        public string? MetaCampaignId { get; set; }
+        /// <summary>"ctwa" | "leadgen" | "web" | "hub".</summary>
+        [MaxLength(30)]
+        public string? MetaAttributionSource { get; set; }
+        public DateTime? MetaAttributionAt { get; set; }
+
         // Onboarding wizard (post-register, /completar-perfil)
         [MaxLength(120)]
         public string? OwnerName { get; set; }

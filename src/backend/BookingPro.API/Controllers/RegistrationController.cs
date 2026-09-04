@@ -26,6 +26,7 @@ namespace BookingPro.API.Controllers
         private readonly ILogger<RegistrationController> _logger;
         private readonly IConfiguration _config;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IMetaAttributionEnricher _attributionEnricher;
 
         private readonly HashSet<string> _reservedSubdomains = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -46,8 +47,10 @@ namespace BookingPro.API.Controllers
             ICouponService couponService,
             ILogger<RegistrationController> logger,
             IConfiguration config,
-            IHttpClientFactory httpClientFactory)
+            IHttpClientFactory httpClientFactory,
+            IMetaAttributionEnricher attributionEnricher)
         {
+            _attributionEnricher = attributionEnricher;
             _context = context;
             _tenantService = tenantService;
             _authService = authService;
@@ -309,6 +312,8 @@ namespace BookingPro.API.Controllers
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
+                // utm_* / fbclid / utm_content ({{ad.id}}) que el frontend capturó al aterrizar desde el anuncio.
+                MetaAttribution.Apply(tenant, dto, "web");
 
                 _context.Tenants.Add(tenant);
                 await _context.SaveChangesAsync();
@@ -360,6 +365,8 @@ namespace BookingPro.API.Controllers
                 await _context.SaveChangesAsync();
 
                 await transaction.CommitAsync();
+                // Sin id de anuncio en el alta → sales-hub puede tenerlo (CTWA / form de leads con este teléfono).
+                if (!MetaAttribution.HasAdAttribution(tenant)) _attributionEnricher.Enqueue(tenant.Id);
 
                 // Generate JWT for auto-login
                 var token = _authService.GenerateJwtToken(adminUser);
@@ -464,6 +471,8 @@ namespace BookingPro.API.Controllers
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
+                // utm_* / fbclid / utm_content ({{ad.id}}) que el frontend capturó al aterrizar desde el anuncio.
+                MetaAttribution.Apply(tenant, dto, "web");
                 _context.Tenants.Add(tenant);
                 await _context.SaveChangesAsync();
 
@@ -529,6 +538,8 @@ namespace BookingPro.API.Controllers
                 await _context.SaveChangesAsync();
 
                 await transaction.CommitAsync();
+                // Sin id de anuncio en el alta → sales-hub puede tenerlo (CTWA / form de leads con este teléfono).
+                if (!MetaAttribution.HasAdAttribution(tenant)) _attributionEnricher.Enqueue(tenant.Id);
 
                 var token = _authService.GenerateJwtToken(adminUser);
                 var host = HttpContext.Request.Host.Host;
@@ -702,11 +713,15 @@ namespace BookingPro.API.Controllers
                     DemoDays = 7,
                     DemoExpiresAt = DateTime.UtcNow.AddDays(7),
                     TrialEndsAt = DateTime.UtcNow.AddDays(7),
-                    // NOTA: el entity Tenant de TurnosPro no tiene columnas UTM (a diferencia de GymHero).
-                    // El bot puede mandar utmSource/Medium/Campaign, pero sólo se loguean (ver más abajo).
+                    UtmSource = dto.UtmSource ?? "whatsapp-bot",
+                    UtmMedium = dto.UtmMedium ?? "whatsapp",
+                    UtmCampaign = dto.UtmCampaign ?? "chatbot-turnospro",
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
+                // sales-hub manda el id del anuncio / ctwa_clid del lead (CTWA o form de leads) → columnas del tenant.
+                MetaAttribution.Apply(tenant, dto,
+                    dto.AttributionSource ?? (dto.CtwaClid != null ? "ctwa" : dto.MetaAdId != null ? "leadgen" : "hub"));
                 _context.Tenants.Add(tenant);
                 await _context.SaveChangesAsync();
 
@@ -738,10 +753,14 @@ namespace BookingPro.API.Controllers
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
+                // utm_* / fbclid / utm_content ({{ad.id}}) que el frontend capturó al aterrizar desde el anuncio.
+                MetaAttribution.Apply(tenant, dto, "web");
                 _context.Subscriptions.Add(subscription);
                 await _context.SaveChangesAsync();
 
                 await transaction.CommitAsync();
+                // Sin id de anuncio en el alta → sales-hub puede tenerlo (CTWA / form de leads con este teléfono).
+                if (!MetaAttribution.HasAdAttribution(tenant)) _attributionEnricher.Enqueue(tenant.Id);
 
                 // Link de acceso directo con email + contraseña en la query: la página /login
                 // los prefila y el dueño solo toca "entrar". Es una cuenta privada creada por el
@@ -1041,6 +1060,8 @@ namespace BookingPro.API.Controllers
                     CreatedAt = now,
                     UpdatedAt = now
                 };
+                // utm/fbclid/utm_content ({{ad.id}}) que el modal de registro guardó en sessionStorage.
+                MetaAttribution.Apply(tenant, dto, "web");
                 _context.Tenants.Add(tenant);
                 await _context.SaveChangesAsync();
 
@@ -1082,6 +1103,8 @@ namespace BookingPro.API.Controllers
                 await _context.SaveChangesAsync();
 
                 await transaction.CommitAsync();
+                // Sin id de anuncio en el alta → sales-hub puede tenerlo (CTWA / form de leads con este teléfono).
+                if (!MetaAttribution.HasAdAttribution(tenant)) _attributionEnricher.Enqueue(tenant.Id);
 
                 var token = _authService.GenerateJwtToken(adminUser);
                 var tenantUrl = isLocal
@@ -1288,6 +1311,8 @@ namespace BookingPro.API.Controllers
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
+                // utm_* / fbclid / utm_content ({{ad.id}}) que el frontend capturó al aterrizar desde el anuncio.
+                MetaAttribution.Apply(tenant, dto, "web");
                 _context.Tenants.Add(tenant);
                 await _context.SaveChangesAsync();
 
@@ -1336,6 +1361,8 @@ namespace BookingPro.API.Controllers
                 await _context.SaveChangesAsync();
 
                 await transaction.CommitAsync();
+                // Sin id de anuncio en el alta → sales-hub puede tenerlo (CTWA / form de leads con este teléfono).
+                if (!MetaAttribution.HasAdAttribution(tenant)) _attributionEnricher.Enqueue(tenant.Id);
 
                 var token = _authService.GenerateJwtToken(adminUser);
                 var host = HttpContext.Request.Host.Host;
@@ -1383,7 +1410,7 @@ namespace BookingPro.API.Controllers
         public string ConfirmPassword { get; set; } = string.Empty;
     }
 
-    public class RegistrationQuickDto
+    public class RegistrationQuickDto : MetaAttributionFieldsDto
     {
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El email es requerido")]
         [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "Email inválido")]
@@ -1409,7 +1436,7 @@ namespace BookingPro.API.Controllers
     }
 
     /// <summary>Payload del bot de WhatsApp para crear una cuenta de tenant automáticamente.</summary>
-    public class BotRegisterDto
+    public class BotRegisterDto : MetaAttributionFieldsDto
     {
         // El bot manda como "nombre" lo que el lead responde a "cómo se llama tu negocio?",
         // que a veces es una frase larga (ej. "Te comento estoy por abrir el lugar de estética…").
@@ -1427,13 +1454,7 @@ namespace BookingPro.API.Controllers
         /// <summary>Nombre de contacto (ej: pushName de WhatsApp). Se parte en nombre/apellido.</summary>
         [System.ComponentModel.DataAnnotations.StringLength(150)]
         public string? ContactName { get; set; }
-
-        [System.ComponentModel.DataAnnotations.StringLength(100)]
-        public string? UtmSource { get; set; }
-        [System.ComponentModel.DataAnnotations.StringLength(100)]
-        public string? UtmMedium { get; set; }
-        [System.ComponentModel.DataAnnotations.StringLength(200)]
-        public string? UtmCampaign { get; set; }
+        // utm*/fbclid/ctwaClid/metaAdId vienen de MetaAttributionFieldsDto (sales-hub los manda del lead).
     }
 
     /// <summary>Respuesta de bot-register: cuenta creada + link de acceso directo (auto-login).</summary>
@@ -1452,7 +1473,9 @@ namespace BookingPro.API.Controllers
         public string Phone { get; set; } = string.Empty;
     }
 
-    public class PhoneVerifyDto
+    /// <summary>Paso 2 del alta por WhatsApp. Trae la atribución (utm_content = {{ad.id}}, fbclid, _fbp)
+    /// que el modal guardó en sessionStorage al aterrizar desde el anuncio.</summary>
+    public class PhoneVerifyDto : MetaAttributionFieldsDto
     {
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El WhatsApp es requerido")]
         public string Phone { get; set; } = string.Empty;
@@ -1461,7 +1484,7 @@ namespace BookingPro.API.Controllers
         public string Code { get; set; } = string.Empty;
     }
 
-    public class RegistrationCompleteDto
+    public class RegistrationCompleteDto : MetaAttributionFieldsDto
     {
         [System.ComponentModel.DataAnnotations.Required]
         public string RememberToken { get; set; } = string.Empty;

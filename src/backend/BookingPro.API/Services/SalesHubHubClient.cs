@@ -21,7 +21,16 @@ namespace BookingPro.API.Services
         /// <summary>Reenvía al hub un WhatsApp INBOUND recibido por la Evolution de esta app
         /// (POST /api/hub/inbound) para que el cerebro central lo procese.</summary>
         Task ForwardInboundAsync(string phone, string text, string? providerMessageId,
-            long? timestampUnix, CancellationToken ct = default);
+            long? timestampUnix, CancellationToken ct = default) => ForwardInboundAsync(phone, text, providerMessageId, timestampUnix, null, ct);
+
+        /// <summary>Igual que el anterior pero con el referral del anuncio (externalAdReply) si el
+        /// mensaje vino de un click-to-WhatsApp: sales-hub lo guarda en el lead (AdId/CtwaClid).</summary>
+        Task ForwardInboundAsync(string phone, string text, string? providerMessageId,
+            long? timestampUnix, HubAdReferral? ad, CancellationToken ct = default);
+
+        /// <summary>Atribución Meta que sales-hub conoce de este lead (por teléfono y/o email):
+        /// ad id + ctwa_clid del CTWA, o ad id del form de leads. Null si no hay o no está configurado.</summary>
+        Task<MetaAttributionDto?> GetAttributionAsync(string? phone, string? email, CancellationToken ct = default);
 
         /// <summary>Espeja en el hub un WhatsApp OUTBOUND que esta app mandó por su cuenta
         /// (POST /api/hub/outbound-log): el cerebro necesita el contexto de qué le mandamos.</summary>
@@ -43,6 +52,9 @@ namespace BookingPro.API.Services
         public string? Text { get; set; }
         public int Priority { get; set; }
     }
+
+    /// <summary>Referral de anuncio de un mensaje de WhatsApp (contextInfo.externalAdReply de Baileys/Evolution).</summary>
+    public record HubAdReferral(string? AdId, string? AdTitle, string? AdBody, string? SourceUrl, string? CtwaClid);
 
     /// <summary>
     /// Pushea leads B2B al Hub de SalesHub (POST /api/hub/leads, auth X-Api-Key con Hub:ApiKey).
@@ -160,7 +172,7 @@ namespace BookingPro.API.Services
         }
 
         public async Task ForwardInboundAsync(string phone, string text, string? providerMessageId,
-            long? timestampUnix, CancellationToken ct = default)
+            long? timestampUnix, HubAdReferral? ad, CancellationToken ct = default)
         {
             var baseUrl = _config["SalesHub:HubBaseUrl"];
             var apiKey = _config["SalesHub:HubApiKey"];
@@ -171,7 +183,11 @@ namespace BookingPro.API.Services
             {
                 var req = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl.TrimEnd('/')}/api/hub/inbound");
                 req.Headers.Add("X-Api-Key", apiKey);
-                req.Content = JsonContent.Create(new { productKey, phone, text, providerMessageId, timestampUnix });
+                req.Content = JsonContent.Create(new
+                {
+                    productKey, phone, text, providerMessageId, timestampUnix,
+                    adId = ad?.AdId, adTitle = ad?.AdTitle ?? ad?.AdBody, adSourceUrl = ad?.SourceUrl, ctwaClid = ad?.CtwaClid
+                });
                 var resp = await _http.SendAsync(req, ct);
                 if (!resp.IsSuccessStatusCode)
                     _log.LogWarning("SalesHub inbound {Code}", (int)resp.StatusCode);
@@ -179,6 +195,39 @@ namespace BookingPro.API.Services
             catch (Exception ex)
             {
                 _log.LogWarning(ex, "SalesHub inbound falló");
+            }
+        }
+
+        public async Task<MetaAttributionDto?> GetAttributionAsync(string? phone, string? email, CancellationToken ct = default)
+        {
+            var baseUrl = _config["SalesHub:HubBaseUrl"];
+            var apiKey = _config["SalesHub:HubApiKey"];
+            if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(apiKey)) return null;
+            if (string.IsNullOrWhiteSpace(phone) && string.IsNullOrWhiteSpace(email)) return null;
+
+            var productKey = _config["SalesHub:ProductKey"] ?? "turnospro";
+            try
+            {
+                var url = $"{baseUrl.TrimEnd('/')}/api/hub/attribution?productKey={Uri.EscapeDataString(productKey)}"
+                          + (string.IsNullOrWhiteSpace(phone) ? "" : $"&phone={Uri.EscapeDataString(phone)}")
+                          + (string.IsNullOrWhiteSpace(email) ? "" : $"&email={Uri.EscapeDataString(email)}");
+                var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Add("X-Api-Key", apiKey);
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                cts.CancelAfter(TimeSpan.FromSeconds(5));
+                var resp = await _http.SendAsync(req, cts.Token);
+                if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+                if (!resp.IsSuccessStatusCode)
+                {
+                    _log.LogWarning("SalesHub attribution {Code}", (int)resp.StatusCode);
+                    return null;
+                }
+                return await resp.Content.ReadFromJsonAsync<MetaAttributionDto>(cancellationToken: cts.Token);
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "SalesHub attribution falló");
+                return null;
             }
         }
 

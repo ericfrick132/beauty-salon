@@ -21,6 +21,7 @@ namespace BookingPro.API.Services
         private readonly HttpClient _httpClient;
         private readonly IFeatureAddonService _featureAddonService;
         private readonly IPlatformPaymentConnectionService _platformConnections;
+        private readonly IMetaCapiService _metaCapi;
 
         public PlatformPaymentService(
             ApplicationDbContext context,
@@ -28,14 +29,32 @@ namespace BookingPro.API.Services
             IConfiguration configuration,
             IHttpClientFactory httpClientFactory,
             IFeatureAddonService featureAddonService,
-            IPlatformPaymentConnectionService platformConnections)
+            IPlatformPaymentConnectionService platformConnections,
+            IMetaCapiService metaCapi)
         {
+            _metaCapi = metaCapi;
             _context = context;
             _logger = logger;
             _configuration = configuration;
             _httpClient = httpClientFactory.CreateClient();
             _featureAddonService = featureAddonService;
             _platformConnections = platformConnections;
+        }
+
+        /// <summary>Purchase (siempre) + Subscribe (primera activación) a Meta Conversions API. Nunca rompe el cobro.</summary>
+        private async Task SendPurchaseCapiAsync(Tenant tenant, decimal amount, string eventId, string orderId, bool firstActivation)
+        {
+            try
+            {
+                if (amount <= 0) return;
+                await _metaCapi.SendEventAsync(MetaAttribution.EventFor(tenant, "Purchase", eventId, amount, "ARS", orderId: orderId));
+                if (firstActivation)
+                    await _metaCapi.SendEventAsync(MetaAttribution.EventFor(tenant, "Subscribe", $"{eventId}-subscribe", amount, "ARS", predictedLtv: amount * 6));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Meta CAPI Purchase falló para tenant {TenantId}", tenant.Id);
+            }
         }
 
         public async Task<ServiceResult<PurchaseMessagePackageResponseDto>> CreateMessagePackagePurchaseAsync(Guid tenantId, Guid packageId)
@@ -362,15 +381,20 @@ namespace BookingPro.API.Services
                 if (payment.Status == "approved")
                 {
                     subscriptionPayment.PaidAt = DateTime.UtcNow;
-                    
+
                     // Update tenant status and period
                     var tenant = subscriptionPayment.Tenant;
+                    var wasTrial = tenant.Status != "active";
                     tenant.Status = "active";
                     tenant.TrialEndsAt = subscriptionPayment.PeriodEnd;
                     tenant.UpdatedAt = DateTime.UtcNow;
 
-                    _logger.LogInformation("Tenant {TenantId} subscription payment approved for period {Period}", 
+                    _logger.LogInformation("Tenant {TenantId} subscription payment approved for period {Period}",
                         tenant.Id, subscriptionPayment.Period);
+
+                    // Meta CAPI: Purchase con monto por cada pago (alimenta el ROAS del Ads Manager) y
+                    // Subscribe la primera vez. Con fbclid/ctwa_clid del tenant Meta lo atribuye al anuncio.
+                    await SendPurchaseCapiAsync(tenant, subscriptionPayment.Amount, $"purchase-{paymentId}", paymentId, wasTrial);
 
                     // Credit included WhatsApp messages for the paid period (idempotent by paymentId)
                     try
@@ -629,10 +653,14 @@ namespace BookingPro.API.Services
                 _context.TenantSubscriptionPayments.Add(payment);
 
                 // Activar tenant hasta el fin del período
+                var wasTrial = tenant.Status != "active";
                 tenant.Status = "active";
                 tenant.SubscriptionPlanId = dto.PlanId; // Assign the selected subscription plan
                 tenant.TrialEndsAt = end; // reutilizado como fecha de expiración de acceso
                 tenant.UpdatedAt = DateTime.UtcNow;
+
+                // Pago manual (transferencia/efectivo) = compra igual: Purchase con monto a Meta CAPI.
+                await SendPurchaseCapiAsync(tenant, dto.Amount, $"purchase-manual-{payment.Id}", payment.Id.ToString(), wasTrial);
 
                 // Sincronizar registro de Subscription para que el middleware lo reconozca como activo
                 var subscription = await _context.Subscriptions

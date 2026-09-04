@@ -1,3 +1,4 @@
+using BookingPro.API.Services;
 using BookingPro.API.Data;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Models.Entities;
@@ -296,12 +297,17 @@ namespace BookingPro.API.Controllers
             if (digits.Length < 8) return;
             var suffix = digits[^Math.Min(10, digits.Length)..];
 
+            // Click-to-WhatsApp: el primer mensaje trae contextInfo.externalAdReply con el id del
+            // anuncio (sourceId) y el ctwaClid. Con referral se relaya SIEMPRE: sales-hub es quien
+            // guarda la atribución del lead y la devuelve al bot-register / enricher del tenant.
+            var ad = ExtractAdReferral(item);
+
             var followed = await _context.PhoneVerifications
                 .AnyAsync(p => p.FollowupCount > 0 && p.Phone.Replace(" ", "").Replace("-", "").Replace("+", "").EndsWith(suffix))
                 || await _context.Tenants
                 .AnyAsync(t => t.OnboardingFollowupCount > 0 && t.OwnerPhone != null
                             && t.OwnerPhone.Replace(" ", "").Replace("-", "").Replace("+", "").EndsWith(suffix));
-            if (!followed)
+            if (!followed && ad == null)
             {
                 _logger.LogInformation("Inbound de línea plataforma sin seguimiento activo ({Phone}) — no se relaya", digits);
                 return;
@@ -311,8 +317,40 @@ namespace BookingPro.API.Controllers
             long? timestampUnix = item.TryGetProperty("messageTimestamp", out var ts) && ts.ValueKind == JsonValueKind.Number
                 ? ts.GetInt64() : null;
 
-            await _salesHubClient.ForwardInboundAsync(phone, text, providerMessageId, timestampUnix);
-            _logger.LogInformation("Inbound de línea plataforma relayado al hub ({Phone})", digits);
+            await _salesHubClient.ForwardInboundAsync(phone, text, providerMessageId, timestampUnix, ad);
+            _logger.LogInformation("Inbound de línea plataforma relayado al hub ({Phone}) ad={AdId}", digits, ad?.AdId ?? "-");
+        }
+
+        /// <summary>
+        /// Baileys/Evolution reenvían tal cual el <c>contextInfo.externalAdReply</c> del mensaje con
+        /// el que un lead abre un click-to-WhatsApp: sourceId (id del anuncio), title/body, sourceUrl
+        /// y ctwaClid. Puede venir en extendedTextMessage, imageMessage, videoMessage, etc.
+        /// </summary>
+        internal static HubAdReferral? ExtractAdReferral(JsonElement item)
+        {
+            if (!item.TryGetProperty("message", out var msg) || msg.ValueKind != JsonValueKind.Object)
+                return null;
+
+            foreach (var prop in msg.EnumerateObject())
+            {
+                var m = prop.Value;
+                if (m.ValueKind != JsonValueKind.Object) continue;
+                // ephemeralMessage/viewOnceMessage envuelven el mensaje real en .message
+                if (m.TryGetProperty("message", out var inner) && inner.ValueKind == JsonValueKind.Object)
+                {
+                    var nested = ExtractAdReferral(m);
+                    if (nested != null) return nested;
+                }
+                if (!m.TryGetProperty("contextInfo", out var ctx) || ctx.ValueKind != JsonValueKind.Object) continue;
+                if (!ctx.TryGetProperty("externalAdReply", out var ad) || ad.ValueKind != JsonValueKind.Object) continue;
+
+                string? Get(string name) => ad.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+                var sourceId = Get("sourceId");
+                var ctwa = Get("ctwaClid");
+                if (sourceId == null && ctwa == null) continue;
+                return new HubAdReferral(sourceId, Get("title"), Get("body"), Get("sourceUrl"), ctwa);
+            }
+            return null;
         }
 
         private async Task ProcessInboundMessage(string instanceName, JsonElement item)

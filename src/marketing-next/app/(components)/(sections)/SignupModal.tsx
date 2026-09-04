@@ -63,6 +63,36 @@ function apiUrl(path: string): string {
   return `${base}/api${cleaned}`;
 }
 
+/**
+ * Atribución del anuncio para mandar EN el alta (no solo en el tracking): utm_* + utm_content
+ * ({{ad.id}}) + fbclid + cookie _fbp. El backend la guarda en el tenant y la usa en Conversions
+ * API cuando el negocio paga (Purchase/Subscribe con monto → ROAS en el Ads Manager).
+ */
+function getAttribution(): Record<string, string | undefined> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const read = (k: string) => params.get(k) || sessionStorage.getItem(k) || undefined;
+    const cookie = (name: string) => {
+      const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+      return m ? decodeURIComponent(m[1]) : undefined;
+    };
+    let fbclid = read('fbclid');
+    const fbc = cookie('_fbc'); // fb.1.<ts>.<fbclid>
+    if (!fbclid && fbc) { const parts = fbc.split('.'); if (parts.length >= 4) fbclid = parts.slice(3).join('.'); }
+    return {
+      utmSource: read('utm_source'),
+      utmMedium: read('utm_medium'),
+      utmCampaign: read('utm_campaign'),
+      utmContent: read('utm_content'),
+      fbclid,
+      fbp: cookie('_fbp'),
+    };
+  } catch {
+    return {};
+  }
+}
+
 function sendTrackingEvent(eventType: string, extra: Record<string, any> = {}) {
   if (typeof window === 'undefined') return;
   try {
@@ -271,7 +301,7 @@ function SignupModalInner() {
       const res = await fetch(apiUrl('/registration/phone/verify'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: state.mobile.trim(), code: state.otp.trim() }),
+        body: JSON.stringify({ phone: state.mobile.trim(), code: state.otp.trim(), ...getAttribution() }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok || !body.success) {
@@ -333,6 +363,7 @@ function SignupModalInner() {
           businessName: state.businessName.trim(),
           mobile: state.mobile.trim(),
           fullName: state.fullName.trim(),
+          ...getAttribution(),
         }),
       });
 

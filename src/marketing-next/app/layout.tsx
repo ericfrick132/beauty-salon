@@ -103,6 +103,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   if (p.get('utm_source')) { utms.utmSource = p.get('utm_source'); sessionStorage.setItem('utm_source', p.get('utm_source')); }
                   if (p.get('utm_medium')) { utms.utmMedium = p.get('utm_medium'); sessionStorage.setItem('utm_medium', p.get('utm_medium')); }
                   if (p.get('utm_campaign')) { utms.utmCampaign = p.get('utm_campaign'); sessionStorage.setItem('utm_campaign', p.get('utm_campaign')); }
+                  // utm_content = {{ad.id}} en los links de Meta: es el id del anuncio que trajo al visitante.
+                  if (p.get('utm_content')) { sessionStorage.setItem('utm_content', p.get('utm_content')); }
                   var fbclid = p.get('fbclid'); if (fbclid) sessionStorage.setItem('fbclid', fbclid);
                   var sid = sessionStorage.getItem('_track_sid');
                   if (!sid) { sid = Math.random().toString(36).slice(2) + Date.now().toString(36); sessionStorage.setItem('_track_sid', sid); }

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using BookingPro.API.Services;
 
 namespace BookingPro.API.Models.DTOs
 {
@@ -83,7 +84,7 @@ namespace BookingPro.API.Models.DTOs
         public string[] Suggestions { get; set; } = Array.Empty<string>();
     }
 
-    public class GoogleRegisterDto
+    public class GoogleRegisterDto : MetaAttributionFieldsDto
     {
         [Required]
         public string IdToken { get; set; } = string.Empty;

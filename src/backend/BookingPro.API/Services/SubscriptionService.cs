@@ -27,6 +27,7 @@ namespace BookingPro.API.Services
         private readonly IAppleAppStoreService _appleService;
         private readonly ICouponService _couponService;
         private readonly IPlatformPaymentConnectionService _platformConnections;
+        private readonly IMetaCapiService _metaCapi;
 
         public SubscriptionService(
             ApplicationDbContext context,
@@ -36,8 +37,10 @@ namespace BookingPro.API.Services
             IEmailService emailService,
             IAppleAppStoreService appleService,
             ICouponService couponService,
-            IPlatformPaymentConnectionService platformConnections)
+            IPlatformPaymentConnectionService platformConnections,
+            IMetaCapiService metaCapi)
         {
+            _metaCapi = metaCapi;
             _context = context;
             _configuration = configuration;
             _logger = logger;
@@ -712,9 +715,25 @@ namespace BookingPro.API.Services
 
                                     // Update tenant
                                     var tenant = await _context.Tenants.FindAsync(tenantId);
+                                    var wasTrial = tenant != null && tenant.Status != "active";
                                     if (tenant != null)
                                     {
                                         tenant.Status = "active";
+                                    }
+
+                                    // Meta CAPI: Purchase con monto (ROAS en Ads Manager) + Subscribe en la primera activación.
+                                    if (tenant != null && subPayment.Amount > 0)
+                                    {
+                                        try
+                                        {
+                                            await _metaCapi.SendEventAsync(MetaAttribution.EventFor(tenant, "Purchase", $"purchase-{paymentId}", subPayment.Amount, "ARS", orderId: paymentId));
+                                            if (wasTrial)
+                                                await _metaCapi.SendEventAsync(MetaAttribution.EventFor(tenant, "Subscribe", $"purchase-{paymentId}-subscribe", subPayment.Amount, "ARS", predictedLtv: subPayment.Amount * 6));
+                                        }
+                                        catch (Exception capiEx)
+                                        {
+                                            _logger.LogWarning(capiEx, "Meta CAPI Purchase falló para tenant {TenantId}", tenantId);
+                                        }
                                     }
                                 }
 
