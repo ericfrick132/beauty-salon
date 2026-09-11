@@ -89,6 +89,15 @@ const ActivateSubscription: React.FC = () => {
           return;
         }
 
+        // Red de contención: un cliente con plan activo (pagó por plataforma, transferencia o
+        // manual) no tiene por qué ver esta pantalla. Si llegó acá por un rebote equivocado,
+        // lo devolvemos al panel en vez de decirle que se le terminó una prueba que no tiene.
+        const paid = statusRes.status === 'fulfilled' ? statusRes.value.data : null;
+        if (paid?.isActive && !paid?.isTrialPeriod) {
+          navigate(done ? '/dashboard' : '/completar-perfil', { replace: true });
+          return;
+        }
+
         let st: SubscriptionStatus | null = statusRes.status === 'fulfilled' ? statusRes.value.data : null;
         if (!st && statusRes.status === 'rejected' && (statusRes.reason as any)?.response?.status === 404) {
           // Sin fila de suscripción todavía: la creamos como hace el panel.
