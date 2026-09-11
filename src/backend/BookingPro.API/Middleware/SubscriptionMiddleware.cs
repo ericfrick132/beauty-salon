@@ -15,6 +15,12 @@ namespace BookingPro.API.Middleware
         private readonly RequestDelegate _next;
         private readonly ILogger<SubscriptionMiddleware> _logger;
 
+        /// <summary>
+        /// Desde cuándo la prueba exige tarjeta. Las cuentas anteriores siguen con la regla vieja
+        /// (prueba sin tarjeta) hasta que se les venza: se registraron cuando no se pedía.
+        /// </summary>
+        private static readonly DateTime CardRequiredFrom = new DateTime(2026, 9, 11, 14, 0, 0, DateTimeKind.Utc);
+
         // Paths that don't require subscription
         private readonly string[] _exemptPaths = new[]
         {
@@ -75,8 +81,12 @@ namespace BookingPro.API.Middleware
                 // explícitamente en "trial" y que no tenga una suscripción activa; si no, a un
                 // cliente al día le pedíamos la tarjeta como si se le hubiera vencido la prueba.
                 var trialTenant = await db.Tenants.FindAsync(tenantId);
+                // Solo para cuentas creadas desde que rige la regla: a quien se registró antes se
+                // le prometió una prueba sin tarjeta y sacársela a mitad de camino lo deja afuera
+                // de un sistema que ya estaba usando.
                 var isRealTrial = trialTenant != null
                     && trialTenant.Status == "trial"
+                    && trialTenant.CreatedAt >= CardRequiredFrom
                     && trialTenant.TrialEndsAt.HasValue
                     && trialTenant.TrialEndsAt > DateTime.UtcNow;
                 if (isRealTrial)
