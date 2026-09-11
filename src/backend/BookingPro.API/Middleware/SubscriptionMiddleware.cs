@@ -69,12 +69,23 @@ namespace BookingPro.API.Middleware
                 // prueba y no tenga un preapproval autorizado en Mercado Pago, el panel y el
                 // onboarding quedan bloqueados. No afecta a las reservas públicas, que llegan
                 // sin autenticar y salen por el early-return de más arriba.
+                // OJO: TrialEndsAt NO alcanza para saber si el tenant está en prueba. Se reutiliza
+                // como fecha de vencimiento de los pagos manuales y de plataforma, así que un
+                // cliente que PAGÓ también la tiene en el futuro. Exigimos que el tenant esté
+                // explícitamente en "trial" y que no tenga una suscripción activa; si no, a un
+                // cliente al día le pedíamos la tarjeta como si se le hubiera vencido la prueba.
                 var trialTenant = await db.Tenants.FindAsync(tenantId);
-                if (trialTenant?.TrialEndsAt.HasValue == true && trialTenant.TrialEndsAt > DateTime.UtcNow)
+                var isRealTrial = trialTenant != null
+                    && trialTenant.Status == "trial"
+                    && trialTenant.TrialEndsAt.HasValue
+                    && trialTenant.TrialEndsAt > DateTime.UtcNow;
+                if (isRealTrial)
                 {
+                    var hasPaidSubscription = await db.Subscriptions
+                        .AnyAsync(sb => sb.TenantId == tenantId && sb.Status == "active" && !sb.IsTrialPeriod);
                     var hasCard = await db.TenantPreapprovals
                         .AnyAsync(pa => pa.TenantId == tenantId && pa.Status == "authorized");
-                    if (!hasCard)
+                    if (!hasPaidSubscription && !hasCard)
                     {
                         await ReturnCardRequired(context);
                         return;
