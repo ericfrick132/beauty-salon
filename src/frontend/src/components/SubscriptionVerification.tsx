@@ -194,12 +194,19 @@ const SubscriptionVerification: React.FC = () => {
 
   // Escuchar eventos globales 402 emitidos por el interceptor
   useEffect(() => {
-    const onSubscriptionRequired = () => {
+    const onSubscriptionRequired = (event: Event) => {
       const isExemptPath = exemptPaths.some(path => location.pathname.startsWith(path));
-      if (!isExemptPath) {
-        setShowBlockingModal(true);
-        generatePaymentQR('pro');
+      if (isExemptPath) return;
+      // Cuenta nueva que todavía no dejó la tarjeta: no es un vencimiento, así que no
+      // corresponde el modal de "suscripción expirada" sino el paso de activar la prueba.
+      const detail = (event as CustomEvent)?.detail as { code?: string; subscriptionUrl?: string } | null;
+      if (detail?.code === 'CARD_REQUIRED') {
+        const target = detail.subscriptionUrl || '/empezar';
+        if (!location.pathname.startsWith(target)) window.location.href = target;
+        return;
       }
+      setShowBlockingModal(true);
+      generatePaymentQR('pro');
     };
     window.addEventListener('subscription-required', onSubscriptionRequired as EventListener);
     return () => {

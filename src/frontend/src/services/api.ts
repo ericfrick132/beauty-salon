@@ -53,7 +53,9 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 402) {
-      // Emitir un evento global para que el frontend muestre un modal de suscripción
+      // Emitir un evento global para que el frontend reaccione. Ojo: CARD_REQUIRED no es
+      // "se te venció la suscripción", es una cuenta nueva sin tarjeta — el listener lo
+      // manda al checkout en vez de abrir el modal de vencimiento.
       try {
         const event = new CustomEvent('subscription-required', {
           detail: error.response?.data || null,
