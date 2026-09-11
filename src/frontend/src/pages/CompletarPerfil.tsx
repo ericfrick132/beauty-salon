@@ -13,6 +13,7 @@ import OnboardingWizard, {
   OnboardingPayload,
 } from '../components/onboarding/OnboardingWizard';
 import turnosProOnboardingConfig from '../config/onboardingConfig';
+import { useCardGate } from '../hooks/useCardGate';
 
 // Preload the landing's fonts by injecting <link> tags if not already present.
 // next/font isn't available in CRA so we use Google Fonts CSS directly. The
@@ -70,6 +71,9 @@ const PLACEHOLDER_BUSINESS_NAME = 'Mi negocio';
 
 const CompletarPerfil: React.FC = () => {
   const navigate = useNavigate();
+  // El onboarding también está detrás de la tarjeta: esta pantalla vive fuera de AdminLayout,
+  // así que sin esto se llegaba escribiendo la URL.
+  useCardGate();
   const [tenantPhone, setTenantPhone] = useState<string | undefined>(undefined);
   const [tenantEmail, setTenantEmail] = useState<string | undefined>(undefined);
   const [tenantOwnerName, setTenantOwnerName] = useState<string | undefined>(undefined);

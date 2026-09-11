@@ -60,6 +60,9 @@ const SubscriptionVerification: React.FC = () => {
     '/invitation',
     '/book',
     '/subscription/plans',
+    '/subscription/success',
+    // Es el paywall del trial (tarjeta en MP): el modal no debe taparlo.
+    '/empezar',
     '/super-admin',
   ];
 

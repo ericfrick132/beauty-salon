@@ -36,6 +36,7 @@ import BookingPage from './pages/public/BookingPage';
 import TenantLanding from './pages/public/TenantLanding';
 import InvitationPage from './pages/public/InvitationPage';
 import SelfRegistration from './pages/SelfRegistration';
+import RegisterCode from './pages/RegisterCode';
 import Payments from './pages/Payments';
 import Employees from './pages/Employees';
 import FinancialReports from './pages/FinancialReports';
@@ -63,6 +64,7 @@ import TenantsManagement from './pages/TenantsManagement';
 import Blocks from './pages/Blocks';
 import LoginRedirect from './pages/LoginRedirect';
 import CompletarPerfil from './pages/CompletarPerfil';
+import ActivateSubscription from './pages/ActivateSubscription';
 import { AdminLayout } from './components/layouts/AdminLayout';
 import SubscriptionVerification from './components/SubscriptionVerification';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
@@ -355,7 +357,7 @@ function App() {
                 {isMainDomain() ? (
                   <>
                     <Route path="/login" element={<LoginRedirect />} />
-                    <Route path="/register" element={<SelfRegistration />} />
+                    <Route path="/register" element={<RegisterCode />} />
                     <Route path="/register/confirm" element={<SelfRegistration />} />
                     <Route path="/invitation/:token" element={<InvitationPage />} />
                     <Route path="/subscription/success" element={<SubscriptionSuccess />} />
@@ -386,6 +388,8 @@ function App() {
                 {/* Onboarding wizard: full-screen, NO admin layout.
                     Authenticated but shown before the user sees the dashboard. */}
                 <Route path="/completar-perfil" element={<CompletarPerfil />} />
+                {/* Día 0 post-registro: tarjeta en Mercado Pago con free_trial. Full-screen, sin layout. */}
+                <Route path="/empezar" element={<ActivateSubscription />} />
 
                 {/* Rutas Admin con Layout */}
                 <Route element={<AdminLayout />}>

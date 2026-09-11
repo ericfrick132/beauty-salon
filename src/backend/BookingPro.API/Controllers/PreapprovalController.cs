@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using BookingPro.API.Services;
 using BookingPro.API.Models.DTOs;
+using BookingPro.API.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace BookingPro.API.Controllers
 {
@@ -18,13 +20,16 @@ namespace BookingPro.API.Controllers
     public class PreapprovalController : ControllerBase
     {
         private readonly IPreapprovalService _preapprovalService;
+        private readonly ApplicationDbContext _context;
         private readonly ILogger<PreapprovalController> _logger;
 
         public PreapprovalController(
             IPreapprovalService preapprovalService,
+            ApplicationDbContext context,
             ILogger<PreapprovalController> logger)
         {
             _preapprovalService = preapprovalService;
+            _context = context;
             _logger = logger;
         }
 
@@ -45,10 +50,41 @@ namespace BookingPro.API.Controllers
                     return BadRequest(new { error = "No tenant context" });
                 }
 
+                // /empezar manda el código del plan (o nada: plan mensual "pro" por defecto);
+                // la pantalla vieja de suscripción recurrente sigue mandando el id.
+                var planId = dto.SubscriptionPlanId;
+                if (planId == Guid.Empty)
+                {
+                    var code = string.IsNullOrWhiteSpace(dto.PlanCode) ? "pro" : dto.PlanCode.Trim().ToLowerInvariant();
+                    var plan = await _context.SubscriptionPlans
+                        .FirstOrDefaultAsync(p => p.IsActive && p.Code.ToLower() == code);
+                    if (plan == null)
+                        return BadRequest(new { error = $"Plan '{code}' no disponible" });
+                    planId = plan.Id;
+                }
+
+                // back_url propio (ej. /subscription/success?flow=trial): solo paths relativos, siempre al
+                // subdominio del tenant (ahí está su sesión).
+                string? backUrl = null;
+                if (!string.IsNullOrWhiteSpace(dto.ReturnPath) && dto.ReturnPath.StartsWith('/') && !dto.ReturnPath.StartsWith("//"))
+                {
+                    var tenant = await _context.Tenants.FindAsync(tenantId);
+                    if (tenant != null)
+                    {
+                        var host = HttpContext.Request.Host.Host;
+                        var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");
+                        var baseUrl = isLocal
+                            ? $"http://{tenant.Subdomain}.localhost:3001"
+                            : $"https://{tenant.Subdomain}.turnos-pro.com";
+                        backUrl = baseUrl + dto.ReturnPath;
+                    }
+                }
+
                 var result = await _preapprovalService.CreatePreapprovalAsync(
                     tenantId,
-                    dto.SubscriptionPlanId,
-                    dto.PayerEmail);
+                    planId,
+                    dto.PayerEmail,
+                    backUrl);
 
                 if (!result.Success || result.Data == null)
                 {
@@ -370,6 +406,10 @@ namespace BookingPro.API.Controllers
     public class CreatePreapprovalDto
     {
         public Guid SubscriptionPlanId { get; set; }
+        /// <summary>Alternativa al id: código del plan ("pro", "6meses"...). Sin ninguno de los dos → "pro".</summary>
+        public string? PlanCode { get; set; }
         public string? PayerEmail { get; set; }
+        /// <summary>Path relativo al que MP devuelve al usuario al terminar (ej. /subscription/success?flow=trial).</summary>
+        public string? ReturnPath { get; set; }
     }
 }

@@ -310,7 +310,7 @@ export default function HeroSection() {
                   ● 7 días gratis
                 </Box>
                 <Box component="span" sx={{ opacity: 0.4 }}>·</Box>
-                <Box component="span">sin tarjeta</Box>
+                <Box component="span">primer cobro al día 8</Box>
                 <Box component="span" sx={{ opacity: 0.4 }}>·</Box>
                 <Box component="span">activá en 15 min</Box>
               </Box>

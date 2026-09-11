@@ -27,7 +27,7 @@ export const verticals: VerticalContent[] = [
     ...verticalLinks[0],
     title: 'Sistema de turnos para peluquerías | TurnosPro',
     description:
-      'Agenda online por estilista, señas con MercadoPago y recordatorios por WhatsApp para tu peluquería. Probá TurnosPro gratis, sin tarjeta.',
+      'Agenda online por estilista, señas con MercadoPago y recordatorios por WhatsApp para tu peluquería. Probá TurnosPro 7 días gratis.',
     h1: 'Sistema de turnos para peluquerías',
     eyebrow: 'Peluquerías',
     intro: [
@@ -97,7 +97,7 @@ export const verticals: VerticalContent[] = [
           'Sumás el agente de IA cuando quieras dejar de confirmar turnos a mano.',
         ],
         after: [
-          'Tenés soporte prioritario en la puesta en marcha y después. No hay permanencia ni tarjeta para empezar.',
+          'Tenés soporte prioritario en la puesta en marcha y después. No hay permanencia: dejás tu tarjeta en Mercado Pago y el primer cobro es recién al terminar los 7 días gratis.',
         ],
       },
     ],
@@ -120,7 +120,7 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿Cuánto cuesta un sistema de turnos para peluquerías?',
-        a: 'TurnosPro cuesta ARS 50.000 por mes en el plan mensual y baja hasta ARS 37.500 por mes en el plan de 12 meses. Todos los planes incluyen prueba gratis sin tarjeta y no tienen permanencia.',
+        a: 'TurnosPro cuesta ARS 50.000 por mes en el plan mensual y baja hasta ARS 37.500 por mes en el plan de 12 meses. Todos los planes arrancan con 7 días gratis (dejás tu tarjeta en Mercado Pago y el primer cobro es al terminar la prueba) y no tienen permanencia.',
       },
     ],
     datePublished: '2026-09-03',
@@ -135,7 +135,7 @@ export const verticals: VerticalContent[] = [
     eyebrow: 'Barberías',
     intro: [
       'Una barbería vive de volumen: cortes de 30 o 40 minutos, uno atrás del otro, todo el día. Cada hueco vacío es plata que no vuelve, y cada cliente que se olvidó de venir te rompe la tarde. TurnosPro es un sistema de turnos online hecho para ese ritmo: reservas 24/7 desde tu link de Instagram o WhatsApp, agenda por barbero, señas con MercadoPago y recordatorios automáticos para que el sillón no quede vacío.',
-      'Lo configurás en 15 minutos, sin tarjeta y sin permanencia, y desde ese momento tus clientes sacan turno solos mientras vos cortás.',
+      'Lo configurás en 15 minutos, con 7 días gratis y sin permanencia, y desde ese momento tus clientes sacan turno solos mientras vos cortás.',
     ],
     sections: [
       {
@@ -189,7 +189,7 @@ export const verticals: VerticalContent[] = [
       {
         h2: 'Cómo arranca una barbería con TurnosPro',
         bullets: [
-          'Creás tu cuenta gratis con tu email, sin tarjeta.',
+          'Creás tu cuenta con tu email y activás 7 días gratis dejando tu tarjeta en Mercado Pago: hoy no se cobra nada.',
           'Cargás barberos, horarios y servicios con precios y duración.',
           'Conectás tu cuenta de MercadoPago para señas o cobros completos.',
           'Ponés el link de tu sitio en Instagram, WhatsApp y Google.',
@@ -219,7 +219,7 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿Cuánto cuesta y hay permanencia?',
-        a: 'Desde ARS 37.500 por mes en el plan de 12 meses hasta ARS 50.000 por mes en el plan mensual. Todos incluyen prueba gratis, sin tarjeta, y no hay permanencia: cancelás cuando quieras.',
+        a: 'Desde ARS 37.500 por mes en el plan de 12 meses hasta ARS 50.000 por mes en el plan mensual. Todos arrancan con 7 días gratis (el primer cobro es al terminar la prueba) y no hay permanencia: cancelás cuando quieras.',
       },
     ],
     datePublished: '2026-09-03',
@@ -283,7 +283,7 @@ export const verticals: VerticalContent[] = [
       {
         h2: 'Cómo arranca un centro de estética con TurnosPro',
         bullets: [
-          'Creás tu cuenta gratis con tu email, sin tarjeta.',
+          'Creás tu cuenta con tu email y activás 7 días gratis dejando tu tarjeta en Mercado Pago: hoy no se cobra nada.',
           'Cargás profesionales, horarios y el catálogo de tratamientos con duración y precio.',
           'Definís qué tratamientos exigen seña y conectás tu cuenta de MercadoPago.',
           'Activás recordatorios por WhatsApp y, si querés, el agente de IA.',
@@ -313,7 +313,7 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿Cuánto cuesta TurnosPro para un centro de estética?',
-        a: 'Desde ARS 37.500 por mes (plan de 12 meses) hasta ARS 50.000 por mes (plan mensual). Todos los planes incluyen prueba gratis sin tarjeta, reservas ilimitadas y no tienen permanencia.',
+        a: 'Desde ARS 37.500 por mes (plan de 12 meses) hasta ARS 50.000 por mes (plan mensual). Todos los planes arrancan con 7 días gratis (primer cobro al terminar la prueba), incluyen reservas ilimitadas y no tienen permanencia.',
       },
     ],
     datePublished: '2026-09-03',
@@ -328,7 +328,7 @@ export const verticals: VerticalContent[] = [
     eyebrow: 'Consultorios',
     intro: [
       'Si atendés en un consultorio, sabés que el trabajo no termina con la sesión: hay que agendar la próxima, recordarle al paciente, confirmar la noche anterior y reacomodar todo cuando alguien cancela. TurnosPro es un sistema de turnos online para consultorios de psicólogos, nutricionistas, kinesiólogos y otros profesionales de la salud: reservas 24/7 desde tu propio sitio, turnos recurrentes, confirmación automática por WhatsApp e historial de turnos de cada paciente.',
-      'Se configura en 15 minutos, sin tarjeta y sin permanencia. Funciona tanto para un profesional solo como para un consultorio con varios especialistas.',
+      'Se configura en 15 minutos, con 7 días gratis y sin permanencia. Funciona tanto para un profesional solo como para un consultorio con varios especialistas.',
     ],
     sections: [
       {
@@ -381,7 +381,7 @@ export const verticals: VerticalContent[] = [
       {
         h2: 'Cómo arranca un consultorio con TurnosPro',
         bullets: [
-          'Creás tu cuenta gratis con tu email, sin tarjeta.',
+          'Creás tu cuenta con tu email y activás 7 días gratis dejando tu tarjeta en Mercado Pago: hoy no se cobra nada.',
           'Cargás profesionales, horarios y prestaciones con su duración.',
           'Definís turnos recurrentes para los pacientes que ya tenés.',
           'Activás recordatorios y confirmación por WhatsApp, y el agente de IA si querés.',
@@ -411,7 +411,7 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿Cuánto cuesta un sistema de turnos para consultorios?',
-        a: 'TurnosPro cuesta ARS 50.000 por mes en el plan mensual, y baja a ARS 45.000, ARS 40.000 y ARS 37.500 por mes en los planes de 3, 6 y 12 meses. Todos con prueba gratis sin tarjeta y sin permanencia.',
+        a: 'TurnosPro cuesta ARS 50.000 por mes en el plan mensual, y baja a ARS 45.000, ARS 40.000 y ARS 37.500 por mes en los planes de 3, 6 y 12 meses. Todos con 7 días gratis (primer cobro al terminar la prueba) y sin permanencia.',
       },
     ],
     datePublished: '2026-09-03',
@@ -425,12 +425,12 @@ export const verticals: VerticalContent[] = [
     businessTypeLabel: 'Reservas online',
     title: 'Sistema de reservas online con recordatorios por WhatsApp | TurnosPro',
     description:
-      'Sistema de reservas online para tu negocio: web de turnos 24/7, señas con MercadoPago sin comisión y recordatorios y confirmación por WhatsApp. Probá gratis, sin tarjeta.',
+      'Sistema de reservas online para tu negocio: web de turnos 24/7, señas con MercadoPago sin comisión y recordatorios y confirmación por WhatsApp. Probá 7 días gratis.',
     h1: 'Sistema de reservas online con recordatorios por WhatsApp',
     eyebrow: 'Reservas online',
     intro: [
       'Un sistema de reservas online tiene que hacer tres cosas: dejar que el cliente reserve solo a cualquier hora, cobrarle una seña para que no falte y recordarle el turno por el canal que sí lee. TurnosPro hace las tres desde una sola cuenta: tu propia web de turnos disponible 24/7, señas con MercadoPago directo en tu cuenta y recordatorios y confirmación por WhatsApp desde tu propio número.',
-      'Sirve para peluquerías, barberías, centros de estética, consultorios, estudios y cualquier negocio que trabaje con turnos. Se configura en 15 minutos, se prueba gratis sin tarjeta y no tiene permanencia.',
+      'Sirve para peluquerías, barberías, centros de estética, consultorios, estudios y cualquier negocio que trabaje con turnos. Se configura en 15 minutos, se prueba 7 días gratis y no tiene permanencia.',
     ],
     sections: [
       {
@@ -468,7 +468,7 @@ export const verticals: VerticalContent[] = [
       {
         h2: 'Cómo empezar',
         bullets: [
-          'Creás tu cuenta gratis, sin tarjeta.',
+          'Creás tu cuenta y activás 7 días gratis dejando tu tarjeta en Mercado Pago: hoy no se cobra nada.',
           'Cargás servicios, precios, profesionales y horarios.',
           'Compartís tu link de reservas en redes y en tu perfil de Google.',
           'Activás las señas con tu cuenta de MercadoPago y el agente de IA de confirmación.',
@@ -497,7 +497,7 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿Cuánto cuesta el sistema de reservas online?',
-        a: 'TurnosPro cuesta ARS 50.000 por mes en el plan mensual, y baja a ARS 45.000, ARS 40.000 y ARS 37.500 por mes en los planes de 3, 6 y 12 meses. Todos con prueba gratis sin tarjeta, reservas ilimitadas, profesionales y sucursales incluidos y sin permanencia.',
+        a: 'TurnosPro cuesta ARS 50.000 por mes en el plan mensual, y baja a ARS 45.000, ARS 40.000 y ARS 37.500 por mes en los planes de 3, 6 y 12 meses. Todos con 7 días gratis (primer cobro al terminar la prueba), reservas ilimitadas, profesionales y sucursales incluidos y sin permanencia.',
       },
       {
         q: '¿Sirve para varios profesionales o varias sucursales?',

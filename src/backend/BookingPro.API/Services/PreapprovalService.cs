@@ -18,7 +18,11 @@ namespace BookingPro.API.Services
         /// <summary>
         /// Crea un Preapproval en MercadoPago para que el tenant autorice débito automático.
         /// </summary>
-        Task<ServiceResult<TenantPreapproval>> CreatePreapprovalAsync(Guid tenantId, Guid subscriptionPlanId, string? payerEmail = null);
+        Task<ServiceResult<TenantPreapproval>> CreatePreapprovalAsync(
+            Guid tenantId,
+            Guid subscriptionPlanId,
+            string? payerEmail = null,
+            string? backUrlOverride = null);
 
         /// <summary>
         /// Obtiene información actualizada del Preapproval desde MercadoPago.
@@ -105,7 +109,8 @@ namespace BookingPro.API.Services
         public async Task<ServiceResult<TenantPreapproval>> CreatePreapprovalAsync(
             Guid tenantId,
             Guid subscriptionPlanId,
-            string? payerEmail = null)
+            string? payerEmail = null,
+            string? backUrlOverride = null)
         {
             try
             {
@@ -147,28 +152,50 @@ namespace BookingPro.API.Services
                 var startDate = DateTime.UtcNow.AddMinutes(5);
                 var endDate = startDate.AddYears(10); // 10 años de suscripción máxima
 
-                var backUrl = _configuration["MercadoPago:PreapprovalBackUrl"]
+                // back_url: el que pidió el caller (/empezar vuelve a /subscription/success?flow=trial),
+                // si no el configurado, si no la página de suscripción recurrente del tenant.
+                var backUrl = backUrlOverride
+                    ?? _configuration["MercadoPago:PreapprovalBackUrl"]
                     ?? $"https://{tenant.Subdomain}.turnos-pro.com/subscription/recurring?status=success";
                 var notificationUrl = _configuration["MercadoPago:PreapprovalWebhookUrl"]
                     ?? _configuration["MercadoPago:WebhookUrl"]?.Replace("/mercadopago", "/preapproval")
                     ?? "https://turnos-pro.com/api/webhooks/preapproval";
 
-                var requestBody = new
+                // Prueba gratis nativa de MP (como PlayCrew y GymHero): mientras el tenant esté en trial la
+                // tarjeta se autoriza HOY pero MP recién debita al terminar la prueba. MP lo muestra como
+                // "X días gratis, luego $.../mes" y devuelve next_payment_date = fin de la prueba, que es lo
+                // que ProcessPreapprovalWebhookAsync usa como próximo cobro al recibir "authorized".
+                var trialDaysLeft = await GetTrialDaysLeftAsync(tenant);
+                var autoRecurring = new Dictionary<string, object?>
                 {
-                    payer_email = email,
-                    back_url = backUrl,
-                    reason = $"Suscripción {plan.Name} - {tenant.BusinessName}",
-                    auto_recurring = new
+                    ["frequency"] = 1,
+                    ["frequency_type"] = "months",
+                    ["start_date"] = startDate.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
+                    ["end_date"] = endDate.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
+                    ["transaction_amount"] = plan.Price,
+                    ["currency_id"] = plan.Currency ?? "ARS"
+                };
+                if (trialDaysLeft > 0)
+                {
+                    autoRecurring["free_trial"] = new Dictionary<string, object?>
                     {
-                        frequency = 1,
-                        frequency_type = "months",
-                        start_date = startDate.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
-                        end_date = endDate.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
-                        transaction_amount = plan.Price,
-                        currency_id = plan.Currency ?? "ARS"
-                    },
-                    external_reference = externalReference,
-                    notification_url = notificationUrl
+                        ["frequency"] = trialDaysLeft,
+                        ["frequency_type"] = "days"
+                    };
+                    _logger.LogInformation("Preapproval con free_trial de {Days} días para tenant {TenantId}", trialDaysLeft, tenantId);
+                }
+
+                var requestBody = new Dictionary<string, object?>
+                {
+                    ["payer_email"] = email,
+                    ["back_url"] = backUrl,
+                    ["reason"] = trialDaysLeft > 0
+                        ? $"Suscripción {plan.Name} - {tenant.BusinessName} · {trialDaysLeft} días gratis"
+                        : $"Suscripción {plan.Name} - {tenant.BusinessName}",
+                    ["auto_recurring"] = autoRecurring,
+                    ["external_reference"] = externalReference,
+                    ["notification_url"] = notificationUrl,
+                    ["status"] = "pending"
                 };
 
                 // Llamar a MercadoPago API
@@ -229,6 +256,25 @@ namespace BookingPro.API.Services
                 _logger.LogError(ex, "Error creating preapproval for tenant {TenantId}", tenantId);
                 return ServiceResult<TenantPreapproval>.Fail($"Error creating preapproval: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Días que faltan para que termine la prueba del tenant: 0 si no está en trial o si ya venció.
+        /// Es lo que va como free_trial del preapproval (MP no cobra hasta entonces).
+        /// </summary>
+        private async Task<int> GetTrialDaysLeftAsync(Tenant tenant)
+        {
+            var subscription = await _context.Subscriptions
+                .IgnoreQueryFilters()
+                .Where(s => s.TenantId == tenant.Id)
+                .OrderByDescending(s => s.CreatedAt)
+                .FirstOrDefaultAsync();
+            var inTrial = string.Equals(tenant.Status, "trial", StringComparison.OrdinalIgnoreCase)
+                || (subscription?.IsTrialPeriod ?? false);
+            if (!inTrial) return 0;
+            var trialEnd = subscription?.TrialEndsAt ?? tenant.TrialEndsAt ?? tenant.DemoExpiresAt;
+            if (!trialEnd.HasValue) return 0;
+            return Math.Max(0, (int)Math.Ceiling((trialEnd.Value - DateTime.UtcNow).TotalDays));
         }
 
         public async Task<ServiceResult<PreapprovalInfo>> GetPreapprovalAsync(string preapprovalId)

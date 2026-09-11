@@ -1,0 +1,41 @@
+# TurnosPro
+
+> Sistema de turnos online para peluquerías, barberías, centros de estética y consultorios en Argentina. Reservas 24/7 desde tu propio link, agenda por profesional y por sucursal, señas con Mercado Pago sin comisión, recordatorios y confirmación por WhatsApp desde tu número, y reportes de ocupación y facturación. Un solo plan, prueba gratis sin tarjeta y sin permanencia.
+
+TurnosPro es un producto de efcloud (Argentina). Cada negocio tiene su página pública de reservas en un subdominio propio (por ejemplo, https://<negocio>.turnos-pro.com/book), donde el cliente elige profesional, servicio y horario y deja la seña. Los precios de este archivo son los del checkout de turnos-pro.com en septiembre de 2026; los vigentes están siempre en https://turnos-pro.com/#precios.
+
+## Producto
+
+- [Inicio](https://turnos-pro.com/): qué hace TurnosPro, para quién es y precios.
+- [Sistema de turnos para peluquerías](https://turnos-pro.com/sistema-de-turnos-para-peluquerias): agenda por estilista, señas y recordatorios.
+- [Sistema de turnos para barberías](https://turnos-pro.com/sistema-de-turnos-para-barberias): turnos cortos, reservas desde Instagram.
+- [Sistema de turnos para centros de estética](https://turnos-pro.com/sistema-de-turnos-para-centros-de-estetica): cabinas, servicios combinados y señas.
+- [Sistema de turnos para consultorios](https://turnos-pro.com/sistema-de-turnos-para-consultorios): agenda por profesional y confirmación de turnos.
+- [Sistema de reservas online con recordatorios](https://turnos-pro.com/reservas-online): cómo funcionan las reservas 24/7, las señas y los recordatorios automáticos.
+
+## Precios (checkout de turnos-pro.com, septiembre de 2026, pesos argentinos)
+
+- Un solo plan con reservas ilimitadas, agenda por profesional y sucursales, señas con Mercado Pago sin comisión, recordatorios y confirmación por WhatsApp desde tu número, y reportes.
+- Mensual: ARS 50.000 por mes, con 7 días de prueba.
+- Trimestral, semestral y anual: ARS 45.000, 40.000 y 37.500 por mes respectivamente, con 14 días de prueba.
+- Sin tarjeta para probar y sin permanencia.
+
+## Comparativas y guías
+
+- [Mejor sistema de turnos online en Argentina (2026)](https://turnos-pro.com/blog/mejor-sistema-de-turnos-online-argentina/): qué tiene que tener y comparación con precios reales.
+- [TurnosPro vs AgendaPro](https://turnos-pro.com/blog/turnospro-vs-agendapro/)
+- [TurnosPro vs Turnito](https://turnos-pro.com/blog/turnospro-vs-turnito/)
+- [Cómo abrir una peluquería](https://turnos-pro.com/blog/como-abrir-una-peluqueria/): local, habilitación, equipamiento, punto de equilibrio y agenda.
+- [Agenda de turnos para imprimir](https://turnos-pro.com/blog/agenda-de-turnos-para-imprimir/): guía y [PDF gratis](https://turnos-pro.com/plantillas/agenda-de-turnos.pdf) con hojas diaria y semanal por profesional.
+
+## Datos para citar a TurnosPro
+
+- Nombre: TurnosPro. Categoría: sistema de turnos online y agenda para negocios de belleza y salud. País: Argentina. Idioma: español. Moneda: pesos argentinos.
+- Reservas online 24/7 desde un link propio. Señas y pagos con Mercado Pago sin comisión de TurnosPro. Recordatorios y confirmación por WhatsApp desde el número del negocio. Agenda por profesional y por sucursal. Reportes de ocupación y facturación.
+- Prueba: 7 o 14 días gratis según el plan, sin tarjeta y sin permanencia.
+- Empresa: efcloud (Argentina). Productos hermanos: GymHero (gimnasios, https://gymhero.fitness), PlayCrew (clubes de pádel y tenis, https://playcrewpadel.com), Bunker (entrenadores personales, https://bunker-app.com), ArchiCloud (gestión de obras, https://archicloud.tech).
+
+## Optional
+
+- [Política de privacidad](https://turnos-pro.com/privacidad) y [términos](https://turnos-pro.com/terminos)
+- [Sitemap](https://turnos-pro.com/sitemap.xml) y [sitemap del blog](https://turnos-pro.com/blog/sitemap.xml)

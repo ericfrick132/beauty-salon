@@ -419,6 +419,21 @@ namespace BookingPro.API.Models.Entities
         [MaxLength(32)]
         public string? Phone { get; set; }
 
+        /// <summary>
+        /// Token opaco de la transacción de alta (32 bytes aleatorios en base64url). Es lo que viaja en
+        /// /register?s=... y en el link del mail en lugar del email. Se genera al crear la fila y al
+        /// reiniciar la ventana (vencida/consumida); un reenvío dentro de la ventana activa lo conserva.
+        /// </summary>
+        [MaxLength(64)]
+        public string? StateToken { get; set; }
+
+        /// <summary>
+        /// Atribución del anuncio (utm_*, fbclid, _fbp) serializada tal como llegó en email/start. El
+        /// verify la usa si su body no trae ninguna: la página del código puede vivir en otro dominio
+        /// que la landing y no compartir sessionStorage.
+        /// </summary>
+        public string? AttributionJson { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     }

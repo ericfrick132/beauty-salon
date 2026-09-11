@@ -283,6 +283,18 @@ export const selfRegistrationApi = {
 
 // New Registration API (email confirmation flow)
 export const registrationApi = {
+  // Alta/login passwordless por código de email (paso 1 manda el código, paso 2 lo verifica).
+  // start: con email (formulario) o con state (reenvío desde la página). Devuelve { state } para
+  // identificar la transacción sin exponer el email en la URL (/register?s=...).
+  emailStart: (data: { email?: string; state?: string; businessName?: string; phone?: string; [attribution: string]: string | undefined }) =>
+    api.post('/registration/email/start', data).then(res => res.data),
+
+  emailState: (state: string) =>
+    api.get(`/registration/email/state/${encodeURIComponent(state)}`).then(res => res.data),
+
+  emailVerify: (data: { state?: string; email?: string; code: string; [attribution: string]: string | undefined }) =>
+    api.post('/registration/email/verify', data).then(res => res.data),
+
   start: (data: { email: string; password: string; confirmPassword: string }) =>
     api.post('/registration/start', data).then(res => res.data),
 

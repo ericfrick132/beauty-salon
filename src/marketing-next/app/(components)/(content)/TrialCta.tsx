@@ -14,7 +14,7 @@ interface Props {
 /** CTA de prueba gratis: abre el mismo SignupModal que usa la home. */
 export default function TrialCta({
   label = 'Empezar gratis',
-  microcopy = 'Sin tarjeta · Sin permanencia · Listo en 15 minutos',
+  microcopy = 'Primer cobro al día 8 · Sin permanencia · Listo en 15 minutos',
   align = 'left',
   secondaryHref,
   secondaryLabel,

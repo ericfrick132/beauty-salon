@@ -20,6 +20,9 @@ namespace BookingPro.API.Middleware
         {
             "/api/auth",
             "/api/subscription",
+            // El checkout de la tarjeta tiene que poder llamarse justamente cuando el tenant
+            // está bloqueado por no tenerla: si no, el gate se muerde la cola.
+            "/api/preapproval",
             "/api/webhooks",
             "/api/tenant/config",
             "/api/super-admin",
@@ -60,6 +63,22 @@ namespace BookingPro.API.Middleware
                 {
                     await _next(context);
                     return;
+                }
+
+                // La prueba está DETRÁS de la tarjeta: mientras el tenant esté en período de
+                // prueba y no tenga un preapproval autorizado en Mercado Pago, el panel y el
+                // onboarding quedan bloqueados. No afecta a las reservas públicas, que llegan
+                // sin autenticar y salen por el early-return de más arriba.
+                var trialTenant = await db.Tenants.FindAsync(tenantId);
+                if (trialTenant?.TrialEndsAt.HasValue == true && trialTenant.TrialEndsAt > DateTime.UtcNow)
+                {
+                    var hasCard = await db.TenantPreapprovals
+                        .AnyAsync(pa => pa.TenantId == tenantId && pa.Status == "authorized");
+                    if (!hasCard)
+                    {
+                        await ReturnCardRequired(context);
+                        return;
+                    }
                 }
 
                 // Check subscription status
@@ -151,6 +170,26 @@ namespace BookingPro.API.Middleware
             };
 
             return readOnlyPaths.Any(p => path.StartsWith(p));
+        }
+
+        /// <summary>
+        /// 402 de "falta la tarjeta": la prueba gratis solo corre con el débito ya autorizado en
+        /// Mercado Pago (que recién cobra al terminarla). El front lo traduce en un rebote a /empezar.
+        /// </summary>
+        private async Task ReturnCardRequired(HttpContext context)
+        {
+            context.Response.StatusCode = 402; // Payment Required
+            context.Response.ContentType = "application/json";
+
+            var response = new
+            {
+                error = "Card Required",
+                message = "Para usar la prueba gratis primero dejá tu tarjeta en Mercado Pago. No se te cobra nada hasta que termine.",
+                subscriptionUrl = "/empezar",
+                code = "CARD_REQUIRED"
+            };
+
+            await context.Response.WriteAsync(JsonSerializer.Serialize(response));
         }
 
         private async Task ReturnSubscriptionRequired(HttpContext context)

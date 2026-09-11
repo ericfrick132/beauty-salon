@@ -157,6 +157,9 @@ function getRegFlow(): RegFlow | null {
 }
 
 function startRegFlow() {
+  // Si había un flujo a medias (ej: tocó el formulario del pie y después abrió el modal del
+  // header), lo cerramos como abandono para no perder lo que alcanzó a cargar.
+  if (getRegFlow()) sendRegFlow('ABANDONED');
   (window as any).__regFlow = { started: Date.now(), actions: ['0s OPEN'], fieldTimes: {}, currentField: null, fieldStart: 0, data: {} } as RegFlow;
   sendTrackingEvent('OpenRegister');
 }
@@ -211,9 +214,10 @@ function sendRegFlow(outcome: string) {
 }
 
 // --- Estado del formulario ---
-// 'email'/'otp' = flujo passwordless con código por email (default; reemplazó al OTP por WhatsApp).
+// 'email' = flujo passwordless (default): nombre + email + WhatsApp → pedimos el código y mandamos
+// a /register?email=..., la página de la app donde se ingresa el código (misma AuthShell que /login).
 // 1/2 = flujo legacy con usuario y contraseña.
-type Step = 'email' | 'otp' | 1 | 2;
+type Step = 'email' | 1 | 2;
 
 interface FormState {
   step: Step;
@@ -223,8 +227,6 @@ interface FormState {
   dial: string;
   mobile: string;
   password: string;
-  otp: string;
-  isExisting: boolean;
   busy: boolean;
   error: string;
   info: string;
@@ -238,26 +240,10 @@ const initialState: FormState = {
   dial: PHONE_COUNTRIES[0].dial,
   mobile: '',
   password: '',
-  otp: '',
-  isExisting: false,
   busy: false,
   error: '',
   info: '',
 };
-
-// Deep-link desde el mail del código: ?email=... → arrancamos con el email ya cargado y
-// en el paso 'otp' (el código está en ese mismo mail). NO llamamos email/start (no
-// regeneramos); el botón "Reenviar código" cubre el caso de vencido. Solo lo honra el modal:
-// el formulario embebido en la landing arranca siempre vacío.
-function buildInitialState(honorDeepLink: boolean): FormState {
-  if (honorDeepLink && typeof window !== 'undefined') {
-    const prefill = (new URLSearchParams(window.location.search).get('email') || '').trim();
-    if (prefill && emailValid(prefill)) {
-      return { ...initialState, email: prefill, step: 'otp' };
-    }
-  }
-  return initialState;
-}
 
 // --- Estilos compartidos ---
 const titleSx = {
@@ -320,7 +306,7 @@ export type SignupFormVariant = 'modal' | 'inline';
 /**
  * Formulario de alta compartido por el modal (CTAs del header, hero y precios) y por la sección
  * #registro del final de la landing. Paso 'email': nombre del negocio + email + WhatsApp →
- * pedimos el código por email. Paso 'otp': el código (loguea o crea la cuenta). Pasos 1/2:
+ * pedimos el código por email y saltamos a /register?email=..., donde se ingresa. Pasos 1/2:
  * alternativa legacy con usuario y contraseña.
  *
  * - 'modal': autofocus en el primer campo y el flujo de tracking arranca al montarse (= al abrir).
@@ -329,7 +315,7 @@ export type SignupFormVariant = 'modal' | 'inline';
  */
 export function SignupForm({ variant }: { variant: SignupFormVariant }) {
   const isModal = variant === 'modal';
-  const [state, setState] = useState<FormState>(() => buildInitialState(isModal));
+  const [state, setState] = useState<FormState>(initialState);
   const set = useCallback((patch: Partial<FormState>) => setState((s) => ({ ...s, ...patch })), []);
 
   const phoneCountry = PHONE_COUNTRIES.find((c) => c.dial === state.dial) ?? PHONE_COUNTRIES[0];
@@ -367,7 +353,6 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
   const emailOk = emailValid(state.email.trim());
   const phoneValid = phoneDigits.length >= 8;
   const emailStepValid = businessNameValid && emailOk && phoneValid;
-  const otpValid = state.otp.replace(/[^0-9]/g, '').length >= 4;
   const step1Valid = businessNameValid;
   const step2Valid = state.fullName.trim().length >= 2 && emailOk && phoneValid && passwordValid(state.password);
 
@@ -384,6 +369,9 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
           email: state.email.trim(),
           businessName: state.businessName.trim(),
           phone: fullPhone,
+          // La atribución viaja ya en el start: queda guardada en la transacción y el verify
+          // la usa aunque la página del código no la tenga a mano.
+          ...getAttribution(),
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -396,46 +384,14 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
         sendTrackingEvent('Lead', { name: state.businessName.trim(), email: state.email.trim(), phone: fullPhone });
         fbqTrack('Lead');
       }
-      set({
-        busy: false,
-        step: 'otp',
-        isExisting: !!body.isExisting,
-        info: body.devCode ? `Código (dev): ${body.devCode}` : '',
-      });
+      // El código se ingresa en la app: cerramos el flujo de la landing acá (no cuenta como
+      // abandono) y llevamos a /register con el email fijo. busy queda en true: la página se va.
+      sendRegFlow('CODE_SENT');
+      window.location.href = body.state
+        ? '/register?s=' + encodeURIComponent(body.state)
+        : '/register?email=' + encodeURIComponent(state.email.trim());
     } catch (err: any) {
       trackAction(`OTP_ERROR ${(err as Error).message?.slice(0, 30)}`);
-      set({ error: err.message || 'Error inesperado', busy: false });
-    }
-  };
-
-  const verifyOtp = async () => {
-    if (!otpValid || state.busy) return;
-    trackAction('TAP verify_otp');
-    set({ busy: true, error: '' });
-    try {
-      const res = await fetch(apiUrl('/registration/email/verify'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: state.email.trim(), code: state.otp.trim(), ...getAttribution() }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok || !body.success) {
-        throw new Error(body.message || 'Código incorrecto.');
-      }
-      trackAction(body.isExisting ? 'LOGIN_OK' : 'SUBMIT_OK');
-      sendRegFlow(body.isExisting ? 'LOGGED_IN' : 'COMPLETED');
-      // CompleteRegistration solo cuando se creó una cuenta nueva.
-      if (!body.isExisting) {
-        fbqTrack('CompleteRegistration');
-        sendTrackingEvent('CompleteRegistration', { name: state.businessName.trim(), email: state.email.trim(), phone: fullPhone });
-      }
-      if (body.redirectUrl) {
-        window.location.href = body.redirectUrl;
-      } else {
-        set({ busy: false, error: 'Cuenta creada pero no pudimos redirigirte. Iniciá sesión.' });
-      }
-    } catch (err: any) {
-      trackAction(`VERIFY_ERROR ${(err as Error).message?.slice(0, 30)}`);
       set({ error: err.message || 'Error inesperado', busy: false });
     }
   };
@@ -571,7 +527,7 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
             Creá tu cuenta gratis
           </Typography>
           <Typography sx={subtitleSx}>
-            Sin tarjeta y sin contraseña. Te mandamos un código por email y entrás directo a armar tu agenda.
+            Sin contraseña: te mandamos un código por email. Después activás 7 días gratis con tu tarjeta en Mercado Pago y el primer cobro es recién al terminar la prueba.
           </Typography>
 
           <Stack spacing={2}>
@@ -627,8 +583,8 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
           </Button>
 
           <Typography sx={{ ...finePrintSx, mt: 1.5 }}>
-            Te mandamos un código de 6 dígitos a tu email para confirmar. Después entrás directo a
-            armar tu agenda: rubro, servicios y horarios.
+            Te mandamos un código de 6 dígitos a tu email para confirmar. Después activás la prueba con
+            tu tarjeta (hoy no se cobra nada) y armás tu agenda: rubro, servicios y horarios.
           </Typography>
 
           <Button
@@ -641,63 +597,13 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
 
           <SocialProof mt={1} />
         </Box>
-      ) : state.step === 'otp' ? (
-        <Box component="form" noValidate onSubmit={(e) => { e.preventDefault(); verifyOtp(); }}>
-          <Button
-            size="small"
-            onClick={() => { trackAction('BACK'); set({ step: 'email', otp: '', error: '', info: '' }); }}
-            startIcon={<ArrowBackIcon fontSize="small" />}
-            sx={{ ...backButtonSx, mb: 1.5 }}
-          >
-            Cambiar datos
-          </Button>
-          <Typography variant="h5" component="h3" sx={titleSx}>
-            {state.isExisting ? '¡Hola de nuevo!' : 'Ingresá el código'}
-          </Typography>
-          <Typography sx={subtitleSx}>
-            {state.isExisting
-              ? 'Ya tenés una cuenta con este email. Te enviamos un código para entrar a '
-              : 'Te lo enviamos por email a '}
-            <Box component="span" sx={{ fontWeight: 600, color: palette.ink }}>{state.email.trim()}</Box>
-            . Si no lo ves, revisá spam o promociones.
-          </Typography>
-
-          <TextField
-            label="Código de 6 dígitos"
-            placeholder="123456"
-            value={state.otp}
-            onChange={(e) => set({ otp: e.target.value.replace(/[^0-9]/g, '').slice(0, 6) })}
-            onFocus={() => focus('otp')}
-            onBlur={() => trackBlur('otp')}
-            fullWidth
-            autoFocus
-            inputProps={{ inputMode: 'numeric', autoComplete: 'one-time-code', style: { letterSpacing: '0.4em', fontSize: '1.3rem', textAlign: 'center' } }}
-            sx={{ mb: 2 }}
-          />
-
-          <Button
-            type="submit"
-            variant="contained"
-            size="large"
-            fullWidth
-            disabled={!otpValid || state.busy}
-            startIcon={state.busy ? <CircularProgress size={18} color="inherit" /> : undefined}
-            sx={primaryButtonSx}
-          >
-            {state.busy ? 'Verificando...' : 'Entrar a mi cuenta'}
-          </Button>
-
-          <Button fullWidth disabled={state.busy} onClick={requestOtp} sx={linkButtonSx}>
-            Reenviar código
-          </Button>
-        </Box>
       ) : state.step === 1 ? (
         <Box component="form" noValidate onSubmit={(e) => { e.preventDefault(); goToStep2(); }}>
           <Typography variant="h5" component="h3" sx={{ ...titleSx, fontSize: { xs: '1.6rem', sm: '1.85rem' }, mb: 1 }}>
             Activá tu negocio en 2 minutos
           </Typography>
           <Typography sx={{ ...subtitleSx, mb: 3 }}>
-            Gratis 7 días · Sin tarjeta · Listo para usar al instante
+            Gratis 7 días · Primer cobro al día 8 · Listo al instante
           </Typography>
 
           <TextField
@@ -815,7 +721,7 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
           <Stack direction="row" justifyContent="center" alignItems="center" spacing={0.7} sx={{ mt: 2 }}>
             <LockOutlinedIcon sx={{ fontSize: '0.95rem', color: palette.inkSoft }} />
             <Typography sx={{ fontSize: '0.76rem', color: palette.inkSoft }}>
-              Sin cargos. Cancelás cuando quieras.
+              Sin cargos hasta el día 8. Cancelás cuando quieras.
             </Typography>
           </Stack>
         </Box>
@@ -864,7 +770,7 @@ function SignupModalInner() {
           fontWeight: 700,
         }}
       >
-        ⚡ 7 DÍAS GRATIS · SIN TARJETA · LISTO EN 2 MIN
+        ⚡ 7 DÍAS GRATIS · PRIMER COBRO AL DÍA 8 · LISTO EN 2 MIN
       </Box>
 
       {/* Close button */}
@@ -909,10 +815,9 @@ export function SignupModalProvider({ children }: { children: ReactNode }) {
   useState(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
-    // ?register=true abre el modal en el paso del email; ?email=... (link del mail con
-    // el código) lo abre directo en el paso del código (SignupForm ya arranca en 'otp'
-    // con el email pre-cargado vía buildInitialState).
-    if (params.get('register') === 'true' || params.get('email')) {
+    // ?register=true abre el modal en el paso del email. El link del mail con el código
+    // ya no pasa por acá: va directo a /register?email=... en la app.
+    if (params.get('register') === 'true') {
       setIsOpen(true);
     }
   });

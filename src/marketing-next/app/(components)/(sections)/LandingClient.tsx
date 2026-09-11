@@ -15,7 +15,7 @@ import TestimonialsSection from './TestimonialsSection';
 import PricingSection from './PricingSection';
 import FaqSection from './FaqSection';
 import MobileAppSection from './MobileAppSection';
-import FinalCta from './FinalCta';
+import SignupSection from './SignupSection';
 import { logoCarouselTitle } from '@/app/(lib)/content';
 
 export default function LandingClient() {
@@ -37,7 +37,7 @@ export default function LandingClient() {
         <PricingSection />
         <MobileAppSection />
         <FaqSection />
-        <FinalCta />
+        <SignupSection />
       </main>
       <Footer />
     </SignupModalProvider>

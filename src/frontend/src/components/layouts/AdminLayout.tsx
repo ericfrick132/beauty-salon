@@ -76,6 +76,7 @@ import {
   getCardBackground 
 } from '../../utils/themeUtils';
 import ImpersonationBanner from '../common/ImpersonationBanner';
+import { useCardGate } from '../../hooks/useCardGate';
 import MercadoPagoIcon from '../icons/MercadoPagoIcon';
 import { isAdminLike } from '../../utils/permissions';
 import ChangePasswordDialog from '../auth/ChangePasswordDialog';
@@ -231,6 +232,10 @@ export const AdminLayout: React.FC = () => {
   
   const { config, getTerm } = useTenant();
   const user = useAppSelector(state => state.auth.user);
+
+  // La tarjeta va antes que todo: durante la prueba, sin preapproval autorizado el panel
+  // entero rebota a /empezar.
+  useCardGate();
 
   // If the tenant hasn't completed the post-register onboarding wizard, force-
   // redirect to /completar-perfil. We require `onboardingCompletedAt` to be
@@ -717,6 +722,7 @@ export const AdminLayout: React.FC = () => {
         <Box sx={{ p: 2, pt: 1 }}>
           <ImpersonationBanner />
         </Box>
+        {/* Prueba sin tarjeta autorizada: pedirla ahora, MP debita recién al terminar (free_trial). */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

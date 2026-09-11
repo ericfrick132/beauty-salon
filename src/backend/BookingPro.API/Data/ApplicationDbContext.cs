@@ -169,6 +169,8 @@ namespace BookingPro.API.Data
             {
                 // Una fila activa por email — se upsertea en cada reenvío.
                 entity.HasIndex(e => e.Email).IsUnique();
+                // El token opaco identifica la transacción desde /register?s=... y el link del mail.
+                entity.HasIndex(e => e.StateToken).IsUnique();
             });
 
             modelBuilder.Entity<Tenant>(entity =>

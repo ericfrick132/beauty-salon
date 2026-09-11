@@ -5,7 +5,7 @@ export const heroContent = {
     'Publica tu web de turnos, activa pagos anticipados y un agente de IA que confirma tus turnos por WhatsApp. Sin descargas ni apps nativas.',
   cta: 'Quiero mi sitio de reservas',
   secondaryCta: 'Ver demo',
-  microcopy: 'Sin tarjeta. Cancela cuando quieras.',
+  microcopy: '7 días gratis. Primer cobro recién al terminar la prueba. Cancelás cuando quieras.',
   trustBadges: ['Pago seguro', 'GDPR', '99.9% uptime'],
 };
 
@@ -165,7 +165,7 @@ export const pricingContent = {
   eyebrow: 'Nº 08 · Precios',
   headline: 'Elegí el plan que se adapta a tu negocio',
   subheadline:
-    'Mismo plan, distinto compromiso. Cuanto más largo, mayor el descuento. Todos los planes incluyen prueba gratis, sin tarjeta.',
+    'Mismo plan, distinto compromiso. Cuanto más largo, mayor el descuento. Todos arrancan con 7 días gratis: dejás tu tarjeta en Mercado Pago y el primer cobro es recién al terminar la prueba.',
   microcopy: 'Sin permanencia · Cancelás cuando quieras · Cambiás de plan en 1 clic',
   features: [
     'Reservas online ilimitadas',
@@ -183,7 +183,7 @@ export const pricingContent = {
       commitment: '3 meses',
       price: 45000,
       discount: '10% OFF',
-      trialDays: 14,
+      trialDays: 7,
       cta: 'Empezar prueba',
       highlighted: false,
     },
@@ -193,7 +193,7 @@ export const pricingContent = {
       commitment: '6 meses',
       price: 40000,
       discount: '20% OFF',
-      trialDays: 14,
+      trialDays: 7,
       cta: 'Empezar prueba',
       highlighted: true,
       badge: 'Más elegido',
@@ -204,7 +204,7 @@ export const pricingContent = {
       commitment: '12 meses',
       price: 37500,
       discount: '25% OFF',
-      trialDays: 14,
+      trialDays: 7,
       cta: 'Empezar prueba',
       highlighted: false,
       badge: 'Mejor precio',
@@ -227,6 +227,24 @@ export const finalCtaContent = {
   subtext: 'Configúralo en 15 min y dejá que la IA trabaje por vos. Soporte humano para onboarding.',
   cta: 'Comenzar',
   guarantees: ['Garantía 30 días', 'Pago seguro', 'Soporte prioritario'],
+};
+
+// Sección #registro del final de la landing (izquierda vende, derecha el formulario de alta).
+export const signupSectionContent = {
+  eyebrow: 'Nº 09 · Empezá ahora',
+  ribbon: '⚡ 7 días gratis · Primer cobro al día 8 · Listo en 2 min',
+  headline: 'Probá TurnosPro con tu propia agenda.',
+  accent: 'tu propia agenda',
+  subheadline:
+    'Creá tu cuenta y seguí la configuración guiada: rubro, servicios, horarios y tu equipo. En 15 minutos tus clientes ya pueden reservar.',
+  steps: [
+    { title: 'Creá tu cuenta', description: 'Nombre del negocio, email y WhatsApp. Confirmás con un código, sin contraseña.' },
+    { title: 'Activá los 7 días gratis', description: 'Dejás tu tarjeta en Mercado Pago. Hoy no se cobra nada: el primer débito es al terminar la prueba.' },
+    { title: 'Armá tu agenda', description: 'Elegís tu rubro y cargás servicios, horarios y profesionales. Todo guiado.' },
+    { title: 'Compartí tu link y cobrá', description: 'tunegocio.turnos-pro.com: tus clientes reservan solos 24/7, con señas por MercadoPago y recordatorios por WhatsApp.' },
+  ],
+  guarantee:
+    '7 días gratis. Dejás tu tarjeta en Mercado Pago y el primer cobro es recién al terminar la prueba. Sin permanencia: cancelás cuando quieras.',
 };
 
 export const logoCarouselTitle = 'Funciona con MercadoPago y WhatsApp';

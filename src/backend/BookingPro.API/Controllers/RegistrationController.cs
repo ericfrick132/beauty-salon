@@ -547,7 +547,9 @@ namespace BookingPro.API.Controllers
                 var tenantUrl = isLocal
                     ? $"http://{subdomain}.localhost:3001"
                     : $"https://{subdomain}.turnos-pro.com";
-                var redirectUrl = $"{tenantUrl}/dashboard?impersonationToken={token}";
+                // Cuenta nueva: la prueba gratis arranca dejando la tarjeta en Mercado Pago (free_trial),
+                // así que el primer destino es /empezar; de ahí sigue al onboarding.
+                var redirectUrl = $"{tenantUrl}/empezar?nuevo=1&impersonationToken={token}";
 
                 // Fire-and-forget welcome email. Reuses SendConfirmationEmailAsync but points
                 // to the auto-login dashboard URL instead of a gating confirmation page.
@@ -870,42 +872,63 @@ namespace BookingPro.API.Controllers
         }
 
         /// <summary>
-        /// Passwordless por EMAIL, paso 1: recibe solo un email y manda un código de 6 dígitos por
-        /// mail (reemplazó al OTP por WhatsApp, que ya no está soportado). El MISMO flujo sirve para
-        /// alta y login: si el email ya tiene cuenta el código la loguea, si no, se crea la cuenta
-        /// al verificar. Acá no se crea nada.
+        /// Passwordless por EMAIL, paso 1: manda un código de 6 dígitos por mail. El MISMO flujo sirve
+        /// para alta y login: si el email ya tiene cuenta el código la loguea, si no, se crea la cuenta al
+        /// verificar. Acá no se crea nada. Se llama de dos formas:
+        ///  - con { email, businessName?, phone?, atribución } desde el formulario (landing o /register);
+        ///  - con { state } desde la página del código para reenviar: la fila se resuelve por el token.
+        /// Devuelve `state`, el token opaco de la transacción que viaja en /register?s=... y en el link
+        /// del mail (el email no va en la URL).
         /// </summary>
         [HttpPost("email/start")]
         public async Task<IActionResult> EmailStart([FromBody] EmailStartDto dto)
         {
-            var email = NormalizeEmail(dto.Email);
-            if (!IsValidEmail(email))
-                return BadRequest(new { success = false, message = "Email inválido." });
+            var now = DateTime.UtcNow;
+            var stateParam = (dto.State ?? string.Empty).Trim();
+            EmailVerification? existing;
+            string email;
+            if (stateParam.Length > 0)
+            {
+                existing = await _context.EmailVerifications.FirstOrDefaultAsync(v => v.StateToken == stateParam);
+                if (existing == null || existing.ConsumedAt != null)
+                    return NotFound(new { success = false, message = "Este link ya no es válido. Pedí un código nuevo." });
+                email = existing.Email;
+            }
+            else
+            {
+                email = NormalizeEmail(dto.Email);
+                if (!IsValidEmail(email))
+                    return BadRequest(new { success = false, message = "Email inválido." });
+                existing = await _context.EmailVerifications.FirstOrDefaultAsync(v => v.Email == email);
+            }
 
             var isExisting = await FindExistingUserByEmailAsync(email) != null;
 
-            // Nombre del negocio y WhatsApp del formulario de alta: viajan en la fila de verificación
+            // Nombre del negocio, WhatsApp y atribución del formulario: viajan en la fila de verificación
             // para que el tenant se cree ya con ellos al verificar (y el onboarding no los vuelva a
             // pedir). Un reenvío sin estos campos no pisa lo que ya había.
             var businessName = CleanOptionalBusinessName(dto.BusinessName);
             var phone = NormalizePhone(dto.Phone);
-
-            var now = DateTime.UtcNow;
-            var existing = await _context.EmailVerifications.FirstOrDefaultAsync(v => v.Email == email);
+            var attributionJson = SerializeAttribution(dto);
 
             // Anti-spam: tope de reenvíos dentro de la ventana activa (no vencida).
-            if (existing != null && existing.ExpiresAt > now && existing.ConsumedAt == null)
-            {
-                if (existing.SendCount >= 5)
-                    return StatusCode(429, new { success = false, message = "Demasiados intentos. Esperá unos minutos e intentá de nuevo." });
-            }
+            var windowActive = existing != null && existing.ExpiresAt > now && existing.ConsumedAt == null;
+            if (windowActive && existing!.SendCount >= 5)
+                return StatusCode(429, new { success = false, message = "Demasiados intentos. Esperá unos minutos e intentá de nuevo." });
+
+            // El token se conserva mientras la ventana siga activa (el link del mail anterior sigue
+            // valiendo); si la ventana venció o es una fila nueva, se genera uno nuevo.
+            var stateToken = windowActive && !string.IsNullOrEmpty(existing!.StateToken)
+                ? existing.StateToken!
+                : GenerateStateToken();
 
             var code = GenerateOtp();
             var codeHash = Services.Security.PasswordHasher.Hash(code);
 
             var host = HttpContext.Request.Host;
             var isLocal = host.Host.Contains("localhost") || host.Host.StartsWith("127.") || host.Host.StartsWith("0.0.0.0");
-            var loginUrl = (isLocal ? $"http://{host.Value}" : "https://turnos-pro.com") + "/?email=" + Uri.EscapeDataString(email);
+            // /register?s=<state> abre la página del código en la app con la transacción resuelta.
+            var loginUrl = (isLocal ? $"http://{host.Value}" : "https://turnos-pro.com") + "/register?s=" + Uri.EscapeDataString(stateToken);
 
             // El envío va ANTES de pisar la fila: si guardáramos el hash nuevo y el mail fallara,
             // el código anterior (el único que la persona tiene en su casilla) quedaría muerto.
@@ -930,6 +953,8 @@ namespace BookingPro.API.Controllers
                     SendCount = 1,
                     BusinessName = businessName,
                     Phone = phone,
+                    StateToken = stateToken,
+                    AttributionJson = attributionJson,
                     CreatedAt = now,
                     UpdatedAt = now
                 });
@@ -937,14 +962,15 @@ namespace BookingPro.API.Controllers
             else
             {
                 // Reinicia la ventana si venció/se consumió; si no, cuenta el reenvío.
-                var windowActive = existing.ExpiresAt > now && existing.ConsumedAt == null;
                 existing.CodeHash = codeHash;
                 existing.ExpiresAt = now.AddMinutes(10);
                 existing.Attempts = 0;
                 existing.ConsumedAt = null;
                 existing.SendCount = windowActive ? existing.SendCount + 1 : 1;
+                existing.StateToken = stateToken;
                 if (businessName != null) existing.BusinessName = businessName;
                 if (phone != null) existing.Phone = phone;
+                if (attributionJson != null) existing.AttributionJson = attributionJson;
                 existing.UpdatedAt = now;
             }
             await _context.SaveChangesAsync();
@@ -955,8 +981,36 @@ namespace BookingPro.API.Controllers
                 message = "Te enviamos un código a tu email.",
                 // Para que la UI diga "Bienvenido de nuevo" vs "Creá tu cuenta".
                 isExisting,
+                state = stateToken,
+                email,
                 // Solo en local, para probar sin casilla real.
                 devCode = isLocal ? code : null
+            });
+        }
+
+        /// <summary>
+        /// Resuelve una transacción de alta por su token (/register?s=...): email para mostrar, si la
+        /// cuenta ya existía y el nombre del negocio cargado. 404 si el token no existe o ya se consumió.
+        /// </summary>
+        [HttpGet("email/state/{state}")]
+        public async Task<IActionResult> EmailState(string state)
+        {
+            var token = (state ?? string.Empty).Trim();
+            if (token.Length < 16)
+                return NotFound(new { success = false, message = "Este link ya no es válido. Pedí un código nuevo." });
+
+            var verification = await _context.EmailVerifications.FirstOrDefaultAsync(v => v.StateToken == token);
+            if (verification == null || verification.ConsumedAt != null)
+                return NotFound(new { success = false, message = "Este link ya no es válido. Pedí un código nuevo." });
+
+            var isExisting = await FindExistingUserByEmailAsync(verification.Email) != null;
+            return Ok(new
+            {
+                success = true,
+                email = verification.Email,
+                isExisting,
+                businessName = verification.BusinessName,
+                expired = verification.ExpiresAt < DateTime.UtcNow
             });
         }
 
@@ -971,15 +1025,20 @@ namespace BookingPro.API.Controllers
         [HttpPost("email/verify")]
         public async Task<IActionResult> EmailVerify([FromBody] EmailVerifyDto dto)
         {
-            var email = NormalizeEmail(dto.Email);
             var code = (dto.Code ?? "").Trim();
-            if (!IsValidEmail(email) || code.Length < 4)
+            var stateParam = (dto.State ?? string.Empty).Trim();
+            var email = NormalizeEmail(dto.Email);
+            if (code.Length < 4 || (stateParam.Length == 0 && !IsValidEmail(email)))
                 return BadRequest(new { success = false, message = "Datos inválidos." });
 
             var now = DateTime.UtcNow;
-            var verification = await _context.EmailVerifications.FirstOrDefaultAsync(v => v.Email == email);
+            // Por state (página /register?s=...) o, como fallback de mails viejos, por email.
+            var verification = stateParam.Length > 0
+                ? await _context.EmailVerifications.FirstOrDefaultAsync(v => v.StateToken == stateParam)
+                : await _context.EmailVerifications.FirstOrDefaultAsync(v => v.Email == email);
             if (verification == null || verification.ConsumedAt != null)
                 return BadRequest(new { success = false, message = "Pedí un código nuevo." });
+            email = verification.Email;
 
             if (verification.ExpiresAt < now)
                 return BadRequest(new { success = false, message = "El código expiró. Pedí uno nuevo." });
@@ -1077,8 +1136,12 @@ namespace BookingPro.API.Controllers
                     CreatedAt = now,
                     UpdatedAt = now
                 };
-                // utm/fbclid/utm_content ({{ad.id}}) que el modal de registro guardó en sessionStorage.
-                MetaAttribution.Apply(tenant, dto, "web");
+                // Atribución: la del body si trae algo; si no, la que email/start guardó en la
+                // transacción (la página del código puede no tener el sessionStorage de la landing).
+                IMetaAttributionSource attribution = HasAnyAttribution(dto)
+                    ? dto
+                    : (IMetaAttributionSource?)DeserializeAttribution(verification.AttributionJson) ?? dto;
+                MetaAttribution.Apply(tenant, attribution, "web");
                 _context.Tenants.Add(tenant);
                 await _context.SaveChangesAsync();
 
@@ -1127,7 +1190,9 @@ namespace BookingPro.API.Controllers
                 var tenantUrl = isLocal
                     ? $"http://{subdomain}.localhost:3001"
                     : $"https://{subdomain}.turnos-pro.com";
-                var redirectUrl = $"{tenantUrl}/dashboard?impersonationToken={token}&onboarding=1";
+                // Cuenta nueva: primero /empezar (tarjeta día 0 con free_trial de MP), después el
+                // onboarding (/completar-perfil) y recién ahí el panel.
+                var redirectUrl = $"{tenantUrl}/empezar?nuevo=1&impersonationToken={token}";
 
                 _logger.LogInformation("Email code registration completed for {Email}, tenant {TenantId}, subdomain {Subdomain}, businessName {BusinessName}, phone {HasPhone}",
                     email, tenant.Id, subdomain, tenant.BusinessName, signupPhone != null);
@@ -1239,6 +1304,40 @@ namespace BookingPro.API.Controllers
                 digits = "549" + digits.Substring(2);
             if (digits.Length < 9 || digits.Length > 16) return null;
             return "+" + digits;
+        }
+
+        /// <summary>Token opaco de transacción: 32 bytes aleatorios en base64url (43 chars, sin padding).</summary>
+        private static string GenerateStateToken()
+        {
+            var bytes = RandomNumberGenerator.GetBytes(32);
+            return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        }
+
+        private static bool HasAnyAttribution(IMetaAttributionSource s) =>
+            !string.IsNullOrWhiteSpace(s.UtmSource) || !string.IsNullOrWhiteSpace(s.UtmMedium)
+            || !string.IsNullOrWhiteSpace(s.UtmCampaign) || !string.IsNullOrWhiteSpace(s.UtmContent)
+            || !string.IsNullOrWhiteSpace(s.Fbclid) || !string.IsNullOrWhiteSpace(s.Fbp)
+            || !string.IsNullOrWhiteSpace(s.CtwaClid) || !string.IsNullOrWhiteSpace(s.MetaAdId)
+            || !string.IsNullOrWhiteSpace(s.MetaAdsetId) || !string.IsNullOrWhiteSpace(s.MetaCampaignId);
+
+        /// <summary>Atribución del start serializada para la fila de verificación; null si no trajo nada.</summary>
+        private static string? SerializeAttribution(IMetaAttributionSource s)
+        {
+            if (!HasAnyAttribution(s)) return null;
+            return JsonSerializer.Serialize(new MetaAttributionDto
+            {
+                UtmSource = s.UtmSource, UtmMedium = s.UtmMedium, UtmCampaign = s.UtmCampaign, UtmContent = s.UtmContent,
+                Fbclid = s.Fbclid, Fbp = s.Fbp, CtwaClid = s.CtwaClid,
+                MetaAdId = s.MetaAdId, MetaAdsetId = s.MetaAdsetId, MetaCampaignId = s.MetaCampaignId,
+                Source = "web"
+            });
+        }
+
+        private static MetaAttributionDto? DeserializeAttribution(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return null;
+            try { return JsonSerializer.Deserialize<MetaAttributionDto>(json); }
+            catch { return null; }
         }
 
         /// <summary>Email normalizado: trim + minúsculas (es la clave de la verificación y del login).</summary>
@@ -1486,10 +1585,15 @@ namespace BookingPro.API.Controllers
         public string BusinessName { get; set; } = string.Empty;
     }
 
-    public class EmailStartDto
+    /// <summary>Paso 1 del alta/login por código de email. Trae el email (formulario) o el state (reenvío
+    /// desde /register?s=...), más los datos del negocio y la atribución del anuncio.</summary>
+    public class EmailStartDto : MetaAttributionFieldsDto
     {
-        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El email es requerido")]
-        public string Email { get; set; } = string.Empty;
+        /// <summary>Email de la persona. Obligatorio salvo que venga State.</summary>
+        public string? Email { get; set; }
+
+        /// <summary>Token opaco de una transacción ya iniciada: reenvía el código a su email.</summary>
+        public string? State { get; set; }
 
         /// <summary>Nombre del negocio (formulario de alta). Opcional: el login por código manda solo el email.</summary>
         public string? BusinessName { get; set; }
@@ -1502,8 +1606,11 @@ namespace BookingPro.API.Controllers
     /// que el modal guardó en sessionStorage al aterrizar desde el anuncio.</summary>
     public class EmailVerifyDto : MetaAttributionFieldsDto
     {
-        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El email es requerido")]
-        public string Email { get; set; } = string.Empty;
+        /// <summary>Token opaco de la transacción (/register?s=...). Si viene, manda sobre Email.</summary>
+        public string? State { get; set; }
+
+        /// <summary>Fallback para mails viejos que traían el email en la URL.</summary>
+        public string? Email { get; set; }
 
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El código es requerido")]
         public string Code { get; set; } = string.Empty;
