@@ -11,6 +11,7 @@ import {
   CircularProgress,
   IconButton,
   Stack,
+  MenuItem,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -121,15 +122,105 @@ function sendTrackingEvent(eventType: string, extra: Record<string, any> = {}) {
   } catch {}
 }
 
-// --- Component ---
-// 'phone'/'otp' = low-friction WhatsApp flow (default). 1/2 = legacy email flow.
-type Step = 'phone' | 'otp' | 1 | 2;
+function fbqTrack(event: string) {
+  if (typeof window === 'undefined' || !(window as any).fbq) return;
+  const sid = sessionStorage.getItem('_track_sid') || '';
+  (window as any).fbq('track', event, {}, { eventID: sid ? `${sid}-${event}` : undefined });
+}
 
-interface ModalState {
+// --- Países para el WhatsApp ---
+export const PHONE_COUNTRIES = [
+  { dial: '+54', label: 'Argentina (+54)', placeholder: '11 2345 6789' },
+  { dial: '+598', label: 'Uruguay (+598)', placeholder: '99 123 456' },
+  { dial: '+56', label: 'Chile (+56)', placeholder: '9 1234 5678' },
+  { dial: '+55', label: 'Brasil (+55)', placeholder: '11 91234 5678' },
+  { dial: '+52', label: 'México (+52)', placeholder: '55 1234 5678' },
+  { dial: '+1', label: 'Estados Unidos (+1)', placeholder: '305 123 4567' },
+];
+
+// --- Tracking del flujo de registro (window.__regFlow) ---
+// Vive fuera del componente porque el estado está en window: así el modal puede mandar el
+// ABANDONED al cerrarse y el formulario embebido en la landing puede arrancar el flujo recién en
+// la primera interacción (y no contar como "abrió el registro" a todo el que llega al pie).
+type RegFlow = {
+  started: number;
+  actions: string[];
+  fieldTimes: Record<string, number>;
+  currentField: string | null;
+  fieldStart: number;
+  data: Record<string, string>;
+};
+
+function getRegFlow(): RegFlow | null {
+  if (typeof window === 'undefined') return null;
+  return ((window as any).__regFlow as RegFlow | null) ?? null;
+}
+
+function startRegFlow() {
+  (window as any).__regFlow = { started: Date.now(), actions: ['0s OPEN'], fieldTimes: {}, currentField: null, fieldStart: 0, data: {} } as RegFlow;
+  sendTrackingEvent('OpenRegister');
+}
+
+function trackAction(action: string) {
+  const f = getRegFlow(); if (!f) return;
+  const t = Math.round((Date.now() - f.started) / 1000);
+  f.actions.push(`${t}s ${action}`);
+}
+
+function trackFocus(field: string) {
+  const f = getRegFlow(); if (!f) return;
+  if (f.currentField) { f.fieldTimes[f.currentField] = (f.fieldTimes[f.currentField] || 0) + Math.round((Date.now() - f.fieldStart) / 1000); }
+  f.currentField = field; f.fieldStart = Date.now();
+  trackAction(`FOCUS ${field}`);
+}
+
+function trackBlur(field: string) {
+  const f = getRegFlow(); if (!f) return;
+  if (f.currentField === field) { f.fieldTimes[field] = (f.fieldTimes[field] || 0) + Math.round((Date.now() - f.fieldStart) / 1000); f.currentField = null; }
+  trackAction(`BLUR ${field}`);
+}
+
+function setRegFlowData(data: Record<string, string>) {
+  const f = getRegFlow();
+  if (f) f.data = data;
+}
+
+function sendRegFlow(outcome: string) {
+  const f = getRegFlow(); if (!f) return;
+  (window as any).__regFlow = null;
+  const total = Math.round((Date.now() - f.started) / 1000);
+  if (f.currentField) { f.fieldTimes[f.currentField] = (f.fieldTimes[f.currentField] || 0) + Math.round((Date.now() - f.fieldStart) / 1000); }
+  f.actions.push(`${total}s ${outcome}`);
+  const fields = Object.entries(f.fieldTimes).map(([k, v]) => `${k}:${v}s`).join(', ');
+  const summary = `[${outcome}] ${total}s total | Campos: ${fields || 'ninguno'} | ${f.actions.join(' → ')}`;
+  const d = f.data || {};
+  const sid = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('_track_sid') || '' : '';
+  navigator.sendBeacon('/api/tracking/event', new Blob([JSON.stringify({
+    eventType: 'RegisterFlow', url: window.location.href, name: summary.slice(0, 500),
+    // Datos parciales: lo que la persona alcanzó a cargar antes de abandonar/completar
+    businessName: d.businessName?.trim() || undefined,
+    fullName: d.fullName?.trim() || undefined,
+    email: d.email?.trim() || undefined,
+    phone: d.phone?.trim() || undefined,
+    device: window.innerWidth < 768 ? 'mobile' : 'desktop', sessionId: sid,
+    utmSource: sessionStorage.getItem('utm_source') || undefined,
+    utmMedium: sessionStorage.getItem('utm_medium') || undefined,
+    utmCampaign: sessionStorage.getItem('utm_campaign') || undefined,
+    referrer: document.referrer || undefined,
+  })], { type: 'application/json' }));
+}
+
+// --- Estado del formulario ---
+// 'email'/'otp' = flujo passwordless con código por email (default; reemplazó al OTP por WhatsApp).
+// 1/2 = flujo legacy con usuario y contraseña.
+type Step = 'email' | 'otp' | 1 | 2;
+
+interface FormState {
   step: Step;
   businessName: string;
   fullName: string;
   email: string;
+  dial: string;
   mobile: string;
   password: string;
   otp: string;
@@ -139,11 +230,12 @@ interface ModalState {
   info: string;
 }
 
-const initialState: ModalState = {
-  step: 'phone',
+const initialState: FormState = {
+  step: 'email',
   businessName: '',
   fullName: '',
   email: '',
+  dial: PHONE_COUNTRIES[0].dial,
   mobile: '',
   password: '',
   otp: '',
@@ -153,93 +245,117 @@ const initialState: ModalState = {
   info: '',
 };
 
-// Deep-link desde el WhatsApp del OTP: ?phone=549... → arrancamos con el número ya
-// cargado y en el paso 'otp' (el código ya está en ese mismo mensaje). NO llamamos
-// phone/start (no regeneramos); el botón "Reenviar código" cubre el caso de vencido.
-function buildInitialState(): ModalState {
-  if (typeof window !== 'undefined') {
-    const prefill = new URLSearchParams(window.location.search).get('phone');
-    if (prefill && prefill.replace(/[^0-9]/g, '').length >= 8) {
-      return { ...initialState, mobile: prefill, step: 'otp' };
+// Deep-link desde el mail del código: ?email=... → arrancamos con el email ya cargado y
+// en el paso 'otp' (el código está en ese mismo mail). NO llamamos email/start (no
+// regeneramos); el botón "Reenviar código" cubre el caso de vencido. Solo lo honra el modal:
+// el formulario embebido en la landing arranca siempre vacío.
+function buildInitialState(honorDeepLink: boolean): FormState {
+  if (honorDeepLink && typeof window !== 'undefined') {
+    const prefill = (new URLSearchParams(window.location.search).get('email') || '').trim();
+    if (prefill && emailValid(prefill)) {
+      return { ...initialState, email: prefill, step: 'otp' };
     }
   }
   return initialState;
 }
 
-function SignupModalInner() {
-  const { isOpen, close } = useSignupModalInternal();
-  const [state, setState] = useState<ModalState>(buildInitialState);
+// --- Estilos compartidos ---
+const titleSx = {
+  fontFamily: 'var(--font-fraunces), serif',
+  fontWeight: 600,
+  fontSize: { xs: '1.5rem', sm: '1.75rem' },
+  lineHeight: 1.15,
+  letterSpacing: '-0.02em',
+  color: palette.ink,
+  mb: 0.8,
+} as const;
 
-  const startRegFlow = () => {
-    (window as any).__regFlow = { started: Date.now(), actions: ['0s OPEN'], fieldTimes: {} as Record<string, number>, currentField: null as string | null, fieldStart: 0, data: {} as Record<string, string> };
-  };
-  const trackAction = (action: string) => {
-    const f = (window as any).__regFlow; if (!f) return;
-    const t = Math.round((Date.now() - f.started) / 1000);
-    f.actions.push(`${t}s ${action}`);
-  };
-  const trackFocus = (field: string) => {
-    const f = (window as any).__regFlow; if (!f) return;
-    if (f.currentField) { f.fieldTimes[f.currentField] = (f.fieldTimes[f.currentField] || 0) + Math.round((Date.now() - f.fieldStart) / 1000); }
-    f.currentField = field; f.fieldStart = Date.now();
-    trackAction(`FOCUS ${field}`);
-  };
-  const trackBlur = (field: string) => {
-    const f = (window as any).__regFlow; if (!f) return;
-    if (f.currentField === field) { f.fieldTimes[field] = (f.fieldTimes[field] || 0) + Math.round((Date.now() - f.fieldStart) / 1000); f.currentField = null; }
-    trackAction(`BLUR ${field}`);
-  };
-  const sendRegFlow = (outcome: string) => {
-    const f = (window as any).__regFlow; if (!f) return;
-    (window as any).__regFlow = null;
-    const total = Math.round((Date.now() - f.started) / 1000);
-    if (f.currentField) { f.fieldTimes[f.currentField] = (f.fieldTimes[f.currentField] || 0) + Math.round((Date.now() - f.fieldStart) / 1000); }
-    f.actions.push(`${total}s ${outcome}`);
-    const fields = Object.entries(f.fieldTimes).map(([k, v]) => `${k}:${v}s`).join(', ');
-    const summary = `[${outcome}] ${total}s total | Campos: ${fields || 'ninguno'} | ${f.actions.join(' → ')}`;
-    const d = (f.data || {}) as Record<string, string>;
-    const sid = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('_track_sid') || '' : '';
-    navigator.sendBeacon('/api/tracking/event', new Blob([JSON.stringify({
-      eventType: 'RegisterFlow', url: window.location.href, name: summary.slice(0, 500),
-      // Datos parciales: lo que la persona alcanzó a cargar antes de abandonar/completar
-      businessName: d.businessName?.trim() || undefined,
-      fullName: d.fullName?.trim() || undefined,
-      email: d.email?.trim() || undefined,
-      phone: d.mobile?.trim() || undefined,
-      device: window.innerWidth < 768 ? 'mobile' : 'desktop', sessionId: sid,
-      utmSource: sessionStorage.getItem('utm_source') || undefined,
-      utmMedium: sessionStorage.getItem('utm_medium') || undefined,
-      utmCampaign: sessionStorage.getItem('utm_campaign') || undefined,
-      referrer: document.referrer || undefined,
-    })], { type: 'application/json' }));
-  };
+const subtitleSx = { fontSize: '0.92rem', color: palette.inkSoft, mb: 2.5, lineHeight: 1.45 } as const;
 
-  const set = useCallback((patch: Partial<ModalState>) => setState((s) => ({ ...s, ...patch })), []);
+const primaryButtonSx = {
+  py: 1.5,
+  fontSize: '1rem',
+  fontWeight: 700,
+  bgcolor: palette.ink,
+  color: palette.paper,
+  '&:hover': { bgcolor: palette.forest },
+  '&.Mui-disabled': { bgcolor: 'rgba(0,0,0,0.12)', color: 'rgba(0,0,0,0.4)' },
+} as const;
+
+const linkButtonSx = {
+  mt: 1.5,
+  fontSize: '0.8rem',
+  color: palette.inkSoft,
+  textTransform: 'none',
+  '&:hover': { background: 'transparent', color: palette.coral },
+} as const;
+
+const backButtonSx = {
+  minWidth: 0,
+  px: 0.8,
+  py: 0.2,
+  fontSize: '0.68rem',
+  letterSpacing: '0.1em',
+  color: palette.ink,
+  textTransform: 'uppercase',
+  fontFamily: 'var(--font-mono), monospace',
+  '&:hover': { background: 'transparent', color: palette.coral },
+} as const;
+
+const finePrintSx = { fontSize: '0.78rem', color: palette.inkSoft, lineHeight: 1.45, textAlign: 'center' } as const;
+
+function SocialProof({ mt = 2 }: { mt?: number }) {
+  return (
+    <Stack direction="row" justifyContent="center" alignItems="center" spacing={1} sx={{ mt }}>
+      <Box component="span" sx={{ color: palette.amber, letterSpacing: '0.1em' }}>★★★★★</Box>
+      <Typography sx={{ fontSize: '0.78rem', color: palette.inkSoft }}>
+        4.9/5 · +1.200 negocios
+      </Typography>
+    </Stack>
+  );
+}
+
+export type SignupFormVariant = 'modal' | 'inline';
+
+/**
+ * Formulario de alta compartido por el modal (CTAs del header, hero y precios) y por la sección
+ * #registro del final de la landing. Paso 'email': nombre del negocio + email + WhatsApp →
+ * pedimos el código por email. Paso 'otp': el código (loguea o crea la cuenta). Pasos 1/2:
+ * alternativa legacy con usuario y contraseña.
+ *
+ * - 'modal': autofocus en el primer campo y el flujo de tracking arranca al montarse (= al abrir).
+ * - 'inline': sin autofocus (haría scroll al pie de la página) y el tracking arranca en el primer
+ *   foco, así solo cuenta a quien de verdad tocó el formulario.
+ */
+export function SignupForm({ variant }: { variant: SignupFormVariant }) {
+  const isModal = variant === 'modal';
+  const [state, setState] = useState<FormState>(() => buildInitialState(isModal));
+  const set = useCallback((patch: Partial<FormState>) => setState((s) => ({ ...s, ...patch })), []);
+
+  const phoneCountry = PHONE_COUNTRIES.find((c) => c.dial === state.dial) ?? PHONE_COUNTRIES[0];
+  const phoneDigits = state.mobile.replace(/[^0-9]/g, '');
+  // Con prefijo internacional: el backend lo normaliza a +549... (o el país que corresponda).
+  const fullPhone = phoneDigits ? `${state.dial} ${state.mobile.trim()}` : '';
 
   useEffect(() => {
-    if (!isOpen) return;
-    startRegFlow();
-    sendTrackingEvent('OpenRegister');
-    // Si la persona cierra la pestaña/navega sin tocar la X, igual mandamos
-    // el abandono con lo que haya cargado. sendRegFlow se anula a sí mismo,
-    // así que no duplica con handleClose ni con un registro completado.
+    if (isModal) startRegFlow();
+    // Si la persona cierra la pestaña/navega sin tocar la X, igual mandamos el abandono con lo
+    // que haya cargado. sendRegFlow se anula a sí mismo, así que no duplica con el cierre del
+    // modal ni con un registro completado.
     const onPageHide = () => sendRegFlow('ABANDONED');
     window.addEventListener('pagehide', onPageHide);
     return () => window.removeEventListener('pagehide', onPageHide);
-  }, [isOpen]);
+  }, [isModal]);
 
-  // Guardado parcial: vamos reflejando lo cargado en __regFlow.data para que el
-  // beacon (que se dispara desde un handler global) tenga los valores actuales.
+  // Guardado parcial: vamos reflejando lo cargado en __regFlow.data para que el beacon (que se
+  // dispara desde un handler global) tenga los valores actuales.
   useEffect(() => {
-    const f = (window as any).__regFlow;
-    if (f) f.data = { businessName: state.businessName, fullName: state.fullName, email: state.email, mobile: state.mobile };
-  }, [state.businessName, state.fullName, state.email, state.mobile]);
+    setRegFlowData({ businessName: state.businessName, fullName: state.fullName, email: state.email, phone: fullPhone });
+  }, [state.businessName, state.fullName, state.email, fullPhone]);
 
-  const handleClose = () => {
-    trackAction('CLOSE');
-    sendRegFlow('ABANDONED');
-    setState(initialState);
-    close();
+  const focus = (field: string) => {
+    if (!isModal && !getRegFlow()) startRegFlow();
+    trackFocus(field);
   };
 
   const subdomainPreview = useMemo(
@@ -247,39 +363,38 @@ function SignupModalInner() {
     [state.businessName]
   );
 
-  const step1Valid = state.businessName.trim().length >= 2;
-  const step2Valid =
-    state.fullName.trim().length >= 2 &&
-    emailValid(state.email) &&
-    state.mobile.trim().length >= 6 &&
-    passwordValid(state.password);
-
-  // --- WhatsApp (low-friction) flow ---
-  const phoneValid = state.mobile.replace(/[^0-9]/g, '').length >= 8;
+  const businessNameValid = state.businessName.trim().length >= 2;
+  const emailOk = emailValid(state.email.trim());
+  const phoneValid = phoneDigits.length >= 8;
+  const emailStepValid = businessNameValid && emailOk && phoneValid;
   const otpValid = state.otp.replace(/[^0-9]/g, '').length >= 4;
+  const step1Valid = businessNameValid;
+  const step2Valid = state.fullName.trim().length >= 2 && emailOk && phoneValid && passwordValid(state.password);
 
+  // --- Código por email (passwordless) ---
   const requestOtp = async () => {
-    if (!phoneValid || state.busy) return;
+    if (!emailStepValid || state.busy) return;
     trackAction('TAP request_otp');
     set({ busy: true, error: '', info: '' });
     try {
-      const res = await fetch(apiUrl('/registration/phone/start'), {
+      const res = await fetch(apiUrl('/registration/email/start'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: state.mobile.trim() }),
+        body: JSON.stringify({
+          email: state.email.trim(),
+          businessName: state.businessName.trim(),
+          phone: fullPhone,
+        }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok || !body.success) {
         throw new Error(body.message || 'No pudimos enviar el código. Intentá de nuevo.');
       }
       trackAction(body.isExisting ? 'OTP_SENT_LOGIN' : 'OTP_SENT');
-      // fbq Lead solo para cuentas nuevas (un login no es un lead nuevo).
+      // Lead solo para cuentas nuevas (un login no es un lead nuevo).
       if (!body.isExisting) {
-        sendTrackingEvent('Lead', { phone: state.mobile });
-        if (typeof window !== 'undefined' && (window as any).fbq) {
-          const sid = sessionStorage.getItem('_track_sid') || '';
-          (window as any).fbq('track', 'Lead', {}, { eventID: sid ? `${sid}-Lead` : undefined });
-        }
+        sendTrackingEvent('Lead', { name: state.businessName.trim(), email: state.email.trim(), phone: fullPhone });
+        fbqTrack('Lead');
       }
       set({
         busy: false,
@@ -298,10 +413,10 @@ function SignupModalInner() {
     trackAction('TAP verify_otp');
     set({ busy: true, error: '' });
     try {
-      const res = await fetch(apiUrl('/registration/phone/verify'), {
+      const res = await fetch(apiUrl('/registration/email/verify'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: state.mobile.trim(), code: state.otp.trim(), ...getAttribution() }),
+        body: JSON.stringify({ email: state.email.trim(), code: state.otp.trim(), ...getAttribution() }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok || !body.success) {
@@ -311,11 +426,8 @@ function SignupModalInner() {
       sendRegFlow(body.isExisting ? 'LOGGED_IN' : 'COMPLETED');
       // CompleteRegistration solo cuando se creó una cuenta nueva.
       if (!body.isExisting) {
-        if (typeof window !== 'undefined' && (window as any).fbq) {
-          const sid = sessionStorage.getItem('_track_sid') || '';
-          (window as any).fbq('track', 'CompleteRegistration', {}, { eventID: sid ? `${sid}-CompleteRegistration` : undefined });
-        }
-        sendTrackingEvent('CompleteRegistration', { phone: state.mobile });
+        fbqTrack('CompleteRegistration');
+        sendTrackingEvent('CompleteRegistration', { name: state.businessName.trim(), email: state.email.trim(), phone: fullPhone });
       }
       if (body.redirectUrl) {
         window.location.href = body.redirectUrl;
@@ -328,6 +440,7 @@ function SignupModalInner() {
     }
   };
 
+  // --- Legacy: usuario y contraseña ---
   const goToStep2 = () => {
     if (!step1Valid) return;
     trackAction('STEP2');
@@ -340,18 +453,12 @@ function SignupModalInner() {
   };
 
   const handleSubmit = async () => {
+    if (!step2Valid || state.busy) return;
     trackAction('TAP submit');
     set({ busy: true, error: '' });
 
-    sendTrackingEvent('Lead', {
-      name: state.businessName,
-      email: state.email,
-      phone: state.mobile,
-    });
-    if (typeof window !== 'undefined' && (window as any).fbq) {
-      const sid = sessionStorage.getItem('_track_sid') || '';
-      (window as any).fbq('track', 'Lead', {}, { eventID: sid ? `${sid}-Lead` : undefined });
-    }
+    sendTrackingEvent('Lead', { name: state.businessName, email: state.email, phone: fullPhone });
+    fbqTrack('Lead');
 
     try {
       const res = await fetch(apiUrl('/registration/quick'), {
@@ -361,7 +468,7 @@ function SignupModalInner() {
           email: state.email.trim(),
           password: state.password,
           businessName: state.businessName.trim(),
-          mobile: state.mobile.trim(),
+          mobile: fullPhone,
           fullName: state.fullName.trim(),
           ...getAttribution(),
         }),
@@ -375,16 +482,8 @@ function SignupModalInner() {
 
       trackAction('SUBMIT_OK');
       sendRegFlow('COMPLETED');
-
-      if (typeof window !== 'undefined' && (window as any).fbq) {
-        const sid = sessionStorage.getItem('_track_sid') || '';
-        (window as any).fbq('track', 'CompleteRegistration', {}, { eventID: sid ? `${sid}-CompleteRegistration` : undefined });
-      }
-      sendTrackingEvent('CompleteRegistration', {
-        name: state.businessName,
-        email: state.email,
-        phone: state.mobile,
-      });
+      fbqTrack('CompleteRegistration');
+      sendTrackingEvent('CompleteRegistration', { name: state.businessName, email: state.email, phone: fullPhone });
 
       if (body.redirectUrl) {
         window.location.href = body.redirectUrl;
@@ -395,6 +494,345 @@ function SignupModalInner() {
       trackAction(`SUBMIT_ERROR ${(err as Error).message?.slice(0, 30)}`);
       set({ error: err.message || 'Error inesperado', busy: false });
     }
+  };
+
+  const phoneRow = (
+    <Stack direction="row" spacing={1}>
+      <TextField
+        select
+        label="País"
+        value={state.dial}
+        onChange={(e) => set({ dial: e.target.value })}
+        sx={{ minWidth: 132, flexShrink: 0 }}
+        SelectProps={{ renderValue: (v) => String(v) }}
+      >
+        {PHONE_COUNTRIES.map((c) => (
+          <MenuItem key={c.dial} value={c.dial}>{c.label}</MenuItem>
+        ))}
+      </TextField>
+      <TextField
+        label="Tu WhatsApp"
+        type="tel"
+        placeholder={phoneCountry.placeholder}
+        value={state.mobile}
+        onChange={(e) => set({ mobile: e.target.value })}
+        onFocus={() => focus('mobile')}
+        onBlur={() => trackBlur('mobile')}
+        inputProps={{ inputMode: 'tel', autoComplete: 'tel-national' }}
+        fullWidth
+      />
+    </Stack>
+  );
+
+  return (
+    <>
+      {/* Indicador de pasos — solo para el flujo legacy con contraseña (pasos numéricos) */}
+      {(state.step === 1 || state.step === 2) && (
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+            mb: 2.5,
+            fontFamily: 'var(--font-mono), monospace',
+            fontSize: '0.66rem',
+            letterSpacing: '0.16em',
+            textTransform: 'uppercase',
+            color: palette.inkSoft,
+          }}
+        >
+          {state.step === 2 && (
+            <Button size="small" onClick={goBackToStep1} startIcon={<ArrowBackIcon fontSize="small" />} sx={backButtonSx}>
+              Atrás
+            </Button>
+          )}
+          <Box sx={{ flex: 1, display: 'flex', gap: 0.6, alignItems: 'center' }}>
+            <Box sx={{ flex: 1, height: 3, bgcolor: palette.forest, borderRadius: 2 }} />
+            <Box sx={{ flex: 1, height: 3, bgcolor: state.step === 2 ? palette.forest : 'rgba(0,0,0,0.1)', borderRadius: 2 }} />
+          </Box>
+          <Box component="span">Paso {state.step} de 2</Box>
+        </Box>
+      )}
+
+      {state.error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {state.error}
+        </Alert>
+      )}
+      {state.info && !state.error && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          {state.info}
+        </Alert>
+      )}
+
+      {state.step === 'email' ? (
+        <Box component="form" noValidate onSubmit={(e) => { e.preventDefault(); requestOtp(); }}>
+          <Typography variant="h5" component="h3" sx={titleSx}>
+            Creá tu cuenta gratis
+          </Typography>
+          <Typography sx={subtitleSx}>
+            Sin tarjeta y sin contraseña. Te mandamos un código por email y entrás directo a armar tu agenda.
+          </Typography>
+
+          <Stack spacing={2}>
+            <Box>
+              <TextField
+                label="¿Cómo se llama tu negocio?"
+                placeholder="Ej: Estudio Lila"
+                value={state.businessName}
+                onChange={(e) => set({ businessName: e.target.value })}
+                onFocus={() => focus('businessName')}
+                onBlur={() => trackBlur('businessName')}
+                inputProps={{ autoComplete: 'organization' }}
+                fullWidth
+                autoFocus={isModal}
+              />
+              <Typography
+                sx={{
+                  fontFamily: 'var(--font-mono), monospace',
+                  fontSize: '0.72rem',
+                  color: palette.inkSoft,
+                  mt: 0.6,
+                  opacity: state.businessName ? 1 : 0,
+                  transition: 'opacity 200ms',
+                }}
+              >
+                🌐 {subdomainPreview}.turnos-pro.com
+              </Typography>
+            </Box>
+            <TextField
+              label="Tu email"
+              type="email"
+              placeholder="tu@email.com"
+              value={state.email}
+              onChange={(e) => set({ email: e.target.value })}
+              onFocus={() => focus('email')}
+              onBlur={() => trackBlur('email')}
+              inputProps={{ inputMode: 'email', autoComplete: 'email' }}
+              fullWidth
+            />
+            {phoneRow}
+          </Stack>
+
+          <Button
+            type="submit"
+            variant="contained"
+            size="large"
+            fullWidth
+            disabled={!emailStepValid || state.busy}
+            startIcon={state.busy ? <CircularProgress size={18} color="inherit" /> : undefined}
+            sx={{ ...primaryButtonSx, mt: 2.5 }}
+          >
+            {state.busy ? 'Enviando código...' : 'Empezar gratis 7 días'}
+          </Button>
+
+          <Typography sx={{ ...finePrintSx, mt: 1.5 }}>
+            Te mandamos un código de 6 dígitos a tu email para confirmar. Después entrás directo a
+            armar tu agenda: rubro, servicios y horarios.
+          </Typography>
+
+          <Button
+            fullWidth
+            onClick={() => { trackAction('SWITCH_PASSWORD'); set({ step: 1, error: '', info: '' }); }}
+            sx={{ ...linkButtonSx, mt: 0.5 }}
+          >
+            Prefiero crear usuario y contraseña
+          </Button>
+
+          <SocialProof mt={1} />
+        </Box>
+      ) : state.step === 'otp' ? (
+        <Box component="form" noValidate onSubmit={(e) => { e.preventDefault(); verifyOtp(); }}>
+          <Button
+            size="small"
+            onClick={() => { trackAction('BACK'); set({ step: 'email', otp: '', error: '', info: '' }); }}
+            startIcon={<ArrowBackIcon fontSize="small" />}
+            sx={{ ...backButtonSx, mb: 1.5 }}
+          >
+            Cambiar datos
+          </Button>
+          <Typography variant="h5" component="h3" sx={titleSx}>
+            {state.isExisting ? '¡Hola de nuevo!' : 'Ingresá el código'}
+          </Typography>
+          <Typography sx={subtitleSx}>
+            {state.isExisting
+              ? 'Ya tenés una cuenta con este email. Te enviamos un código para entrar a '
+              : 'Te lo enviamos por email a '}
+            <Box component="span" sx={{ fontWeight: 600, color: palette.ink }}>{state.email.trim()}</Box>
+            . Si no lo ves, revisá spam o promociones.
+          </Typography>
+
+          <TextField
+            label="Código de 6 dígitos"
+            placeholder="123456"
+            value={state.otp}
+            onChange={(e) => set({ otp: e.target.value.replace(/[^0-9]/g, '').slice(0, 6) })}
+            onFocus={() => focus('otp')}
+            onBlur={() => trackBlur('otp')}
+            fullWidth
+            autoFocus
+            inputProps={{ inputMode: 'numeric', autoComplete: 'one-time-code', style: { letterSpacing: '0.4em', fontSize: '1.3rem', textAlign: 'center' } }}
+            sx={{ mb: 2 }}
+          />
+
+          <Button
+            type="submit"
+            variant="contained"
+            size="large"
+            fullWidth
+            disabled={!otpValid || state.busy}
+            startIcon={state.busy ? <CircularProgress size={18} color="inherit" /> : undefined}
+            sx={primaryButtonSx}
+          >
+            {state.busy ? 'Verificando...' : 'Entrar a mi cuenta'}
+          </Button>
+
+          <Button fullWidth disabled={state.busy} onClick={requestOtp} sx={linkButtonSx}>
+            Reenviar código
+          </Button>
+        </Box>
+      ) : state.step === 1 ? (
+        <Box component="form" noValidate onSubmit={(e) => { e.preventDefault(); goToStep2(); }}>
+          <Typography variant="h5" component="h3" sx={{ ...titleSx, fontSize: { xs: '1.6rem', sm: '1.85rem' }, mb: 1 }}>
+            Activá tu negocio en 2 minutos
+          </Typography>
+          <Typography sx={{ ...subtitleSx, mb: 3 }}>
+            Gratis 7 días · Sin tarjeta · Listo para usar al instante
+          </Typography>
+
+          <TextField
+            label="¿Cómo se llama tu negocio?"
+            placeholder="Ej: Estudio Lila"
+            value={state.businessName}
+            onChange={(e) => set({ businessName: e.target.value })}
+            onFocus={() => focus('businessName')}
+            onBlur={() => trackBlur('businessName')}
+            fullWidth
+            autoFocus
+            sx={{ mb: 1 }}
+          />
+          <Typography
+            sx={{
+              fontFamily: 'var(--font-mono), monospace',
+              fontSize: '0.72rem',
+              color: palette.inkSoft,
+              mb: 2.5,
+              opacity: state.businessName ? 1 : 0,
+              transition: 'opacity 200ms',
+            }}
+          >
+            🌐 {subdomainPreview}.turnos-pro.com
+          </Typography>
+
+          <Button type="submit" variant="contained" size="large" fullWidth disabled={!step1Valid} sx={primaryButtonSx}>
+            Continuar →
+          </Button>
+
+          <SocialProof mt={3} />
+        </Box>
+      ) : (
+        <Box component="form" noValidate onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+          <Typography variant="h5" component="h3" sx={titleSx}>
+            Último paso,{' '}
+            <Box component="span" sx={{ fontStyle: 'italic', color: palette.coral }}>
+              {state.businessName.trim()}
+            </Box>
+          </Typography>
+          <Typography sx={subtitleSx}>
+            Tu sitio estará listo en 10 segundos
+          </Typography>
+
+          <Stack spacing={2}>
+            <TextField
+              label="Tu nombre"
+              placeholder="Ej: Juana García"
+              value={state.fullName}
+              onChange={(e) => set({ fullName: e.target.value })}
+              onFocus={() => focus('fullName')}
+              onBlur={() => trackBlur('fullName')}
+              fullWidth
+              autoFocus
+            />
+            <TextField
+              label="Email"
+              type="email"
+              placeholder="tu@email.com"
+              value={state.email}
+              onChange={(e) => set({ email: e.target.value })}
+              onFocus={() => focus('email')}
+              onBlur={() => trackBlur('email')}
+              fullWidth
+            />
+            {phoneRow}
+            <TextField
+              label="Contraseña"
+              type="password"
+              value={state.password}
+              onChange={(e) => set({ password: e.target.value })}
+              onFocus={() => focus('password')}
+              onBlur={() => trackBlur('password')}
+              fullWidth
+              helperText="Mínimo 8 caracteres"
+            />
+          </Stack>
+
+          <Box
+            sx={{
+              mt: 2.5,
+              px: 1.6,
+              py: 1.2,
+              bgcolor: palette.paperSoft,
+              border: `1.5px dashed ${palette.ink}`,
+              borderRadius: 1.5,
+              textAlign: 'center',
+              fontFamily: 'var(--font-mono), monospace',
+              fontSize: '0.82rem',
+              color: palette.ink,
+              letterSpacing: '0.02em',
+            }}
+          >
+            🌐{' '}
+            <Box component="span" sx={{ color: palette.coral, fontWeight: 600 }}>
+              {subdomainPreview}
+            </Box>
+            <Box component="span" sx={{ color: palette.inkSoft }}>
+              .turnos-pro.com
+            </Box>
+          </Box>
+
+          <Button
+            type="submit"
+            variant="contained"
+            size="large"
+            fullWidth
+            disabled={!step2Valid || state.busy}
+            startIcon={state.busy ? <CircularProgress size={18} color="inherit" /> : undefined}
+            sx={{ ...primaryButtonSx, mt: 2.5 }}
+          >
+            {state.busy ? 'Creando cuenta...' : 'Crear mi cuenta'}
+          </Button>
+
+          <Stack direction="row" justifyContent="center" alignItems="center" spacing={0.7} sx={{ mt: 2 }}>
+            <LockOutlinedIcon sx={{ fontSize: '0.95rem', color: palette.inkSoft }} />
+            <Typography sx={{ fontSize: '0.76rem', color: palette.inkSoft }}>
+              Sin cargos. Cancelás cuando quieras.
+            </Typography>
+          </Stack>
+        </Box>
+      )}
+    </>
+  );
+}
+
+// --- Modal ---
+function SignupModalInner() {
+  const { isOpen, close } = useSignupModalInternal();
+
+  // El Dialog desmonta el formulario al cerrarse, así que el estado se resetea solo.
+  const handleClose = () => {
+    trackAction('CLOSE');
+    sendRegFlow('ABANDONED');
+    close();
   };
 
   return (
@@ -439,453 +877,7 @@ function SignupModalInner() {
       </IconButton>
 
       <DialogContent sx={{ px: { xs: 3, sm: 4 }, py: { xs: 3, sm: 3.5 } }}>
-        {/* Step indicator — only for the legacy email flow (numeric steps) */}
-        {(state.step === 1 || state.step === 2) && (
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1.5,
-              mb: 2.5,
-              fontFamily: 'var(--font-mono), monospace',
-              fontSize: '0.66rem',
-              letterSpacing: '0.16em',
-              textTransform: 'uppercase',
-              color: palette.inkSoft,
-            }}
-          >
-            {state.step === 2 && (
-              <Button
-                size="small"
-                onClick={goBackToStep1}
-                startIcon={<ArrowBackIcon fontSize="small" />}
-                sx={{
-                  minWidth: 0,
-                  px: 0.8,
-                  py: 0.2,
-                  fontSize: '0.68rem',
-                  letterSpacing: '0.1em',
-                  color: palette.ink,
-                  textTransform: 'uppercase',
-                  fontFamily: 'var(--font-mono), monospace',
-                  '&:hover': { background: 'transparent', color: palette.coral },
-                }}
-              >
-                Atrás
-              </Button>
-            )}
-            <Box sx={{ flex: 1, display: 'flex', gap: 0.6, alignItems: 'center' }}>
-              <Box
-                sx={{
-                  flex: 1,
-                  height: 3,
-                  bgcolor: palette.forest,
-                  borderRadius: 2,
-                }}
-              />
-              <Box
-                sx={{
-                  flex: 1,
-                  height: 3,
-                  bgcolor: state.step === 2 ? palette.forest : 'rgba(0,0,0,0.1)',
-                  borderRadius: 2,
-                }}
-              />
-            </Box>
-            <Box component="span">Paso {state.step} de 2</Box>
-          </Box>
-        )}
-
-        {state.error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {state.error}
-          </Alert>
-        )}
-        {state.info && !state.error && (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            {state.info}
-          </Alert>
-        )}
-
-        {state.step === 'phone' ? (
-          <>
-            <Typography
-              variant="h5"
-              component="h3"
-              sx={{
-                fontFamily: 'var(--font-fraunces), serif',
-                fontWeight: 600,
-                fontSize: { xs: '1.6rem', sm: '1.85rem' },
-                lineHeight: 1.15,
-                letterSpacing: '-0.02em',
-                color: palette.ink,
-                mb: 1,
-              }}
-            >
-              Empezá con tu WhatsApp
-            </Typography>
-            <Typography
-              sx={{ fontSize: '0.92rem', color: palette.inkSoft, mb: 3, lineHeight: 1.45 }}
-            >
-              Te mandamos un código y entrás al instante. Sin contraseñas, sin tarjeta.
-            </Typography>
-
-            <TextField
-              label="Tu WhatsApp"
-              type="tel"
-              placeholder="11 1234 5678"
-              value={state.mobile}
-              onChange={(e) => set({ mobile: e.target.value })}
-              onFocus={() => trackFocus('mobile')}
-              onBlur={() => trackBlur('mobile')}
-              onKeyDown={(e) => { if (e.key === 'Enter' && phoneValid && !state.busy) requestOtp(); }}
-              fullWidth
-              autoFocus
-              sx={{ mb: 2.5 }}
-            />
-
-            <Button
-              variant="contained"
-              size="large"
-              fullWidth
-              disabled={!phoneValid || state.busy}
-              onClick={requestOtp}
-              startIcon={state.busy ? <CircularProgress size={18} color="inherit" /> : undefined}
-              sx={{
-                py: 1.5,
-                fontSize: '1rem',
-                fontWeight: 700,
-                bgcolor: palette.ink,
-                color: palette.paper,
-                '&:hover': { bgcolor: palette.forest },
-                '&.Mui-disabled': { bgcolor: 'rgba(0,0,0,0.12)', color: 'rgba(0,0,0,0.4)' },
-              }}
-            >
-              {state.busy ? 'Enviando código...' : 'Enviar código por WhatsApp'}
-            </Button>
-
-            <Button
-              fullWidth
-              onClick={() => { trackAction('SWITCH_EMAIL'); set({ step: 1, error: '', info: '' }); }}
-              sx={{
-                mt: 1.5,
-                fontSize: '0.8rem',
-                color: palette.inkSoft,
-                textTransform: 'none',
-                '&:hover': { background: 'transparent', color: palette.coral },
-              }}
-            >
-              Prefiero registrarme con email
-            </Button>
-
-            <Stack direction="row" justifyContent="center" alignItems="center" spacing={1} sx={{ mt: 2 }}>
-              <Box component="span" sx={{ color: palette.amber, letterSpacing: '0.1em' }}>★★★★★</Box>
-              <Typography sx={{ fontSize: '0.78rem', color: palette.inkSoft }}>
-                4.9/5 · +1.200 negocios
-              </Typography>
-            </Stack>
-          </>
-        ) : state.step === 'otp' ? (
-          <>
-            <Button
-              size="small"
-              onClick={() => { trackAction('BACK'); set({ step: 'phone', otp: '', error: '', info: '' }); }}
-              startIcon={<ArrowBackIcon fontSize="small" />}
-              sx={{
-                minWidth: 0,
-                px: 0.8,
-                py: 0.2,
-                mb: 1.5,
-                fontSize: '0.68rem',
-                letterSpacing: '0.1em',
-                color: palette.ink,
-                textTransform: 'uppercase',
-                fontFamily: 'var(--font-mono), monospace',
-                '&:hover': { background: 'transparent', color: palette.coral },
-              }}
-            >
-              Cambiar número
-            </Button>
-            <Typography
-              variant="h5"
-              component="h3"
-              sx={{
-                fontFamily: 'var(--font-fraunces), serif',
-                fontWeight: 600,
-                fontSize: { xs: '1.5rem', sm: '1.75rem' },
-                lineHeight: 1.15,
-                letterSpacing: '-0.02em',
-                color: palette.ink,
-                mb: 0.8,
-              }}
-            >
-              {state.isExisting ? '¡Hola de nuevo!' : 'Ingresá el código'}
-            </Typography>
-            <Typography
-              sx={{ fontSize: '0.92rem', color: palette.inkSoft, mb: 2.5, lineHeight: 1.45 }}
-            >
-              {state.isExisting
-                ? 'Ya tenés una cuenta con este número. Te enviamos un código para entrar al '
-                : 'Te lo enviamos por WhatsApp al '}
-              <Box component="span" sx={{ fontWeight: 600, color: palette.ink }}>{state.mobile}</Box>
-            </Typography>
-
-            <TextField
-              label="Código de 6 dígitos"
-              placeholder="123456"
-              value={state.otp}
-              onChange={(e) => set({ otp: e.target.value.replace(/[^0-9]/g, '').slice(0, 6) })}
-              onFocus={() => trackFocus('otp')}
-              onBlur={() => trackBlur('otp')}
-              onKeyDown={(e) => { if (e.key === 'Enter' && otpValid && !state.busy) verifyOtp(); }}
-              fullWidth
-              autoFocus
-              inputProps={{ inputMode: 'numeric', style: { letterSpacing: '0.4em', fontSize: '1.3rem', textAlign: 'center' } }}
-              sx={{ mb: 2 }}
-            />
-
-            <Button
-              variant="contained"
-              size="large"
-              fullWidth
-              disabled={!otpValid || state.busy}
-              onClick={verifyOtp}
-              startIcon={state.busy ? <CircularProgress size={18} color="inherit" /> : undefined}
-              sx={{
-                py: 1.5,
-                fontSize: '1rem',
-                fontWeight: 700,
-                bgcolor: palette.ink,
-                color: palette.paper,
-                '&:hover': { bgcolor: palette.forest },
-                '&.Mui-disabled': { bgcolor: 'rgba(0,0,0,0.12)', color: 'rgba(0,0,0,0.4)' },
-              }}
-            >
-              {state.busy ? 'Verificando...' : 'Entrar a mi cuenta'}
-            </Button>
-
-            <Button
-              fullWidth
-              disabled={state.busy}
-              onClick={requestOtp}
-              sx={{
-                mt: 1.5,
-                fontSize: '0.8rem',
-                color: palette.inkSoft,
-                textTransform: 'none',
-                '&:hover': { background: 'transparent', color: palette.coral },
-              }}
-            >
-              Reenviar código
-            </Button>
-          </>
-        ) : state.step === 1 ? (
-          <>
-            <Typography
-              variant="h5"
-              component="h3"
-              sx={{
-                fontFamily: 'var(--font-fraunces), serif',
-                fontWeight: 600,
-                fontSize: { xs: '1.6rem', sm: '1.85rem' },
-                lineHeight: 1.15,
-                letterSpacing: '-0.02em',
-                color: palette.ink,
-                mb: 1,
-              }}
-            >
-              Activá tu negocio en 2 minutos
-            </Typography>
-            <Typography
-              sx={{
-                fontSize: '0.92rem',
-                color: palette.inkSoft,
-                mb: 3,
-                lineHeight: 1.45,
-              }}
-            >
-              Gratis 7 días · Sin tarjeta · Listo para usar al instante
-            </Typography>
-
-            <TextField
-              label="¿Cómo se llama tu negocio?"
-              placeholder="Ej: Estudio Lila"
-              value={state.businessName}
-              onChange={(e) => set({ businessName: e.target.value })}
-              onFocus={() => trackFocus('businessName')}
-              onBlur={() => trackBlur('businessName')}
-              onKeyDown={(e) => { if (e.key === 'Enter' && step1Valid) goToStep2(); }}
-              fullWidth
-              autoFocus
-              sx={{ mb: 1 }}
-            />
-            <Typography
-              sx={{
-                fontFamily: 'var(--font-mono), monospace',
-                fontSize: '0.72rem',
-                color: palette.inkSoft,
-                mb: 2.5,
-                opacity: state.businessName ? 1 : 0,
-                transition: 'opacity 200ms',
-              }}
-            >
-              🌐 {subdomainPreview}.turnos-pro.com
-            </Typography>
-
-            <Button
-              variant="contained"
-              size="large"
-              fullWidth
-              disabled={!step1Valid}
-              onClick={goToStep2}
-              sx={{
-                py: 1.5,
-                fontSize: '1rem',
-                fontWeight: 700,
-                bgcolor: palette.ink,
-                color: palette.paper,
-                '&:hover': { bgcolor: palette.forest },
-                '&.Mui-disabled': { bgcolor: 'rgba(0,0,0,0.12)', color: 'rgba(0,0,0,0.4)' },
-              }}
-            >
-              Continuar →
-            </Button>
-
-            <Stack direction="row" justifyContent="center" alignItems="center" spacing={1} sx={{ mt: 3 }}>
-              <Box component="span" sx={{ color: palette.amber, letterSpacing: '0.1em' }}>★★★★★</Box>
-              <Typography sx={{ fontSize: '0.78rem', color: palette.inkSoft }}>
-                4.9/5 · +1.200 negocios
-              </Typography>
-            </Stack>
-          </>
-        ) : (
-          <>
-            <Typography
-              variant="h5"
-              component="h3"
-              sx={{
-                fontFamily: 'var(--font-fraunces), serif',
-                fontWeight: 600,
-                fontSize: { xs: '1.5rem', sm: '1.75rem' },
-                lineHeight: 1.15,
-                letterSpacing: '-0.02em',
-                color: palette.ink,
-                mb: 0.8,
-              }}
-            >
-              Último paso,{' '}
-              <Box component="span" sx={{ fontStyle: 'italic', color: palette.coral }}>
-                {state.businessName.trim()}
-              </Box>
-            </Typography>
-            <Typography
-              sx={{
-                fontSize: '0.92rem',
-                color: palette.inkSoft,
-                mb: 2.5,
-                lineHeight: 1.45,
-              }}
-            >
-              Tu sitio estará listo en 10 segundos
-            </Typography>
-
-            <Stack spacing={2}>
-              <TextField
-                label="Tu nombre"
-                placeholder="Ej: Juana García"
-                value={state.fullName}
-                onChange={(e) => set({ fullName: e.target.value })}
-                onFocus={() => trackFocus('fullName')}
-                onBlur={() => trackBlur('fullName')}
-                fullWidth
-                autoFocus
-              />
-              <TextField
-                label="Email"
-                type="email"
-                placeholder="tu@email.com"
-                value={state.email}
-                onChange={(e) => set({ email: e.target.value })}
-                onFocus={() => trackFocus('email')}
-                onBlur={() => trackBlur('email')}
-                fullWidth
-              />
-              <TextField
-                label="WhatsApp"
-                type="tel"
-                placeholder="11 1234 5678"
-                value={state.mobile}
-                onChange={(e) => set({ mobile: e.target.value })}
-                onFocus={() => trackFocus('mobile')}
-                onBlur={() => trackBlur('mobile')}
-                fullWidth
-              />
-              <TextField
-                label="Contraseña"
-                type="password"
-                value={state.password}
-                onChange={(e) => set({ password: e.target.value })}
-                onFocus={() => trackFocus('password')}
-                onBlur={() => trackBlur('password')}
-                onKeyDown={(e) => { if (e.key === 'Enter' && step2Valid && !state.busy) handleSubmit(); }}
-                fullWidth
-                helperText="Mínimo 8 caracteres"
-              />
-            </Stack>
-
-            <Box
-              sx={{
-                mt: 2.5,
-                px: 1.6,
-                py: 1.2,
-                bgcolor: palette.paperSoft,
-                border: `1.5px dashed ${palette.ink}`,
-                borderRadius: 1.5,
-                textAlign: 'center',
-                fontFamily: 'var(--font-mono), monospace',
-                fontSize: '0.82rem',
-                color: palette.ink,
-                letterSpacing: '0.02em',
-              }}
-            >
-              🌐{' '}
-              <Box component="span" sx={{ color: palette.coral, fontWeight: 600 }}>
-                {subdomainPreview}
-              </Box>
-              <Box component="span" sx={{ color: palette.inkSoft }}>
-                .turnos-pro.com
-              </Box>
-            </Box>
-
-            <Button
-              variant="contained"
-              size="large"
-              fullWidth
-              disabled={!step2Valid || state.busy}
-              onClick={handleSubmit}
-              startIcon={state.busy ? <CircularProgress size={18} color="inherit" /> : undefined}
-              sx={{
-                mt: 2.5,
-                py: 1.5,
-                fontSize: '1rem',
-                fontWeight: 700,
-                bgcolor: palette.ink,
-                color: palette.paper,
-                '&:hover': { bgcolor: palette.forest },
-                '&.Mui-disabled': { bgcolor: 'rgba(0,0,0,0.12)', color: 'rgba(0,0,0,0.4)' },
-              }}
-            >
-              {state.busy ? 'Creando cuenta...' : 'Crear mi cuenta'}
-            </Button>
-
-            <Stack direction="row" justifyContent="center" alignItems="center" spacing={0.7} sx={{ mt: 2 }}>
-              <LockOutlinedIcon sx={{ fontSize: '0.95rem', color: palette.inkSoft }} />
-              <Typography sx={{ fontSize: '0.76rem', color: palette.inkSoft }}>
-                Sin cargos. Cancelás cuando quieras.
-              </Typography>
-            </Stack>
-          </>
-        )}
+        <SignupForm variant="modal" />
       </DialogContent>
     </Dialog>
   );
@@ -917,10 +909,10 @@ export function SignupModalProvider({ children }: { children: ReactNode }) {
   useState(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
-    // ?register=true abre el modal en el paso del teléfono; ?phone=549... lo abre
-    // directo en el paso del código (SignupModalInner ya arranca en 'otp' con el
-    // número pre-cargado vía buildInitialState).
-    if (params.get('register') === 'true' || params.get('phone')) {
+    // ?register=true abre el modal en el paso del email; ?email=... (link del mail con
+    // el código) lo abre directo en el paso del código (SignupForm ya arranca en 'otp'
+    // con el email pre-cargado vía buildInitialState).
+    if (params.get('register') === 'true' || params.get('email')) {
       setIsOpen(true);
     }
   });

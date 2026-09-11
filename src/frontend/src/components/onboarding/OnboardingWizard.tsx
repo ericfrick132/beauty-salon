@@ -133,8 +133,8 @@ export interface OnboardingPayload {
   ownerPhone: string;
   ownerInstagram?: string;
   ownerWeb?: string;
-  // Optional: lets a WhatsApp-only account also log in from the web with
-  // email + password. Empty when the user skips it.
+  // Opcional: deja que una cuenta passwordless (entra con el código por email)
+  // también pueda loguearse con email + contraseña. Vacío si lo saltea.
   email?: string;
   password?: string;
 }
@@ -1012,7 +1012,7 @@ const StepPersonal: React.FC<StepProps> = ({
 }) => {
   const { palette, typography, copy } = config;
   const phonePrefilled = Boolean(config.prefill?.phone && config.prefill.phone.trim().length > 0);
-  // El login web es opcional: quien se registró por WhatsApp o Google puede
+  // El login web es opcional: quien se registró con el código por email o con Google puede
   // seguir sin configurarlo. Solo pedimos el par completo si la persona
   // realmente quiso darlo de alta — es decir, si escribió una contraseña o si
   // puso un email distinto del que vino precargado (Google lo precarga, y
@@ -1098,8 +1098,8 @@ const StepPersonal: React.FC<StepProps> = ({
               mb: 2,
             }}
           >
-            Podés dejarlo vacío y seguir: vas a entrar por WhatsApp. Si querés
-            usuario y contraseña, completá los dos campos.
+            Podés dejarlo vacío y seguir: vas a entrar con el código que te
+            mandamos por email. Si querés usuario y contraseña, completá los dos campos.
           </Typography>
           <Stack spacing={3}>
             <Box>
@@ -1273,8 +1273,8 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
 
   // Only skip step 1 when BOTH the owner name and business name were already
   // captured at signup — otherwise we'd skip past the required business name
-  // (which generates the subdomain). The WhatsApp flow captures neither, so it
-  // always shows step 1.
+  // (which generates the subdomain). El alta con código por email no captura
+  // ninguno de los dos, así que siempre muestra el paso 1.
   const step1Prefilled = Boolean(
     config.prefill?.name && config.prefill.name.trim().length > 0 &&
     config.prefill?.businessName && config.prefill.businessName.trim().length > 0

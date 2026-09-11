@@ -379,6 +379,51 @@ namespace BookingPro.API.Models.Entities
     }
 
     /// <summary>
+    /// Código de un solo uso enviado por EMAIL para el alta/login passwordless (reemplazó al OTP
+    /// por WhatsApp, que ya no está soportado). Una fila por email: se upsertea en cada reenvío y
+    /// se marca consumida al verificar. Si el email ya tiene cuenta el código la loguea; si no,
+    /// la crea.
+    /// </summary>
+    [Table("email_verifications", Schema = "public")]
+    public class EmailVerification
+    {
+        public Guid Id { get; set; } = Guid.NewGuid();
+
+        /// <summary>Email normalizado (trim + minúsculas).</summary>
+        [Required, MaxLength(254)]
+        public string Email { get; set; } = string.Empty;
+
+        /// <summary>Hash del código de 6 dígitos — nunca se guarda en claro.</summary>
+        [Required]
+        public string CodeHash { get; set; } = string.Empty;
+
+        public DateTime ExpiresAt { get; set; }
+
+        /// <summary>Intentos fallidos de verificación; se bloquea el código después de unos pocos.</summary>
+        public int Attempts { get; set; } = 0;
+
+        /// <summary>Cuántos códigos se mandaron a este email en la ventana activa (anti-spam).</summary>
+        public int SendCount { get; set; } = 1;
+
+        public DateTime? ConsumedAt { get; set; }
+
+        /// <summary>
+        /// Nombre del negocio cargado en el formulario de alta (null si solo vino el email). Se usa
+        /// al crear el tenant cuando el código se verifica, así el onboarding no lo vuelve a pedir.
+        /// Una cuenta existente (login) lo ignora.
+        /// </summary>
+        [MaxLength(120)]
+        public string? BusinessName { get; set; }
+
+        /// <summary>WhatsApp del dueño normalizado (+549...) cargado en el alta. Mismo criterio que BusinessName.</summary>
+        [MaxLength(32)]
+        public string? Phone { get; set; }
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    }
+
+    /// <summary>
     /// Copia LOCAL persistida de una secuencia de follow-up que vive central en SalesHub
     /// (pull-and-persist). El motor corre sobre esta copia, así sigue andando aunque SalesHub
     /// esté caído. Se sincroniza con GET /api/hub/followup-config.

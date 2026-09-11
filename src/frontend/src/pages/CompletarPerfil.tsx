@@ -71,6 +71,7 @@ const PLACEHOLDER_BUSINESS_NAME = 'Mi negocio';
 const CompletarPerfil: React.FC = () => {
   const navigate = useNavigate();
   const [tenantPhone, setTenantPhone] = useState<string | undefined>(undefined);
+  const [tenantEmail, setTenantEmail] = useState<string | undefined>(undefined);
   const [tenantOwnerName, setTenantOwnerName] = useState<string | undefined>(undefined);
   const [tenantBusinessName, setTenantBusinessName] = useState<string | undefined>(undefined);
   const [tenantInfoLoaded, setTenantInfoLoaded] = useState(false);
@@ -79,8 +80,8 @@ const CompletarPerfil: React.FC = () => {
     ensureFontsLoaded();
   }, []);
 
-  // Fetch phone + ownerName captured during signup so we don't ask the user
-  // for them again here.
+  // Fetch email/phone + ownerName captured during signup so we don't ask the user
+  // for them again here (el alta por código de email trae el email; el teléfono se pide acá).
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -89,6 +90,8 @@ const CompletarPerfil: React.FC = () => {
         if (!cancelled) {
           const phone = res?.data?.phone;
           if (phone && typeof phone === 'string') setTenantPhone(phone);
+          const email = res?.data?.email;
+          if (email && typeof email === 'string' && email.includes('@')) setTenantEmail(email);
           const ownerName = res?.data?.ownerName;
           if (ownerName && typeof ownerName === 'string') setTenantOwnerName(ownerName);
           const businessName = res?.data?.businessName;
@@ -112,15 +115,15 @@ const CompletarPerfil: React.FC = () => {
   const prefill = useMemo(() => {
     const stored = localStorage.getItem('googleIdTokenForOnboarding');
     const payload = decodeGoogleIdToken(stored);
-    if (!payload && !tenantPhone && !tenantOwnerName && !tenantBusinessName) return undefined;
+    if (!payload && !tenantPhone && !tenantEmail && !tenantOwnerName && !tenantBusinessName) return undefined;
     return {
       name: payload?.name ?? tenantOwnerName,
       businessName: tenantBusinessName,
-      email: payload?.email,
+      email: payload?.email ?? tenantEmail,
       avatarUrl: payload?.picture,
       phone: tenantPhone,
     };
-  }, [tenantPhone, tenantOwnerName, tenantBusinessName]);
+  }, [tenantPhone, tenantEmail, tenantOwnerName, tenantBusinessName]);
 
   const config = useMemo(
     () => ({

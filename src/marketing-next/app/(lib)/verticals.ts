@@ -90,7 +90,7 @@ export const verticals: VerticalContent[] = [
           'La puesta a punto lleva unos 15 minutos y no necesitás a nadie técnico:',
         ],
         bullets: [
-          'Creás tu cuenta gratis con tu número de WhatsApp.',
+          'Creás tu cuenta gratis con tu email.',
           'Cargás tus estilistas, horarios y el catálogo de servicios con precios.',
           'Activás señas con tu cuenta de MercadoPago y los recordatorios por WhatsApp.',
           'Compartís el link de tu web de turnos en Instagram y WhatsApp.',
@@ -189,7 +189,7 @@ export const verticals: VerticalContent[] = [
       {
         h2: 'Cómo arranca una barbería con TurnosPro',
         bullets: [
-          'Creás tu cuenta gratis con tu WhatsApp, sin tarjeta.',
+          'Creás tu cuenta gratis con tu email, sin tarjeta.',
           'Cargás barberos, horarios y servicios con precios y duración.',
           'Conectás tu cuenta de MercadoPago para señas o cobros completos.',
           'Ponés el link de tu sitio en Instagram, WhatsApp y Google.',
@@ -283,7 +283,7 @@ export const verticals: VerticalContent[] = [
       {
         h2: 'Cómo arranca un centro de estética con TurnosPro',
         bullets: [
-          'Creás tu cuenta gratis con tu número de WhatsApp, sin tarjeta.',
+          'Creás tu cuenta gratis con tu email, sin tarjeta.',
           'Cargás profesionales, horarios y el catálogo de tratamientos con duración y precio.',
           'Definís qué tratamientos exigen seña y conectás tu cuenta de MercadoPago.',
           'Activás recordatorios por WhatsApp y, si querés, el agente de IA.',
@@ -381,7 +381,7 @@ export const verticals: VerticalContent[] = [
       {
         h2: 'Cómo arranca un consultorio con TurnosPro',
         bullets: [
-          'Creás tu cuenta gratis con tu número de WhatsApp, sin tarjeta.',
+          'Creás tu cuenta gratis con tu email, sin tarjeta.',
           'Cargás profesionales, horarios y prestaciones con su duración.',
           'Definís turnos recurrentes para los pacientes que ya tenés.',
           'Activás recordatorios y confirmación por WhatsApp, y el agente de IA si querés.',

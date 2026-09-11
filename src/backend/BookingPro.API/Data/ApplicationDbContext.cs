@@ -26,6 +26,7 @@ namespace BookingPro.API.Data
         public DbSet<MessagePackage> MessagePackages { get; set; }
         public DbSet<PendingRegistration> PendingRegistrations { get; set; }
         public DbSet<PhoneVerification> PhoneVerifications { get; set; }
+        public DbSet<EmailVerification> EmailVerifications { get; set; }
         public DbSet<PlatformWhatsAppConnection> PlatformWhatsAppConnections { get; set; }
         public DbSet<FollowupSequenceLocal> FollowupSequencesLocal { get; set; }
 
@@ -162,6 +163,12 @@ namespace BookingPro.API.Data
             {
                 // One active verification row per phone — we upsert on resend.
                 entity.HasIndex(p => p.Phone).IsUnique();
+            });
+
+            modelBuilder.Entity<EmailVerification>(entity =>
+            {
+                // Una fila activa por email — se upsertea en cada reenvío.
+                entity.HasIndex(e => e.Email).IsUnique();
             });
 
             modelBuilder.Entity<Tenant>(entity =>

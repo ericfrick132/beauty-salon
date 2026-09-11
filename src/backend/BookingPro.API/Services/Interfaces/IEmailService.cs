@@ -15,6 +15,10 @@ namespace BookingPro.API.Services.Interfaces
         // Password reset
         Task SendPasswordResetAsync(string toEmail, string resetUrl, Guid? tenantId = null);
 
+        // Código de acceso (alta/login passwordless por email; reemplazó al OTP por WhatsApp).
+        // Lanza excepción si el envío falla: el caller necesita saberlo para no pisar el código anterior.
+        Task SendLoginCodeAsync(string toEmail, string code, string loginUrl);
+
         // Diagnostic
         Task SendTestEmailAsync(string toEmail);
     }

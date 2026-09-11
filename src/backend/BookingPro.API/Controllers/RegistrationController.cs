@@ -870,26 +870,30 @@ namespace BookingPro.API.Controllers
         }
 
         /// <summary>
-        /// WhatsApp passwordless step 1: receives only a WhatsApp number and sends a 6-digit OTP
-        /// via the platform Evolution instance. The SAME flow serves both signup and login — if
-        /// the number already has an account the code logs them in, otherwise it creates one on
-        /// verify. No account is created here.
+        /// Passwordless por EMAIL, paso 1: recibe solo un email y manda un código de 6 dígitos por
+        /// mail (reemplazó al OTP por WhatsApp, que ya no está soportado). El MISMO flujo sirve para
+        /// alta y login: si el email ya tiene cuenta el código la loguea, si no, se crea la cuenta
+        /// al verificar. Acá no se crea nada.
         /// </summary>
-        [HttpPost("phone/start")]
-        public async Task<IActionResult> PhoneStart([FromBody] PhoneStartDto dto)
+        [HttpPost("email/start")]
+        public async Task<IActionResult> EmailStart([FromBody] EmailStartDto dto)
         {
-            var phone = NormalizePhone(dto.Phone);
-            if (phone.Length < 8)
-                return BadRequest(new { success = false, message = "Número de WhatsApp inválido." });
+            var email = NormalizeEmail(dto.Email);
+            if (!IsValidEmail(email))
+                return BadRequest(new { success = false, message = "Email inválido." });
 
-            var isExisting = await _context.Users
-                .IgnoreQueryFilters()
-                .AnyAsync(u => u.Phone == phone);
+            var isExisting = await FindExistingUserByEmailAsync(email) != null;
+
+            // Nombre del negocio y WhatsApp del formulario de alta: viajan en la fila de verificación
+            // para que el tenant se cree ya con ellos al verificar (y el onboarding no los vuelva a
+            // pedir). Un reenvío sin estos campos no pisa lo que ya había.
+            var businessName = CleanOptionalBusinessName(dto.BusinessName);
+            var phone = NormalizePhone(dto.Phone);
 
             var now = DateTime.UtcNow;
-            var existing = await _context.PhoneVerifications.FirstOrDefaultAsync(p => p.Phone == phone);
+            var existing = await _context.EmailVerifications.FirstOrDefaultAsync(v => v.Email == email);
 
-            // Anti-spam: cap resends within the active (non-expired) window.
+            // Anti-spam: tope de reenvíos dentro de la ventana activa (no vencida).
             if (existing != null && existing.ExpiresAt > now && existing.ConsumedAt == null)
             {
                 if (existing.SendCount >= 5)
@@ -899,66 +903,81 @@ namespace BookingPro.API.Controllers
             var code = GenerateOtp();
             var codeHash = Services.Security.PasswordHasher.Hash(code);
 
+            var host = HttpContext.Request.Host;
+            var isLocal = host.Host.Contains("localhost") || host.Host.StartsWith("127.") || host.Host.StartsWith("0.0.0.0");
+            var loginUrl = (isLocal ? $"http://{host.Value}" : "https://turnos-pro.com") + "/?email=" + Uri.EscapeDataString(email);
+
+            // El envío va ANTES de pisar la fila: si guardáramos el hash nuevo y el mail fallara,
+            // el código anterior (el único que la persona tiene en su casilla) quedaría muerto.
+            try
+            {
+                await _emailService.SendLoginCodeAsync(email, code, loginUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No se pudo enviar el código de acceso por email a {Email}", email);
+                return StatusCode(502, new { success = false, message = "No pudimos enviar el código por email. Revisá la dirección e intentá de nuevo." });
+            }
+
             if (existing == null)
             {
-                _context.PhoneVerifications.Add(new PhoneVerification
+                _context.EmailVerifications.Add(new EmailVerification
                 {
-                    Phone = phone,
+                    Email = email,
                     CodeHash = codeHash,
                     ExpiresAt = now.AddMinutes(10),
                     Attempts = 0,
                     SendCount = 1,
+                    BusinessName = businessName,
+                    Phone = phone,
                     CreatedAt = now,
                     UpdatedAt = now
                 });
             }
             else
             {
-                // Reset the window when expired/consumed, otherwise count the resend.
+                // Reinicia la ventana si venció/se consumió; si no, cuenta el reenvío.
                 var windowActive = existing.ExpiresAt > now && existing.ConsumedAt == null;
                 existing.CodeHash = codeHash;
                 existing.ExpiresAt = now.AddMinutes(10);
                 existing.Attempts = 0;
                 existing.ConsumedAt = null;
                 existing.SendCount = windowActive ? existing.SendCount + 1 : 1;
+                if (businessName != null) existing.BusinessName = businessName;
+                if (phone != null) existing.Phone = phone;
                 existing.UpdatedAt = now;
             }
             await _context.SaveChangesAsync();
 
-            var sent = await SendWhatsAppOtpAsync(phone, code);
-            if (!sent)
-                return StatusCode(502, new { success = false, message = "No pudimos enviar el código por WhatsApp. Intentá de nuevo." });
-
-            var host = HttpContext.Request.Host.Host;
-            var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");
             return Ok(new
             {
                 success = true,
-                message = "Te enviamos un código por WhatsApp.",
-                // Lets the UI say "Bienvenido de nuevo" vs "Creá tu cuenta".
+                message = "Te enviamos un código a tu email.",
+                // Para que la UI diga "Bienvenido de nuevo" vs "Creá tu cuenta".
                 isExisting,
-                // Dev-only convenience so we can test without a real WhatsApp.
+                // Solo en local, para probar sin casilla real.
                 devCode = isLocal ? code : null
             });
         }
 
         /// <summary>
-        /// WhatsApp passwordless step 2: verifies the OTP. If the phone already has an account it
-        /// logs the user in; otherwise it provisions a new account (tenant + admin user + trial
-        /// subscription) with NO email and a temporary subdomain — business name / vertical /
-        /// optional email are captured later in onboarding (Dashboard shows the template picker
-        /// while VerticalId is null). Either way returns an auto-login redirect URL.
+        /// Passwordless por EMAIL, paso 2: verifica el código. Si el email ya tiene cuenta la
+        /// loguea; si no, provisiona una cuenta nueva (tenant + admin + trial) con ese email más el
+        /// nombre del negocio y el WhatsApp que el formulario mandó en email/start (si vinieron: el
+        /// subdominio sale del nombre; si no, de la parte local del email y el nombre queda como
+        /// placeholder). El rubro se elige después en el onboarding (el Dashboard muestra el selector
+        /// de template mientras VerticalId es null). En ambos casos devuelve una URL de auto-login.
         /// </summary>
-        [HttpPost("phone/verify")]
-        public async Task<IActionResult> PhoneVerify([FromBody] PhoneVerifyDto dto)
+        [HttpPost("email/verify")]
+        public async Task<IActionResult> EmailVerify([FromBody] EmailVerifyDto dto)
         {
-            var phone = NormalizePhone(dto.Phone);
+            var email = NormalizeEmail(dto.Email);
             var code = (dto.Code ?? "").Trim();
-            if (phone.Length < 8 || code.Length < 4)
+            if (!IsValidEmail(email) || code.Length < 4)
                 return BadRequest(new { success = false, message = "Datos inválidos." });
 
             var now = DateTime.UtcNow;
-            var verification = await _context.PhoneVerifications.FirstOrDefaultAsync(p => p.Phone == phone);
+            var verification = await _context.EmailVerifications.FirstOrDefaultAsync(v => v.Email == email);
             if (verification == null || verification.ConsumedAt != null)
                 return BadRequest(new { success = false, message = "Pedí un código nuevo." });
 
@@ -980,10 +999,8 @@ namespace BookingPro.API.Controllers
             var host = HttpContext.Request.Host.Host;
             var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");
 
-            // --- LOGIN path: the phone already has an account → just issue a token. ---
-            var existingUser = await _context.Users
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(u => u.Phone == phone);
+            // --- LOGIN: el email ya tiene cuenta → solo emitimos el token. ---
+            var existingUser = await FindExistingUserByEmailAsync(email);
             if (existingUser != null)
             {
                 var existingTenant = await _context.Tenants
@@ -1001,11 +1018,11 @@ namespace BookingPro.API.Controllers
                 var loginTenantUrl = isLocal
                     ? $"http://{existingTenant.Subdomain}.localhost:3001"
                     : $"https://{existingTenant.Subdomain}.turnos-pro.com";
-                // Send straight to onboarding if they never picked a vertical, else the dashboard.
+                // Directo al onboarding si nunca eligió rubro; si no, al dashboard.
                 var needsOnboarding = existingTenant.VerticalId == null;
                 var loginRedirect = $"{loginTenantUrl}/dashboard?impersonationToken={loginToken}" + (needsOnboarding ? "&onboarding=1" : "");
 
-                _logger.LogInformation("Phone login for {Phone}, tenant {TenantId}", phone, existingTenant.Id);
+                _logger.LogInformation("Email code login for {Email}, tenant {TenantId}", email, existingTenant.Id);
                 return Ok(new
                 {
                     success = true,
@@ -1017,16 +1034,16 @@ namespace BookingPro.API.Controllers
                 });
             }
 
-            // --- SIGNUP path: create a brand-new account. ---
-            // No fabricated email: the (Email, TenantId) unique index treats "" as unique per
-            // tenant, so an empty email is valid and we never store junk. The real email is
-            // optionally captured later in onboarding.
-            const string emptyEmail = "";
-
-            // Temporary subdomain derived from the phone; the user picks a real one in onboarding.
-            var baseSubdomain = "n" + phone;
-            baseSubdomain = SanitizeSubdomain(baseSubdomain);
-            if (baseSubdomain.Length < 3) baseSubdomain = "negocio" + phone;
+            // --- ALTA: cuenta nueva. ---
+            // Subdominio derivado del nombre del negocio (si el formulario lo mandó) o, si no, de la
+            // parte local del email; el usuario puede cambiarlo en el onboarding. Si queda corto o es
+            // reservado, va uno genérico con sufijo aleatorio.
+            var signupBusinessName = verification.BusinessName;
+            var signupPhone = verification.Phone;
+            var baseSubdomain = SanitizeSubdomain(signupBusinessName ?? string.Empty);
+            if (baseSubdomain.Length < 3) baseSubdomain = SanitizeSubdomain(email.Split('@')[0]);
+            if (baseSubdomain.Length < 3 || _reservedSubdomains.Contains(baseSubdomain))
+                baseSubdomain = "negocio" + RandomNumberGenerator.GetInt32(1000, 10000);
             var subdomain = baseSubdomain;
             var attempt = 1;
             while (await _context.Tenants.AnyAsync(t => t.Subdomain.ToLower() == subdomain.ToLower()))
@@ -1043,11 +1060,11 @@ namespace BookingPro.API.Controllers
                 var tenant = new Tenant
                 {
                     Id = Guid.NewGuid(),
-                    VerticalId = null, // chosen in onboarding/template picker
+                    VerticalId = null, // se elige en el onboarding / selector de template
                     Subdomain = subdomain,
-                    BusinessName = "Mi negocio", // placeholder, set in onboarding
-                    OwnerEmail = emptyEmail,
-                    OwnerPhone = phone,
+                    BusinessName = signupBusinessName ?? "Mi negocio", // placeholder si el form no lo trajo; se completa en el onboarding
+                    OwnerEmail = email,
+                    OwnerPhone = signupPhone, // null si el form no lo trajo → el onboarding lo pide
                     SchemaName = $"tenant_{subdomain.Replace("-", "_")}",
                     TimeZone = "America/Argentina/Buenos_Aires",
                     Currency = "ARS",
@@ -1065,16 +1082,16 @@ namespace BookingPro.API.Controllers
                 _context.Tenants.Add(tenant);
                 await _context.SaveChangesAsync();
 
-                // Passwordless account: random unusable password. User can set one later.
+                // Cuenta passwordless: contraseña aleatoria inutilizable. Puede definir una después.
                 var randomPassword = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
                 var adminUser = new User
                 {
                     Id = Guid.NewGuid(),
                     TenantId = tenant.Id,
-                    Email = emptyEmail,
+                    Email = email,
                     FirstName = "",
                     LastName = "",
-                    Phone = phone,
+                    Phone = signupPhone,
                     PasswordHash = Services.Security.PasswordHasher.Hash(randomPassword),
                     Role = "admin",
                     IsActive = true,
@@ -1103,7 +1120,7 @@ namespace BookingPro.API.Controllers
                 await _context.SaveChangesAsync();
 
                 await transaction.CommitAsync();
-                // Sin id de anuncio en el alta → sales-hub puede tenerlo (CTWA / form de leads con este teléfono).
+                // Sin id de anuncio en el alta → sales-hub puede tenerlo (form de leads con este email).
                 if (!MetaAttribution.HasAdAttribution(tenant)) _attributionEnricher.Enqueue(tenant.Id);
 
                 var token = _authService.GenerateJwtToken(adminUser);
@@ -1112,7 +1129,8 @@ namespace BookingPro.API.Controllers
                     : $"https://{subdomain}.turnos-pro.com";
                 var redirectUrl = $"{tenantUrl}/dashboard?impersonationToken={token}&onboarding=1";
 
-                _logger.LogInformation("Phone registration completed for {Phone}, tenant {TenantId}, subdomain {Subdomain}", phone, tenant.Id, subdomain);
+                _logger.LogInformation("Email code registration completed for {Email}, tenant {TenantId}, subdomain {Subdomain}, businessName {BusinessName}, phone {HasPhone}",
+                    email, tenant.Id, subdomain, tenant.BusinessName, signupPhone != null);
 
                 return Ok(new
                 {
@@ -1127,7 +1145,7 @@ namespace BookingPro.API.Controllers
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                _logger.LogError(ex, "Error completing phone registration for {Phone}", phone);
+                _logger.LogError(ex, "Error completing email code registration for {Email}", email);
                 return StatusCode(500, new { success = false, message = "Error interno. Por favor intentá nuevamente." });
             }
         }
@@ -1190,61 +1208,62 @@ namespace BookingPro.API.Controllers
         }
 
         /// <summary>
-        /// Normalizes an Argentine phone to Evolution API format (549 + area + number), the same
-        /// way GymHero's working integration does. We store and send this canonical form so the
-        /// uniqueness lookup and the WhatsApp delivery always use the exact same number.
-        /// Already-formatted international numbers (starting with 549) are preserved.
+        /// Nombre del negocio opcional del formulario de alta: limpio y truncado con CleanBusinessName;
+        /// null si no vino o si era basura (CleanBusinessName lo reemplaza por el placeholder).
         /// </summary>
-        private static string NormalizePhone(string? phone)
+        private static string? CleanOptionalBusinessName(string? raw)
         {
-            if (string.IsNullOrWhiteSpace(phone)) return string.Empty;
-            var digits = Regex.Replace(phone, @"[^0-9]", "");
-            if (digits.Length == 0) return digits;
-            if (digits.StartsWith("549")) return digits;                 // already 549<area><number>
-            if (digits.StartsWith("54") && digits.Length >= 11) return "549" + digits.Substring(2); // 54 sin el 9 móvil
-            return "549" + digits;                                       // local (ej 1168078814)
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            var cleaned = CleanBusinessName(raw);
+            return cleaned == "Mi negocio" ? null : cleaned;
         }
+
+        /// <summary>
+        /// WhatsApp del formulario de alta a formato "+&lt;país&gt;&lt;número&gt;" (solo dígitos tras el +).
+        /// Si viene con prefijo internacional ("+54 11 ..."), se respeta el país; si viene sin "+", se
+        /// asume Argentina. Para Argentina se inserta el 9 de móvil si falta (54 11... → 549 11...),
+        /// que es como WhatsApp identifica el número. Devuelve null si no parece un teléfono.
+        /// </summary>
+        private static string? NormalizePhone(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            var international = raw.TrimStart().StartsWith("+");
+            var digits = Regex.Replace(raw, "[^0-9]", "");
+            if (!international)
+            {
+                digits = digits.TrimStart('0'); // "011 2345 6789" → "1123456789"
+                if (digits.Length < 8) return null;
+                digits = "54" + digits;
+            }
+            if (digits.StartsWith("54") && !digits.StartsWith("549") && digits.Length >= 12)
+                digits = "549" + digits.Substring(2);
+            if (digits.Length < 9 || digits.Length > 16) return null;
+            return "+" + digits;
+        }
+
+        /// <summary>Email normalizado: trim + minúsculas (es la clave de la verificación y del login).</summary>
+        private static string NormalizeEmail(string? email)
+            => (email ?? string.Empty).Trim().ToLowerInvariant();
+
+        private static bool IsValidEmail(string email)
+            => email.Length >= 5 && email.Length <= 254 && Regex.IsMatch(email, @"^\S+@\S+\.\S+$");
+
+        /// <summary>
+        /// Busca la cuenta existente dueña de este email, sin filtro de tenant. El índice único es
+        /// (Email, TenantId), así que el mismo email puede vivir en más de un tenant: priorizamos el
+        /// admin y, entre varios, el que entró más recientemente.
+        /// </summary>
+        private async Task<User?> FindExistingUserByEmailAsync(string email)
+            => await _context.Users
+                .IgnoreQueryFilters()
+                .Where(u => u.IsActive && u.Email.ToLower() == email)
+                .OrderByDescending(u => u.Role == "admin")
+                .ThenByDescending(u => u.LastLogin ?? DateTime.MinValue)
+                .FirstOrDefaultAsync();
 
         /// <summary>Cryptographically-random 6-digit code (000000–999999).</summary>
         private static string GenerateOtp()
             => RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
-
-        /// <summary>
-        /// Sends the OTP through the platform-level Evolution (WhatsApp) instance — the same
-        /// one TrackingController uses for admin notifications. Returns false on any failure.
-        /// </summary>
-        private async Task<bool> SendWhatsAppOtpAsync(string phone, string code)
-        {
-            var evolutionUrl = _config["EVOLUTION_API_BASE_URL"] ?? "http://64.227.3.140:8080";
-            var evolutionKey = _config["EVOLUTION_API_KEY"];
-            var evolutionInstance = _config["EVOLUTION_API_INSTANCE"];
-            if (string.IsNullOrEmpty(evolutionKey) || string.IsNullOrEmpty(evolutionInstance))
-            {
-                _logger.LogWarning("Evolution API not configured — cannot send OTP to {Phone}", phone);
-                return false;
-            }
-
-            var msg = $"*TurnosPro* — tu código para entrar es *{code}*.\n\nVence en 10 minutos. No lo compartas con nadie.\n\n👉 entrá en https://turnos-pro.com/?phone={phone} y poné el código";
-            try
-            {
-                var client = _httpClientFactory.CreateClient();
-                client.DefaultRequestHeaders.Add("apikey", evolutionKey);
-                var payload = JsonSerializer.Serialize(new { number = phone, text = msg });
-                var content = new StringContent(payload, Encoding.UTF8, "application/json");
-                var resp = await client.PostAsync($"{evolutionUrl.TrimEnd('/')}/message/sendText/{evolutionInstance}", content);
-                if (!resp.IsSuccessStatusCode)
-                {
-                    _logger.LogWarning("Evolution OTP send failed for {Phone}: {Status}", phone, resp.StatusCode);
-                    return false;
-                }
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Exception sending OTP WhatsApp to {Phone}", phone);
-                return false;
-            }
-        }
 
         /// <summary>
         /// Signup con Google: verifica el ID token, crea tenant + admin user + trial subscription
@@ -1467,18 +1486,24 @@ namespace BookingPro.API.Controllers
         public string BusinessName { get; set; } = string.Empty;
     }
 
-    public class PhoneStartDto
+    public class EmailStartDto
     {
-        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El WhatsApp es requerido")]
-        public string Phone { get; set; } = string.Empty;
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El email es requerido")]
+        public string Email { get; set; } = string.Empty;
+
+        /// <summary>Nombre del negocio (formulario de alta). Opcional: el login por código manda solo el email.</summary>
+        public string? BusinessName { get; set; }
+
+        /// <summary>WhatsApp del dueño, con prefijo internacional ("+54 11 2345 6789"). Opcional.</summary>
+        public string? Phone { get; set; }
     }
 
-    /// <summary>Paso 2 del alta por WhatsApp. Trae la atribución (utm_content = {{ad.id}}, fbclid, _fbp)
+    /// <summary>Paso 2 del alta/login por código de email. Trae la atribución (utm_content = {{ad.id}}, fbclid, _fbp)
     /// que el modal guardó en sessionStorage al aterrizar desde el anuncio.</summary>
-    public class PhoneVerifyDto : MetaAttributionFieldsDto
+    public class EmailVerifyDto : MetaAttributionFieldsDto
     {
-        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El WhatsApp es requerido")]
-        public string Phone { get; set; } = string.Empty;
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El email es requerido")]
+        public string Email { get; set; } = string.Empty;
 
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El código es requerido")]
         public string Code { get; set; } = string.Empty;

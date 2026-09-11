@@ -17,7 +17,7 @@ ESTRUCTURA del documento:
 ## Qué es y qué incluye (features reales, plan/precio si figura en el repo)
 ## Primeros pasos (wizard /completar-perfil y los pasos de activación en orden, con ruta por paso)
 ## Cómo se hace cada cosa (una entrada por tarea: crear servicio, definir horarios, agregar empleado, conectar mercadopago, compartir el link de reservas, ver la agenda, cobrar señas, recordatorios de whatsapp, bot de confirmación, agente IA — cada una con la ruta de la pantalla y los pasos)
-## Acceso y cuenta (cómo entrar: OTP por whatsapp / email+password / google; qué hacer si no llega el código; dónde cambiar datos del negocio)
+## Acceso y cuenta (cómo entrar: código de acceso por email (OTP) / email+password / google; qué hacer si no llega el código; dónde cambiar datos del negocio)
 ## Problemas comunes y su respuesta (los que se deducen del repo: no llega el OTP, no aparece el link de reservas, MP no conecta, etc.)
 ## Límites y cosas que NO hace (para que el bot no prometa de más)
 

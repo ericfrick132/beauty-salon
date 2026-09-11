@@ -414,6 +414,42 @@ namespace BookingPro.API.Services
             await SendAndLogAsync(toEmail, subject, body, "password_reset", tenantId);
         }
 
+        public async Task SendLoginCodeAsync(string toEmail, string code, string loginUrl)
+        {
+            var subject = $"{code} es tu código para entrar a TurnosPro";
+            var body = BaseLayout(
+                headline: "Tu código para entrar",
+                leadHtml: "Usá este código para entrar a TurnosPro. Vence en 10 minutos.",
+                bodyHtml: $@"
+<table role=""presentation"" cellpadding=""0"" cellspacing=""0"" width=""100%"">
+  <tr>
+    <td align=""center"" style=""padding: 8px 0 20px;"">
+      <div style=""display: inline-block; font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: 700; letter-spacing: 0.35em; color: #1a1a2e; background-color: #f0f4f8; border-radius: 12px; padding: 18px 24px 18px 34px;"">{code}</div>
+    </td>
+  </tr>
+</table>
+<table role=""presentation"" cellpadding=""0"" cellspacing=""0"" width=""100%"">
+  <tr>
+    <td align=""center"" style=""padding: 0 0 24px;"">
+      <a href=""{loginUrl}"" style=""display: inline-block; background: linear-gradient(135deg, #1565c0, #1e88e5); color: #ffffff; font-size: 15px; font-weight: 600; text-decoration: none; padding: 14px 36px; border-radius: 50px;"">
+        Entrar a TurnosPro
+      </a>
+    </td>
+  </tr>
+</table>
+<table role=""presentation"" cellpadding=""0"" cellspacing=""0"" width=""100%"">
+  <tr>
+    <td style=""background-color: #f8fafc; border-radius: 10px; padding: 20px; border-left: 4px solid #1e88e5;"">
+      <p style=""margin: 0 0 4px; font-size: 13px; font-weight: 600; color: #1a1a2e;"">&#128274; No compartas este código con nadie</p>
+      <p style=""margin: 0; font-size: 13px; color: #777; line-height: 1.5;"">Si no pediste entrar a TurnosPro, podés ignorar este email. Nadie puede entrar sin el código.</p>
+    </td>
+  </tr>
+</table>"
+            );
+            // throwOnError: el controller devuelve 502 y NO pisa el código anterior si el mail no salió.
+            await SendAndLogAsync(toEmail, subject, body, "login_code", null, throwOnError: true);
+        }
+
         public async Task SendTestEmailAsync(string toEmail)
         {
             var subject = "Email de prueba — TurnosPro";
