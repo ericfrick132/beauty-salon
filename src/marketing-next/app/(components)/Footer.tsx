@@ -215,6 +215,22 @@ export default function Footer() {
               >
                 Blog
               </MuiLink>
+              <MuiLink
+                component={Link}
+                href="/demo-admin"
+                underline="hover"
+                sx={{ color: 'rgba(244,239,230,0.7)', fontSize: '0.92rem', '&:hover': { color: palette.paper } }}
+              >
+                Demo del panel
+              </MuiLink>
+              <MuiLink
+                component={Link}
+                href="/demo-app"
+                underline="hover"
+                sx={{ color: 'rgba(244,239,230,0.7)', fontSize: '0.92rem', '&:hover': { color: palette.paper } }}
+              >
+                Demo de reservas
+              </MuiLink>
             </Box>
           </Grid>
 

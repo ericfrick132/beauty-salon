@@ -26,5 +26,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.3,
   }));
 
-  return [...home, ...verticalPages, ...legal];
+  const demos: MetadataRoute.Sitemap = ['/demo-admin', '/demo-app'].map((p) => ({
+    url: `${base}${p}`,
+    lastModified: new Date('2026-09-14'),
+    changeFrequency: 'monthly',
+    priority: 0.6,
+  }));
+
+  return [...home, ...verticalPages, ...demos, ...legal];
 }

@@ -314,6 +314,21 @@ export default function HeroSection() {
                 <Box component="span" sx={{ opacity: 0.4 }}>·</Box>
                 <Box component="span">activá en 15 min</Box>
               </Box>
+              <Box
+                component="a"
+                href="/demo-admin"
+                sx={{
+                  display: 'inline-block',
+                  mb: 3,
+                  color: palette.ink,
+                  fontSize: '0.95rem',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: '4px',
+                  '&:hover': { color: palette.coral },
+                }}
+              >
+                Probá el panel por dentro, sin registrarte →
+              </Box>
 
               {/* App Store — también tenemos app mobile */}
               <Box
