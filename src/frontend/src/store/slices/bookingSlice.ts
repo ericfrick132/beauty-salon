@@ -1,4 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { AxiosError } from 'axios';
 import { Booking, Employee, Service } from '../../types';
 import { bookingApi } from '../../services/api';
 
@@ -75,27 +76,48 @@ export const fetchCustomers = createAsyncThunk(
   }
 );
 
+// createAsyncThunk serializa a { name, message, stack } cualquier error no
+// capturado (miniSerializeError), descartando error.response.data — o sea el
+// mensaje real que devuelve el backend en un 400 (ej. "el profesional no
+// realiza este servicio"). Sin rejectWithValue, .unwrap() solo puede tirar ese
+// mensaje genérico de axios ("Request failed with status code 400"). Por eso
+// atrapamos el error acá y pasamos el payload del backend explícitamente.
 export const createBooking = createAsyncThunk(
   'booking/createBooking',
-  async (bookingData: Partial<Booking>) => {
-    const booking = await bookingApi.createBooking(bookingData);
-    return booking;
+  async (bookingData: Partial<Booking>, { rejectWithValue }) => {
+    try {
+      const booking = await bookingApi.createBooking(bookingData);
+      return booking;
+    } catch (err) {
+      const error = err as AxiosError;
+      return rejectWithValue(error.response?.data ?? { message: error.message });
+    }
   }
 );
 
 export const updateBooking = createAsyncThunk(
   'booking/updateBooking',
-  async ({ id, updates }: { id: string; updates: Partial<Booking> }) => {
-    const booking = await bookingApi.updateBooking(id, updates);
-    return booking;
+  async ({ id, updates }: { id: string; updates: Partial<Booking> }, { rejectWithValue }) => {
+    try {
+      const booking = await bookingApi.updateBooking(id, updates);
+      return booking;
+    } catch (err) {
+      const error = err as AxiosError;
+      return rejectWithValue(error.response?.data ?? { message: error.message });
+    }
   }
 );
 
 export const deleteBooking = createAsyncThunk(
   'booking/deleteBooking',
-  async (id: string) => {
-    await bookingApi.deleteBooking(id);
-    return id;
+  async (id: string, { rejectWithValue }) => {
+    try {
+      await bookingApi.deleteBooking(id);
+      return id;
+    } catch (err) {
+      const error = err as AxiosError;
+      return rejectWithValue(error.response?.data ?? { message: error.message });
+    }
   }
 );
 
@@ -154,7 +176,8 @@ const bookingSlice = createSlice({
       })
       .addCase(createBooking.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message || 'Failed to create booking';
+        const payload = action.payload as { message?: string } | undefined;
+        state.error = payload?.message || action.error.message || 'Failed to create booking';
       })
       // Update booking
       .addCase(updateBooking.pending, (state) => {
@@ -170,7 +193,8 @@ const bookingSlice = createSlice({
       })
       .addCase(updateBooking.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message || 'Failed to update booking';
+        const payload = action.payload as { message?: string } | undefined;
+        state.error = payload?.message || action.error.message || 'Failed to update booking';
       })
       // Delete booking
       .addCase(deleteBooking.pending, (state) => {
@@ -183,7 +207,8 @@ const bookingSlice = createSlice({
       })
       .addCase(deleteBooking.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message || 'Failed to delete booking';
+        const payload = action.payload as { message?: string } | undefined;
+        state.error = payload?.message || action.error.message || 'Failed to delete booking';
       });
   },
 });
