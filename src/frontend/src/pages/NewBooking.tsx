@@ -46,12 +46,19 @@ import { es } from 'date-fns/locale';
 const steps = ['Seleccionar Servicio', 'Elegir Profesional', 'Fecha y Hora', 'Datos del Cliente', 'Confirmar'];
 
 /**
- * Extract a human-readable error from an axios error, including ASP.NET
- * ProblemDetails validation responses (status 400 with `errors: { Field: [msg] }`).
+ * Extract a human-readable error from a booking-thunk rejection, including
+ * ASP.NET ProblemDetails validation responses (status 400 with
+ * `errors: { Field: [msg] }`).
+ *
+ * `dispatch(createBooking(...)).unwrap()` throws the thunk's rejectWithValue
+ * payload directly (the backend's response body, already unwrapped) — it does
+ * NOT come nested under `.response.data` the way a raw axios error would. We
+ * still check `.response.data` too, in case an error reaches here without
+ * going through the thunk's rejectWithValue.
  */
 function extractApiError(err: any): string {
-  const data = err?.response?.data;
-  if (data) {
+  const data = err?.response?.data ?? err;
+  if (data && typeof data === 'object') {
     if (data.errors && typeof data.errors === 'object') {
       const messages = Object.values(data.errors as Record<string, string[] | string>)
         .flatMap((v) => (Array.isArray(v) ? v : [String(v)]))
@@ -60,8 +67,8 @@ function extractApiError(err: any): string {
     }
     if (typeof data.message === 'string' && data.message) return data.message;
     if (typeof data.title === 'string' && data.title) return data.title;
-    if (typeof data === 'string' && data) return data;
   }
+  if (typeof data === 'string' && data) return data;
   if (err?.message) return err.message;
   return 'Error al crear la reserva. Intente nuevamente.';
 }
