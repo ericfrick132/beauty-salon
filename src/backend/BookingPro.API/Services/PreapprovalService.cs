@@ -384,7 +384,16 @@ namespace BookingPro.API.Services
                 {
                     Id = data.GetProperty("id").GetString() ?? string.Empty,
                     Status = data.GetProperty("status").GetString() ?? "unknown",
-                    PayerId = data.TryGetProperty("payer_id", out var pid) ? pid.GetString() : null,
+                    // MP manda payer_id como número: con GetString() cada GET de preapproval tiraba y ni el
+                    // webhook ni la conciliación podían activar al negocio.
+                    PayerId = data.TryGetProperty("payer_id", out var pid)
+                        ? pid.ValueKind switch
+                        {
+                            JsonValueKind.Number => pid.GetRawText(),
+                            JsonValueKind.String => pid.GetString(),
+                            _ => null
+                        }
+                        : null,
                     ExternalReference = data.TryGetProperty("external_reference", out var er) ? er.GetString() : null,
                     Reason = data.TryGetProperty("reason", out var r) ? r.GetString() : null
                 };

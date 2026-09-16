@@ -20,6 +20,7 @@ namespace BookingPro.API.Services
         private static readonly TimeSpan TickInterval = TimeSpan.FromMinutes(15);
         private static readonly TimeSpan DelayBetweenCalls = TimeSpan.FromMilliseconds(500);
         private static readonly TimeSpan AbandonedAfter = TimeSpan.FromHours(48);
+        private static readonly TimeSpan UnreachableAfter = TimeSpan.FromDays(7);
 
         public PreapprovalSyncBackgroundService(
             IServiceProvider serviceProvider,
@@ -66,6 +67,7 @@ namespace BookingPro.API.Services
 
             var synced = 0;
             var failed = 0;
+            var answeredIds = new HashSet<Guid>();
             foreach (var item in pending)
             {
                 ct.ThrowIfCancellationRequested();
@@ -76,15 +78,20 @@ namespace BookingPro.API.Services
                 {
                     var preapprovals = itemScope.ServiceProvider.GetRequiredService<IPreapprovalService>();
                     var result = await preapprovals.ProcessPreapprovalWebhookAsync(item.MercadoPagoPreapprovalId, "sync");
-                    if (result.Success) synced++; else failed++;
+                    if (result.Success) { synced++; answeredIds.Add(item.Id); } else failed++;
                 }
 
                 await Task.Delay(DelayBetweenCalls, ct);
             }
 
-            // Checkout abandonado: consultada MP, si sigue pending y tiene más de 48 h pasa a expired.
+            // Checkout abandonado: si MP contestó que sigue pending y tiene más de 48 h, pasa a expired. Si
+            // la consulta a MP falló no se da por abandonada (podría estar autorizada), salvo que ya tenga
+            // más de 7 días: una preapproval que MP no conoce no se consulta para siempre.
             var abandonedBefore = DateTime.UtcNow - AbandonedAfter;
-            var oldIds = pending.Where(p => p.CreatedAt < abandonedBefore).Select(p => p.Id).ToList();
+            var unreachableBefore = DateTime.UtcNow - UnreachableAfter;
+            var oldIds = pending
+                .Where(p => p.CreatedAt < abandonedBefore && (answeredIds.Contains(p.Id) || p.CreatedAt < unreachableBefore))
+                .Select(p => p.Id).ToList();
             var expired = 0;
             if (oldIds.Count > 0)
             {
