@@ -173,6 +173,8 @@ builder.Services.AddScoped<BookingPro.API.Services.IOnboardingMilestoneResolver,
 builder.Services.AddHostedService<BookingPro.API.Services.OnboardingFollowupBackgroundService>();
 // Transporta por la línea de la app los mensajes que compone sales-hub — apagado por default (SalesHub:RelayEnabled)
 builder.Services.AddHostedService<BookingPro.API.Services.OutboundRelayBackgroundService>();
+// Red de seguridad del webhook de preapprovals: consulta MP por las pending cada 15 min y expira las abandonadas (48 h)
+builder.Services.AddHostedService<BookingPro.API.Services.PreapprovalSyncBackgroundService>();
 
 // Configure Swagger with JWT support
 builder.Services.AddEndpointsApiExplorer();

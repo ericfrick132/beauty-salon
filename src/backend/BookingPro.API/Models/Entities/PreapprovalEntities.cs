@@ -27,7 +27,9 @@ namespace BookingPro.API.Models.Entities
         [MaxLength(500)]
         public string? SandboxInitPoint { get; set; }
 
-        // Status: pending, authorized, paused, cancelled
+        // Status: pending, authorized, paused, cancelled (los de MP) y expired: solo nuestro, checkout
+        // abandonado que siguió pending más de 48 h (PreapprovalSyncBackgroundService). No se cancela en MP:
+        // si igual se autoriza después, el webhook la encuentra por MercadoPagoPreapprovalId y la activa.
         [Required, MaxLength(50)]
         public string Status { get; set; } = "pending";
 

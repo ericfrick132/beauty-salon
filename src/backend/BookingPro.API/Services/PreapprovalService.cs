@@ -45,6 +45,12 @@ namespace BookingPro.API.Services
         Task<ServiceResult<bool>> ProcessPreapprovalWebhookAsync(string preapprovalId, string action);
 
         /// <summary>
+        /// Consulta a MP las preapprovals pending recientes del tenant y aplica su estado real.
+        /// Devuelve si el tenant quedó con una preapproval autorizada.
+        /// </summary>
+        Task<bool> ReconcileTenantPendingPreapprovalsAsync(Guid tenantId);
+
+        /// <summary>
         /// Procesa webhook de pago autorizado (cobro recurrente).
         /// </summary>
         Task<ServiceResult<bool>> ProcessAuthorizedPaymentWebhookAsync(string authorizedPaymentId);
@@ -128,6 +134,10 @@ namespace BookingPro.API.Services
                     return ServiceResult<TenantPreapproval>.Fail("Subscription plan not found");
                 }
 
+                // Antes de mirar si ya tiene tarjeta, consultar MP por las pending recientes: si el negocio
+                // autorizó y el webhook no llegó, no hay que mandarlo a autorizar otra vez.
+                await ReconcileTenantPendingPreapprovalsAsync(tenantId);
+
                 // Verificar si ya tiene un preapproval activo
                 var existingActive = await _context.TenantPreapprovals
                     .Where(p => p.TenantId == tenantId && p.Status == "authorized")
@@ -158,6 +168,42 @@ namespace BookingPro.API.Services
 
                 // Preparar datos para MercadoPago
                 var email = !string.IsNullOrWhiteSpace(payerEmail) ? payerEmail : tenant.OwnerEmail;
+
+                // Reusar el checkout pending reciente (mismo plan, monto y email) en vez de crear otra
+                // preapproval por click: con varias vivas el negocio podía autorizar dos y MP cobraría
+                // las dos. El email tiene que coincidir porque MP ata la preapproval a ese payer_email.
+                var planCurrency = plan.Currency ?? "ARS";
+                var reusableFrom = DateTime.UtcNow.AddHours(-6);
+                var reusable = await _context.TenantPreapprovals
+                    .Where(p => p.TenantId == tenantId
+                        && p.SubscriptionPlanId == subscriptionPlanId
+                        && p.Status == "pending"
+                        && p.TransactionAmount == plan.Price
+                        && p.CurrencyId == planCurrency
+                        && p.PayerEmail == email
+                        && p.InitPoint != null
+                        && p.CreatedAt >= reusableFrom)
+                    .OrderByDescending(p => p.CreatedAt)
+                    .FirstOrDefaultAsync();
+
+                if (reusable != null)
+                {
+                    // Las creadas antes del fix de "activation=true" guardaron el link que abre
+                    // "Esta página no existe": se limpia igual que al crear.
+                    var cleanInitPoint = CleanSubscriptionCheckoutUrl(reusable.InitPoint);
+                    if (cleanInitPoint != reusable.InitPoint)
+                    {
+                        reusable.InitPoint = cleanInitPoint;
+                        reusable.UpdatedAt = DateTime.UtcNow;
+                        await _context.SaveChangesAsync();
+                    }
+
+                    _logger.LogInformation(
+                        "Reusing pending preapproval {PreapprovalId} for tenant {TenantId} instead of creating another one",
+                        reusable.MercadoPagoPreapprovalId, tenantId);
+                    return ServiceResult<TenantPreapproval>.Ok(reusable);
+                }
+
                 var externalReference = $"PREAPPROVAL-{tenantId}-{subscriptionPlanId}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
                 var startDate = DateTime.UtcNow.AddMinutes(5);
                 var endDate = startDate.AddYears(10); // 10 años de suscripción máxima
@@ -509,6 +555,32 @@ namespace BookingPro.API.Services
             }
         }
 
+        /// <summary>
+        /// Consulta a MP las pending de las últimas 48 h del tenant (las más nuevas primero, hasta 5) y
+        /// aplica su estado real. Es lo que evita depender del webhook: se llama al consultar el estado
+        /// (la vuelta del checkout hace polling ahí), cuando el gate de la tarjeta va a bloquear y antes
+        /// de crear otra preapproval.
+        /// </summary>
+        public async Task<bool> ReconcileTenantPendingPreapprovalsAsync(Guid tenantId)
+        {
+            var since = DateTime.UtcNow.AddHours(-48);
+            var pendingIds = await _context.TenantPreapprovals
+                .Where(p => p.TenantId == tenantId && p.Status == "pending" && p.CreatedAt >= since)
+                .OrderByDescending(p => p.CreatedAt)
+                .Select(p => p.MercadoPagoPreapprovalId)
+                .Take(5)
+                .ToListAsync();
+
+            foreach (var id in pendingIds)
+            {
+                // ProcessPreapprovalWebhookAsync ya loguea y no tira: si MP falla con una, sigue con las demás.
+                await ProcessPreapprovalWebhookAsync(id, "reconcile");
+            }
+
+            return await _context.TenantPreapprovals
+                .AnyAsync(p => p.TenantId == tenantId && p.Status == "authorized");
+        }
+
         public async Task<ServiceResult<bool>> ProcessAuthorizedPaymentWebhookAsync(string authorizedPaymentId)
         {
             try
@@ -560,6 +632,21 @@ namespace BookingPro.API.Services
                 {
                     _logger.LogWarning("Preapproval {Id} not found for payment", preapprovalId);
                     return ServiceResult<bool>.Fail("Preapproval not found");
+                }
+
+                // Llega un cobro de una preapproval que acá sigue pending (o que el sync dio por abandonada):
+                // el webhook de la autorización no llegó. Se consulta MP primero para que quede authorized y
+                // el negocio activo; si eso falla se corta antes de registrar el pago, así MP reintenta y no
+                // queda el pago guardado con la preapproval todavía pending.
+                if (preapproval.Status == "pending" || preapproval.Status == "expired")
+                {
+                    var synced = await ProcessPreapprovalWebhookAsync(preapprovalId, "payment");
+                    if (!synced.Success)
+                    {
+                        _logger.LogWarning("Could not sync preapproval {PreapprovalId} before payment {PaymentId}: {Error}",
+                            preapprovalId, authorizedPaymentId, synced.Message);
+                        return ServiceResult<bool>.Fail($"Could not sync preapproval: {synced.Message}");
+                    }
                 }
 
                 // Extraer datos del pago

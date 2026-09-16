@@ -9,6 +9,7 @@ using BookingPro.API.Services;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace BookingPro.API.Controllers
 {
@@ -129,6 +130,19 @@ namespace BookingPro.API.Controllers
                 }
 
                 var preapproval = await _preapprovalService.GetActivePreapprovalForTenantAsync(tenantId);
+
+                // Sin autorizada en la base, se pregunta a MP por las pending recientes antes de contestar:
+                // si el negocio autorizó y el webhook no llegó (o falló), el polling de la vuelta del
+                // checkout (/subscription/success) se destraba solo. Una consulta cada 10 s por tenant: la
+                // página de éxito y el gate del panel llaman a /status seguido.
+                var cache = HttpContext.RequestServices.GetRequiredService<IMemoryCache>();
+                var reconcileKey = $"status-reconcile:{tenantId}";
+                if (preapproval == null && !cache.TryGetValue(reconcileKey, out _))
+                {
+                    cache.Set(reconcileKey, true, TimeSpan.FromSeconds(10));
+                    if (await _preapprovalService.ReconcileTenantPendingPreapprovalsAsync(tenantId))
+                        preapproval = await _preapprovalService.GetActivePreapprovalForTenantAsync(tenantId);
+                }
 
                 if (preapproval == null)
                 {
@@ -340,11 +354,15 @@ namespace BookingPro.API.Controllers
 
                     if (!string.IsNullOrEmpty(id) && topic == "preapproval")
                     {
-                        await _preapprovalService.ProcessPreapprovalWebhookAsync(id, "updated");
+                        var queryResult = await _preapprovalService.ProcessPreapprovalWebhookAsync(id, "updated");
+                        if (!queryResult.Success)
+                            return ProcessingFailed(topic, id, queryResult.Message);
                     }
                     else if (!string.IsNullOrEmpty(id) && topic == "authorized_payment")
                     {
-                        await _preapprovalService.ProcessAuthorizedPaymentWebhookAsync(id);
+                        var queryResult = await _preapprovalService.ProcessAuthorizedPaymentWebhookAsync(id);
+                        if (!queryResult.Success)
+                            return ProcessingFailed(topic, id, queryResult.Message);
                     }
 
                     return Ok(new { status = "processed_query" });
@@ -371,21 +389,26 @@ namespace BookingPro.API.Controllers
                 // subscription_preapproval: cambios en estado de la suscripción
                 if (type == "subscription_preapproval" && !string.IsNullOrWhiteSpace(dataId))
                 {
-                    await _preapprovalService.ProcessPreapprovalWebhookAsync(dataId, action ?? "updated");
+                    var result = await _preapprovalService.ProcessPreapprovalWebhookAsync(dataId, action ?? "updated");
+                    if (!result.Success)
+                        return ProcessingFailed(type, dataId, result.Message);
                     return Ok(new { status = "processed_preapproval" });
                 }
 
                 // subscription_authorized_payment: pago recurrente procesado
                 if (type == "subscription_authorized_payment" && !string.IsNullOrWhiteSpace(dataId))
                 {
-                    await _preapprovalService.ProcessAuthorizedPaymentWebhookAsync(dataId);
+                    var result = await _preapprovalService.ProcessAuthorizedPaymentWebhookAsync(dataId);
+                    if (!result.Success)
+                        return ProcessingFailed(type, dataId, result.Message);
                     return Ok(new { status = "processed_payment" });
                 }
 
                 // payment: pago directo (fallback)
                 if (type == "payment" && !string.IsNullOrWhiteSpace(dataId))
                 {
-                    // Podría ser un pago de preapproval
+                    // Podría ser un pago de preapproval. Sigue en 200 aunque falle: un pago común no existe
+                    // en /authorized_payments y con 500 MP lo reintentaría sin que nunca pueda andar.
                     await _preapprovalService.ProcessAuthorizedPaymentWebhookAsync(dataId);
                     return Ok(new { status = "processed_payment_fallback" });
                 }
@@ -396,9 +419,21 @@ namespace BookingPro.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing preapproval webhook");
-                // Siempre devolver 200 para evitar reintentos de MP
-                return Ok(new { status = "error", message = ex.Message });
+                // 500 para que MP reintente (ver ProcessingFailed).
+                return StatusCode(500, new { status = "error" });
             }
+        }
+
+        /// <summary>
+        /// 500 para que MP reintente. Antes se contestaba 200 aunque fallara (MP caído, fila todavía sin
+        /// guardar): MP daba la notificación por entregada y el negocio quedaba con la tarjeta autorizada
+        /// en MP y bloqueado acá con 402.
+        /// </summary>
+        private IActionResult ProcessingFailed(string? type, string id, string? error)
+        {
+            _logger.LogWarning("Preapproval webhook {Type} {Id} failed, returning 500 so MercadoPago retries: {Error}",
+                type, id, error);
+            return StatusCode(500, new { status = "error" });
         }
     }
 

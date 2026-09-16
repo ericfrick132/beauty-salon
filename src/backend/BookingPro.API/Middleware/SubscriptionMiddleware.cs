@@ -4,8 +4,10 @@ using System.Security.Claims;
 using System.Text.Json;
 using System.Threading.Tasks;
 using BookingPro.API.Data;
+using BookingPro.API.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace BookingPro.API.Middleware
@@ -95,6 +97,8 @@ namespace BookingPro.API.Middleware
                         .AnyAsync(sb => sb.TenantId == tenantId && sb.Status == "active" && !sb.IsTrialPeriod);
                     var hasCard = await db.TenantPreapprovals
                         .AnyAsync(pa => pa.TenantId == tenantId && pa.Status == "authorized");
+                    if (!hasPaidSubscription && !hasCard)
+                        hasCard = await TryReconcileCardAsync(context, tenantId);
                     if (!hasPaidSubscription && !hasCard)
                     {
                         await ReturnCardRequired(context);
@@ -191,6 +195,31 @@ namespace BookingPro.API.Middleware
             };
 
             return readOnlyPaths.Any(p => path.StartsWith(p));
+        }
+
+        /// <summary>
+        /// Antes de bloquear por falta de tarjeta, pregunta a MP por las pending recientes del negocio:
+        /// si ya autorizó y el webhook no llegó, entra igual. Una consulta cada 30 s por tenant, porque
+        /// el panel dispara muchos requests en paralelo. Si MP o la base fallan, se loguea y se bloquea
+        /// como antes (no rompe el request).
+        /// </summary>
+        private async Task<bool> TryReconcileCardAsync(HttpContext context, Guid tenantId)
+        {
+            var cache = context.RequestServices.GetRequiredService<IMemoryCache>();
+            var key = $"card-reconcile:{tenantId}";
+            if (cache.TryGetValue(key, out _)) return false;
+            cache.Set(key, true, TimeSpan.FromSeconds(30));
+
+            try
+            {
+                var preapprovals = context.RequestServices.GetRequiredService<IPreapprovalService>();
+                return await preapprovals.ReconcileTenantPendingPreapprovalsAsync(tenantId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No se pudo conciliar la tarjeta del tenant {TenantId} con Mercado Pago", tenantId);
+                return false;
+            }
         }
 
         /// <summary>
