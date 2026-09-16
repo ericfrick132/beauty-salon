@@ -231,7 +231,7 @@ namespace BookingPro.API.Services
 
                 var mpResponse = JsonSerializer.Deserialize<JsonElement>(responseBody);
 
-                var mpInitPoint = mpResponse.TryGetProperty("init_point", out var ip) ? ip.GetString() : null;
+                var mpInitPoint = CleanSubscriptionCheckoutUrl(mpResponse.TryGetProperty("init_point", out var ip) ? ip.GetString() : null);
                 var mpSandboxInitPoint = mpResponse.TryGetProperty("sandbox_init_point", out var sip) ? sip.GetString() : null;
                 // InitPoint es lo que el frontend usa para redirigir al usuario: con token de
                 // prueba, tiene que ser el de sandbox (si MP no lo devolvió, no hay URL válida
@@ -292,6 +292,20 @@ namespace BookingPro.API.Services
             var trialEnd = subscription?.TrialEndsAt ?? tenant.TrialEndsAt ?? tenant.DemoExpiresAt;
             if (!trialEnd.HasValue) return 0;
             return Math.Max(0, (int)Math.Ceiling((trialEnd.Value - DateTime.UtcNow).TotalDays));
+        }
+
+        /// <summary>
+        /// Con free_trial MP devuelve el init_point con "&amp;activation=true" (también con token de
+        /// producción), y ese link abre "Esta página no existe" si el negocio no tiene sesión en MP.
+        /// Sin el parámetro el mismo checkout llega al formulario de tarjeta (verificado en vivo
+        /// 2026-09-16 con el preapproval 3e4373dd…, igual que el fix de GymHero).
+        /// </summary>
+        internal static string? CleanSubscriptionCheckoutUrl(string? url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return url;
+            return System.Text.RegularExpressions.Regex.Replace(url, @"[?&]activation=true(?=&|$)", m => m.Value.StartsWith('?') ? "?" : string.Empty)
+                .Replace("?&", "?")
+                .TrimEnd('?');
         }
 
         public async Task<ServiceResult<PreapprovalInfo>> GetPreapprovalAsync(string preapprovalId)
