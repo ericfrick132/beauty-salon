@@ -146,6 +146,16 @@ namespace BookingPro.API.Services
                     return ServiceResult<TenantPreapproval>.Fail("Platform MercadoPago not configured");
                 }
 
+                // Con credenciales TEST-, MP solo reconoce la preapproval en el checkout de
+                // sandbox: mandar al usuario al init_point de producción muestra "esta página
+                // no existe" aunque la preapproval se haya creado bien. Mismo criterio que ya
+                // usa MercadoPagoService para pagos de seña.
+                var isTestToken = platformAccessToken.StartsWith("TEST-", StringComparison.OrdinalIgnoreCase);
+                if (isTestToken)
+                {
+                    _logger.LogWarning("Platform MercadoPago token is a TEST token; preapproval for tenant {TenantId} will redirect to the sandbox checkout.", tenantId);
+                }
+
                 // Preparar datos para MercadoPago
                 var email = !string.IsNullOrWhiteSpace(payerEmail) ? payerEmail : tenant.OwnerEmail;
                 var externalReference = $"PREAPPROVAL-{tenantId}-{subscriptionPlanId}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
@@ -221,14 +231,21 @@ namespace BookingPro.API.Services
 
                 var mpResponse = JsonSerializer.Deserialize<JsonElement>(responseBody);
 
+                var mpInitPoint = mpResponse.TryGetProperty("init_point", out var ip) ? ip.GetString() : null;
+                var mpSandboxInitPoint = mpResponse.TryGetProperty("sandbox_init_point", out var sip) ? sip.GetString() : null;
+                // InitPoint es lo que el frontend usa para redirigir al usuario: con token de
+                // prueba, tiene que ser el de sandbox (si MP no lo devolvió, no hay URL válida
+                // a la que mandarlo, así que preferimos null antes que la de producción rota).
+                var effectiveInitPoint = isTestToken ? mpSandboxInitPoint : mpInitPoint;
+
                 // Crear registro en base de datos
                 var preapproval = new TenantPreapproval
                 {
                     TenantId = tenantId,
                     SubscriptionPlanId = subscriptionPlanId,
                     MercadoPagoPreapprovalId = mpResponse.GetProperty("id").GetString()!,
-                    InitPoint = mpResponse.TryGetProperty("init_point", out var ip) ? ip.GetString() : null,
-                    SandboxInitPoint = mpResponse.TryGetProperty("sandbox_init_point", out var sip) ? sip.GetString() : null,
+                    InitPoint = effectiveInitPoint,
+                    SandboxInitPoint = mpSandboxInitPoint,
                     Status = "pending",
                     PayerEmail = email,
                     FrequencyValue = 1,
