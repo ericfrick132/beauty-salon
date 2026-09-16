@@ -189,9 +189,9 @@ namespace BookingPro.API.Services
                 {
                     ["payer_email"] = email,
                     ["back_url"] = backUrl,
-                    ["reason"] = trialDaysLeft > 0
+                    ["reason"] = MercadoPagoText.TruncateForReason(trialDaysLeft > 0
                         ? $"Suscripción {plan.Name} - {tenant.BusinessName} · {trialDaysLeft} días gratis"
-                        : $"Suscripción {plan.Name} - {tenant.BusinessName}",
+                        : $"Suscripción {plan.Name} - {tenant.BusinessName}"),
                     ["auto_recurring"] = autoRecurring,
                     ["external_reference"] = externalReference,
                     ["notification_url"] = notificationUrl,

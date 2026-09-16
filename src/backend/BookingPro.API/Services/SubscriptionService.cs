@@ -208,7 +208,7 @@ namespace BookingPro.API.Services
         {
             var requestBody = new
             {
-                reason = $"Turnos Pro - {plan.Name}",
+                reason = MercadoPagoText.TruncateForReason($"Turnos Pro - {plan.Name}"),
                 auto_recurring = new
                 {
                     frequency = 1,
@@ -346,7 +346,7 @@ namespace BookingPro.API.Services
                 var requestBody = new
                 {
                     preapproval_plan_id = plan.MercadoPagoPreapprovalPlanId,
-                    reason = $"Turnos Pro - {plan.Name}",
+                    reason = MercadoPagoText.TruncateForReason($"Turnos Pro - {plan.Name}"),
                     external_reference = $"SUB-{tenant.Id}-{DateTime.UtcNow:yyyyMMdd}",
                     payer_email = tenant.OwnerEmail,
                     back_url = $"{_configuration["FrontendUrl"]}/subscription/success",
