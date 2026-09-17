@@ -12,6 +12,10 @@ namespace BookingPro.API.Services
     /// Checkout abandonado: si después de consultar MP sigue pending a las 48 h, pasa a "expired" solo
     /// en la base (no se cancela en MP ni se toca el tenant) para no revisarla para siempre. Si igual se
     /// autoriza después, el webhook la encuentra por MercadoPagoPreapprovalId y la activa.
+    ///
+    /// Duplicadas: en el mismo tick, los negocios con más de una preapproval authorized (MP debita todas)
+    /// se quedan con la más nueva y las demás se cancelan en MP
+    /// (IPreapprovalService.ResolveDuplicateAuthorizedPreapprovalsAsync, lo mismo que hace el webhook).
     /// </summary>
     public class PreapprovalSyncBackgroundService : BackgroundService
     {
@@ -50,6 +54,59 @@ namespace BookingPro.API.Services
         }
 
         private async Task RunTickAsync(CancellationToken ct)
+        {
+            // Primero las pending (autorizar una ya resuelve sus duplicadas); si esa fase falla, igual se
+            // buscan duplicadas: son las que cobran de más.
+            try { await SyncPendingAsync(ct); }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                _logger.LogError(ex, "PreapprovalSync pending phase failed");
+            }
+
+            await ResolveDuplicateAuthorizedAsync(ct);
+        }
+
+        /// <summary>
+        /// Negocios con más de una preapproval authorized: se queda la más nueva que MP confirma y las demás se
+        /// cancelan en MP. Un scope por negocio, igual que las pending.
+        /// </summary>
+        private async Task ResolveDuplicateAuthorizedAsync(CancellationToken ct)
+        {
+            List<Guid> tenantIds;
+            using (var scope = _serviceProvider.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                tenantIds = await db.TenantPreapprovals
+                    .AsNoTracking()
+                    .Where(p => p.Status == "authorized")
+                    .GroupBy(p => p.TenantId)
+                    .Where(g => g.Count() > 1)
+                    .Select(g => g.Key)
+                    .ToListAsync(ct);
+            }
+
+            if (tenantIds.Count == 0) return;
+
+            var cancelled = 0;
+            foreach (var tenantId in tenantIds)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                using (var itemScope = _serviceProvider.CreateScope())
+                {
+                    var preapprovals = itemScope.ServiceProvider.GetRequiredService<IPreapprovalService>();
+                    cancelled += await preapprovals.ResolveDuplicateAuthorizedPreapprovalsAsync(tenantId);
+                }
+
+                await Task.Delay(DelayBetweenCalls, ct);
+            }
+
+            _logger.LogWarning(
+                "PreapprovalSync tick: {Tenants} tenants with duplicate authorized preapprovals, {Cancelled} duplicates cancelled in MercadoPago",
+                tenantIds.Count, cancelled);
+        }
+
+        private async Task SyncPendingAsync(CancellationToken ct)
         {
             using var scope = _serviceProvider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

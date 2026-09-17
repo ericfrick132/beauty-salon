@@ -51,6 +51,12 @@ namespace BookingPro.API.Services
         Task<bool> ReconcileTenantPendingPreapprovalsAsync(Guid tenantId);
 
         /// <summary>
+        /// Deja al tenant con una sola preapproval authorized (con dos, MP debita las dos): queda activa la más
+        /// nueva que MP confirma autorizada y las demás se cancelan en MP. Devuelve cuántas se cancelaron.
+        /// </summary>
+        Task<int> ResolveDuplicateAuthorizedPreapprovalsAsync(Guid tenantId);
+
+        /// <summary>
         /// Procesa webhook de pago autorizado (cobro recurrente).
         /// </summary>
         Task<ServiceResult<bool>> ProcessAuthorizedPaymentWebhookAsync(string authorizedPaymentId);
@@ -173,16 +179,18 @@ namespace BookingPro.API.Services
                     .Where(p => p.TenantId == tenantId && p.Status == "authorized")
                     .FirstOrDefaultAsync();
 
+                // Nunca una segunda preapproval con una autorizada: MP cobraría las dos. El controller lo
+                // toma por el Reason y cambia el plan de la misma (ChangePlanAsync).
+                static ServiceResult<TenantPreapproval> AlreadyAuthorized() => new()
+                {
+                    Success = false,
+                    Message = "Ya tenés el débito automático activo. Para pasarte a otro plan usá el cambio de plan.",
+                    Reason = PreapprovalFailReasons.ActivePreapproval
+                };
+
                 if (existingActive != null)
                 {
-                    // Nunca una segunda preapproval con una autorizada: MP cobraría las dos. El controller lo
-                    // toma por el Reason y cambia el plan de la misma (ChangePlanAsync).
-                    return new ServiceResult<TenantPreapproval>
-                    {
-                        Success = false,
-                        Message = "Ya tenés el débito automático activo. Para pasarte a otro plan usá el cambio de plan.",
-                        Reason = PreapprovalFailReasons.ActivePreapproval
-                    };
+                    return AlreadyAuthorized();
                 }
 
                 // Obtener credenciales de la plataforma
@@ -222,6 +230,14 @@ namespace BookingPro.API.Services
                         && p.CreatedAt >= reusableFrom)
                     .OrderByDescending(p => p.CreatedAt)
                     .FirstOrDefaultAsync();
+
+                // Un solo checkout vivo por negocio: las demás pending se cancelan en MP antes de devolver la
+                // reusada o crear otra. Si alguna ya estaba autorizada se aplica y no se lo manda a autorizar
+                // de nuevo (el controller cambia el plan de esa).
+                if (await CancelOtherPendingPreapprovalsAsync(tenantId, reusable?.Id))
+                {
+                    return AlreadyAuthorized();
+                }
 
                 if (reusable != null)
                 {
@@ -569,6 +585,7 @@ namespace BookingPro.API.Services
                 var previousStatus = preapproval.Status;
                 preapproval.Status = info.Status;
                 preapproval.UpdatedAt = DateTime.UtcNow;
+                var resolveDuplicates = false;
 
                 switch (info.Status.ToLower())
                 {
@@ -577,19 +594,36 @@ namespace BookingPro.API.Services
                         preapproval.PayerId = info.PayerId;
                         preapproval.NextPaymentDate = info.NextPaymentDate ?? DateTime.UtcNow.AddMonths(1);
 
-                        // ACTIVAR SUSCRIPCIÓN DEL TENANT
-                        await ActivateTenantSubscriptionAsync(preapproval);
-                        _logger.LogInformation("Tenant {TenantId} subscription activated via preapproval {Id}",
-                            preapproval.TenantId, preapprovalId);
+                        // Con otra authorized del mismo negocio MP debita las dos: después de guardar,
+                        // ResolveDuplicateAuthorizedAsync deja activa la más nueva y cancela las demás. Esta se activa
+                        // ya salvo que haya una authorized más nueva (no se pisa el plan/fecha de la que queda).
+                        var otherAuthorizedCreatedAt = await _context.TenantPreapprovals
+                            .IgnoreQueryFilters()
+                            .Where(p => p.TenantId == preapproval.TenantId && p.Id != preapproval.Id && p.Status == "authorized")
+                            .Select(p => p.CreatedAt)
+                            .ToListAsync();
+                        resolveDuplicates = otherAuthorizedCreatedAt.Count > 0;
+
+                        if (!otherAuthorizedCreatedAt.Any(createdAt => createdAt > preapproval.CreatedAt))
+                        {
+                            // ACTIVAR SUSCRIPCIÓN DEL TENANT
+                            await ActivateTenantSubscriptionAsync(preapproval);
+                            _logger.LogInformation("Tenant {TenantId} subscription activated via preapproval {Id}",
+                                preapproval.TenantId, preapprovalId);
+                        }
                         break;
 
+                    // Pausada o cancelada no toca al tenant ni a su Subscription: ni suspended/cancelled ni "sin
+                    // tarjeta". Lo que deja entrar es tener OTRA authorized (el gate de la tarjeta la busca por
+                    // estado) o el período ya pagado; así la vieja de una duplicada que se cancela no degrada a nadie.
                     case "paused":
                         preapproval.PausedAt = DateTime.UtcNow;
                         _logger.LogInformation("Preapproval {Id} paused", preapprovalId);
                         break;
 
                     case "cancelled":
-                        preapproval.CancelledAt = DateTime.UtcNow;
+                        // ??= : la cancelación de una duplicada la marca al cancelarla y el webhook de MP llega después.
+                        preapproval.CancelledAt ??= DateTime.UtcNow;
                         // No desactivar inmediatamente - dejar que termine el período pagado
                         _logger.LogInformation("Preapproval {Id} cancelled", preapprovalId);
                         break;
@@ -600,6 +634,12 @@ namespace BookingPro.API.Services
                 _logger.LogInformation(
                     "Preapproval {Id} status changed: {OldStatus} -> {NewStatus}",
                     preapprovalId, previousStatus, info.Status);
+
+                if (resolveDuplicates)
+                {
+                    // Nunca tira: si falla algo loguea y el sync (PreapprovalSyncBackgroundService) lo reintenta.
+                    await ResolveDuplicateAuthorizedAsync(preapproval.TenantId, confirmedAuthorized: preapproval, source: action);
+                }
 
                 return ServiceResult<bool>.Ok(true);
             }
@@ -635,6 +675,224 @@ namespace BookingPro.API.Services
             return await _context.TenantPreapprovals
                 .AnyAsync(p => p.TenantId == tenantId && p.Status == "authorized");
         }
+
+        /// <summary>
+        /// Cancela en MP las demás checkouts pending del tenant (todas menos <paramref name="exceptId"/>, la que se
+        /// devuelve): con varias vivas el negocio puede autorizar dos y MP cobraría las dos. Antes se pregunta a
+        /// MP por cada una: si sigue pending se cancela; si ya está authorized se aplica (activa al negocio) y no
+        /// se cancela; si MP ya no la cobra se guarda ese estado. Los errores de MP se loguean y se sigue: nunca
+        /// rompe el alta. Devuelve si alguna resultó authorized.
+        /// </summary>
+        private async Task<bool> CancelOtherPendingPreapprovalsAsync(Guid tenantId, Guid? exceptId)
+        {
+            List<TenantPreapproval> others;
+            try
+            {
+                others = await _context.TenantPreapprovals
+                    .IgnoreQueryFilters()
+                    .Where(p => p.TenantId == tenantId
+                        && p.Status == "pending"
+                        && (exceptId == null || p.Id != exceptId.Value))
+                    .OrderBy(p => p.CreatedAt)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not list old pending preapprovals of tenant {TenantId} before a new checkout", tenantId);
+                return false;
+            }
+
+            var foundAuthorized = false;
+            foreach (var old in others)
+            {
+                var mpId = old.MercadoPagoPreapprovalId;
+                try
+                {
+                    var info = await GetPreapprovalAsync(mpId);
+                    if (!info.Success || info.Data == null)
+                    {
+                        _logger.LogWarning("Could not check old pending preapproval {PreapprovalId} of tenant {TenantId} with MercadoPago; left as is: {Error}",
+                            mpId, tenantId, info.Message);
+                        continue;
+                    }
+
+                    var mpStatus = info.Data.Status;
+                    if (IsAuthorized(mpStatus))
+                    {
+                        // Autorizó ese checkout y el webhook no llegó: se aplica como el webhook, no se cancela.
+                        var applied = await ProcessPreapprovalWebhookAsync(mpId, "checkout");
+                        if (applied.Success)
+                            foundAuthorized = true;
+                        else
+                            _logger.LogWarning("Old preapproval {PreapprovalId} of tenant {TenantId} is authorized in MercadoPago but could not be applied: {Error}",
+                                mpId, tenantId, applied.Message);
+                    }
+                    else if (string.Equals(mpStatus, "pending", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var cancel = await CancelPreapprovalAsync(mpId);
+                        if (cancel.Success)
+                            _logger.LogInformation("Cancelled old pending preapproval {PreapprovalId} of tenant {TenantId} (new checkout {KeptId})",
+                                mpId, tenantId, exceptId?.ToString() ?? "new");
+                        else
+                            _logger.LogWarning("Could not cancel old pending preapproval {PreapprovalId} of tenant {TenantId}: {Error}",
+                                mpId, tenantId, cancel.Message);
+                    }
+                    else
+                    {
+                        await ApplyNotChargingStatusAsync(old, mpStatus);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error handling old pending preapproval {PreapprovalId} of tenant {TenantId} before a new checkout",
+                        mpId, tenantId);
+                }
+            }
+
+            return foundAuthorized;
+        }
+
+        public Task<int> ResolveDuplicateAuthorizedPreapprovalsAsync(Guid tenantId)
+            => ResolveDuplicateAuthorizedAsync(tenantId, confirmedAuthorized: null, source: "sync");
+
+        /// <summary>
+        /// Una sola preapproval authorized por negocio: con dos, MP debita las dos. Se queda la más nueva (CreatedAt)
+        /// que MP confirma autorizada (caso legítimo: dejó otra tarjeta). Primero queda activa en el tenant
+        /// (ActivateTenantSubscriptionAsync), así el negocio nunca se queda sin la suya aunque falle lo que sigue;
+        /// después cada vieja se consulta a MP: si sigue authorized se cancela allá y la fila pasa a cancelled, si
+        /// MP ya no la cobra se guarda su estado real. Si MP no contesta por una candidata más nueva no se cancela
+        /// nada (no se sabe cuál está viva) y el sync reintenta. Nunca tira. Devuelve cuántas canceló.
+        /// </summary>
+        /// <param name="confirmedAuthorized">Fila que MP acaba de confirmar authorized en este request (no se re-consulta).</param>
+        private async Task<int> ResolveDuplicateAuthorizedAsync(Guid tenantId, TenantPreapproval? confirmedAuthorized, string source)
+        {
+            var cancelled = 0;
+            try
+            {
+                var authorized = (await _context.TenantPreapprovals
+                        .IgnoreQueryFilters()
+                        .Where(p => p.TenantId == tenantId && p.Status == "authorized")
+                        .ToListAsync())
+                    .OrderByDescending(p => p.CreatedAt)
+                    .ToList();
+                if (authorized.Count < 2) return 0;
+
+                // 1. La que queda: la más nueva que MP confirma authorized. Las más nuevas que MP ya no cobra
+                //    quedan con su estado real.
+                TenantPreapproval? keep = null;
+                var olderOnes = new List<TenantPreapproval>();
+                foreach (var candidate in authorized)
+                {
+                    if (keep != null)
+                    {
+                        olderOnes.Add(candidate);
+                        continue;
+                    }
+                    if (confirmedAuthorized != null && candidate.Id == confirmedAuthorized.Id)
+                    {
+                        keep = candidate;
+                        continue;
+                    }
+
+                    var info = await GetPreapprovalAsync(candidate.MercadoPagoPreapprovalId);
+                    if (!info.Success || info.Data == null)
+                    {
+                        _logger.LogWarning(
+                            "Duplicate authorized preapprovals for tenant {TenantId}: could not check {PreapprovalId} with MercadoPago, nothing cancelled this time",
+                            tenantId, candidate.MercadoPagoPreapprovalId);
+                        return 0;
+                    }
+                    if (IsAuthorized(info.Data.Status))
+                        keep = candidate;
+                    else
+                        await ApplyNotChargingStatusAsync(candidate, info.Data.Status);
+                }
+
+                if (keep == null) return 0;
+
+                // 2. Activa y apuntada a la que queda antes de cancelar nada.
+                await ActivateTenantSubscriptionAsync(keep);
+                await _context.SaveChangesAsync();
+
+                // 3. Las viejas: se cancelan en MP solo si MP las sigue viendo authorized.
+                foreach (var old in olderOnes)
+                {
+                    try
+                    {
+                        string mpStatus;
+                        if (confirmedAuthorized != null && old.Id == confirmedAuthorized.Id)
+                        {
+                            mpStatus = "authorized";
+                        }
+                        else
+                        {
+                            var info = await GetPreapprovalAsync(old.MercadoPagoPreapprovalId);
+                            if (!info.Success || info.Data == null)
+                            {
+                                _logger.LogWarning(
+                                    "Duplicate authorized preapproval {PreapprovalId} of tenant {TenantId} could not be checked with MercadoPago; retried on the next sync",
+                                    old.MercadoPagoPreapprovalId, tenantId);
+                                continue;
+                            }
+                            mpStatus = info.Data.Status;
+                        }
+
+                        if (!IsAuthorized(mpStatus))
+                        {
+                            await ApplyNotChargingStatusAsync(old, mpStatus);
+                            continue;
+                        }
+
+                        var cancel = await CancelPreapprovalAsync(old.MercadoPagoPreapprovalId);
+                        if (!cancel.Success)
+                        {
+                            _logger.LogError(
+                                "SUSCRIPCION DUPLICADA: tenant {TenantId}, no se pudo cancelar la vieja {OldPreapprovalId} (queda {KeptPreapprovalId}), MP puede cobrar las dos: {Error}",
+                                tenantId, old.MercadoPagoPreapprovalId, keep.MercadoPagoPreapprovalId, cancel.Message);
+                            continue;
+                        }
+
+                        cancelled++;
+                        _logger.LogError(
+                            "SUSCRIPCION DUPLICADA: tenant {TenantId}, se canceló la vieja {OldPreapprovalId}, queda {KeptPreapprovalId} (origen: {Source})",
+                            tenantId, old.MercadoPagoPreapprovalId, keep.MercadoPagoPreapprovalId, source);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error cancelling duplicate authorized preapproval {PreapprovalId} of tenant {TenantId}",
+                            old.MercadoPagoPreapprovalId, tenantId);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error resolving duplicate authorized preapprovals for tenant {TenantId}", tenantId);
+            }
+
+            return cancelled;
+        }
+
+        /// <summary>
+        /// MP ya no cobra esta preapproval (cancelled, paused): se guarda ese estado en la fila sin tocar al tenant.
+        /// </summary>
+        private async Task ApplyNotChargingStatusAsync(TenantPreapproval preapproval, string mpStatus)
+        {
+            var now = DateTime.UtcNow;
+            var previousStatus = preapproval.Status;
+            preapproval.Status = mpStatus;
+            preapproval.UpdatedAt = now;
+            if (string.Equals(mpStatus, "cancelled", StringComparison.OrdinalIgnoreCase))
+                preapproval.CancelledAt ??= now;
+            else if (string.Equals(mpStatus, "paused", StringComparison.OrdinalIgnoreCase))
+                preapproval.PausedAt ??= now;
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Preapproval {Id} of tenant {TenantId} status changed: {OldStatus} -> {NewStatus} (MercadoPago no longer charges it)",
+                preapproval.MercadoPagoPreapprovalId, preapproval.TenantId, previousStatus, mpStatus);
+        }
+
+        private static bool IsAuthorized(string? mpStatus)
+            => string.Equals(mpStatus, "authorized", StringComparison.OrdinalIgnoreCase);
 
         public async Task<ServiceResult<bool>> ProcessAuthorizedPaymentWebhookAsync(string authorizedPaymentId)
         {

@@ -806,8 +806,30 @@ namespace BookingPro.API.Services
                     var preapproval = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
                     
                     var mpStatus = preapproval?["status"].GetString();
+                    var localStatus = MapMercadoPagoStatusToLocal(mpStatus);
+
+                    // Una preapproval que no cobra (cancelada, pausada, pending) no degrada al negocio si tiene OTRA
+                    // authorized en tenant_preapprovals: es la vieja de una duplicada que se canceló o una que dejó
+                    // de usar. No se tocan tenant ni suscripción (nada de cancelled/suspended) ni sale el mail de
+                    // pago fallido.
+                    if (localStatus != "active")
+                    {
+                        var hasOtherAuthorized = await _context.TenantPreapprovals
+                            .IgnoreQueryFilters()
+                            .AnyAsync(p => p.TenantId == subscription.TenantId
+                                && p.Status == "authorized"
+                                && p.MercadoPagoPreapprovalId != preapprovalId);
+                        if (hasOtherAuthorized)
+                        {
+                            _logger.LogInformation(
+                                "Preapproval {PreapprovalId} is {MpStatus} but tenant {TenantId} has another authorized preapproval: subscription and tenant left as they are",
+                                preapprovalId, mpStatus, subscription.TenantId);
+                            return;
+                        }
+                    }
+
                     var previousStatus = subscription.Status;
-                    subscription.Status = MapMercadoPagoStatusToLocal(mpStatus);
+                    subscription.Status = localStatus;
 
                     if (preapproval?["next_payment_date"].TryGetDateTime(out var nextPayment) == true)
                     {
