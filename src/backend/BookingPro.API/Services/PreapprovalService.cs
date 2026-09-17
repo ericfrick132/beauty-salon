@@ -64,6 +64,36 @@ namespace BookingPro.API.Services
         /// Obtiene todos los Preapprovals de un tenant.
         /// </summary>
         Task<List<TenantPreapproval>> GetTenantPreapprovalsAsync(Guid tenantId);
+
+        /// <summary>
+        /// Cambia de plan la preapproval autorizada del tenant sin crear otra: PUT /preapproval/{id} con el
+        /// monto del plan nuevo, que MP cobra desde el próximo débito. Si MP no lo acepta no se toca nada local.
+        /// </summary>
+        Task<ServiceResult<PreapprovalPlanChange>> ChangePlanAsync(Guid tenantId, Guid subscriptionPlanId);
+    }
+
+    /// <summary>
+    /// Códigos de <see cref="ServiceResult.Reason"/> de PreapprovalService.
+    /// </summary>
+    public static class PreapprovalFailReasons
+    {
+        /// <summary>
+        /// CreatePreapprovalAsync no crea otra porque el tenant ya tiene una autorizada: el que llama pasa a
+        /// ChangePlanAsync.
+        /// </summary>
+        public const string ActivePreapproval = "active_preapproval";
+    }
+
+    public class PreapprovalPlanChange
+    {
+        public Guid PreapprovalId { get; set; }
+        public string MercadoPagoPreapprovalId { get; set; } = string.Empty;
+        public Guid PlanId { get; set; }
+        public string PlanCode { get; set; } = string.Empty;
+        public string PlanName { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public string CurrencyId { get; set; } = "ARS";
+        public DateTime? NextPaymentDate { get; set; }
     }
 
     public class PreapprovalInfo
@@ -145,7 +175,14 @@ namespace BookingPro.API.Services
 
                 if (existingActive != null)
                 {
-                    return ServiceResult<TenantPreapproval>.Fail("Tenant already has an active subscription. Cancel it first.");
+                    // Nunca una segunda preapproval con una autorizada: MP cobraría las dos. El controller lo
+                    // toma por el Reason y cambia el plan de la misma (ChangePlanAsync).
+                    return new ServiceResult<TenantPreapproval>
+                    {
+                        Success = false,
+                        Message = "Ya tenés el débito automático activo. Para pasarte a otro plan usá el cambio de plan.",
+                        Reason = PreapprovalFailReasons.ActivePreapproval
+                    };
                 }
 
                 // Obtener credenciales de la plataforma
@@ -399,14 +436,9 @@ namespace BookingPro.API.Services
                 };
 
                 // Parsear fechas
-                if (data.TryGetProperty("date_created", out var dc) && DateTime.TryParse(dc.GetString(), out var dateCreated))
-                    info.DateCreated = dateCreated;
-
-                if (data.TryGetProperty("last_modified", out var lm) && DateTime.TryParse(lm.GetString(), out var lastModified))
-                    info.LastModified = lastModified;
-
-                if (data.TryGetProperty("next_payment_date", out var npd) && DateTime.TryParse(npd.GetString(), out var nextPayment))
-                    info.NextPaymentDate = nextPayment;
+                info.DateCreated = ParseMercadoPagoDate(data, "date_created");
+                info.LastModified = ParseMercadoPagoDate(data, "last_modified");
+                info.NextPaymentDate = ParseMercadoPagoDate(data, "next_payment_date");
 
                 // Parsear auto_recurring
                 if (data.TryGetProperty("auto_recurring", out var ar))
@@ -424,6 +456,20 @@ namespace BookingPro.API.Services
                 _logger.LogError(ex, "Error getting preapproval {Id}", preapprovalId);
                 return ServiceResult<PreapprovalInfo>.Fail($"Error: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Fecha de una respuesta de MP en UTC. MP las manda con offset ("...-04:00") y DateTime.TryParse las
+        /// deja en Kind=Local, que Npgsql no acepta en timestamptz: guardar el next_payment_date así hacía
+        /// fallar el SaveChanges del "authorized" (mismo arreglo que GymHero).
+        /// </summary>
+        private static DateTime? ParseMercadoPagoDate(JsonElement data, string property)
+        {
+            return data.TryGetProperty(property, out var value)
+                && value.ValueKind == JsonValueKind.String
+                && DateTime.TryParse(value.GetString(), out var parsed)
+                ? parsed.ToUniversalTime()
+                : null;
         }
 
         public async Task<ServiceResult<bool>> CancelPreapprovalAsync(string preapprovalId)
@@ -857,6 +903,149 @@ namespace BookingPro.API.Services
                 .Where(p => p.TenantId == tenantId)
                 .OrderByDescending(p => p.CreatedAt)
                 .ToListAsync();
+        }
+
+        public async Task<ServiceResult<PreapprovalPlanChange>> ChangePlanAsync(Guid tenantId, Guid subscriptionPlanId)
+        {
+            static ServiceResult<PreapprovalPlanChange> Fail(string message) => ServiceResult<PreapprovalPlanChange>.Fail(message);
+
+            var preapproval = await _context.TenantPreapprovals
+                .Where(p => p.TenantId == tenantId && p.Status == "authorized")
+                .OrderByDescending(p => p.CreatedAt)
+                .FirstOrDefaultAsync();
+            if (preapproval == null)
+                return Fail("No tenés el débito automático activo, así que no hay plan para cambiar.");
+
+            var plan = await _context.SubscriptionPlans.FindAsync(subscriptionPlanId);
+            if (plan == null || !plan.IsActive)
+                return Fail("El plan elegido no está disponible.");
+
+            if (preapproval.SubscriptionPlanId == plan.Id)
+                return Fail("Ya tenés ese plan");
+
+            if (plan.Price <= 0)
+                return Fail("Ese plan no se cobra con débito automático. Elegí un plan pago.");
+
+            // MP no convierte moneda ni frecuencia de una preapproval existente: esos casos no se tocan.
+            var planCurrency = string.IsNullOrWhiteSpace(plan.Currency) ? "ARS" : plan.Currency;
+            if (!string.Equals(planCurrency, preapproval.CurrencyId, StringComparison.OrdinalIgnoreCase))
+                return Fail($"No se puede cambiar a {plan.Name}: se cobra en {planCurrency} y tu débito automático es en {preapproval.CurrencyId}. Escribinos y lo resolvemos.");
+
+            if (preapproval.FrequencyValue != 1 || !string.Equals(preapproval.FrequencyType, "months", StringComparison.OrdinalIgnoreCase))
+                return Fail("Tu débito automático no es mensual y los planes sí, así que el cambio no se puede hacer desde acá. Escribinos y lo resolvemos.");
+
+            var platformAccessToken = await GetPlatformAccessTokenAsync();
+            if (string.IsNullOrWhiteSpace(platformAccessToken))
+                return Fail("No pudimos conectar con Mercado Pago para cambiar el plan. Tu plan sigue igual; probá de nuevo en unos minutos.");
+
+            var requestBody = new Dictionary<string, object?>
+            {
+                ["reason"] = MercadoPagoText.TruncateForReason($"Suscripción {plan.Name}"),
+                ["auto_recurring"] = new Dictionary<string, object?>
+                {
+                    ["transaction_amount"] = plan.Price,
+                    ["currency_id"] = preapproval.CurrencyId
+                }
+            };
+            var jsonContent = JsonSerializer.Serialize(requestBody);
+
+            string responseBody;
+            try
+            {
+                var client = _httpClientFactory.CreateClient();
+                client.DefaultRequestHeaders.Clear();
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {platformAccessToken}");
+
+                _logger.LogInformation("Changing plan of preapproval {PreapprovalId} (tenant {TenantId}) to {PlanCode}: {Request}",
+                    preapproval.MercadoPagoPreapprovalId, tenantId, plan.Code, jsonContent);
+
+                var response = await client.PutAsync(
+                    $"{MP_API_BASE}/preapproval/{preapproval.MercadoPagoPreapprovalId}",
+                    new StringContent(jsonContent, Encoding.UTF8, "application/json"));
+                responseBody = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("MercadoPago rejected plan change of preapproval {PreapprovalId} to {PlanCode}: {StatusCode} - {Response}",
+                        preapproval.MercadoPagoPreapprovalId, plan.Code, response.StatusCode, responseBody);
+                    return Fail("Mercado Pago no aceptó el cambio de plan. Tu plan y tu débito siguen como estaban; probá de nuevo en unos minutos.");
+                }
+            }
+            catch (Exception ex)
+            {
+                // Sin respuesta no se sabe si MP lo aplicó: no se toca nada local. Reintentar es seguro
+                // (el PUT manda el mismo monto).
+                _logger.LogError(ex, "Error calling MercadoPago to change plan of preapproval {PreapprovalId} to {PlanCode}",
+                    preapproval.MercadoPagoPreapprovalId, plan.Code);
+                return Fail("No pudimos confirmar el cambio con Mercado Pago. Tu plan sigue igual; probá de nuevo en unos minutos.");
+            }
+
+            DateTime? nextPaymentDate = null;
+            try
+            {
+                nextPaymentDate = ParseMercadoPagoDate(JsonSerializer.Deserialize<JsonElement>(responseBody), "next_payment_date");
+            }
+            catch (JsonException)
+            {
+                // La fecha es solo para el mensaje: si la respuesta no se puede leer, va la guardada.
+            }
+
+            try
+            {
+                var now = DateTime.UtcNow;
+                preapproval.SubscriptionPlanId = plan.Id;
+                preapproval.TransactionAmount = plan.Price;
+                preapproval.Reason = $"Suscripción {plan.Name}";
+                preapproval.UpdatedAt = now;
+
+                // Lo que el panel muestra como plan actual: /api/subscription/status sale de Subscription.PlanType
+                // (y cae a Tenant.SubscriptionPlanId), /api/preapproval/status de la preapproval, y el super
+                // admin de Tenant.SubscriptionPlanId. Mismo criterio que ActivateTenantSubscriptionAsync.
+                var tenant = await _context.Tenants
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(t => t.Id == tenantId);
+                if (tenant != null)
+                {
+                    tenant.SubscriptionPlanId = plan.Id;
+                    tenant.UpdatedAt = now;
+                }
+
+                var subscription = await _context.Subscriptions
+                    .IgnoreQueryFilters()
+                    .Where(s => s.TenantId == tenantId)
+                    .OrderByDescending(s => s.CreatedAt)
+                    .FirstOrDefaultAsync();
+                if (subscription != null)
+                {
+                    subscription.PlanType = plan.Code;
+                    subscription.MonthlyAmount = plan.Price;
+                    subscription.UpdatedAt = now;
+                }
+
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "MercadoPago already charges plan {PlanCode} ({Amount}) on preapproval {PreapprovalId} but saving the plan change for tenant {TenantId} failed: fix it by hand",
+                    plan.Code, plan.Price, preapproval.MercadoPagoPreapprovalId, tenantId);
+                return Fail("Mercado Pago tomó el cambio de plan pero no lo pudimos guardar. Escribinos para que lo corrijamos.");
+            }
+
+            _logger.LogInformation("Preapproval {PreapprovalId} of tenant {TenantId} changed to plan {PlanCode} ({Amount} {Currency})",
+                preapproval.MercadoPagoPreapprovalId, tenantId, plan.Code, plan.Price, preapproval.CurrencyId);
+
+            return ServiceResult<PreapprovalPlanChange>.Ok(new PreapprovalPlanChange
+            {
+                PreapprovalId = preapproval.Id,
+                MercadoPagoPreapprovalId = preapproval.MercadoPagoPreapprovalId,
+                PlanId = plan.Id,
+                PlanCode = plan.Code,
+                PlanName = plan.Name,
+                Amount = plan.Price,
+                CurrencyId = preapproval.CurrencyId,
+                NextPaymentDate = nextPaymentDate ?? preapproval.NextPaymentDate
+            });
         }
     }
 }

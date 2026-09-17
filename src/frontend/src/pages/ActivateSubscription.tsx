@@ -26,6 +26,7 @@ import {
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import api, { tenantApi } from '../services/api';
+import { isPlanChanged, planChangedMessage } from '../utils/planChange';
 
 interface Plan {
   code: string;
@@ -63,6 +64,8 @@ const ActivateSubscription: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState('');
+  // Ya tenía el débito autorizado y eligió otro plan: el backend cambió el monto en vez de mandarlo a MP.
+  const [planChangedText, setPlanChangedText] = useState('');
 
   // Adónde seguir después de la tarjeta (o al saltearla): onboarding si falta, si no el panel.
   const nextPath = onboardingDone ? '/dashboard' : '/completar-perfil';
@@ -144,6 +147,16 @@ const ActivateSubscription: React.FC = () => {
         planCode: selected || 'pro',
         returnPath: '/subscription/success?flow=trial',
       });
+      if (isPlanChanged(res.data)) {
+        setPlanChangedText(planChangedMessage(res.data));
+        try {
+          setStatus((await api.get('/subscription/status')).data);
+        } catch {
+          /* el mensaje ya confirma el cambio */
+        }
+        setStarting(false);
+        return;
+      }
       const initPoint: string | undefined = res.data?.initPoint;
       if (!res.data?.success || !initPoint) {
         throw new Error(res.data?.error || 'No pudimos iniciar el pago. Intentá de nuevo.');
@@ -194,6 +207,20 @@ const ActivateSubscription: React.FC = () => {
         {error && (
           <Alert severity="error" onClose={() => setError('')} sx={{ mb: 3 }}>
             {error}
+          </Alert>
+        )}
+
+        {planChangedText && (
+          <Alert
+            severity="success"
+            sx={{ mb: 3 }}
+            action={
+              <Button color="inherit" size="small" onClick={() => navigate(nextPath, { replace: true })}>
+                Continuar
+              </Button>
+            }
+          >
+            {planChangedText}
           </Alert>
         )}
 
@@ -293,7 +320,7 @@ const ActivateSubscription: React.FC = () => {
               variant="contained"
               size="large"
               fullWidth
-              disabled={starting}
+              disabled={starting || !!planChangedText}
               onClick={start}
               sx={{ py: 1.5, fontWeight: 700 }}
             >

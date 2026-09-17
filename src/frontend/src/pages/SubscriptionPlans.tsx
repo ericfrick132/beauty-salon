@@ -59,6 +59,7 @@ import {
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import api from '../services/api';
+import { isPlanChanged, planChangedMessage } from '../utils/planChange';
 
 interface Plan {
   code: string;
@@ -620,6 +621,7 @@ const SubscriptionPlans: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [currentStatus, setCurrentStatus] = useState<SubscriptionStatus | null>(null);
   const [showQrModal, setShowQrModal] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -685,8 +687,16 @@ const SubscriptionPlans: React.FC = () => {
   const handleSubscribe = async (planCode: string) => {
     setSubscribing(planCode);
     setError(null);
+    setSuccess(null);
     try {
       const response = await api.post('/subscription/subscribe', { planCode });
+      // Ya tenía el débito automático: el backend cambió el plan de esa misma suscripción (no hay link de
+      // pago). Se confirma y se refresca el plan actual.
+      if (isPlanChanged(response.data)) {
+        setSuccess(planChangedMessage(response.data));
+        await checkSubscriptionStatus();
+        return;
+      }
       if (response.data.paymentUrl) {
         window.location.href = response.data.paymentUrl;
       } else if (response.data.qrCode) {
@@ -885,6 +895,24 @@ const SubscriptionPlans: React.FC = () => {
               {currentStatus.isTrialPeriod && (
                 <> — período de prueba (quedan {currentStatus.daysRemaining} días)</>
               )}
+            </Alert>
+          )}
+
+          {success && (
+            <Alert
+              severity="success"
+              onClose={() => setSuccess(null)}
+              sx={{
+                mb: 3,
+                borderRadius: 0,
+                border: `1px solid ${palette.primary}`,
+                backgroundColor: 'rgba(30, 94, 63, 0.06)',
+                fontFamily: fonts.body,
+                color: palette.ink,
+                '& .MuiAlert-icon': { color: palette.primary },
+              }}
+            >
+              {success}
             </Alert>
           )}
 

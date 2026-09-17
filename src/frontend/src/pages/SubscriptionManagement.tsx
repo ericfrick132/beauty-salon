@@ -35,6 +35,7 @@ import {
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { isPlanChanged, planChangedMessage } from '../utils/planChange';
 
 interface SubscriptionData {
   id: string;
@@ -68,6 +69,7 @@ const SubscriptionManagement: React.FC = () => {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     fetchSubscriptionData();
@@ -110,10 +112,18 @@ const SubscriptionManagement: React.FC = () => {
   };
 
   const handleReactivate = async () => {
+    setNotice(null);
     try {
       const response = await api.post('/subscription/subscribe', {
         planCode: subscription?.planType,
       });
+
+      // Con débito automático ya autorizado el backend no crea otra suscripción: cambia el plan de esa.
+      if (isPlanChanged(response.data)) {
+        setNotice({ type: 'success', text: planChangedMessage(response.data) });
+        fetchSubscriptionData();
+        return;
+      }
 
       if (response.data.qrCode) {
         setQrCode(response.data.qrCode);
@@ -121,8 +131,9 @@ const SubscriptionManagement: React.FC = () => {
       } else if (response.data.paymentUrl) {
         window.location.href = response.data.paymentUrl;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error reactivating subscription:', error);
+      setNotice({ type: 'error', text: error?.response?.data?.error || 'No pudimos reactivar la suscripción. Probá de nuevo.' });
     }
   };
 
@@ -187,6 +198,12 @@ const SubscriptionManagement: React.FC = () => {
         <Typography variant="h4" gutterBottom sx={{ mb: 4 }}>
           Gestión de Suscripción
         </Typography>
+
+        {notice && (
+          <Alert severity={notice.type} onClose={() => setNotice(null)} sx={{ mb: 3 }}>
+            {notice.text}
+          </Alert>
+        )}
 
         {/* Current Plan Card */}
         <Card sx={{ mb: 4 }}>

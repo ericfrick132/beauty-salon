@@ -71,7 +71,21 @@ namespace BookingPro.API.Controllers
                 }
                 
                 var result = await _subscriptionService.CreateSubscriptionAsync(tenantGuid, dto.PlanCode);
-                
+
+                // Ya tenía débito automático: se cambió el plan de su preapproval, no hay link de pago.
+                if (result.Success && result.Data?.PlanChanged == true)
+                {
+                    return Ok(new
+                    {
+                        success = true,
+                        planChanged = true,
+                        planName = result.Data.PlanName,
+                        amount = result.Data.MonthlyAmount,
+                        currency = result.Data.Currency,
+                        nextPaymentDate = result.Data.NextPaymentDate
+                    });
+                }
+
                 if (result.Success && result.Data != null)
                 {
                     return Ok(new

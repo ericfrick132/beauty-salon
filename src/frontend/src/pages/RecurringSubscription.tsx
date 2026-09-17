@@ -41,6 +41,7 @@ import {
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import api from '../services/api';
+import { isPlanChanged, planChangedMessage } from '../utils/planChange';
 
 interface SubscriptionPlan {
   id: string;
@@ -102,6 +103,10 @@ const RecurringSubscription: React.FC = () => {
   const [creating, setCreating] = useState(false);
   const [initPoint, setInitPoint] = useState<string | null>(null);
 
+  // Con el débito ya autorizado el mismo diálogo cambia el plan (mismo débito, otro monto) en vez de
+  // crear otra suscripción en MP.
+  const isChangingPlan = !!status?.hasActivePreapproval;
+
   // Confirm dialogs
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -151,6 +156,14 @@ const RecurringSubscription: React.FC = () => {
         subscriptionPlanId: selectedPlanId,
         payerEmail: payerEmail || undefined,
       });
+
+      if (isPlanChanged(response.data)) {
+        setMessage({ type: 'success', text: planChangedMessage(response.data) });
+        setCreateDialogOpen(false);
+        setSelectedPlanId('');
+        await loadData();
+        return;
+      }
 
       if (response.data.success && response.data.initPoint) {
         setInitPoint(response.data.initPoint);
@@ -306,7 +319,14 @@ const RecurringSubscription: React.FC = () => {
                     </List>
 
                     {status.status === 'authorized' && (
-                      <Box sx={{ mt: 2 }}>
+                      <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                        <Button
+                          variant="contained"
+                          startIcon={<CreditCard />}
+                          onClick={() => { setSelectedPlanId(''); setInitPoint(null); setCreateDialogOpen(true); }}
+                        >
+                          Cambiar plan
+                        </Button>
                         <Button
                           variant="outlined"
                           color="error"
@@ -461,12 +481,14 @@ const RecurringSubscription: React.FC = () => {
           maxWidth="sm"
           fullWidth
         >
-          <DialogTitle>Activar Suscripci\u00f3n Recurrente</DialogTitle>
+          <DialogTitle>{isChangingPlan ? 'Cambiar de plan' : 'Activar Suscripción Recurrente'}</DialogTitle>
           <DialogContent>
             {!initPoint ? (
               <Box sx={{ mt: 2 }}>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
-                  Selecciona un plan y configura el d\u00e9bito autom\u00e1tico mensual con MercadoPago.
+                  {isChangingPlan
+                    ? 'Seguís con la misma tarjeta: el plan nuevo se cobra desde el próximo débito.'
+                    : 'Selecciona un plan y configura el débito automático mensual con MercadoPago.'}
                 </Typography>
 
                 <TextField
@@ -477,13 +499,17 @@ const RecurringSubscription: React.FC = () => {
                   onChange={(e) => setSelectedPlanId(e.target.value)}
                   sx={{ mt: 2 }}
                 >
-                  {plans.map((plan) => (
-                    <MenuItem key={plan.id} value={plan.id}>
-                      {plan.name} - {formatCurrency(plan.price, plan.currency)}/mes
-                    </MenuItem>
-                  ))}
+                  {plans.map((plan) => {
+                    const isCurrent = isChangingPlan && plan.id === status?.planId;
+                    return (
+                      <MenuItem key={plan.id} value={plan.id} disabled={isCurrent}>
+                        {plan.name} - {formatCurrency(plan.price, plan.currency)}/mes{isCurrent ? ' (tu plan actual)' : ''}
+                      </MenuItem>
+                    );
+                  })}
                 </TextField>
 
+                {!isChangingPlan && (
                 <TextField
                   fullWidth
                   label="Email para notificaciones (opcional)"
@@ -493,6 +519,7 @@ const RecurringSubscription: React.FC = () => {
                   sx={{ mt: 2 }}
                   helperText="Se usar\u00e1 el email de tu cuenta si no especificas otro"
                 />
+                )}
               </Box>
             ) : (
               <Box sx={{ mt: 2, textAlign: 'center' }}>
@@ -532,7 +559,7 @@ const RecurringSubscription: React.FC = () => {
                 onClick={handleCreatePreapproval}
                 disabled={creating || !selectedPlanId}
               >
-                {creating ? <CircularProgress size={24} /> : 'Crear Suscripci\u00f3n'}
+                {creating ? <CircularProgress size={24} /> : isChangingPlan ? 'Cambiar plan' : 'Crear Suscripci\u00f3n'}
               </Button>
             )}
           </DialogActions>

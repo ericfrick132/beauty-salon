@@ -28,6 +28,7 @@ namespace BookingPro.API.Services
         private readonly ICouponService _couponService;
         private readonly IPlatformPaymentConnectionService _platformConnections;
         private readonly IMetaCapiService _metaCapi;
+        private readonly IPreapprovalService _preapprovals;
 
         public SubscriptionService(
             ApplicationDbContext context,
@@ -38,9 +39,11 @@ namespace BookingPro.API.Services
             IAppleAppStoreService appleService,
             ICouponService couponService,
             IPlatformPaymentConnectionService platformConnections,
-            IMetaCapiService metaCapi)
+            IMetaCapiService metaCapi,
+            IPreapprovalService preapprovals)
         {
             _metaCapi = metaCapi;
+            _preapprovals = preapprovals;
             _context = context;
             _configuration = configuration;
             _logger = logger;
@@ -257,6 +260,28 @@ namespace BookingPro.API.Services
 
                 if (plan == null)
                     return ServiceResult<SubscriptionResponseDto>.Fail("Plan no encontrado");
+
+                // Con el débito automático autorizado (tenant_preapprovals) no se crea otra preapproval, que MP
+                // cobraría aparte: se cambia el plan de la misma. La conciliación va antes, como en
+                // /api/preapproval/create: una pending que el negocio autorizó sin que llegara el webhook cuenta.
+                if (await _preapprovals.ReconcileTenantPendingPreapprovalsAsync(tenantId))
+                {
+                    var change = await _preapprovals.ChangePlanAsync(tenantId, plan.Id);
+                    if (!change.Success || change.Data == null)
+                        return ServiceResult<SubscriptionResponseDto>.Fail(change.Message ?? "No se pudo cambiar el plan");
+
+                    return ServiceResult<SubscriptionResponseDto>.Ok(new SubscriptionResponseDto
+                    {
+                        Id = change.Data.PreapprovalId,
+                        Status = "active",
+                        PlanType = change.Data.PlanCode,
+                        PlanName = change.Data.PlanName,
+                        MonthlyAmount = change.Data.Amount,
+                        Currency = change.Data.CurrencyId,
+                        NextPaymentDate = change.Data.NextPaymentDate,
+                        PlanChanged = true
+                    });
+                }
 
                 // Check for existing active subscription
                 var existingSub = await _context.Subscriptions

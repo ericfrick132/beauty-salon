@@ -17,6 +17,13 @@ namespace BookingPro.API.Models.DTOs
         public DateTime? NextPaymentDate { get; set; }
         public string? InitPoint { get; set; } // URL para suscribirse
         public string? QrCode { get; set; } // QR code data URL for payment
+
+        /// <summary>
+        /// El tenant ya tenía débito automático: no se creó nada, se cambió el plan de su preapproval.
+        /// </summary>
+        public bool PlanChanged { get; set; }
+        public string? PlanName { get; set; }
+        public string? Currency { get; set; }
     }
 
     public class SubscriptionStatusDto

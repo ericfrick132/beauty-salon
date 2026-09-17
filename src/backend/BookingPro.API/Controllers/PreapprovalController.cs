@@ -87,6 +87,27 @@ namespace BookingPro.API.Controllers
                     dto.PayerEmail,
                     backUrl);
 
+                // Ya tiene el débito autorizado (CreatePreapprovalAsync concilia las pending antes de mirar):
+                // en vez de otra preapproval, que MP cobraría aparte, se cambia el monto de la misma.
+                if (!result.Success && result.Reason == PreapprovalFailReasons.ActivePreapproval)
+                {
+                    var change = await _preapprovalService.ChangePlanAsync(tenantId, planId);
+                    if (!change.Success || change.Data == null)
+                    {
+                        return BadRequest(new { error = change.Message });
+                    }
+
+                    return Ok(new
+                    {
+                        success = true,
+                        planChanged = true,
+                        planName = change.Data.PlanName,
+                        amount = change.Data.Amount,
+                        currency = change.Data.CurrencyId,
+                        nextPaymentDate = change.Data.NextPaymentDate
+                    });
+                }
+
                 if (!result.Success || result.Data == null)
                 {
                     return BadRequest(new { error = result.Message });
