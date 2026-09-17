@@ -35,6 +35,12 @@ namespace BookingPro.API.Models.DTOs
         public decimal MonthlyAmount { get; set; }
         public int DaysRemaining { get; set; }
         public bool IsTrialPeriod { get; set; }
+
+        /// <summary>
+        /// La suscripción tiene una compra de Apple (In-App Purchase) vigente. La app de iOS lo usa
+        /// para marcar el plan actual.
+        /// </summary>
+        public bool AppleSubscriptionActive { get; set; }
         public DateTime? TrialEndsAt { get; set; }
         public string? PaymentUrl { get; set; }
         public string? QrCodeData { get; set; }

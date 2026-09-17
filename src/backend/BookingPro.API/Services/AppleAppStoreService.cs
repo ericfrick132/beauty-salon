@@ -228,7 +228,14 @@ namespace BookingPro.API.Services
                 ExpiresDate = GetUnixMs(t, "expiresDate"),
                 PurchaseDate = GetUnixMs(t, "purchaseDate"),
                 Type = GetString(t, "type"),
-                Environment = GetString(t, "environment")
+                Environment = GetString(t, "environment"),
+                AppAccountToken = GetString(t, "appAccountToken"),
+                RevocationDate = GetUnixMs(t, "revocationDate"),
+                Price = t.TryGetProperty("price", out var price) && price.ValueKind == JsonValueKind.Number &&
+                        price.TryGetInt64(out var milliunits)
+                    ? milliunits / 1000m
+                    : null,
+                Currency = GetString(t, "currency")
             };
         }
 

@@ -18,6 +18,21 @@ namespace BookingPro.API.Services.Interfaces
         public DateTime? PurchaseDate { get; set; }
         public string? Type { get; set; }            // e.g. "Auto-Renewable Subscription"
         public string? Environment { get; set; }     // "Production" | "Sandbox"
+
+        /// <summary>UUID the app attached to the purchase (the business' tenant id).</summary>
+        public string? AppAccountToken { get; set; }
+
+        /// <summary>Set when Apple refunded or revoked the transaction.</summary>
+        public DateTime? RevocationDate { get; set; }
+
+        /// <summary>Price charged, in units of <see cref="Currency"/> (Apple sends milliunits).</summary>
+        public decimal? Price { get; set; }
+
+        /// <summary>ISO 4217 currency of <see cref="Price"/>.</summary>
+        public string? Currency { get; set; }
+
+        public bool IsSandbox =>
+            string.Equals(Environment, "Sandbox", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

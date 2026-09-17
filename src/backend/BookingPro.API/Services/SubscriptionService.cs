@@ -516,7 +516,7 @@ namespace BookingPro.API.Services
             }
         }
 
-        public async Task<ServiceResult<SubscriptionStatusDto>> GetSubscriptionStatusAsync(Guid tenantId)
+        public async Task<ServiceResult<SubscriptionStatusDto>> GetSubscriptionStatusAsync(Guid tenantId, bool includePaymentLink = true)
         {
             try
             {
@@ -605,6 +605,10 @@ namespace BookingPro.API.Services
                     CreatedAt = subscription.CreatedAt,
                     ExpiresAt = expirationDate,
                     DaysRemaining = daysRemaining,
+                    AppleSubscriptionActive = subscription.PaidViaApple
+                        && subscription.Status != "cancelled"
+                        && subscription.AppleExpiresAt.HasValue
+                        && subscription.AppleExpiresAt.Value > DateTime.UtcNow,
                     Features = plan != null ? new PlanFeaturesDto
                     {
                         MaxBookingsPerMonth = plan.MaxBookingsPerMonth,
@@ -623,8 +627,10 @@ namespace BookingPro.API.Services
                     } : null
                 };
 
-                // Si la suscripción no está activa (expirada), generar QR de pago
-                if (!isActive)
+                // Si la suscripción no está activa (expirada), generar QR de pago.
+                // La app de iOS lo pide sin link (includePaymentLink=false): no puede mostrar pagos
+                // por fuera del App Store y así tampoco se crea una preferencia de MP por cada consulta.
+                if (!isActive && includePaymentLink)
                 {
                     var qrResult = await GeneratePaymentQRWithUrlAsync(tenantId, subscription.PlanType ?? "pro");
                     if (qrResult.Success && qrResult.Data != null)
@@ -1119,6 +1125,25 @@ namespace BookingPro.API.Services
         }
 
         // ===================== Apple In-App Purchase =====================
+        //
+        // Guarantees (same as UniStock):
+        //  - The purchased product decides the plan: com.ericfrick.turnospro.<code>.mensual → SubscriptionPlan.Code.
+        //  - Dates are never pulled earlier: access paid on the web, or the App Review demo account
+        //    (its sandbox purchase expires in minutes), keeps the furthest end date.
+        //  - Sandbox expiries/refunds never cut access, nor do Apple expiries/refunds when the business
+        //    has access that runs further (paid on the web / card authorized in Mercado Pago).
+        //  - One Apple subscription activates one business only, and each Apple transaction is
+        //    recorded once in SubscriptionPayments (restores and retries re-send the same one).
+        //
+        // Sandbox transactions (App Review, TestFlight, Xcode) extend access only up to their own
+        // expiry: they never flip the subscription to a status-based "active", which the
+        // SubscriptionMiddleware would honour forever for a purchase that nobody paid.
+
+        /// <summary>
+        /// PaymentMethod of the App Store rows in SubscriptionPayments. In those rows the
+        /// MercadoPagoPaymentId column (the ledger's provider payment id) holds the Apple transactionId.
+        /// </summary>
+        private const string ApplePaymentMethod = "apple_iap";
 
         public async Task<ServiceResult<SubscriptionStatusDto>> ActivateAppleSubscriptionAsync(Guid tenantId, string transactionId)
         {
@@ -1131,10 +1156,10 @@ namespace BookingPro.API.Services
                     return ServiceResult<SubscriptionStatusDto>.Fail("Apple IAP no está configurado en el servidor");
 
                 var info = await _appleService.GetTransactionInfoAsync(transactionId);
-                if (info == null)
+                if (info == null || string.IsNullOrEmpty(info.OriginalTransactionId))
                     return ServiceResult<SubscriptionStatusDto>.Fail("No pudimos verificar la compra con Apple");
 
-                // Validate the transaction really belongs to this app + product family.
+                // Validate the transaction really belongs to this app.
                 if (!string.IsNullOrEmpty(_appleService.BundleId) &&
                     !string.Equals(info.BundleId, _appleService.BundleId, StringComparison.OrdinalIgnoreCase))
                 {
@@ -1143,64 +1168,91 @@ namespace BookingPro.API.Services
                     return ServiceResult<SubscriptionStatusDto>.Fail("La compra no corresponde a esta app");
                 }
 
+                if (info.RevocationDate.HasValue)
+                    return ServiceResult<SubscriptionStatusDto>.Fail("Apple reembolsó o revocó esta compra");
+
+                var now = DateTime.UtcNow;
+                var expires = info.ExpiresDate ?? now.AddMonths(1);
+                if (expires <= now)
+                    return ServiceResult<SubscriptionStatusDto>.Fail("Esta suscripción de Apple ya venció");
+
+                // The app ties each purchase to the business it was made from (appAccountToken = tenant id).
+                if (Guid.TryParse(info.AppAccountToken, out var purchasedFor) && purchasedFor != tenantId)
+                {
+                    _logger.LogWarning("Apple transaction {Tx} was purchased for tenant {Other}, not {TenantId}",
+                        info.TransactionId, purchasedFor, tenantId);
+                    return ServiceResult<SubscriptionStatusDto>.Fail("Esta suscripción de Apple ya está asociada a otro negocio");
+                }
+
                 var tenant = await _context.Tenants.FindAsync(tenantId);
                 if (tenant == null)
                     return ServiceResult<SubscriptionStatusDto>.Fail("Tenant no encontrado");
 
-                // Map the App Store product to the paid plan (single paid plan: "pro").
-                var plan = await _context.SubscriptionPlans
-                    .FirstOrDefaultAsync(p => p.Code == "pro" && p.IsActive)
-                    ?? await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.IsActive);
+                // One Apple subscription pays for one business only.
+                var claimedByOther = await _context.Subscriptions.AnyAsync(s =>
+                    s.TenantId != tenantId && s.AppleOriginalTransactionId == info.OriginalTransactionId);
+                if (claimedByOther)
+                {
+                    _logger.LogWarning("Apple originalTx {OTx} already activates another tenant; rejected for {TenantId}",
+                        info.OriginalTransactionId, tenantId);
+                    return ServiceResult<SubscriptionStatusDto>.Fail("Esta suscripción de Apple ya está asociada a otro negocio");
+                }
 
-                // Re-use the tenant's existing subscription row if present.
+                // Re-use the tenant's latest subscription row (the one the middleware reads).
                 var subscription = await _context.Subscriptions
                     .Where(s => s.TenantId == tenantId)
                     .OrderByDescending(s => s.CreatedAt)
                     .FirstOrDefaultAsync();
 
+                var plan = info.IsSandbox ? null : await ResolveApplePlanAsync(info.ProductId);
+
                 if (subscription == null)
                 {
+                    var fallbackPlan = plan ?? await _context.SubscriptionPlans
+                        .FirstOrDefaultAsync(p => p.Code == "pro" && p.IsActive);
                     subscription = new Subscription
                     {
                         Id = Guid.NewGuid(),
                         TenantId = tenantId,
-                        PlanType = plan?.Code ?? "pro",
-                        MonthlyAmount = plan?.Price ?? 0,
+                        PlanType = fallbackPlan?.Code ?? "pro",
+                        MonthlyAmount = fallbackPlan?.Price ?? 0,
                         PayerEmail = tenant.OwnerEmail,
-                        CreatedAt = DateTime.UtcNow
+                        IsTrialPeriod = false,
+                        CreatedAt = now
                     };
                     _context.Subscriptions.Add(subscription);
                 }
 
-                var expires = info.ExpiresDate ?? DateTime.UtcNow.AddMonths(1);
+                LinkAppleTransaction(subscription, info, expires);
 
-                subscription.PaidViaApple = true;
-                subscription.AppleOriginalTransactionId = info.OriginalTransactionId;
-                subscription.AppleTransactionId = info.TransactionId;
-                subscription.AppleProductId = info.ProductId;
-                subscription.AppleExpiresAt = expires;
-                subscription.PlanType = plan?.Code ?? subscription.PlanType;
-                subscription.MonthlyAmount = plan?.Price ?? subscription.MonthlyAmount;
-                subscription.Status = "active";
-                subscription.IsTrialPeriod = false;
-                subscription.ActivatedAt = DateTime.UtcNow;
-                subscription.NextPaymentDate = expires;
-                subscription.UpdatedAt = DateTime.UtcNow;
+                // Never shorten access that already runs further. Tenant.TrialEndsAt is the access
+                // end date the middleware and the status fall back to.
+                subscription.NextPaymentDate = Later(subscription.NextPaymentDate, expires);
+                tenant.TrialEndsAt = Later(tenant.TrialEndsAt, expires);
 
-                // Tenant gate: GetSubscriptionStatus / SubscriptionMiddleware treat
-                // TrialEndsAt in the future as "active", so keep it in sync with the
-                // Apple expiry as a belt-and-suspenders activation.
-                tenant.Status = "active";
-                tenant.TrialEndsAt = expires;
-                if (plan != null) tenant.SubscriptionPlanId = plan.Id;
+                if (!info.IsSandbox)
+                {
+                    if (plan != null)
+                    {
+                        subscription.PlanType = plan.Code;
+                        subscription.MonthlyAmount = plan.Price;
+                        tenant.SubscriptionPlanId = plan.Id;
+                    }
+                    if (subscription.Status != "active") subscription.ActivatedAt = now;
+                    subscription.Status = "active";
+                    subscription.IsTrialPeriod = false;
+                    tenant.Status = "active";
+                }
+                tenant.UpdatedAt = now;
 
+                await RecordApplePaymentAsync(subscription, info, plan);
                 await _context.SaveChangesAsync();
 
                 _logger.LogInformation(
-                    "Apple subscription activated for tenant {TenantId}: product {Product}, originalTx {OTx}, expires {Expires:o}",
-                    tenantId, info.ProductId, info.OriginalTransactionId, expires);
+                    "Apple subscription activated for tenant {TenantId}: product {Product}, originalTx {OTx}, expires {Expires:o}, environment {Env}, access until {AccessEnds:o}",
+                    tenantId, info.ProductId, info.OriginalTransactionId, expires, info.Environment, tenant.TrialEndsAt);
 
-                return await GetSubscriptionStatusAsync(tenantId);
+                return await GetSubscriptionStatusAsync(tenantId, includePaymentLink: false);
             }
             catch (Exception ex)
             {
@@ -1249,11 +1301,16 @@ namespace BookingPro.API.Services
                 }
 
                 // Trust the authoritative transaction for all downstream state.
-                notification.Transaction = authoritative;
+                var tx = authoritative;
+                var originalTxId = tx.OriginalTransactionId;
 
-                var originalTxId = notification.Transaction.OriginalTransactionId;
+                // The webhook runs without a tenant (the route is outside tenant resolution):
+                // the business is correlated by the Apple original transaction id.
                 var subscription = await _context.Subscriptions
-                    .FirstOrDefaultAsync(s => s.AppleOriginalTransactionId == originalTxId);
+                    .IgnoreQueryFilters()
+                    .Where(s => s.AppleOriginalTransactionId == originalTxId)
+                    .OrderByDescending(s => s.CreatedAt)
+                    .FirstOrDefaultAsync();
 
                 if (subscription == null)
                 {
@@ -1265,7 +1322,8 @@ namespace BookingPro.API.Services
 
                 var tenant = await _context.Tenants.FindAsync(subscription.TenantId);
                 var type = notification.NotificationType?.ToUpperInvariant();
-                var expires = notification.Transaction.ExpiresDate;
+                var expires = tx.ExpiresDate;
+                var now = DateTime.UtcNow;
 
                 switch (type)
                 {
@@ -1273,31 +1331,71 @@ namespace BookingPro.API.Services
                     case "DID_RENEW":
                     case "DID_CHANGE_RENEWAL_PREF":
                     case "OFFER_REDEEMED":
-                        subscription.Status = "active";
-                        subscription.IsTrialPeriod = false;
-                        if (expires.HasValue)
+                        if (tx.RevocationDate.HasValue || !expires.HasValue || expires.Value <= now)
                         {
-                            subscription.AppleExpiresAt = expires;
-                            subscription.NextPaymentDate = expires;
+                            _logger.LogInformation("Apple notification {Type}: transaction {Tx} is not current — no state change",
+                                type, tx.TransactionId);
+                            break;
                         }
+
+                        LinkAppleTransaction(subscription, tx, expires.Value);
+                        subscription.NextPaymentDate = Later(subscription.NextPaymentDate, expires.Value);
                         if (tenant != null)
                         {
-                            tenant.Status = "active";
-                            tenant.TrialEndsAt = expires ?? tenant.TrialEndsAt;
+                            tenant.TrialEndsAt = Later(tenant.TrialEndsAt, expires.Value);
+                            tenant.UpdatedAt = now;
                         }
+
+                        SubscriptionPlan? plan = null;
+                        if (!tx.IsSandbox)
+                        {
+                            plan = await ResolveApplePlanAsync(tx.ProductId);
+                            if (plan != null)
+                            {
+                                subscription.PlanType = plan.Code;
+                                subscription.MonthlyAmount = plan.Price;
+                                if (tenant != null) tenant.SubscriptionPlanId = plan.Id;
+                            }
+                            if (subscription.Status != "active") subscription.ActivatedAt = now;
+                            subscription.Status = "active";
+                            subscription.IsTrialPeriod = false;
+                            if (tenant != null) tenant.Status = "active";
+                        }
+
+                        await RecordApplePaymentAsync(subscription, tx, plan);
                         break;
 
                     case "EXPIRED":
                     case "GRACE_PERIOD_EXPIRED":
+                        if (await AccessOutlivesAppleAsync(tx, subscription, tenant))
+                        {
+                            _logger.LogInformation("Apple notification {Type} for tenant {TenantId}: access runs further — kept",
+                                type, subscription.TenantId);
+                            break;
+                        }
+                        // Only the subscription: suspending the tenant would make it unresolvable
+                        // ("Tenant not found") and the owner could not log in to subscribe again.
                         subscription.Status = "expired";
-                        if (tenant != null) tenant.Status = "suspended";
                         break;
 
                     case "REFUND":
                     case "REVOKE":
+                        await MarkApplePaymentRefundedAsync(tx);
+                        if (await AccessOutlivesAppleAsync(tx, subscription, tenant))
+                        {
+                            _logger.LogInformation("Apple notification {Type} for tenant {TenantId}: access runs further — kept",
+                                type, subscription.TenantId);
+                            break;
+                        }
                         subscription.Status = "cancelled";
-                        subscription.CancelledAt = DateTime.UtcNow;
-                        if (tenant != null) tenant.Status = "cancelled";
+                        subscription.CancelledAt = now;
+                        // The refunded period no longer grants access (the middleware falls back to TrialEndsAt).
+                        if (subscription.NextPaymentDate > now) subscription.NextPaymentDate = now;
+                        if (tenant != null && tenant.TrialEndsAt > now)
+                        {
+                            tenant.TrialEndsAt = now;
+                            tenant.UpdatedAt = now;
+                        }
                         break;
 
                     case "DID_CHANGE_RENEWAL_STATUS":
@@ -1311,12 +1409,12 @@ namespace BookingPro.API.Services
                         break;
                 }
 
-                subscription.UpdatedAt = DateTime.UtcNow;
+                subscription.UpdatedAt = now;
                 await _context.SaveChangesAsync();
 
                 _logger.LogInformation(
-                    "Processed Apple notification {Type} for tenant {TenantId} (originalTx {OTx})",
-                    type, subscription.TenantId, originalTxId);
+                    "Processed Apple notification {Type} for tenant {TenantId} (originalTx {OTx}, environment {Env})",
+                    type, subscription.TenantId, originalTxId, tx.Environment);
 
                 return ServiceResult<bool>.Ok(true);
             }
@@ -1326,5 +1424,95 @@ namespace BookingPro.API.Services
                 return ServiceResult<bool>.Fail("Error procesando notificación de Apple");
             }
         }
+
+        /// <summary>
+        /// App Store product ids are com.ericfrick.turnospro.&lt;code&gt;.mensual; the code segment
+        /// matches SubscriptionPlan.Code (e.g. "pro" → Plan Profesional). Null for unknown products.
+        /// </summary>
+        private async Task<SubscriptionPlan?> ResolveApplePlanAsync(string? productId)
+        {
+            var parts = (productId ?? string.Empty).Split('.');
+            if (parts.Length < 5)
+            {
+                _logger.LogWarning("Apple product {Product} does not follow <bundle>.<plan>.<period>", productId);
+                return null;
+            }
+
+            var code = parts[^2].ToLowerInvariant();
+            var plan = await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Code == code && p.IsActive);
+            if (plan == null)
+                _logger.LogWarning("Apple product {Product} has no active plan with code {Code}", productId, code);
+            return plan;
+        }
+
+        private static void LinkAppleTransaction(Subscription subscription, AppleTransactionInfo tx, DateTime expires)
+        {
+            var sameSubscription = subscription.AppleOriginalTransactionId == tx.OriginalTransactionId;
+            subscription.PaidViaApple = true;
+            subscription.AppleOriginalTransactionId = tx.OriginalTransactionId;
+            subscription.AppleTransactionId = tx.TransactionId;
+            subscription.AppleProductId = tx.ProductId;
+            // Out-of-order notifications must not move the Apple expiry back.
+            subscription.AppleExpiresAt = sameSubscription ? Later(subscription.AppleExpiresAt, expires) : expires;
+            subscription.UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Records the App Store charge once per Apple transaction (verify, restores, retries and
+        /// DID_RENEW notifications can all deliver the same one). Amount is what Apple charged, in
+        /// the App Store currency (logged), falling back to the plan price.
+        /// </summary>
+        private async Task RecordApplePaymentAsync(Subscription subscription, AppleTransactionInfo tx, SubscriptionPlan? plan)
+        {
+            if (string.IsNullOrEmpty(tx.TransactionId)) return;
+
+            var alreadyRecorded = await _context.SubscriptionPayments.AnyAsync(p =>
+                p.PaymentMethod == ApplePaymentMethod && p.MercadoPagoPaymentId == tx.TransactionId);
+            if (alreadyRecorded) return;
+
+            _context.SubscriptionPayments.Add(new SubscriptionPayment
+            {
+                TenantId = subscription.TenantId,
+                SubscriptionId = subscription.Id,
+                MercadoPagoPaymentId = tx.TransactionId,
+                Amount = tx.Price ?? plan?.Price ?? subscription.MonthlyAmount,
+                Status = tx.IsSandbox ? "sandbox" : "approved",
+                PaymentDate = tx.PurchaseDate ?? DateTime.UtcNow,
+                PaymentMethod = ApplePaymentMethod,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            _logger.LogInformation(
+                "Apple payment recorded for tenant {TenantId}: tx {Tx}, {Amount} {Currency} ({Env})",
+                subscription.TenantId, tx.TransactionId, tx.Price, tx.Currency, tx.Environment);
+        }
+
+        private async Task MarkApplePaymentRefundedAsync(AppleTransactionInfo tx)
+        {
+            if (string.IsNullOrEmpty(tx.TransactionId)) return;
+            var payment = await _context.SubscriptionPayments.FirstOrDefaultAsync(p =>
+                p.PaymentMethod == ApplePaymentMethod && p.MercadoPagoPaymentId == tx.TransactionId);
+            if (payment != null) payment.Status = "refunded";
+        }
+
+        /// <summary>
+        /// True when an Apple expiry or refund must not cut access: sandbox transactions, or a
+        /// business whose access runs past the Apple period (paid on the web, or with a card
+        /// authorized in Mercado Pago).
+        /// </summary>
+        private async Task<bool> AccessOutlivesAppleAsync(AppleTransactionInfo tx, Subscription subscription, Tenant? tenant)
+        {
+            if (tx.IsSandbox) return true;
+
+            var appleEnds = Later(subscription.AppleExpiresAt, tx.ExpiresDate ?? DateTime.UtcNow);
+            if (tenant?.TrialEndsAt.HasValue == true && tenant.TrialEndsAt.Value > appleEnds) return true;
+
+            return await _context.TenantPreapprovals
+                .IgnoreQueryFilters()
+                .AnyAsync(p => p.TenantId == subscription.TenantId && p.Status == "authorized");
+        }
+
+        private static DateTime Later(DateTime? current, DateTime candidate) =>
+            current.HasValue && current.Value > candidate ? current.Value : candidate;
     }
 }

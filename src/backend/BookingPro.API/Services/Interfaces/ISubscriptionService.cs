@@ -11,7 +11,11 @@ namespace BookingPro.API.Services.Interfaces
         Task<ServiceResult<SubscriptionResponseDto>> CreateSubscriptionAsync(Guid tenantId, string planCode);
         Task<ServiceResult<SubscriptionResponseDto>> CreateTrialSubscriptionAsync(Guid tenantId);
         Task<ServiceResult<bool>> ProcessSubscriptionWebhookAsync(Dictionary<string, object> data);
-        Task<ServiceResult<SubscriptionStatusDto>> GetSubscriptionStatusAsync(Guid tenantId);
+        /// <summary>
+        /// Estado de la suscripción del tenant. Con <paramref name="includePaymentLink"/> en false no
+        /// genera el QR/link de pago de Mercado Pago cuando está vencida (lo usa la app de iOS).
+        /// </summary>
+        Task<ServiceResult<SubscriptionStatusDto>> GetSubscriptionStatusAsync(Guid tenantId, bool includePaymentLink = true);
         Task<ServiceResult<bool>> CancelSubscriptionAsync(Guid tenantId);
         Task<ServiceResult<List<SubscriptionPlanDto>>> GetAvailablePlansAsync();
         Task<ServiceResult<bool>> InitializePlansAsync();

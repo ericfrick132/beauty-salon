@@ -142,7 +142,7 @@ namespace BookingPro.API.Controllers
 
         [HttpGet("status")]
         [Authorize]
-        public async Task<IActionResult> GetStatus()
+        public async Task<IActionResult> GetStatus([FromQuery] bool includePaymentLink = true)
         {
             try
             {
@@ -153,7 +153,7 @@ namespace BookingPro.API.Controllers
                     return BadRequest(new { error = "Invalid tenant ID" });
                 }
                 
-                var result = await _subscriptionService.GetSubscriptionStatusAsync(tenantGuid);
+                var result = await _subscriptionService.GetSubscriptionStatusAsync(tenantGuid, includePaymentLink);
                 
                 if (result.Success && result.Data != null)
                 {
@@ -285,9 +285,12 @@ namespace BookingPro.API.Controllers
         }
 
         // Verify a StoreKit 2 purchase (sent by the iOS app after a successful
-        // purchase) and activate the tenant's subscription.
+        // purchase) and activate the tenant's subscription. Only the business owner/admin
+        // buys in the app (staff get a notice without purchase). The route lives under
+        // /api/subscription, which SubscriptionMiddleware exempts, so a blocked business
+        // can activate what it bought.
         [HttpPost("apple/verify")]
-        [Authorize]
+        [Authorize(Roles = "admin,super_admin")]
         public async Task<IActionResult> VerifyApplePurchase([FromBody] AppleVerifyDto dto)
         {
             try
@@ -315,6 +318,8 @@ namespace BookingPro.API.Controllers
 
         // App Store Server Notifications V2 (server-to-server: renewals,
         // expirations, refunds). Apple POSTs { signedPayload: <JWS> }.
+        // /api/webhooks/* is skipped by TenantResolutionMiddleware and SubscriptionMiddleware:
+        // the business is correlated by the Apple original transaction id, not by host/header.
         [HttpPost("/api/webhooks/apple")]
         [AllowAnonymous]
         public async Task<IActionResult> AppleNotifications([FromBody] AppleNotificationDto dto)
