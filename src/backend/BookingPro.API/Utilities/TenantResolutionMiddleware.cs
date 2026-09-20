@@ -42,6 +42,11 @@ namespace BookingPro.API.Utilities
                 // mobile app) without a tenant in context.
                 path.StartsWith("/api/auth/forgot-password") ||
                 path.StartsWith("/api/auth/reset-password") ||
+                // Los logins sociales descubren el negocio por el email verificado del
+                // token (la consulta ignora el filtro de tenant), así que tienen que
+                // funcionar desde el apex y desde la app, que no mandan subdominio.
+                path.StartsWith("/api/auth/google-login") ||
+                path.StartsWith("/api/auth/apple-login") ||
                 path.StartsWith("/api/tracking") ||
                 path.StartsWith("/blog") ||
                 path.StartsWith("/health") ||
