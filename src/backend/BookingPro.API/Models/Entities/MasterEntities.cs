@@ -249,6 +249,11 @@ namespace BookingPro.API.Models.Entities
         [Required, MaxLength(50)]
         public string Role { get; set; } = string.Empty;
         
+        /// <summary>`sub` de Sign in with Apple: id estable del usuario para nuestro team.
+        /// Es lo único que identifica la cuenta cuando el usuario ocultó su email real.</summary>
+        [MaxLength(255)]
+        public string? AppleUserId { get; set; }
+        
         public bool IsActive { get; set; } = true;
         public DateTime? LastLogin { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

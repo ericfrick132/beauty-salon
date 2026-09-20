@@ -21,6 +21,7 @@ namespace BookingPro.API.Controllers
         private readonly ITenantService _tenantService;
         private readonly IAuthService _authService;
         private readonly IGoogleAuthService _googleAuthService;
+        private readonly IAppleAuthService _appleAuthService;
         private readonly IEmailService _emailService;
         private readonly ICouponService _couponService;
         private readonly ILogger<RegistrationController> _logger;
@@ -43,6 +44,7 @@ namespace BookingPro.API.Controllers
             ITenantService tenantService,
             IAuthService authService,
             IGoogleAuthService googleAuthService,
+            IAppleAuthService appleAuthService,
             IEmailService emailService,
             ICouponService couponService,
             ILogger<RegistrationController> logger,
@@ -55,6 +57,7 @@ namespace BookingPro.API.Controllers
             _tenantService = tenantService;
             _authService = authService;
             _googleAuthService = googleAuthService;
+            _appleAuthService = appleAuthService;
             _emailService = emailService;
             _couponService = couponService;
             _logger = logger;
@@ -1378,7 +1381,35 @@ namespace BookingPro.API.Controllers
             if (googleUser == null || string.IsNullOrEmpty(googleUser.Email) || !googleUser.EmailVerified)
                 return BadRequest(new { success = false, message = "Token de Google inválido o email no verificado" });
 
-            var email = googleUser.Email.ToLowerInvariant();
+            return await SocialRegisterAsync(dto, googleUser.Email, googleUser.GivenName, googleUser.FamilyName, "google");
+        }
+
+        /// <summary>
+        /// Signup con Sign in with Apple (apps iOS). Mismo alta que google-register:
+        /// tenant + admin user + trial en una transacción. Apple manda el nombre una
+        /// sola vez y fuera del token, por eso viene en el DTO.
+        /// </summary>
+        [HttpPost("apple-register")]
+        public async Task<IActionResult> AppleRegister([FromBody] AppleRegisterDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(new { success = false, message = "Datos inválidos", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
+
+            var appleUser = await _appleAuthService.VerifyIdentityTokenAsync(dto.IdentityToken);
+            if (appleUser == null || string.IsNullOrEmpty(appleUser.Email))
+                return BadRequest(new { success = false, message = "Token de Apple inválido" });
+
+            return await SocialRegisterAsync(dto, appleUser.Email, dto.FirstName, dto.LastName, "apple", appleUser.Subject);
+        }
+
+        /// <summary>
+        /// Alta compartida por los signups sociales: valida email/subdominio y crea
+        /// tenant + admin + suscripción trial. El proveedor ya verificó la identidad.
+        /// </summary>
+        private async Task<IActionResult> SocialRegisterAsync(SocialRegisterDto dto, string verifiedEmail,
+            string? givenName, string? familyName, string provider, string? appleUserId = null)
+        {
+            var email = verifiedEmail.ToLowerInvariant();
 
             // Reject if the email already has an account anywhere.
             var existingUser = await _context.Users
@@ -1390,7 +1421,7 @@ namespace BookingPro.API.Controllers
                 {
                     success = false,
                     code = "EMAIL_EXISTS",
-                    message = "Ya existe una cuenta con este email. Inicia sesión con Google.",
+                    message = $"Ya existe una cuenta con este email. Inicia sesión con {(provider == "apple" ? "Apple" : "Google")}.",
                 });
             }
 
@@ -1434,15 +1465,16 @@ namespace BookingPro.API.Controllers
                 _context.Tenants.Add(tenant);
                 await _context.SaveChangesAsync();
 
-                // Random unusable password — Google-only login
+                // Random unusable password — la cuenta entra solo por el proveedor social
                 var randomPassword = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
                 var adminUser = new User
                 {
                     Id = Guid.NewGuid(),
                     TenantId = tenant.Id,
                     Email = email,
-                    FirstName = string.IsNullOrWhiteSpace(googleUser.GivenName) ? dto.BusinessName : googleUser.GivenName,
-                    LastName = googleUser.FamilyName ?? string.Empty,
+                    FirstName = string.IsNullOrWhiteSpace(givenName) ? dto.BusinessName : givenName,
+                    LastName = familyName ?? string.Empty,
+                    AppleUserId = appleUserId,
                     Phone = dto.Mobile,
                     PasswordHash = BookingPro.API.Services.Security.PasswordHasher.Hash(randomPassword),
                     Role = "admin",
@@ -1492,7 +1524,7 @@ namespace BookingPro.API.Controllers
                 if (appliedCouponCode != null)
                     await _couponService.RedeemCouponAsync(appliedCouponCode);
 
-                _logger.LogInformation("Google registration completed for {Email}, tenant {TenantId}, subdomain {Subdomain}", email, tenant.Id, subdomain);
+                _logger.LogInformation("{Provider} registration completed for {Email}, tenant {TenantId}, subdomain {Subdomain}", provider, email, tenant.Id, subdomain);
 
                 return Ok(new
                 {
@@ -1506,7 +1538,7 @@ namespace BookingPro.API.Controllers
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                _logger.LogError(ex, "Error during google-register for {Email}", email);
+                _logger.LogError(ex, "Error during {Provider}-register for {Email}", provider, email);
                 return StatusCode(500, new { success = false, message = "Error interno. Por favor intentá nuevamente." });
             }
         }

@@ -112,6 +112,7 @@ builder.Services.AddScoped<ISalesHubHubClient>(sp => sp.GetRequiredService<Sales
 builder.Services.AddScoped<IPlatformWhatsAppService, PlatformWhatsAppService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IGoogleAuthService, GoogleAuthService>();
+builder.Services.AddScoped<IAppleAuthService, AppleAuthService>();
 builder.Services.AddHttpClient<PlatformPaymentConnectionService>();
 builder.Services.AddScoped<IPlatformPaymentConnectionService>(sp => sp.GetRequiredService<PlatformPaymentConnectionService>());
 builder.Services.AddScoped<ITenantProvisioningService, TenantProvisioningService>();

@@ -32,8 +32,11 @@ namespace BookingPro.API.Services
         {
             if (string.IsNullOrWhiteSpace(idToken)) return null;
 
-            var clientId = _configuration["Google:ClientId"];
-            if (string.IsNullOrWhiteSpace(clientId))
+            // Un ID token trae como `aud` el client id de la plataforma que lo emitió:
+            // web (GSI), iOS (cliente OAuth de la app) o Android. Aceptamos los tres,
+            // si no el login nativo de las apps rebota con "Token de Google inválido".
+            var audiences = GoogleAudiences(_configuration);
+            if (audiences.Count == 0)
             {
                 _logger.LogError("Google:ClientId not configured in appsettings");
                 return null;
@@ -43,7 +46,7 @@ namespace BookingPro.API.Services
             {
                 var settings = new GoogleJsonWebSignature.ValidationSettings
                 {
-                    Audience = new[] { clientId }
+                    Audience = audiences
                 };
                 var payload = await GoogleJsonWebSignature.ValidateAsync(idToken, settings);
 
@@ -68,5 +71,31 @@ namespace BookingPro.API.Services
                 return null;
             }
         }
+
+        /// <summary>
+        /// Client ids aceptados como audiencia: web + iOS + Android.
+        /// `Google:ClientIds` (coma-separado) permite sumar más sin tocar código.
+        /// </summary>
+        internal static List<string> GoogleAudiences(IConfiguration configuration)
+        {
+            var values = new List<string?>
+            {
+                configuration["Google:ClientId"],
+                configuration["Google:IosClientId"],
+                configuration["Google:AndroidClientId"]
+            };
+
+            var extra = configuration["Google:ClientIds"];
+            if (!string.IsNullOrWhiteSpace(extra))
+                values.AddRange(extra.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+            return values
+                .Where(v => !string.IsNullOrWhiteSpace(v)
+                            && !v!.StartsWith("YOUR_") && !v.StartsWith("TU_") && !v.StartsWith("<"))
+                .Select(v => v!.Trim())
+                .Distinct()
+                .ToList();
+        }
+
     }
 }

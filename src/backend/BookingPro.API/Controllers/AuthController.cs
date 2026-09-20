@@ -5,6 +5,7 @@ using BookingPro.API.Models.DTOs;
 using BookingPro.API.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
 using BookingPro.API.Data;
+using BookingPro.API.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
@@ -16,6 +17,7 @@ namespace BookingPro.API.Controllers
     {
         private readonly IAuthService _authService;
         private readonly IGoogleAuthService _googleAuthService;
+        private readonly IAppleAuthService _appleAuthService;
         private readonly ApplicationDbContext _context;
         private readonly ITenantService _tenantService;
         private readonly Services.Interfaces.IEmailService _emailService;
@@ -25,6 +27,7 @@ namespace BookingPro.API.Controllers
         public AuthController(
             IAuthService authService,
             IGoogleAuthService googleAuthService,
+            IAppleAuthService appleAuthService,
             ApplicationDbContext context,
             ITenantService tenantService,
             Services.Interfaces.IEmailService emailService,
@@ -33,6 +36,7 @@ namespace BookingPro.API.Controllers
         {
             _authService = authService;
             _googleAuthService = googleAuthService;
+            _appleAuthService = appleAuthService;
             _context = context;
             _tenantService = tenantService;
             _emailService = emailService;
@@ -86,13 +90,49 @@ namespace BookingPro.API.Controllers
             if (googleUser == null || string.IsNullOrEmpty(googleUser.Email))
                 return Unauthorized(new { success = false, message = "Token de Google inválido" });
 
-            var email = googleUser.Email.ToLowerInvariant();
+            return await SocialLoginAsync(googleUser.Email, appleUserId: null, provider: "google");
+        }
+
+        /// <summary>
+        /// Login con Sign in with Apple (apps iOS). Busca primero por el `sub` de Apple
+        /// —único estable cuando el usuario ocultó su email— y después por email.
+        /// </summary>
+        [HttpPost("apple-login")]
+        public async Task<IActionResult> AppleLogin([FromBody] AppleLoginDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var appleUser = await _appleAuthService.VerifyIdentityTokenAsync(dto.IdentityToken);
+            if (appleUser == null || string.IsNullOrEmpty(appleUser.Subject))
+                return Unauthorized(new { success = false, message = "Token de Apple inválido" });
+
+            return await SocialLoginAsync(appleUser.Email, appleUser.Subject, provider: "apple");
+        }
+
+        /// <summary>
+        /// Login compartido por Google/Apple: el proveedor ya verificó la identidad,
+        /// acá solo resolvemos el usuario y emitimos el JWT propio.
+        /// </summary>
+        private async Task<IActionResult> SocialLoginAsync(string? verifiedEmail, string? appleUserId, string provider)
+        {
+            var email = (verifiedEmail ?? string.Empty).ToLowerInvariant();
 
             // Look up the user by email across all tenants. Bookkeeping: Users table is NOT
             // multi-tenant-scoped by default query filter on this lookup.
-            var user = await _context.Users
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(u => u.Email.ToLower() == email && u.IsActive);
+            User? user = null;
+            if (!string.IsNullOrEmpty(appleUserId))
+            {
+                user = await _context.Users
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(u => u.AppleUserId == appleUserId && u.IsActive);
+            }
+            if (user == null && !string.IsNullOrEmpty(email))
+            {
+                user = await _context.Users
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(u => u.Email.ToLower() == email && u.IsActive);
+            }
 
             if (user == null)
             {
@@ -103,6 +143,11 @@ namespace BookingPro.API.Controllers
                     message = "No encontramos cuenta con este email. Registrate primero."
                 });
             }
+
+            // Primer login con Apple de una cuenta que ya existía: guardamos el `sub`
+            // para que el matcheo siga funcionando si después oculta el email.
+            if (!string.IsNullOrEmpty(appleUserId) && string.IsNullOrEmpty(user.AppleUserId))
+                user.AppleUserId = appleUserId;
 
             user.LastLogin = DateTime.UtcNow;
             await _context.SaveChangesAsync();
@@ -125,13 +170,14 @@ namespace BookingPro.API.Controllers
                 redirectUrl = $"{tenantUrl}/dashboard?impersonationToken={token}";
             }
 
-            _logger.LogInformation("Google login for {Email} (tenant {TenantId})", email, user.TenantId);
+            _logger.LogInformation("{Provider} login for {Email} (tenant {TenantId})", provider, user.Email, user.TenantId);
 
             return Ok(new
             {
                 success = true,
                 token,
                 tenantId = user.TenantId,
+                subdomain = tenant?.Subdomain,
                 redirectUrl
             });
         }

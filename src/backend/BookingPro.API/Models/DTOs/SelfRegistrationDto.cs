@@ -84,11 +84,12 @@ namespace BookingPro.API.Models.DTOs
         public string[] Suggestions { get; set; } = Array.Empty<string>();
     }
 
-    public class GoogleRegisterDto : MetaAttributionFieldsDto
+    /// <summary>
+    /// Campos del alta de negocio que comparten los signups sociales (Google y Apple).
+    /// El token de identidad lo agrega cada subclase porque el claim viaja distinto.
+    /// </summary>
+    public class SocialRegisterDto : MetaAttributionFieldsDto
     {
-        [Required]
-        public string IdToken { get; set; } = string.Empty;
-
         [Required]
         [MaxLength(100)]
         [RegularExpression(@"^[a-z0-9-]+$", ErrorMessage = "El subdominio solo puede contener letras minúsculas, números y guiones")]
@@ -112,9 +113,37 @@ namespace BookingPro.API.Models.DTOs
         public string? PromoCode { get; set; }
     }
 
+    public class GoogleRegisterDto : SocialRegisterDto
+    {
+        [Required]
+        public string IdToken { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Signup con Sign in with Apple. Apple manda el nombre UNA sola vez y fuera del
+    /// identity token, así que el cliente lo reenvía acá.
+    /// </summary>
+    public class AppleRegisterDto : SocialRegisterDto
+    {
+        [Required]
+        public string IdentityToken { get; set; } = string.Empty;
+
+        [MaxLength(100)]
+        public string? FirstName { get; set; }
+
+        [MaxLength(100)]
+        public string? LastName { get; set; }
+    }
+
     public class GoogleLoginDto
     {
         [Required]
         public string IdToken { get; set; } = string.Empty;
+    }
+
+    public class AppleLoginDto
+    {
+        [Required]
+        public string IdentityToken { get; set; } = string.Empty;
     }
 }
