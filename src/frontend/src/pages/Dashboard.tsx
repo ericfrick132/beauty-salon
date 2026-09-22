@@ -93,6 +93,9 @@ const Dashboard: React.FC = () => {
   const [showUnpaidDetails, setShowUnpaidDetails] = useState(false);
   const [copiedBookingLink, setCopiedBookingLink] = useState(false);
   const [confirmationBotAddon, setConfirmationBotAddon] = useState<FeatureAddonStatus | null>(null);
+  const [inactiveAddons, setInactiveAddons] = useState<FeatureAddonStatus[]>([]);
+  const [buyingAddon, setBuyingAddon] = useState<string | null>(null);
+  const [addonError, setAddonError] = useState<string | null>(null);
   const [confirmationBotStats, setConfirmationBotStats] = useState<any>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [mpActive, setMpActive] = useState<boolean | null>(null);
@@ -104,6 +107,29 @@ const Dashboard: React.FC = () => {
       setTimeout(() => setCopiedBookingLink(false), 1500);
     } catch {
       setCopiedBookingLink(false);
+    }
+  };
+
+  // Extras: comprar directo desde el dashboard (MercadoPago) sin pasar por la página del add-on
+  const ADDON_PAGES: Record<string, string> = { confirmation_bot: '/confirmation-bot', ai_agent: '/agente-ia' };
+  const ADDON_PITCH: Record<string, string> = {
+    confirmation_bot: 'Confirmá tus turnos automáticamente por WhatsApp y recuperá los horarios de los que no vienen.',
+    ai_agent: 'Un asistente que responde a tus clientes por WhatsApp, cotiza y reserva turnos solo, las 24 h.',
+  };
+  const handleBuyAddon = async (code: string) => {
+    setBuyingAddon(code);
+    setAddonError(null);
+    try {
+      const result = await featureAddonsApi.purchase(code);
+      if (result?.paymentLink) {
+        window.location.href = result.paymentLink;
+      } else {
+        setAddonError('No se pudo generar el link de pago.');
+      }
+    } catch (e: any) {
+      setAddonError(e?.response?.data?.error || 'Error generando el pago.');
+    } finally {
+      setBuyingAddon(null);
     }
   };
 
@@ -126,6 +152,7 @@ const Dashboard: React.FC = () => {
         const addons = await featureAddonsApi.list();
         const bot = addons.find(a => a.code === 'confirmation_bot') || null;
         setConfirmationBotAddon(bot);
+        setInactiveAddons(addons.filter(a => !a.active));
         if (bot?.active) {
           const stats = await messagingApi.getConfirmationBotStats();
           setConfirmationBotStats(stats);
@@ -525,64 +552,80 @@ const Dashboard: React.FC = () => {
           </Grid>
         </Grid>
 
-        {/* Bot de Confirmación: promo (no activo) o resumen (activo) */}
-        {canSeeAdmin && confirmationBotAddon && !confirmationBotAddon.active && (
+        {/* Extras para tu negocio: cada add-on no activo se compra directo desde acá */}
+        {canSeeAdmin && inactiveAddons.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.15 }}
           >
+            {addonError && <Alert severity="error" sx={{ mb: 2 }}>{addonError}</Alert>}
             <Grid container spacing={3} sx={{ mb: 3 }}>
-              <Grid item xs={12}>
-                <Card
-                  sx={{
-                    background: 'linear-gradient(135deg, #075e54 0%, #128c7e 55%, #25d366 100%)',
-                    color: '#fff',
-                    cursor: 'pointer',
-                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                    '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 8px 24px rgba(18,140,126,0.35)' },
-                  }}
-                  onClick={() => navigate('/confirmation-bot')}
-                >
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-                      <Box
-                        sx={{
-                          width: 56, height: 56, borderRadius: '50%', flexShrink: 0,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          bgcolor: 'rgba(255,255,255,0.18)',
-                        }}
-                      >
-                        <SmartToy sx={{ fontSize: 32 }} />
-                      </Box>
-                      <Box sx={{ flex: 1, minWidth: 240 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                            Nuevo: Bot de Confirmación de Turnos
-                          </Typography>
-                          <Chip label="NUEVO" size="small" sx={{ bgcolor: '#ffd54f', color: '#5d4000', fontWeight: 700, height: 20 }} />
+              {inactiveAddons.map(addon => (
+                <Grid item xs={12} md={inactiveAddons.length > 1 ? 6 : 12} key={addon.code}>
+                  <Card
+                    sx={{
+                      height: '100%',
+                      background: addon.code === 'ai_agent'
+                        ? 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 55%, #38bdf8 100%)'
+                        : 'linear-gradient(135deg, #075e54 0%, #128c7e 55%, #25d366 100%)',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                      '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 8px 24px rgba(0,0,0,0.25)' },
+                    }}
+                    onClick={() => navigate(ADDON_PAGES[addon.code] || '/messaging')}
+                  >
+                    <CardContent>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                        <Box
+                          sx={{
+                            width: 56, height: 56, borderRadius: '50%', flexShrink: 0,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            bgcolor: 'rgba(255,255,255,0.18)',
+                          }}
+                        >
+                          <SmartToy sx={{ fontSize: 32 }} />
                         </Box>
-                        <Typography variant="body2" sx={{ opacity: 0.95, mt: 0.5 }}>
-                          Confirmá tus turnos automáticamente por WhatsApp y recuperá los horarios de los que no vienen.
-                          {confirmationBotAddon.monthlyPrice > 0 &&
-                            ` Desde $${Math.round(confirmationBotAddon.monthlyPrice).toLocaleString('es-AR')}/mes.`}
-                        </Typography>
+                        <Box sx={{ flex: 1, minWidth: 220 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                              {addon.name}
+                            </Typography>
+                            <Chip label="EXTRA" size="small" sx={{ bgcolor: '#ffd54f', color: '#5d4000', fontWeight: 700, height: 20 }} />
+                          </Box>
+                          <Typography variant="body2" sx={{ opacity: 0.95, mt: 0.5 }}>
+                            {ADDON_PITCH[addon.code] || addon.description}
+                            {addon.monthlyPrice > 0 &&
+                              ` $${Math.round(addon.monthlyPrice).toLocaleString('es-AR')} ${addon.currency}/mes.`}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, flexWrap: 'wrap' }}>
+                          <Button
+                            variant="contained"
+                            startIcon={<WhatsApp />}
+                            disabled={buyingAddon !== null}
+                            sx={{
+                              bgcolor: '#fff', color: '#0b3d2e', fontWeight: 700,
+                              '&:hover': { bgcolor: '#e8f5e9' },
+                            }}
+                            onClick={(e) => { e.stopPropagation(); handleBuyAddon(addon.code); }}
+                          >
+                            {buyingAddon === addon.code ? 'Generando pago…' : addon.hasPendingPurchase ? 'Reintentar pago' : 'Activar ahora'}
+                          </Button>
+                          <Button
+                            variant="text"
+                            sx={{ color: '#fff', textDecoration: 'underline' }}
+                            onClick={(e) => { e.stopPropagation(); navigate(ADDON_PAGES[addon.code] || '/messaging'); }}
+                          >
+                            Ver más
+                          </Button>
+                        </Box>
                       </Box>
-                      <Button
-                        variant="contained"
-                        startIcon={<WhatsApp />}
-                        sx={{
-                          bgcolor: '#fff', color: '#0b3d2e', fontWeight: 700, flexShrink: 0,
-                          '&:hover': { bgcolor: '#e8f5e9' },
-                        }}
-                        onClick={(e) => { e.stopPropagation(); navigate('/confirmation-bot'); }}
-                      >
-                        Conocelo
-                      </Button>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
             </Grid>
           </motion.div>
         )}

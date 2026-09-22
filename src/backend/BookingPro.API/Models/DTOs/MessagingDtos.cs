@@ -65,6 +65,27 @@ namespace BookingPro.API.Models.DTOs
         public string? InstanceName { get; set; }
     }
 
+    // PUT api/messaging/settings: todos los campos son opcionales, sólo se aplica lo que viene.
+    public class UpdateMessagingSettingsDto
+    {
+        public bool? WhatsappRemindersEnabled { get; set; }
+        public int? ReminderAdvanceMinutes { get; set; }
+        public string? ReminderTemplate { get; set; }
+        public bool? ConfirmationBotEnabled { get; set; }
+        public int? ConfirmationAdvanceMinutes { get; set; }
+        public string? ConfirmationTemplate { get; set; }
+        public bool? AutoReplyBotEnabled { get; set; }
+        public string? OwnerNotifyPhone { get; set; }
+        public bool? OwnerNotifyOnBooking { get; set; }
+        public bool? OwnerDailyReportEnabled { get; set; }
+        public string? OwnerDailyReportTime { get; set; }
+    }
+
+    public class OwnerNotifyTestDto
+    {
+        public bool Report { get; set; }
+    }
+
     public class SendTestDto
     {
         public string Phone { get; set; } = string.Empty;

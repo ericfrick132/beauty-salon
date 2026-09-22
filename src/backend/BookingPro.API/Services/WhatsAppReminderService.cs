@@ -98,10 +98,11 @@ namespace BookingPro.API.Services
             // Calculate reminder window: now + ReminderAdvanceMinutes +/- 5 min
             var now = DateTime.UtcNow;
             var targetTime = now.AddMinutes(settings.ReminderAdvanceMinutes);
-            var windowStart = targetTime.AddMinutes(-5);
             var windowEnd = targetTime.AddMinutes(5);
 
-            // Find bookings due for reminders
+            // Find bookings due for reminders. La ventana va desde "ahora" hasta el objetivo:
+            // lo que el freno de la línea dejó afuera en un tick anterior se manda en el
+            // siguiente en vez de perderse. Los turnos ya empezados no se recuerdan.
             var bookings = await context.Bookings
                 .IgnoreQueryFilters()
                 .Include(b => b.Customer)
@@ -109,8 +110,10 @@ namespace BookingPro.API.Services
                 .Where(b => b.TenantId == settings.TenantId
                     && b.Status == "confirmed"
                     && !b.ReminderSent
-                    && b.StartTime >= windowStart
+                    && b.StartTime > now
                     && b.StartTime <= windowEnd)
+                .OrderBy(b => b.StartTime)
+                .Take(50)
                 .ToListAsync(ct);
 
             if (bookings.Count == 0) return;
@@ -151,7 +154,15 @@ namespace BookingPro.API.Services
                 await _sendLock.WaitAsync(ct);
                 try
                 {
-                    var sendResult = await connectionService.SendTextAsync(settings.TenantId, phone, body);
+                    var sendResult = await connectionService.SendTextAsync(settings.TenantId, phone, body,
+                        WaSendKind.Outbound, "reminder");
+
+                    // Retenido por el freno de la línea: no es un fallo, queda para el próximo tick.
+                    if (!sendResult.Success && sendResult.Reason == "throttled")
+                    {
+                        _logger.LogInformation("Reminders del tenant {TenantId} pausados: {Reason}", settings.TenantId, sendResult.Message);
+                        break;
+                    }
 
                     var log = new MessageLog
                     {

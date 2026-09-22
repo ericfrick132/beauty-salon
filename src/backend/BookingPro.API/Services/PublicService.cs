@@ -12,15 +12,17 @@ namespace BookingPro.API.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly ITenantService _tenantService;
+        private readonly IOwnerWhatsAppNotifier? _ownerNotify;
 
         private record BusinessHoursConfig(TimeSpan Opening, TimeSpan Closing, HashSet<int> ClosedDays);
         private static readonly TimeSpan DefaultOpening = new TimeSpan(9, 0, 0);
         private static readonly TimeSpan DefaultClosing = new TimeSpan(22, 0, 0);
 
-        public PublicService(ApplicationDbContext context, ITenantService tenantService)
+        public PublicService(ApplicationDbContext context, ITenantService tenantService, IOwnerWhatsAppNotifier? ownerNotify = null)
         {
             _context = context;
             _tenantService = tenantService;
+            _ownerNotify = ownerNotify;
         }
 
         public async Task<IEnumerable<Service>> GetServicesAsync()
@@ -152,6 +154,9 @@ namespace BookingPro.API.Services
 
             _context.Bookings.Add(booking);
             await _context.SaveChangesAsync();
+
+            var source = (dto.Notes ?? string.Empty).Contains("Agente de WhatsApp", StringComparison.OrdinalIgnoreCase) ? "ai_agent" : "public";
+            _ownerNotify?.NotifyNewBooking(booking.Id, source);
 
             return booking;
         }

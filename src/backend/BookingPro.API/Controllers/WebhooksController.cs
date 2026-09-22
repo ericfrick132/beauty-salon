@@ -23,6 +23,7 @@ namespace BookingPro.API.Controllers
         private readonly IFeatureAddonService _featureAddonService;
         private readonly BookingPro.API.Services.IWhatsAppAgentService _whatsAppAgentService;
         private readonly BookingPro.API.Services.ISalesHubHubClient _salesHubClient;
+        private readonly BookingPro.API.Services.IWhatsAppMenuBotService _menuBot;
 
         public WebhooksController(
             IMercadoPagoService mercadoPagoService,
@@ -34,8 +35,10 @@ namespace BookingPro.API.Controllers
             IWhatsAppConnectionService whatsAppConnectionService,
             IFeatureAddonService featureAddonService,
             BookingPro.API.Services.IWhatsAppAgentService whatsAppAgentService,
-            BookingPro.API.Services.ISalesHubHubClient salesHubClient)
+            BookingPro.API.Services.ISalesHubHubClient salesHubClient,
+            BookingPro.API.Services.IWhatsAppMenuBotService menuBot)
         {
+            _menuBot = menuBot;
             _mercadoPagoService = mercadoPagoService;
             _subscriptionService = subscriptionService;
             _chytapayService = chytapayService;
@@ -383,6 +386,15 @@ namespace BookingPro.API.Controllers
 
             var tenantId = connection.TenantId;
 
+            // Sufijo de 8 dígitos para tolerar variantes de prefijo AR: 549..., 54..., 0..., 15...
+            var senderDigits = new string(remoteJid.Split('@')[0].Where(char.IsDigit).ToArray());
+            if (senderDigits.Length < 8) return;
+            var senderSuffix = senderDigits[^8..];
+
+            // Semáforo de contacto: se registra TODO entrante, tenga bot o no. Es lo que
+            // después permite saber que este número ya nos escribió (envío "cálido").
+            await RecordInboundAsync(tenantId, senderDigits);
+
             var settings = await _context.TenantMessagingSettings
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(s => s.TenantId == tenantId);
@@ -390,21 +402,16 @@ namespace BookingPro.API.Controllers
             var hasAiAgent = await _featureAddonService.HasActiveAddonAsync(tenantId, BookingPro.API.Models.Constants.FeatureCodes.AiAgent);
             var confirmationEnabled = settings != null && settings.ConfirmationBotEnabled
                 && await _featureAddonService.HasActiveAddonAsync(tenantId, BookingPro.API.Models.Constants.FeatureCodes.ConfirmationBot);
+            var menuBotEnabled = settings != null && settings.AutoReplyBotEnabled;
 
-            if (!hasAiAgent && !confirmationEnabled) return;
+            if (!hasAiAgent && !confirmationEnabled && !menuBotEnabled) return;
 
-            // Sin bot de confirmación pero con Agente IA → el agente atiende cualquier mensaje entrante.
+            // Sin bot de confirmación → el Agente IA (pago) o el menú (gratis) atienden el mensaje.
             if (!confirmationEnabled)
             {
-                await HandleAiAgentMessageAsync(tenantId, remoteJid, text);
+                await HandleConversationAsync(tenantId, remoteJid, senderDigits, text, hasAiAgent, menuBotEnabled);
                 return;
             }
-
-            // Matchear el remitente con un pedido de confirmación pendiente (sufijo de 8 dígitos
-            // para tolerar variantes de prefijo AR: 549..., 54..., 0..., 15...)
-            var senderDigits = new string(remoteJid.Split('@')[0].Where(char.IsDigit).ToArray());
-            if (senderDigits.Length < 8) return;
-            var senderSuffix = senderDigits[^8..];
 
             var pendingRequests = await _context.BookingConfirmationRequests
                 .IgnoreQueryFilters()
@@ -417,8 +424,8 @@ namespace BookingPro.API.Controllers
                 r.Phone.Length >= 8 && r.Phone.EndsWith(senderSuffix));
             if (request == null)
             {
-                // No es respuesta a una confirmación pendiente → si tiene el add-on de IA, lo atiende el agente.
-                if (hasAiAgent) await HandleAiAgentMessageAsync(tenantId, remoteJid, text);
+                // No es respuesta a una confirmación pendiente → Agente IA o menú, si los tiene.
+                await HandleConversationAsync(tenantId, remoteJid, senderDigits, text, hasAiAgent, menuBotEnabled);
                 return;
             }
 
@@ -454,7 +461,7 @@ namespace BookingPro.API.Controllers
                     "respondé solo *1* para confirmarlo ✅ o *2* para cancelarlo ❌";
                 try
                 {
-                    var repromptResult = await _whatsAppConnectionService.SendTextAsync(tenantId, senderDigits, reprompt);
+                    var repromptResult = await _whatsAppConnectionService.SendTextAsync(tenantId, senderDigits, reprompt, WaSendKind.Reply, "confirmation");
                     _context.MessageLogs.Add(new MessageLog
                     {
                         TenantId = tenantId,
@@ -502,7 +509,9 @@ namespace BookingPro.API.Controllers
                 }
 
                 request.Status = "confirmed";
-                ack = $"¡Gracias {firstName}! Tu turno del {timeLocal:dd/MM} a las {timeLocal:HH:mm} quedó confirmado. Te esperamos 😊";
+                ack = $"¡Gracias {firstName}! Tu turno del {timeLocal:dd/MM} a las {timeLocal:HH:mm} quedó confirmado. Te esperamos 😊" +
+                      $"[[or]]¡Genial, {firstName}! Queda confirmado tu turno del {timeLocal:dd/MM} a las {timeLocal:HH:mm}. ¡Nos vemos! 😊" +
+                      $"[[or]]Perfecto {firstName}, te anotamos confirmado para el {timeLocal:dd/MM} a las {timeLocal:HH:mm}. ¡Te esperamos!";
             }
             else
             {
@@ -539,7 +548,8 @@ namespace BookingPro.API.Controllers
             // Ack al cliente: no descuenta créditos del wallet
             try
             {
-                var sendResult = await _whatsAppConnectionService.SendTextAsync(tenantId, senderDigits, ack);
+                ack = WhatsAppLine.PickVariant(ack); // así el MessageLog guarda la versión que salió
+                var sendResult = await _whatsAppConnectionService.SendTextAsync(tenantId, senderDigits, ack, WaSendKind.Reply, "confirmation");
                 _context.MessageLogs.Add(new MessageLog
                 {
                     TenantId = tenantId,
@@ -559,6 +569,70 @@ namespace BookingPro.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to send confirmation ack to {Phone}", senderDigits);
+            }
+        }
+
+        private async Task RecordInboundAsync(Guid tenantId, string senderDigits)
+        {
+            try
+            {
+                _context.WhatsAppInboundEvents.Add(new WhatsAppInboundEvent
+                {
+                    TenantId = tenantId,
+                    Phone = senderDigits.Length <= 100 ? senderDigits : senderDigits[..100],
+                    ReceivedAt = DateTime.UtcNow
+                });
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No se pudo registrar el entrante de WhatsApp del tenant {TenantId}", tenantId);
+            }
+        }
+
+        // Conversación libre (no es respuesta al bot de confirmación): Agente IA si está pago
+        // y configurado; si no, el bot por menú cuando el negocio lo activó.
+        private async Task HandleConversationAsync(Guid tenantId, string remoteJid, string senderDigits, string text, bool hasAiAgent, bool menuBotEnabled)
+        {
+            if (hasAiAgent && _whatsAppAgentService.IsEnabled)
+            {
+                await HandleAiAgentMessageAsync(tenantId, remoteJid, text);
+                return;
+            }
+            if (!menuBotEnabled) return;
+
+            string? reply;
+            try
+            {
+                reply = await _menuBot.HandleAsync(tenantId, senderDigits, text);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Menu bot failed for tenant {TenantId}", tenantId);
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(reply)) return;
+
+            try
+            {
+                var sendResult = await _whatsAppConnectionService.SendTextAsync(tenantId, senderDigits, reply, WaSendKind.Reply, "menu_bot");
+                _context.MessageLogs.Add(new MessageLog
+                {
+                    TenantId = tenantId,
+                    Channel = "whatsapp",
+                    MessageType = "menu_bot_reply",
+                    Status = sendResult.Success ? "sent" : "failed",
+                    To = senderDigits,
+                    Body = reply,
+                    SentAt = sendResult.Success ? DateTime.UtcNow : null,
+                    ProviderMessageId = sendResult.Data,
+                    ErrorMessage = sendResult.Success ? null : sendResult.Message
+                });
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send menu bot reply to {Phone}", senderDigits);
             }
         }
 
@@ -586,7 +660,7 @@ namespace BookingPro.API.Controllers
 
             try
             {
-                var sendResult = await _whatsAppConnectionService.SendTextAsync(tenantId, senderDigits, reply);
+                var sendResult = await _whatsAppConnectionService.SendTextAsync(tenantId, senderDigits, reply, WaSendKind.Reply, "ai_agent");
                 _context.MessageLogs.Add(new MessageLog
                 {
                     TenantId = tenantId,

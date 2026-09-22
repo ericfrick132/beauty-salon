@@ -23,6 +23,7 @@ namespace BookingPro.API.Services
         private readonly ITenantService _tenantService;
         private readonly ILogger<BookingService> _logger;
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly IOwnerWhatsAppNotifier? _ownerNotify;
 
         private record BusinessHoursConfig(TimeSpan Opening, TimeSpan Closing, HashSet<int> ClosedDays);
         private const int DefaultMinimumGapMinutes = 15;
@@ -36,7 +37,8 @@ namespace BookingPro.API.Services
             IRepository<Customer> customerRepository,
             ITenantService tenantService,
             ILogger<BookingService> logger,
-            IHttpContextAccessor httpContextAccessor)
+            IHttpContextAccessor httpContextAccessor,
+            IOwnerWhatsAppNotifier? ownerNotify = null)
         {
             _bookingRepository = bookingRepository;
             _serviceRepository = serviceRepository;
@@ -45,6 +47,7 @@ namespace BookingPro.API.Services
             _tenantService = tenantService;
             _logger = logger;
             _httpContextAccessor = httpContextAccessor;
+            _ownerNotify = ownerNotify;
         }
 
         private bool IsEmployeeRole()
@@ -260,6 +263,7 @@ namespace BookingPro.API.Services
                 };
 
                 var createdBooking = await _bookingRepository.AddAsync(booking);
+                _ownerNotify?.NotifyNewBooking(createdBooking.Id, "admin");
                 return ServiceResult<Booking>.Ok(createdBooking, "Booking created successfully");
             }
             catch (Exception ex)

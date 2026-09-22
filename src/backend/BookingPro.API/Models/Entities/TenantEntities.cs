@@ -155,6 +155,25 @@ namespace BookingPro.API.Models.Entities
         // Template with tokens: {customer_name}, {service_name}, {date}, {time}, {business_name}
         public string ConfirmationTemplate { get; set; } = "Hola {customer_name}! Te escribimos de {business_name} por tu turno de {service_name} el {date} a las {time}.";
 
+        // Respuesta automática por menú (sin IA): cuando un cliente escribe a la línea del
+        // negocio, el bot contesta con el link para reservar y sus próximos turnos.
+        // Opt-in: la línea puede ser el celular personal del dueño.
+        public bool AutoReplyBotEnabled { get; set; } = false;
+
+        // Avisos al DUEÑO por WhatsApp ("a self"): turno nuevo y reporte diario/semanal.
+        // Sin teléfono propio se usa Tenant.OwnerPhone.
+        [MaxLength(50)]
+        public string? OwnerNotifyPhone { get; set; }
+        public bool OwnerNotifyOnBooking { get; set; } = false;
+        public bool OwnerDailyReportEnabled { get; set; } = false;
+
+        // Hora local del negocio en formato HH:mm
+        [MaxLength(5)]
+        public string OwnerDailyReportTime { get; set; } = "08:30";
+
+        // Fecha local (a medianoche, UTC kind) del último reporte enviado; evita repetirlo
+        public DateTime? OwnerDailyReportLastSentOn { get; set; }
+
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }

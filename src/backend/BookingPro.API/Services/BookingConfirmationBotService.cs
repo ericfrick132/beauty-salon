@@ -160,7 +160,15 @@ namespace BookingPro.API.Services
                 await _sendLock.WaitAsync(ct);
                 try
                 {
-                    var sendResult = await connectionService.SendTextAsync(settings.TenantId, phone, body);
+                    var sendResult = await connectionService.SendTextAsync(settings.TenantId, phone, body,
+                        WaSendKind.Outbound, "confirmation", respectQuietHours: true);
+
+                    // Retenido por freno u horario: no es un fallo, queda para el próximo tick.
+                    if (!sendResult.Success && (sendResult.Reason == "throttled" || sendResult.Reason == "quiet_hours"))
+                    {
+                        _logger.LogInformation("Confirmation bot del tenant {TenantId} pausado: {Reason}", settings.TenantId, sendResult.Message);
+                        break;
+                    }
 
                     var normalizedPhone = new string(phone.Where(char.IsDigit).ToArray());
                     context.MessageLogs.Add(new MessageLog

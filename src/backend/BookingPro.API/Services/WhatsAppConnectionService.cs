@@ -18,17 +18,28 @@ namespace BookingPro.API.Services
         private readonly string _baseUrl;
         private readonly string _apiKey;
         private readonly string _webhookUrl;
+        private readonly IConfiguration _configuration;
+        private readonly IServiceScopeFactory _scopeFactory;
+
+        // Contactos que ya escribieron, por tenant, con TTL corto: los entrantes nuevos entran
+        // en el próximo minuto y no se hace un DISTINCT por cada mensaje que sale.
+        private static readonly object KnownLock = new();
+        private static readonly Dictionary<Guid, (HashSet<string> suffixes, DateTime at)> KnownCache = new();
+        private static readonly TimeSpan KnownTtl = TimeSpan.FromSeconds(60);
 
         public WhatsAppConnectionService(
             ApplicationDbContext context,
             ILogger<WhatsAppConnectionService> logger,
             IConfiguration configuration,
             IHttpClientFactory httpFactory,
-            ITenantService tenantService)
+            ITenantService tenantService,
+            IServiceScopeFactory scopeFactory)
         {
             _context = context;
             _logger = logger;
             _tenantService = tenantService;
+            _configuration = configuration;
+            _scopeFactory = scopeFactory;
             _http = httpFactory.CreateClient();
             _baseUrl = configuration["EvolutionApi:BaseUrl"]?.TrimEnd('/') ?? "";
             _apiKey = configuration["EvolutionApi:ApiKey"] ?? "";
@@ -304,8 +315,23 @@ namespace BookingPro.API.Services
             }
         }
 
-        public async Task<ServiceResult<string>> SendTextAsync(Guid tenantId, string phone, string text)
+        public async Task<ServiceResult<string>> SendTextAsync(Guid tenantId, string phone, string text,
+            WaSendKind kind = WaSendKind.Outbound, string section = "generic", bool respectQuietHours = false)
         {
+            // Normalize phone: remove "whatsapp:", "+", spaces, dashes
+            var normalizedPhone = (phone ?? string.Empty)
+                .Replace("whatsapp:", "")
+                .Replace("+", "")
+                .Replace(" ", "")
+                .Replace("-", "")
+                .Trim();
+            var digits = new string(normalizedPhone.Where(char.IsDigit).ToArray());
+            if (digits.Length < 8)
+                return Held("Número de WhatsApp inválido", "bad_number");
+
+            // Variación de texto: "[[or]]" elige una versión por envío (anti-plantilla).
+            text = WhatsAppLine.PickVariant(text ?? string.Empty);
+
             try
             {
                 var connection = await _context.TenantWhatsAppConnections
@@ -313,15 +339,47 @@ namespace BookingPro.API.Services
                     .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.Status == "open");
 
                 if (connection == null)
-                    return ServiceResult<string>.Fail("No active WhatsApp connection for this tenant");
+                    return Held("No active WhatsApp connection for this tenant", "not_connected");
 
-                // Normalize phone: remove "whatsapp:", "+", spaces, dashes
-                var normalizedPhone = phone
-                    .Replace("whatsapp:", "")
-                    .Replace("+", "")
-                    .Replace(" ", "")
-                    .Replace("-", "")
-                    .Trim();
+                // Un reply va a alguien que acaba de escribirnos: conocido por definición.
+                var known = true;
+
+                if (kind == WaSendKind.Outbound)
+                {
+                    if (respectQuietHours)
+                    {
+                        var tz = await _context.Tenants.AsNoTracking()
+                            .Where(t => t.Id == tenantId).Select(t => t.TimeZone).FirstOrDefaultAsync();
+                        if (!TenantClock.WithinActiveHours(tz, _configuration))
+                        {
+                            _logger.LogInformation("WhatsApp {Section} retenido por horario (tenant {TenantId})", section, tenantId);
+                            return Held("Fuera del horario del negocio: sale más tarde", "quiet_hours");
+                        }
+                    }
+
+                    // Semáforo: a quien nunca escribió se le manda con cupo chico por día.
+                    // Es el grupo que quema números.
+                    known = await IsKnownContactAsync(tenantId, digits);
+                    if (!known)
+                    {
+                        var limit = _configuration.GetValue<int?>("WhatsAppThrottle:UnknownDailyLimit") ?? 15;
+                        var unknownRecent = await CountUnknownContactsLast24hAsync(tenantId);
+                        if (unknownRecent >= limit)
+                        {
+                            _logger.LogWarning("WhatsApp {Section} retenido: cupo de contactos nuevos ({Limit}/24h) del tenant {TenantId}", section, limit, tenantId);
+                            return Held($"Cupo diario de contactos nuevos alcanzado ({limit}/24h)", "throttled");
+                        }
+                    }
+                }
+
+                await EnsureGateSeededAsync(tenantId);
+
+                var (allowed, reason) = await WhatsAppSendGate.TryAcquireAsync(tenantId, kind, _configuration);
+                if (!allowed)
+                {
+                    _logger.LogWarning("WhatsApp {Section} retenido por el freno del tenant {TenantId}: {Reason}", section, tenantId, reason);
+                    return Held(reason ?? "Freno de la línea del negocio", "throttled");
+                }
 
                 var payload = new { number = normalizedPhone, text };
                 var content = new StringContent(
@@ -336,6 +394,7 @@ namespace BookingPro.API.Services
                 {
                     _logger.LogWarning("Evolution API sendText failed: {StatusCode} {Body}",
                         (int)response.StatusCode, body);
+                    await LogOutboundAsync(tenantId, digits, kind, section, false, $"{(int)response.StatusCode} {body}", known);
                     return ServiceResult<string>.Fail("Failed to send message: " + body);
                 }
 
@@ -354,14 +413,138 @@ namespace BookingPro.API.Services
                     _logger.LogWarning("Could not parse sendText response");
                 }
 
+                await LogOutboundAsync(tenantId, digits, kind, section, true, null, known);
                 return ServiceResult<string>.Ok(messageId, "Message sent");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending WhatsApp text to {Phone}", phone);
+                await LogOutboundAsync(tenantId, digits, kind, section, false, ex.Message, true);
                 return ServiceResult<string>.Fail("Error sending message: " + ex.Message);
             }
         }
+
+        // ── Semáforo de contacto ──
+
+        private static string Suffix(string digits) => digits.Length <= 8 ? digits : digits[^8..];
+
+        private async Task<bool> IsKnownContactAsync(Guid tenantId, string digits)
+        {
+            HashSet<string>? suffixes = null;
+            lock (KnownLock)
+            {
+                if (KnownCache.TryGetValue(tenantId, out var hit) && DateTime.UtcNow - hit.at < KnownTtl)
+                    suffixes = hit.suffixes;
+            }
+
+            if (suffixes == null)
+            {
+                try
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    // Nos escribió alguna vez = hay un entrante suyo. Sufijo de 8 dígitos para
+                    // tolerar variantes de prefijo AR (549..., 54..., 0..., 15...).
+                    var phones = await db.WhatsAppInboundEvents.AsNoTracking()
+                        .Where(e => e.TenantId == tenantId)
+                        .Select(e => e.Phone)
+                        .Distinct()
+                        .ToListAsync();
+                    suffixes = phones.Where(p => p.Length >= 8).Select(Suffix).ToHashSet();
+                    lock (KnownLock) KnownCache[tenantId] = (suffixes, DateTime.UtcNow);
+                }
+                catch (Exception ex)
+                {
+                    // Sin la lista tratamos a todos como conocidos: peor freno, pero nunca
+                    // dejamos de mandar por no poder leerla.
+                    _logger.LogWarning(ex, "No se pudo cargar los contactos conocidos del tenant {TenantId}", tenantId);
+                    return true;
+                }
+            }
+
+            return suffixes.Contains(Suffix(digits));
+        }
+
+        private async Task<int> CountUnknownContactsLast24hAsync(Guid tenantId)
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var since = DateTime.UtcNow.AddHours(-24);
+                // Contactos distintos, no mensajes: dos mensajes al mismo desconocido son un
+                // solo contacto nuevo para WhatsApp.
+                return await db.WhatsAppOutboundEvents.AsNoTracking()
+                    .Where(e => e.TenantId == tenantId && e.Kind == "outbound" && !e.ToKnownContact && e.SentAt >= since)
+                    .Select(e => e.Phone)
+                    .Distinct()
+                    .CountAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No se pudo contar los contactos nuevos del tenant {TenantId}", tenantId);
+                return 0;
+            }
+        }
+
+        // ── Freno: presupuesto que sobrevive a los deploys ──
+
+        private async Task EnsureGateSeededAsync(Guid tenantId)
+        {
+            if (!WhatsAppSendGate.NeedsSeeding(tenantId)) return;
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var since = DateTime.UtcNow.AddHours(-24);
+                var recent = await db.WhatsAppOutboundEvents.AsNoTracking()
+                    .Where(e => e.TenantId == tenantId && e.SentAt >= since)
+                    .Select(e => e.SentAt)
+                    .ToListAsync();
+                WhatsAppSendGate.Seed(tenantId, recent);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No se pudo reconstruir el presupuesto de WhatsApp del tenant {TenantId}", tenantId);
+                WhatsAppSendGate.Seed(tenantId, Array.Empty<DateTime>());
+            }
+        }
+
+        // ── Registro (scope propio: no pisa lo que el caller tiene a medias en su DbContext) ──
+
+        private async Task LogOutboundAsync(Guid tenantId, string digits, WaSendKind kind, string section, bool ok, string? error, bool known)
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                db.WhatsAppOutboundEvents.Add(new WhatsAppOutboundEvent
+                {
+                    TenantId = tenantId,
+                    Phone = Clip(digits, 100)!,
+                    Kind = kind == WaSendKind.Reply ? "reply" : "outbound",
+                    Section = Clip(section, 40)!,
+                    SentAt = DateTime.UtcNow,
+                    Success = ok,
+                    Error = Clip(error, 300),
+                    ToKnownContact = known,
+                });
+                await db.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                // Perder el registro de un envío no puede frenar el envío que ya salió.
+                _logger.LogWarning(ex, "No se pudo registrar el saliente de WhatsApp del tenant {TenantId}", tenantId);
+            }
+        }
+
+        // Fallo con código de motivo: "throttled" / "quiet_hours" / "not_connected" / "bad_number".
+        // ServiceResult<T> no expone Fail(message, reason).
+        private static ServiceResult<string> Held(string message, string reason) =>
+            new() { Success = false, Message = message, Reason = reason };
+
+        private static string? Clip(string? s, int max) =>
+            string.IsNullOrEmpty(s) ? s : (s.Length <= max ? s : s[..max]);
 
         public async Task<TenantWhatsAppConnection?> GetConnectionByTenantIdAsync(Guid tenantId)
         {

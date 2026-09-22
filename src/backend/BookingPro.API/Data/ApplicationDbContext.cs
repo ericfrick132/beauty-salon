@@ -89,6 +89,8 @@ namespace BookingPro.API.Data
         public DbSet<InventoryReport> InventoryReports { get; set; }
         public DbSet<EmployeeTimeBlock> EmployeeTimeBlocks { get; set; }
         public DbSet<TenantWhatsAppConnection> TenantWhatsAppConnections { get; set; }
+        public DbSet<WhatsAppOutboundEvent> WhatsAppOutboundEvents { get; set; }
+        public DbSet<WhatsAppInboundEvent> WhatsAppInboundEvents { get; set; }
         public DbSet<TrackingEvent> TrackingEvents { get; set; }
         public DbSet<NotificationSettings> NotificationSettings { get; set; }
 
@@ -726,6 +728,20 @@ namespace BookingPro.API.Data
                 entity.HasIndex(c => c.InstanceName).IsUnique();
             });
 
+            // Freno anti-bloqueo y semáforo de contacto de la línea del negocio
+            modelBuilder.Entity<WhatsAppOutboundEvent>(entity =>
+            {
+                entity.ToTable("whatsapp_outbound_events");
+                entity.HasIndex(e => new { e.TenantId, e.SentAt });
+            });
+
+            modelBuilder.Entity<WhatsAppInboundEvent>(entity =>
+            {
+                entity.ToTable("whatsapp_inbound_events");
+                entity.HasIndex(e => new { e.TenantId, e.Phone });
+                entity.HasIndex(e => new { e.TenantId, e.ReceivedAt });
+            });
+
             // Feature add-ons y bot de confirmación
             modelBuilder.Entity<FeatureAddon>(entity =>
             {
@@ -802,6 +818,8 @@ namespace BookingPro.API.Data
             modelBuilder.Entity<MessagePurchase>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<MessageLog>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<TenantWhatsAppConnection>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<WhatsAppOutboundEvent>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<WhatsAppInboundEvent>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<TenantFeatureAddon>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<FeatureAddonPurchase>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<BookingConfirmationRequest>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());

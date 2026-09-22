@@ -66,7 +66,7 @@ namespace BookingPro.API.Services
                     .Replace("{business_name}", tenant?.BusinessName ?? "");
 
                 // Send via Evolution API
-                var sendResult = await _connectionService.SendTextAsync(booking.TenantId, toPhone, body);
+                var sendResult = await _connectionService.SendTextAsync(booking.TenantId, toPhone, body, WaSendKind.Outbound, "reminder");
 
                 var log = new MessageLog
                 {
@@ -143,7 +143,7 @@ namespace BookingPro.API.Services
                            $"el {timeLocal:dd/MM/yyyy} a las {timeLocal:HH:mm} con {booking.Employee?.Name ?? "nosotros"} " +
                            $"fue confirmado. {tenant?.BusinessName ?? ""}";
 
-                var sendResult = await _connectionService.SendTextAsync(booking.TenantId, toPhone, body);
+                var sendResult = await _connectionService.SendTextAsync(booking.TenantId, toPhone, body, WaSendKind.Outbound, "confirmation");
 
                 var log = new MessageLog
                 {

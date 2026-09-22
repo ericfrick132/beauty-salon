@@ -65,7 +65,7 @@ namespace BookingPro.API.Controllers
             if (tenant == null)
                 return BadRequest(new { error = "No tenant context" });
 
-            var result = await _connectionService.SendTextAsync(tenant.Id, dto.Phone, dto.Message);
+            var result = await _connectionService.SendTextAsync(tenant.Id, dto.Phone, dto.Message, WaSendKind.Outbound, "test");
             if (!result.Success)
                 return BadRequest(new { error = result.Message });
             return Ok(new { success = true, messageId = result.Data });

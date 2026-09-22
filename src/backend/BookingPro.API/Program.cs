@@ -138,6 +138,10 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IWhatsAppService, 
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IWhatsAppConnectionService, BookingPro.API.Services.WhatsAppConnectionService>();
 // Agente IA de WhatsApp (add-on ai_agent): reserva turnos y responde precios/disponibilidad
 builder.Services.AddScoped<BookingPro.API.Services.IWhatsAppAgentService, BookingPro.API.Services.WhatsAppAgentService>();
+// Bot por menú (sin IA) para la línea del negocio, opt-in en Mensajería
+builder.Services.AddScoped<BookingPro.API.Services.IWhatsAppMenuBotService, BookingPro.API.Services.WhatsAppMenuBotService>();
+// Avisos al dueño por WhatsApp: turno nuevo y reporte diario/semanal
+builder.Services.AddScoped<BookingPro.API.Services.IOwnerWhatsAppNotifier, BookingPro.API.Services.OwnerWhatsAppNotifier>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IAppleAppStoreService, BookingPro.API.Services.AppleAppStoreService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ISubscriptionService, BookingPro.API.Services.SubscriptionService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ICouponService, BookingPro.API.Services.CouponService>();
@@ -165,6 +169,8 @@ builder.Services.AddHostedService<BookingPro.API.Services.ChytapayTokenRefreshSe
 builder.Services.AddHostedService<BookingPro.API.Services.WhatsAppReminderService>();
 // Bot de confirmación de turnos por WhatsApp (add-on confirmation_bot)
 builder.Services.AddHostedService<BookingPro.API.Services.BookingConfirmationBotService>();
+// Reporte del día y la semana al WhatsApp del dueño, a la hora local configurada
+builder.Services.AddHostedService<BookingPro.API.Services.OwnerDailyReportBackgroundService>();
 // Daily-ish scan that emails trial_ending_2d / trial_expired warnings
 builder.Services.AddHostedService<BookingPro.API.Services.TrialReminderBackgroundService>();
 // Recupera OTP abandonados (pidió código y no entró) — apagado por default (OtpFollowup:Enabled)

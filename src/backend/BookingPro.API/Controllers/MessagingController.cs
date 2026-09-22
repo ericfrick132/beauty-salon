@@ -1,6 +1,7 @@
 using BookingPro.API.Data;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Models.Entities;
+using BookingPro.API.Services;
 using BookingPro.API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -104,12 +105,18 @@ namespace BookingPro.API.Controllers
                 reminderTemplate = settings.ReminderTemplate,
                 confirmationBotEnabled = settings.ConfirmationBotEnabled,
                 confirmationAdvanceMinutes = settings.ConfirmationAdvanceMinutes,
-                confirmationTemplate = settings.ConfirmationTemplate
+                confirmationTemplate = settings.ConfirmationTemplate,
+                autoReplyBotEnabled = settings.AutoReplyBotEnabled,
+                ownerNotifyPhone = settings.OwnerNotifyPhone,
+                ownerNotifyOnBooking = settings.OwnerNotifyOnBooking,
+                ownerDailyReportEnabled = settings.OwnerDailyReportEnabled,
+                ownerDailyReportTime = settings.OwnerDailyReportTime,
+                ownerDailyReportLastSentOn = settings.OwnerDailyReportLastSentOn
             });
         }
 
         [HttpPut("settings")]
-        public async Task<IActionResult> UpdateSettings([FromBody] dynamic dto)
+        public async Task<IActionResult> UpdateSettings([FromBody] UpdateMessagingSettingsDto dto)
         {
             var tenantId = GetTenantId();
             if (tenantId == Guid.Empty) return Unauthorized();
@@ -123,14 +130,14 @@ namespace BookingPro.API.Controllers
                 };
                 _context.TenantMessagingSettings.Add(settings);
             }
-            settings.WhatsAppRemindersEnabled = (bool)(dto.whatsappRemindersEnabled ?? false);
-            settings.ReminderAdvanceMinutes = (int)(dto.reminderAdvanceMinutes ?? 60);
-            if (dto.reminderTemplate != null)
-            {
-                settings.ReminderTemplate = (string)dto.reminderTemplate;
-            }
 
-            var wantsConfirmationBot = (bool)(dto.confirmationBotEnabled ?? settings.ConfirmationBotEnabled);
+            // Cada campo se toca sólo si vino en el payload: las páginas de recordatorios, del
+            // bot de confirmación y de avisos comparten este PUT y no deben pisarse entre sí.
+            if (dto.WhatsappRemindersEnabled.HasValue) settings.WhatsAppRemindersEnabled = dto.WhatsappRemindersEnabled.Value;
+            if (dto.ReminderAdvanceMinutes.HasValue) settings.ReminderAdvanceMinutes = Math.Max(5, dto.ReminderAdvanceMinutes.Value);
+            if (dto.ReminderTemplate != null) settings.ReminderTemplate = dto.ReminderTemplate;
+
+            var wantsConfirmationBot = dto.ConfirmationBotEnabled ?? settings.ConfirmationBotEnabled;
             if (wantsConfirmationBot && !settings.ConfirmationBotEnabled)
             {
                 var hasAddon = await _featureAddons.HasActiveAddonAsync(tenantId, Models.Constants.FeatureCodes.ConfirmationBot);
@@ -140,20 +147,29 @@ namespace BookingPro.API.Controllers
                 }
             }
             settings.ConfirmationBotEnabled = wantsConfirmationBot;
-            if (dto.confirmationAdvanceMinutes != null)
+            if (dto.ConfirmationAdvanceMinutes.HasValue) settings.ConfirmationAdvanceMinutes = Math.Max(15, dto.ConfirmationAdvanceMinutes.Value);
+            if (dto.ConfirmationTemplate != null) settings.ConfirmationTemplate = dto.ConfirmationTemplate;
+
+            // Respuesta automática por menú y avisos al dueño
+            if (dto.AutoReplyBotEnabled.HasValue) settings.AutoReplyBotEnabled = dto.AutoReplyBotEnabled.Value;
+            if (dto.OwnerNotifyPhone != null)
             {
-                settings.ConfirmationAdvanceMinutes = Math.Max(15, (int)dto.confirmationAdvanceMinutes);
+                var phone = dto.OwnerNotifyPhone.Trim();
+                settings.OwnerNotifyPhone = phone.Length == 0 ? null : (phone.Length > 50 ? phone[..50] : phone);
             }
-            if (dto.confirmationTemplate != null)
+            if (dto.OwnerNotifyOnBooking.HasValue) settings.OwnerNotifyOnBooking = dto.OwnerNotifyOnBooking.Value;
+            if (dto.OwnerDailyReportEnabled.HasValue) settings.OwnerDailyReportEnabled = dto.OwnerDailyReportEnabled.Value;
+            if (dto.OwnerDailyReportTime != null)
             {
-                settings.ConfirmationTemplate = (string)dto.confirmationTemplate;
+                if (TimeSpan.TryParse(dto.OwnerDailyReportTime, out var ts) && ts >= TimeSpan.Zero && ts < TimeSpan.FromDays(1))
+                    settings.OwnerDailyReportTime = ts.ToString(@"hh\:mm");
             }
 
             settings.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            // Asegura que la instancia de Evolution reciba mensajes entrantes para el bot
-            if (settings.ConfirmationBotEnabled)
+            // Asegura que la instancia de Evolution reciba mensajes entrantes para los bots
+            if (settings.ConfirmationBotEnabled || settings.AutoReplyBotEnabled)
             {
                 try
                 {
@@ -167,6 +183,30 @@ namespace BookingPro.API.Controllers
             }
 
             return Ok();
+        }
+
+        /// <summary>
+        /// Manda un mensaje de prueba (o el reporte de hoy, con report=true) al WhatsApp del dueño.
+        /// </summary>
+        [HttpPost("owner-notify/test")]
+        public async Task<IActionResult> OwnerNotifyTest([FromBody] OwnerNotifyTestDto? dto, [FromServices] IOwnerWhatsAppNotifier notifier)
+        {
+            var tenantId = GetTenantId();
+            if (tenantId == Guid.Empty) return Unauthorized();
+
+            var result = await notifier.SendTestAsync(tenantId, dto?.Report ?? false);
+            if (!result.Success) return BadRequest(new { error = result.Message });
+            return Ok(new { success = true, message = result.Message });
+        }
+
+        /// <summary>Gasto de la línea del negocio en la última hora / 24 h (freno anti-bloqueo).</summary>
+        [HttpGet("line-usage")]
+        public IActionResult LineUsage()
+        {
+            var tenantId = GetTenantId();
+            if (tenantId == Guid.Empty) return Unauthorized();
+            var (lastHour, last24h) = WhatsAppSendGate.UsageFor(tenantId);
+            return Ok(new { lastHour, last24h });
         }
 
         /// <summary>Estadísticas del bot de confirmación de turnos.</summary>

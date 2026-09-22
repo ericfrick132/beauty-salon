@@ -384,8 +384,19 @@ export const messagingApi = {
     confirmationBotEnabled?: boolean;
     confirmationAdvanceMinutes?: number;
     confirmationTemplate?: string;
+    autoReplyBotEnabled?: boolean;
+    ownerNotifyPhone?: string;
+    ownerNotifyOnBooking?: boolean;
+    ownerDailyReportEnabled?: boolean;
+    ownerDailyReportTime?: string;
   }) =>
     api.put('/messaging/settings', data).then(res => res.data),
+  // Avisos al WhatsApp del dueño: mensaje de prueba o el reporte de hoy
+  ownerNotifyTest: (report = false) =>
+    api.post('/messaging/owner-notify/test', { report }).then(res => res.data),
+  // Gasto de la línea del negocio (freno anti-bloqueo)
+  getLineUsage: (): Promise<{ lastHour: number; last24h: number }> =>
+    api.get('/messaging/line-usage').then(res => res.data),
   getConfirmationBotStats: () => api.get('/messaging/confirmation-bot/stats').then(res => res.data),
   sendDueReminders: () => api.post('/messaging/send-due-reminders').then(res => res.data),
   getHistory: (page = 1, pageSize = 50, status?: string) =>
