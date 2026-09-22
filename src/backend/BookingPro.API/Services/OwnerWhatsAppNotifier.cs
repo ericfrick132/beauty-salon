@@ -27,36 +27,35 @@ namespace BookingPro.API.Services
     }
 
     /// <summary>
-    /// Por dónde sale el aviso: si el negocio tiene su propia línea conectada, por ella (es
-    /// un mensaje a sí mismo: no consume el presupuesto de la línea de plataforma y no abre
-    /// un contacto frío). Si no, por la línea de plataforma (<see cref="WhatsAppLine"/>),
-    /// que ya le escribe al dueño para OTP y onboarding, respetando su gauge.
+    /// Salen SIEMPRE por la instancia de WhatsApp del propio negocio (la que conectó por QR),
+    /// nunca por la línea de plataforma: es el negocio escribiéndole a su dueño. Si conectó
+    /// su mismo celular, le llega al chat "Tú" de WhatsApp. Van como Reply: no esperan hueco
+    /// ni abren contacto frío, pero quedan en el presupuesto de su línea. Sin instancia
+    /// conectada no hay aviso.
     /// </summary>
     public class OwnerWhatsAppNotifier : IOwnerWhatsAppNotifier
     {
-        private const string Section = "OwnerNotify";
-
         private readonly ApplicationDbContext _context;
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly IWhatsAppConnectionService _line;
-        private readonly IHttpClientFactory _httpClientFactory;
-        private readonly IConfiguration _configuration;
         private readonly ILogger<OwnerWhatsAppNotifier> _logger;
 
         public OwnerWhatsAppNotifier(
             ApplicationDbContext context,
             IServiceScopeFactory scopeFactory,
             IWhatsAppConnectionService line,
-            IHttpClientFactory httpClientFactory,
-            IConfiguration configuration,
             ILogger<OwnerWhatsAppNotifier> logger)
         {
             _context = context;
             _scopeFactory = scopeFactory;
             _line = line;
-            _httpClientFactory = httpClientFactory;
-            _configuration = configuration;
             _logger = logger;
+        }
+
+        private async Task<bool> IsLineOpenAsync(Guid tenantId)
+        {
+            var conn = await _line.GetConnectionByTenantIdAsync(tenantId);
+            return conn != null && conn.Status == "open";
         }
 
         public static string? ResolveNotifyPhone(TenantMessagingSettings? settings, Tenant tenant)
@@ -120,7 +119,7 @@ namespace BookingPro.API.Services
                     if (booking.Price.HasValue && booking.Price.Value > 0) sb.Append($" · {Money(booking.Price.Value)}");
                     if (booking.Status == "pending") sb.Append(" · _pendiente de confirmar_");
 
-                    await notifier.SendToOwnerAsync(tenant, phone, sb.ToString(), waitForGauge: false, CancellationToken.None);
+                    await notifier.SendToOwnerAsync(tenant, phone, sb.ToString());
                 }
                 catch (Exception ex)
                 {
@@ -141,6 +140,7 @@ namespace BookingPro.API.Services
                     .FirstOrDefaultAsync(s => s.TenantId == tenantId, ct);
                 var phone = ResolveNotifyPhone(settings, tenant);
                 if (phone == null) return OwnerReportResult.NotConfigured;
+                if (!await IsLineOpenAsync(tenantId)) return OwnerReportResult.NotConfigured;
 
                 var tz = tenant.TimeZone;
                 DateTime Utc(DateTime localDate) => TenantClock.LocalDateToUtc(localDate, tz);
@@ -216,7 +216,7 @@ namespace BookingPro.API.Services
                 sb.AppendLine();
                 sb.Append("_Reporte automático de Turnos Pro. Lo configurás en Mensajería → Avisos a tu WhatsApp._");
 
-                var ok = await SendToOwnerAsync(tenant, phone, sb.ToString(), waitForGauge: true, ct);
+                var ok = await SendToOwnerAsync(tenant, phone, sb.ToString());
                 return ok ? OwnerReportResult.Sent : OwnerReportResult.Failed;
             }
             catch (Exception ex)
@@ -236,6 +236,7 @@ namespace BookingPro.API.Services
                 .FirstOrDefaultAsync(s => s.TenantId == tenantId);
             var phone = ResolveNotifyPhone(settings, tenant);
             if (phone == null) return ServiceResult<bool>.Fail("Cargá un número de WhatsApp para los avisos (o el teléfono del dueño en Configuración).");
+            if (!await IsLineOpenAsync(tenantId)) return ServiceResult<bool>.Fail("Los avisos salen por el WhatsApp de tu negocio: conectalo primero en Configuración → WhatsApp.");
 
             if (report)
             {
@@ -246,7 +247,7 @@ namespace BookingPro.API.Services
             }
 
             var text = $"✅ Listo: los avisos de *{tenant.BusinessName}* van a llegar a este WhatsApp.";
-            var ok = await SendToOwnerAsync(tenant, phone, text, waitForGauge: false, CancellationToken.None);
+            var ok = await SendToOwnerAsync(tenant, phone, text);
             return ok
                 ? ServiceResult<bool>.Ok(true, $"Mensaje enviado a +{phone}")
                 : ServiceResult<bool>.Fail("No se pudo enviar el mensaje. Revisá el número o probá más tarde.");
@@ -254,44 +255,22 @@ namespace BookingPro.API.Services
 
         // ==================== Envío ====================
 
-        internal async Task<bool> SendToOwnerAsync(Tenant tenant, string phone, string text, bool waitForGauge, CancellationToken ct)
+        internal async Task<bool> SendToOwnerAsync(Tenant tenant, string phone, string text)
         {
-            // 1) La línea del propio negocio, si está conectada. Es un mensaje del negocio a
-            //    su dueño: no cuenta como contacto frío ni espera hueco (kind Reply), pero
-            //    queda registrado en su presupuesto.
+            // Sólo por la línea del propio negocio. Kind Reply: es un mensaje del negocio a su
+            // dueño, no un contacto frío; igual queda registrado en el presupuesto de la línea.
             try
             {
-                var own = await _line.SendTextAsync(tenant.Id, phone, text, WaSendKind.Reply, "owner_notify");
-                if (own.Success) return true;
-                if (own.Reason != "not_connected")
-                    _logger.LogInformation("OwnerNotify: la línea del tenant {TenantId} no pudo mandar ({Reason}); se usa la de plataforma", tenant.Id, own.Message);
+                var result = await _line.SendTextAsync(tenant.Id, phone, text, WaSendKind.Reply, "owner_notify");
+                if (result.Success) return true;
+                _logger.LogWarning("OwnerNotify: envío del tenant {TenantId} a {Phone} falló: {Error}", tenant.Id, phone, result.Message);
+                return false;
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "OwnerNotify: error por la línea del tenant {TenantId}; se usa la de plataforma", tenant.Id);
+                _logger.LogWarning(ex, "OwnerNotify: error mandando por la línea del tenant {TenantId}", tenant.Id);
+                return false;
             }
-
-            // 2) Línea de plataforma. El reporte de la mañana sale a la misma hora para muchos
-            //    negocios: se respeta el gauge (hueco aleatorio + tope por hora) esperando el
-            //    turno, con un techo para no colgar el worker si la línea está saturada.
-            if (waitForGauge)
-            {
-                var deadline = DateTime.UtcNow.AddMinutes(5);
-                while (!WhatsAppLine.GaugeReady(_configuration))
-                {
-                    if (DateTime.UtcNow > deadline) { _logger.LogWarning("OwnerNotify: línea de plataforma saturada, se reintenta más tarde"); return false; }
-                    try { await Task.Delay(TimeSpan.FromSeconds(10), ct); } catch (TaskCanceledException) { return false; }
-                }
-            }
-
-            var result = await WhatsAppLine.SendAsync(_httpClientFactory, _configuration, _logger, Section, phone, text, ct);
-            if (result == WaSendResult.Sent)
-            {
-                WhatsAppLine.RecordSend(_configuration);
-                return true;
-            }
-            _logger.LogWarning("OwnerNotify: envío a {Phone} terminó en {Result}", phone, result);
-            return false;
         }
 
         private static string Money(decimal n) => "$" + Math.Round(n).ToString("N0", new CultureInfo("es-AR"));

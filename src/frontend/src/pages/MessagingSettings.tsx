@@ -244,9 +244,14 @@ const MessagingSettings: React.FC = () => {
                   <Typography variant="h6">Avisos a tu WhatsApp</Typography>
                 </Box>
                 <Typography variant="body2" color="text.secondary">
-                  Te avisamos a vos, no a tus clientes. Si tu WhatsApp está conectado, el aviso sale por
-                  tu propia línea; si no, te llega desde la línea de Turnos Pro.
+                  Te avisamos a vos, no a tus clientes. Los avisos salen desde el WhatsApp conectado de tu
+                  negocio a tu celular; si conectaste tu mismo número te llegan al chat "Tú" de WhatsApp.
                 </Typography>
+                {lineConnected === false && (
+                  <Alert severity="warning" sx={{ mt: 1.5 }}>
+                    Tu WhatsApp no está conectado. <RouterLink to="/whatsapp">Conectalo acá</RouterLink> para recibir los avisos.
+                  </Alert>
+                )}
                 {ownerMsg && <Alert severity={ownerMsg.ok ? 'success' : 'error'} sx={{ mt: 1.5 }}>{ownerMsg.text}</Alert>}
                 <TextField
                   label="Número de WhatsApp para los avisos"
