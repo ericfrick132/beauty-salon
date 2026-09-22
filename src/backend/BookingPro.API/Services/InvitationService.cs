@@ -139,6 +139,128 @@ namespace BookingPro.API.Services
             }
         }
 
+        /// <summary>
+        /// Corrige nombre de negocio y/o subdominio de una invitación que todavía no fue
+        /// aceptada (ej. se cargó mal al crearla). Si ya fue usada/cancelada/expirada, no
+        /// se puede editar — en ese caso el fix es sobre el tenant ya creado, no acá.
+        /// </summary>
+        public async Task<ServiceResult<InvitationResponseDto>> UpdateInvitationAsync(Guid invitationId, UpdateInvitationDto dto)
+        {
+            try
+            {
+                var invitation = await _context.Invitations
+                    .Include(i => i.Vertical)
+                    .Include(i => i.Plan)
+                    .FirstOrDefaultAsync(i => i.Id == invitationId);
+
+                if (invitation == null)
+                {
+                    return ServiceResult<InvitationResponseDto>.Fail("Invitación no encontrada");
+                }
+
+                if (invitation.Status != "pending")
+                {
+                    return ServiceResult<InvitationResponseDto>.Fail("Solo se pueden editar invitaciones pendientes");
+                }
+
+                if (!string.IsNullOrWhiteSpace(dto.BusinessName))
+                {
+                    invitation.BusinessName = dto.BusinessName.Trim();
+                }
+
+                if (!string.IsNullOrWhiteSpace(dto.Subdomain))
+                {
+                    var candidate = SanitizeSubdomain(dto.Subdomain);
+
+                    if (candidate.Length < 3)
+                    {
+                        return ServiceResult<InvitationResponseDto>.Fail("El subdominio debe tener al menos 3 caracteres");
+                    }
+
+                    if (!string.Equals(candidate, invitation.Subdomain, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var existingTenant = await _context.Tenants
+                            .FirstOrDefaultAsync(t => t.Subdomain == candidate && t.VerticalId == invitation.VerticalId);
+                        if (existingTenant != null)
+                        {
+                            return ServiceResult<InvitationResponseDto>.Fail("Ya existe un negocio con ese subdominio");
+                        }
+
+                        var existingInvitation = await _context.Invitations
+                            .FirstOrDefaultAsync(i => i.Id != invitationId &&
+                                                    i.Subdomain == candidate &&
+                                                    i.VerticalId == invitation.VerticalId &&
+                                                    i.Status == "pending" &&
+                                                    i.ExpiresAt > DateTime.UtcNow);
+                        if (existingInvitation != null)
+                        {
+                            return ServiceResult<InvitationResponseDto>.Fail("Ya existe una invitación pendiente para ese subdominio");
+                        }
+
+                        invitation.Subdomain = candidate;
+                    }
+                }
+
+                invitation.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                var baseUrl = _configuration["FrontendUrl"] ?? "http://localhost:3000";
+
+                var response = new InvitationResponseDto
+                {
+                    Id = invitation.Id,
+                    Token = invitation.Token,
+                    Subdomain = invitation.Subdomain,
+                    BusinessName = invitation.BusinessName,
+                    BusinessAddress = invitation.BusinessAddress,
+                    AdminEmail = invitation.AdminEmail,
+                    AdminPhone = invitation.AdminPhone,
+                    TimeZone = invitation.TimeZone,
+                    Currency = invitation.Currency,
+                    Language = invitation.Language,
+                    Notes = invitation.Notes,
+                    IsDemo = invitation.IsDemo,
+                    DemoDays = invitation.DemoDays,
+                    Status = invitation.Status,
+                    ExpiresAt = invitation.ExpiresAt,
+                    CreatedAt = invitation.CreatedAt,
+                    VerticalName = invitation.Vertical.Name,
+                    PlanName = invitation.Plan?.Name,
+                    InvitationUrl = $"{baseUrl}/invitation/{invitation.Token}"
+                };
+
+                return ServiceResult<InvitationResponseDto>.Ok(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating invitation {InvitationId}", invitationId);
+                return ServiceResult<InvitationResponseDto>.Fail("Error interno del servidor");
+            }
+        }
+
+        /// <summary>
+        /// Limpia un subdominio ingresado a mano: sin acentos, minúsculas, solo [a-z0-9-],
+        /// sin guiones repetidos ni en las puntas. Mismo criterio que
+        /// TenantsController.SanitizeSubdomain (onboarding) y SuperAdminController (editar
+        /// tenant), para que el resultado sea consistente en todo el panel.
+        /// </summary>
+        private static string SanitizeSubdomain(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+            var normalized = value.Normalize(System.Text.NormalizationForm.FormD);
+            var sb = new System.Text.StringBuilder();
+            foreach (var c in normalized)
+            {
+                if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+                    sb.Append(c);
+            }
+            var cleaned = sb.ToString().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
+            cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"[^a-z0-9-]", "-");
+            cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"-+", "-");
+            cleaned = cleaned.Trim('-');
+            return cleaned.Length > 30 ? cleaned[..30] : cleaned;
+        }
+
         public async Task<ServiceResult<InvitationDetailsDto>> GetInvitationByTokenAsync(string token)
         {
             try

@@ -6,6 +6,7 @@ namespace BookingPro.API.Services.Interfaces
     public interface IInvitationService
     {
         Task<ServiceResult<InvitationResponseDto>> CreateInvitationAsync(CreateInvitationDto dto);
+        Task<ServiceResult<InvitationResponseDto>> UpdateInvitationAsync(Guid invitationId, UpdateInvitationDto dto);
         Task<ServiceResult<InvitationDetailsDto>> GetInvitationByTokenAsync(string token);
         Task<ServiceResult<string>> AcceptInvitationAsync(AcceptInvitationDto dto);
         Task<ServiceResult<List<InvitationResponseDto>>> GetPendingInvitationsAsync();

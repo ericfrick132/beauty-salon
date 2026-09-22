@@ -44,6 +44,26 @@ namespace BookingPro.API.Controllers
             });
         }
 
+        [HttpPut("{id}")]
+        [Authorize(Roles = Roles.AnySuperAdmin)]
+        public async Task<IActionResult> UpdateInvitation(Guid id, [FromBody] UpdateInvitationDto dto)
+        {
+            var result = await _invitationService.UpdateInvitationAsync(id, dto);
+
+            if (!result.Success)
+            {
+                if (result.Message?.Contains("no encontrada") == true)
+                    return NotFound(new { message = result.Message });
+                return BadRequest(new { message = result.Message });
+            }
+
+            return Ok(new {
+                success = true,
+                data = result.Data,
+                message = "Invitación actualizada exitosamente"
+            });
+        }
+
         [HttpGet("{token}")]
         [AllowAnonymous]
         public async Task<IActionResult> GetInvitation(string token)
