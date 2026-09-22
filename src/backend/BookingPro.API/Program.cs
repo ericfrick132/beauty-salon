@@ -142,6 +142,9 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IAppleAppStoreServ
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ISubscriptionService, BookingPro.API.Services.SubscriptionService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ICouponService, BookingPro.API.Services.CouponService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IFeatureAddonService, BookingPro.API.Services.FeatureAddonService>();
+// Add-on detección de transferencias: cruza la plata que entra a la cuenta MP del negocio con los turnos con seña pendiente.
+builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ITransferDetectionService, BookingPro.API.Services.TransferDetectionService>();
+builder.Services.AddHostedService<BookingPro.API.Services.TransferDetectionBackgroundService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IInventoryService, BookingPro.API.Services.InventoryService>();
 builder.Services.AddScoped<ISettingsService, SettingsService>();
 

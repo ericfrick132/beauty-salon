@@ -58,6 +58,30 @@ namespace BookingPro.API.Services
                 changed = true;
             }
 
+            // Detección de transferencias en Mercado Pago (ver TransferDetectionService).
+            var transferPrice = _configuration.GetValue("FeatureAddons:TransferDetectionMonthlyPrice", 20000m);
+            var transfer = await _context.FeatureAddons.FirstOrDefaultAsync(a => a.Code == FeatureCodes.TransferDetection);
+            if (transfer == null)
+            {
+                _context.FeatureAddons.Add(new FeatureAddon
+                {
+                    Code = FeatureCodes.TransferDetection,
+                    Name = "Detección de transferencias",
+                    Description = "Las señas que tus clientes te transfieren a Mercado Pago se acreditan solas en el turno, sin comisión por cobro y sin revisar comprobantes. Si el cliente manda la captura por WhatsApp, se le confirma por el mismo chat.",
+                    MonthlyPrice = transferPrice,
+                    Currency = "ARS",
+                    IsActive = true,
+                    DisplayOrder = 2
+                });
+                changed = true;
+            }
+            else if (transfer.MonthlyPrice != transferPrice || !transfer.IsActive)
+            {
+                transfer.MonthlyPrice = transferPrice;
+                transfer.IsActive = true;
+                changed = true;
+            }
+
             // El Agente IA se discontinuó como producto: ya no se ofrece ni se puede
             // comprar. Si quedó sembrado de antes, lo desactivamos para que no aparezca
             // en el catálogo (GetTenantAddonsAsync filtra por IsActive). No se borra el
@@ -161,7 +185,9 @@ namespace BookingPro.API.Services
                 MercadoPagoConfig.AccessToken = platformAccessToken;
 
                 var externalRef = $"ADDON-{tenantId}-{code}-{DateTime.UtcNow:yyyyMMddHHmmss}";
-                var returnPath = code == FeatureCodes.AiAgent ? "agente-ia" : "confirmation-bot";
+                var returnPath = code == FeatureCodes.AiAgent ? "agente-ia"
+                    : code == FeatureCodes.TransferDetection ? "transfer-detection"
+                    : "confirmation-bot";
 
                 var prefReq = new PreferenceRequest
                 {

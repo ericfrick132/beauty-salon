@@ -364,7 +364,15 @@ namespace BookingPro.API.Controllers
             if (string.IsNullOrEmpty(remoteJid) || remoteJid.Contains("@g.us")) return; // ignorar grupos
 
             var text = ExtractMessageText(item);
-            if (string.IsNullOrWhiteSpace(text)) return;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                // Una imagen o un PDF de un cliente es, casi siempre, el comprobante de la seña. Con el
+                // add-on de detección de transferencias activo no se ignora: se contesta y se cruza
+                // con Mercado Pago (no se lee la imagen; la identidad la da el teléfono que la mandó).
+                if (IsReceiptMessage(item))
+                    await TryRegisterReceiptAsync(instanceName, remoteJid, item);
+                return;
+            }
 
             // LÍNEA DE PLATAFORMA (la que manda OTPs y follow-ups al DUEÑO del negocio): si el
             // que escribe es un lead/tenant que estamos siguiendo, la respuesta va al cerebro
@@ -605,6 +613,36 @@ namespace BookingPro.API.Controllers
             {
                 _logger.LogWarning(ex, "Failed to send AI agent reply to {Phone}", senderDigits);
             }
+        }
+
+        private static bool IsReceiptMessage(JsonElement item)
+        {
+            if (!item.TryGetProperty("message", out var message) || message.ValueKind != JsonValueKind.Object) return false;
+            foreach (var prop in message.EnumerateObject())
+            {
+                var name = prop.Name;
+                if (name.Contains("image", StringComparison.OrdinalIgnoreCase) || name.Contains("document", StringComparison.OrdinalIgnoreCase)) return true;
+                if (name is "ephemeralMessage" or "viewOnceMessage" && prop.Value.ValueKind == JsonValueKind.Object && IsReceiptMessage(prop.Value)) return true;
+            }
+            return false;
+        }
+
+        private async Task TryRegisterReceiptAsync(string instanceName, string remoteJid, JsonElement item)
+        {
+            var platformInstance = _configuration["EVOLUTION_API_INSTANCE"];
+            if (!string.IsNullOrEmpty(platformInstance) && instanceName == platformInstance) return;
+
+            var connection = await _context.TenantWhatsAppConnections.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(c => c.InstanceName == instanceName);
+            if (connection == null) return;
+
+            var detection = HttpContext.RequestServices.GetRequiredService<BookingPro.API.Services.Interfaces.ITransferDetectionService>();
+            if (!await detection.IsActiveAsync(connection.TenantId)) return;
+
+            var senderDigits = new string(remoteJid.Split('@')[0].Where(char.IsDigit).ToArray());
+            if (senderDigits.Length < 8) return;
+            var pushName = item.TryGetProperty("pushName", out var pn) && pn.ValueKind == JsonValueKind.String ? pn.GetString() : null;
+            await detection.RegisterReceiptAsync(connection.TenantId, senderDigits, pushName);
         }
 
         private static string? ExtractMessageText(JsonElement item)

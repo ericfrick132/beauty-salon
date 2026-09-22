@@ -313,6 +313,7 @@ export const AdminLayout: React.FC = () => {
         { text: 'Suscripción', path: '/subscription', icon: <CreditCard fontSize="small" />, adminOnly: true },
         { text: 'Mensajería', path: '/messaging', icon: <WhatsApp fontSize="small" /> },
         { text: 'Bot de Confirmación', path: '/confirmation-bot', icon: <SmartToy fontSize="small" />, adminOnly: true, badge: 'Nuevo' },
+        { text: 'Transferencias MP', path: '/transfer-detection', icon: <AttachMoney fontSize="small" />, adminOnly: true, badge: 'Nuevo' },
         { text: 'MercadoPago', path: '/mercadopago-settings', icon: <MercadoPagoIcon fontSize="small" />, adminOnly: true },
         { text: 'Chytapay', path: '/chytapay-settings', icon: <AccountBalance fontSize="small" />, adminOnly: true },
       ],

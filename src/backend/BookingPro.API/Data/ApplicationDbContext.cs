@@ -95,6 +95,12 @@ namespace BookingPro.API.Data
         // Auditoría de emails enviados (plataforma, NO filtrada por tenant)
         public DbSet<EmailLog> EmailLogs { get; set; }
 
+        // Detección de transferencias en Mercado Pago (add-on transfer_detection)
+        public DbSet<TransferDetectionSettings> TransferDetectionSettings { get; set; }
+        public DbSet<IncomingPayment> IncomingPayments { get; set; }
+        public DbSet<PayerCustomerMapping> PayerCustomerMappings { get; set; }
+        public DbSet<WhatsAppReceiptClaim> WhatsAppReceiptClaims { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -805,6 +811,34 @@ namespace BookingPro.API.Data
             modelBuilder.Entity<TenantFeatureAddon>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<FeatureAddonPurchase>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<BookingConfirmationRequest>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+
+            // Detección de transferencias
+            modelBuilder.Entity<TransferDetectionSettings>(e =>
+            {
+                e.HasQueryFilter(x => x.TenantId == GetCurrentTenantId());
+                e.HasIndex(x => x.TenantId).IsUnique();
+            });
+            modelBuilder.Entity<IncomingPayment>(e =>
+            {
+                e.HasQueryFilter(x => x.TenantId == GetCurrentTenantId());
+                e.HasIndex(x => new { x.TenantId, x.MpPaymentId }).IsUnique();
+                e.HasIndex(x => new { x.TenantId, x.Status });
+                e.Property(x => x.Amount).HasPrecision(18, 2);
+                e.Property(x => x.NetAmount).HasPrecision(18, 2);
+                e.HasOne(x => x.Booking).WithMany().HasForeignKey(x => x.BookingId).OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.SetNull);
+            });
+            modelBuilder.Entity<PayerCustomerMapping>(e =>
+            {
+                e.HasQueryFilter(x => x.TenantId == GetCurrentTenantId());
+                e.HasIndex(x => new { x.TenantId, x.PayerKey }).IsUnique();
+                e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            });
+            modelBuilder.Entity<WhatsAppReceiptClaim>(e =>
+            {
+                e.HasQueryFilter(x => x.TenantId == GetCurrentTenantId());
+                e.HasIndex(x => new { x.TenantId, x.Status });
+            });
 
             // Nota: Service ya tiene su filtro combinado en ConfigureTenantEntities
         }

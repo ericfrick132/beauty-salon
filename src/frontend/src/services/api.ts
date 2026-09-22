@@ -405,6 +405,94 @@ export interface FeatureAddonStatus {
   hasPendingPurchase: boolean;
 }
 
+// ---- Detección de transferencias (add-on transfer_detection) ----
+export interface TransferDetectionStatus {
+  addonActive: boolean;
+  enabled: boolean;
+  active: boolean;
+  startedAt: string | null;
+  lastRunAt: string | null;
+  mercadoPagoConnected: boolean;
+  whatsAppConnected: boolean;
+  blockedReason: string | null;
+  detectedLast30: number;
+  pending: number;
+  pendingAmount: number;
+  applied: number;
+  appliedAmount: number;
+  ignored: number;
+  mappings: number;
+  minutesSaved: number;
+}
+
+export interface TransferBookingCandidate {
+  bookingId: string;
+  serviceName: string;
+  employeeName: string | null;
+  startTime: string;
+  endTime: string;
+  customerName: string | null;
+  customerPhone: string | null;
+  totalPrice: number;
+  amountPaid: number;
+  outstanding: number;
+  depositRequired: number | null;
+  depositOutstanding: number | null;
+  status: string;
+  amountMatches: boolean;
+}
+
+export interface PendingIncomingPayment {
+  id: string;
+  mpPaymentId: string;
+  dateApproved: string;
+  amount: number;
+  payerName: string | null;
+  payerEmail: string | null;
+  payerDni: string | null;
+  paymentMethodId: string | null;
+  description: string | null;
+  matchType: string | null;
+  suggestedBooking: TransferBookingCandidate | null;
+}
+
+export interface IncomingPaymentHistoryItem {
+  id: string;
+  mpPaymentId: string;
+  dateApproved: string;
+  amount: number;
+  payerName: string | null;
+  status: number; // 1 pendiente, 2 aplicado, 3 descartado
+  matchType: string | null;
+  bookingId: string | null;
+  bookingLabel: string | null;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+}
+
+export interface PayerCustomerMapping {
+  id: string;
+  payerKey: string;
+  payerLabel: string | null;
+  customerId: string;
+  customerName: string;
+  createdAt: string;
+}
+
+export const transferDetectionApi = {
+  status: (): Promise<TransferDetectionStatus> => api.get('/transfer-detection/status').then(res => res.data),
+  pending: (): Promise<PendingIncomingPayment[]> => api.get('/transfer-detection/pending').then(res => res.data),
+  candidates: (id: string): Promise<TransferBookingCandidate[]> => api.get(`/transfer-detection/pending/${id}/candidates`).then(res => res.data),
+  history: (days = 30): Promise<IncomingPaymentHistoryItem[]> => api.get('/transfer-detection/history', { params: { days } }).then(res => res.data),
+  resolve: (id: string, bookingId: string, remember: boolean): Promise<{ message: string }> =>
+    api.post(`/transfer-detection/pending/${id}/resolve`, { bookingId, remember }).then(res => res.data),
+  ignore: (id: string): Promise<{ message: string }> => api.post(`/transfer-detection/pending/${id}/ignore`).then(res => res.data),
+  mappings: (): Promise<PayerCustomerMapping[]> => api.get('/transfer-detection/mappings').then(res => res.data),
+  deleteMapping: (id: string) => api.delete(`/transfer-detection/mappings/${id}`).then(res => res.data),
+  run: (days = 3): Promise<{ message: string }> => api.post('/transfer-detection/run', null, { params: { days } }).then(res => res.data),
+  setEnabled: (enabled: boolean): Promise<{ message: string }> => api.put('/transfer-detection/enabled', { enabled }).then(res => res.data),
+};
+
 export const featureAddonsApi = {
   list: (): Promise<FeatureAddonStatus[]> => api.get('/feature-addons').then(res => res.data),
   purchase: (code: string) => api.post('/feature-addons/purchase', { code }).then(res => res.data),
