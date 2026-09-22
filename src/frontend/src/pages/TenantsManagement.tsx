@@ -57,6 +57,7 @@ import {
   ContentCopy as ContentCopyIcon,
   Palette as PaletteIcon,
   CardMembership as CardMembershipIcon,
+  Edit as EditIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -190,6 +191,11 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false,
   const [resetPasswordForm, setResetPasswordForm] = useState<{ email: string; password: string; autoGenerate: boolean }>({ email: '', password: '', autoGenerate: true });
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
   const [resetPasswordResult, setResetPasswordResult] = useState<{ email: string; password?: string | null } | null>(null);
+  const [editIdentityDialog, setEditIdentityDialog] = useState(false);
+  const [editIdentityTenant, setEditIdentityTenant] = useState<Tenant | null>(null);
+  const [editIdentityForm, setEditIdentityForm] = useState<{ businessName: string; subdomain: string }>({ businessName: '', subdomain: '' });
+  const [editIdentityLoading, setEditIdentityLoading] = useState(false);
+  const [editIdentityError, setEditIdentityError] = useState('');
   const [themeDialogOpen, setThemeDialogOpen] = useState(false);
   const [themeDialogTenant, setThemeDialogTenant] = useState<Tenant | null>(null);
   const [assignPlanDialog, setAssignPlanDialog] = useState(false);
@@ -437,6 +443,39 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false,
       setMessage({ type: 'error', text: error.response?.data?.message || 'Error al resetear contraseña' });
     } finally {
       setResetPasswordLoading(false);
+    }
+  };
+
+  const handleOpenEditIdentityDialog = (tenant: Tenant) => {
+    setEditIdentityTenant(tenant);
+    setEditIdentityForm({ businessName: tenant.businessName, subdomain: tenant.subdomain });
+    setEditIdentityError('');
+    setEditIdentityDialog(true);
+  };
+
+  const handleUpdateTenantIdentity = async () => {
+    if (!editIdentityTenant) return;
+    setEditIdentityLoading(true);
+    setEditIdentityError('');
+    try {
+      const payload: { businessName?: string; subdomain?: string } = {};
+      if (editIdentityForm.businessName.trim()) payload.businessName = editIdentityForm.businessName.trim();
+      if (editIdentityForm.subdomain.trim()) payload.subdomain = editIdentityForm.subdomain.trim();
+
+      const response = await api.put(`/super-admin/tenants/${editIdentityTenant.id}/identity`, payload);
+      if (response.data?.success) {
+        setTenants(prev => prev.map(t => t.id === editIdentityTenant.id
+          ? { ...t, businessName: response.data.businessName, subdomain: response.data.subdomain }
+          : t));
+        setMessage({ type: 'success', text: response.data.message || 'Datos actualizados' });
+        setEditIdentityDialog(false);
+      } else {
+        setEditIdentityError(response.data?.message || 'Error al actualizar los datos');
+      }
+    } catch (error: any) {
+      setEditIdentityError(error.response?.data?.message || 'Error al actualizar los datos');
+    } finally {
+      setEditIdentityLoading(false);
     }
   };
 
@@ -1061,6 +1100,10 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false,
           <MenuItem onClick={() => { if (actionMenuTenant) handleImpersonateTenant(actionMenuTenant.id, actionMenuTenant.subdomain); setActionMenuAnchor(null); }}>
             Impersonar
           </MenuItem>
+          <MenuItem onClick={() => { if (actionMenuTenant) handleOpenEditIdentityDialog(actionMenuTenant); setActionMenuAnchor(null); }}>
+            <EditIcon fontSize="small" sx={{ mr: 1 }} />
+            Editar nombre / subdominio
+          </MenuItem>
           <MenuItem onClick={() => { if (actionMenuTenant) handleOpenAssignPlanDialog(actionMenuTenant); setActionMenuAnchor(null); }}>
             <CardMembershipIcon fontSize="small" sx={{ mr: 1 }} />
             Cambiar plan (sin pago)
@@ -1089,6 +1132,64 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false,
             Eliminar permanentemente
           </MenuItem>
         </Menu>
+
+        {/* Edit Identity Dialog */}
+        <Dialog
+          open={editIdentityDialog}
+          onClose={() => setEditIdentityDialog(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>
+            Editar nombre / subdominio
+            {editIdentityTenant && (
+              <Typography variant="body2" color="text.secondary">
+                {editIdentityTenant.businessName} ({editIdentityTenant.subdomain})
+              </Typography>
+            )}
+          </DialogTitle>
+          <DialogContent>
+            <Grid container spacing={2} sx={{ mt: 1 }}>
+              <Grid item xs={12}>
+                <Alert severity="warning">
+                  Cambiar el subdominio rompe cualquier link que el negocio ya haya compartido con sus clientes (reservas, WhatsApp, redes). Solo cambialo si todavía no lo usó nadie.
+                </Alert>
+              </Grid>
+              {editIdentityError && (
+                <Grid item xs={12}>
+                  <Alert severity="error">{editIdentityError}</Alert>
+                </Grid>
+              )}
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Nombre del negocio"
+                  value={editIdentityForm.businessName}
+                  onChange={(e) => setEditIdentityForm({ ...editIdentityForm, businessName: e.target.value })}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Subdominio"
+                  value={editIdentityForm.subdomain}
+                  onChange={(e) => setEditIdentityForm({ ...editIdentityForm, subdomain: e.target.value })}
+                  helperText={`Queda: https://${editIdentityForm.subdomain || '...'}.turnos-pro.com`}
+                />
+              </Grid>
+            </Grid>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setEditIdentityDialog(false)}>Cancelar</Button>
+            <Button
+              variant="contained"
+              onClick={handleUpdateTenantIdentity}
+              disabled={editIdentityLoading || (!editIdentityForm.businessName.trim() && !editIdentityForm.subdomain.trim())}
+            >
+              {editIdentityLoading ? 'Guardando...' : 'Guardar'}
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {/* Reset Password Dialog */}
         <Dialog
