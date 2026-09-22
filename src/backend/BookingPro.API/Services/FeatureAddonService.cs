@@ -82,6 +82,30 @@ namespace BookingPro.API.Services
                 changed = true;
             }
 
+            // Asistente de WhatsApp por menú (ver WhatsAppMenuBotService): reserva, consulta y cancela turnos sin IA.
+            var menuBotPrice = _configuration.GetValue("FeatureAddons:MenuBotMonthlyPrice", 20000m);
+            var menuBot = await _context.FeatureAddons.FirstOrDefaultAsync(a => a.Code == FeatureCodes.MenuBot);
+            if (menuBot == null)
+            {
+                _context.FeatureAddons.Add(new FeatureAddon
+                {
+                    Code = FeatureCodes.MenuBot,
+                    Name = "Asistente de WhatsApp",
+                    Description = "Tus clientes reservan, consultan y cancelan turnos por WhatsApp respondiendo con números, 24/7, desde tu propio número y sin que nadie del negocio conteste.",
+                    MonthlyPrice = menuBotPrice,
+                    Currency = "ARS",
+                    IsActive = true,
+                    DisplayOrder = 0
+                });
+                changed = true;
+            }
+            else if (menuBot.MonthlyPrice != menuBotPrice || !menuBot.IsActive)
+            {
+                menuBot.MonthlyPrice = menuBotPrice;
+                menuBot.IsActive = true;
+                changed = true;
+            }
+
             // El Agente IA se discontinuó como producto: ya no se ofrece ni se puede
             // comprar. Si quedó sembrado de antes, lo desactivamos para que no aparezca
             // en el catálogo (GetTenantAddonsAsync filtra por IsActive). No se borra el
@@ -187,6 +211,7 @@ namespace BookingPro.API.Services
                 var externalRef = $"ADDON-{tenantId}-{code}-{DateTime.UtcNow:yyyyMMddHHmmss}";
                 var returnPath = code == FeatureCodes.AiAgent ? "agente-ia"
                     : code == FeatureCodes.TransferDetection ? "transfer-detection"
+                    : code == FeatureCodes.MenuBot ? "whatsapp-bot"
                     : "confirmation-bot";
 
                 var prefReq = new PreferenceRequest

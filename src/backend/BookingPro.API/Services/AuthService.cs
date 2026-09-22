@@ -15,6 +15,13 @@ namespace BookingPro.API.Services
 {
     public class AuthService : IAuthService
     {
+        /// <summary>
+        /// Cuánto vive el JWT de sesión. Las apps móviles guardan el token y NO tienen
+        /// refresh: con 24 h el usuario se deslogueaba todos los días. 30 días es lo que
+        /// ya usaba PlayCrew (la única app que no sufría esto).
+        /// </summary>
+        private static readonly TimeSpan TokenLifetime = TimeSpan.FromDays(30);
+
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;
         private readonly ITenantService _tenantService;
@@ -80,7 +87,7 @@ namespace BookingPro.API.Services
                 await _context.SaveChangesAsync();
 
                 var token = GenerateJwtToken(user);
-                var expiresAt = DateTime.UtcNow.AddHours(24);
+                var expiresAt = DateTime.UtcNow.Add(TokenLifetime);
 
                 return new AuthResponseDto
                 {
@@ -149,7 +156,7 @@ namespace BookingPro.API.Services
                 }
 
                 var token = GenerateJwtToken(user);
-                var expiresAt = DateTime.UtcNow.AddHours(24);
+                var expiresAt = DateTime.UtcNow.Add(TokenLifetime);
 
                 return new AuthResponseDto
                 {
@@ -188,7 +195,7 @@ namespace BookingPro.API.Services
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(claims),
-                Expires = DateTime.UtcNow.AddHours(24),
+                Expires = DateTime.UtcNow.Add(TokenLifetime),
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature),
                 Issuer = _configuration["Jwt:Issuer"],
                 Audience = _configuration["Jwt:Audience"]
