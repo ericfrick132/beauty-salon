@@ -396,15 +396,25 @@ namespace BookingPro.API.Controllers
                 .FirstOrDefaultAsync(s => s.TenantId == tenantId);
 
             var hasAiAgent = await _featureAddonService.HasActiveAddonAsync(tenantId, BookingPro.API.Models.Constants.FeatureCodes.AiAgent);
+            // Asistente por menú (add-on menu_bot): atiende todo lo que no sea una respuesta a un
+            // pedido de confirmación pendiente. No usa IA, así que no depende de créditos ni de una API key.
+            var menuBot = HttpContext.RequestServices.GetRequiredService<BookingPro.API.Services.Interfaces.IWhatsAppMenuBotService>();
+            var hasMenuBot = await menuBot.IsActiveAsync(tenantId);
             var confirmationEnabled = settings != null && settings.ConfirmationBotEnabled
                 && await _featureAddonService.HasActiveAddonAsync(tenantId, BookingPro.API.Models.Constants.FeatureCodes.ConfirmationBot);
 
-            if (!hasAiAgent && !confirmationEnabled) return;
+            if (!hasAiAgent && !confirmationEnabled && !hasMenuBot) return;
 
-            // Sin bot de confirmación pero con Agente IA → el agente atiende cualquier mensaje entrante.
+            var senderDigitsForBot = new string(remoteJid.Split('@')[0].Where(char.IsDigit).ToArray());
+            var pushName = item.TryGetProperty("pushName", out var pnEl) && pnEl.ValueKind == JsonValueKind.String ? pnEl.GetString() : null;
+
+            // Sin bot de confirmación: atiende el asistente por menú (o el agente IA, si lo tiene).
             if (!confirmationEnabled)
             {
-                await HandleAiAgentMessageAsync(tenantId, remoteJid, text);
+                if (hasMenuBot && senderDigitsForBot.Length >= 8)
+                    await menuBot.HandleIncomingMessageAsync(tenantId, senderDigitsForBot, pushName, text);
+                else if (hasAiAgent)
+                    await HandleAiAgentMessageAsync(tenantId, remoteJid, text);
                 return;
             }
 
@@ -425,8 +435,12 @@ namespace BookingPro.API.Controllers
                 r.Phone.Length >= 8 && r.Phone.EndsWith(senderSuffix));
             if (request == null)
             {
-                // No es respuesta a una confirmación pendiente → si tiene el add-on de IA, lo atiende el agente.
-                if (hasAiAgent) await HandleAiAgentMessageAsync(tenantId, remoteJid, text);
+                // No es respuesta a una confirmación pendiente → lo atiende el asistente por menú
+                // (o el agente IA, si es lo único que tiene contratado).
+                if (hasMenuBot && senderDigitsForBot.Length >= 8)
+                    await menuBot.HandleIncomingMessageAsync(tenantId, senderDigitsForBot, pushName, text);
+                else if (hasAiAgent)
+                    await HandleAiAgentMessageAsync(tenantId, remoteJid, text);
                 return;
             }
 

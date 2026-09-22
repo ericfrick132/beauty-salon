@@ -121,6 +121,8 @@ namespace BookingPro.API.Services
             await _context.SaveChangesAsync(ct);
 
             if (string.IsNullOrWhiteSpace(reply)) return null;
+            // La vista previa del panel corre el mismo bot pero no manda nada por WhatsApp.
+            if (phone.StartsWith("preview", StringComparison.OrdinalIgnoreCase)) return reply;
             try
             {
                 await _whatsApp.SendTextAsync(tenantId, phone, reply);
@@ -162,7 +164,7 @@ namespace BookingPro.API.Services
         private async Task<string?> BuildReplyAsync(Tenant tenant, MenuBotSettings settings, MenuBotSession session, string text, CancellationToken ct)
         {
             var data = SessionData.From(session.DataJson);
-            var p = Parse(text);
+            var p = Parse(text, OffsetHours(tenant));
 
             // Atajos que valen en cualquier paso
             if (IsMenuWord(text)) { Reset(session); return RenderMenu(tenant, session, greet: false); }
@@ -559,7 +561,7 @@ namespace BookingPro.API.Services
             booking.CancelledAt = DateTime.UtcNow;
             booking.CancellationReason = "Cancelado por el cliente desde WhatsApp";
             booking.UpdatedAt = DateTime.UtcNow;
-            _context.BookingStatusHistories.Add(new BookingStatusHistory
+            _context.BookingStatusHistory.Add(new BookingStatusHistory
             {
                 TenantId = tenant.Id,
                 BookingId = booking.Id,
@@ -744,7 +746,7 @@ namespace BookingPro.API.Services
             public Intent Intent { get; set; } = Intent.None;
         }
 
-        private Parsed Parse(string text)
+        private Parsed Parse(string text, int offsetHours)
         {
             var raw = (text ?? "").Trim();
             var n = Normalize(raw);
@@ -766,7 +768,7 @@ namespace BookingPro.API.Services
                 }
             }
 
-            p.Date = ParseDate(n);
+            p.Date = ParseDate(n, offsetHours);
 
             if (Contains(n, "reservar", "reserva", "turno", "quiero un turno", "sacar turno", "agendar", "cita")) p.Intent = Intent.Book;
             if (Contains(n, "cancelar", "anular", "dar de baja")) p.Intent = Intent.Cancel;
@@ -778,9 +780,9 @@ namespace BookingPro.API.Services
             return p;
         }
 
-        private DateTime? ParseDate(string n)
+        private DateTime? ParseDate(string n, int offsetHours)
         {
-            var today = DateTime.UtcNow.AddHours(-3).Date; // se ajusta con el offset del tenant al comparar
+            var today = DateTime.UtcNow.AddHours(offsetHours).Date;
             if (n.Contains("pasado manana")) return today.AddDays(2);
             if (n.Contains("manana")) return today.AddDays(1);
             if (n.Contains("hoy")) return today;

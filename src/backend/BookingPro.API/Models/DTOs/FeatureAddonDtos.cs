@@ -26,6 +26,29 @@ namespace BookingPro.API.Models.DTOs
         public DateTime ExpiresAt { get; set; }
     }
 
+    /// <summary>Un add-on de un negocio, como lo ve el super admin.</summary>
+    public class SuperAdminTenantAddonDto
+    {
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public bool Active { get; set; }
+        public DateTime? PaidUntil { get; set; }
+        /// <summary>payment | manual | plan</summary>
+        public string? Source { get; set; }
+    }
+
+    /// <summary>Negocio con el estado de todos los add-ons del catálogo.</summary>
+    public class SuperAdminAddonsRowDto
+    {
+        public Guid TenantId { get; set; }
+        public string BusinessName { get; set; } = string.Empty;
+        public string Subdomain { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public List<SuperAdminTenantAddonDto> Addons { get; set; } = new();
+        /// <summary>Lo que factura por add-ons al mes (sólo los vigentes).</summary>
+        public decimal MonthlyTotal { get; set; }
+    }
+
     public class GrantFeatureAddonDto
     {
         public Guid TenantId { get; set; }

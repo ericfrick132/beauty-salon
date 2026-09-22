@@ -538,6 +538,14 @@ const SuperAdminDashboard: React.FC = () => {
                 </Button>
                 <Button
                   variant="outlined"
+                  startIcon={<AttachMoney />}
+                  onClick={() => navigate('/super-admin/addons')}
+                  size="large"
+                >
+                  Add-ons por Negocio
+                </Button>
+                <Button
+                  variant="outlined"
                   startIcon={<CreditCard />}
                   onClick={() => setCurrentTab(6)}
                   size="large"

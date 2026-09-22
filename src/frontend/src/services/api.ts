@@ -405,6 +405,60 @@ export interface FeatureAddonStatus {
   hasPendingPurchase: boolean;
 }
 
+// ---- Asistente de WhatsApp por menú (add-on menu_bot) ----
+export interface MenuBotSettings {
+  cancellationCutoffHours: number;
+  minBookingAdvanceMinutes: number;
+  daysToOffer: number;
+  infoText: string | null;
+}
+
+export interface MenuBotStatus {
+  addonActive: boolean;
+  enabled: boolean;
+  active: boolean;
+  whatsAppConnected: boolean;
+  connectedPhone: string | null;
+  blockedReason: string | null;
+  settings: MenuBotSettings;
+  stats: { conversations: number; messages: number; bookingsCreated: number; bookingsCancelled: number };
+  recent: { phone: string; contactName: string | null; step: string; lastMessageAt: string; bookingsCreated: number }[];
+}
+
+export const menuBotApi = {
+  status: (): Promise<MenuBotStatus> => api.get('/menu-bot/status').then(res => res.data),
+  updateSettings: (data: Partial<MenuBotSettings> & { enabled?: boolean }): Promise<{ message: string }> =>
+    api.put('/menu-bot/settings', data).then(res => res.data),
+  preview: (text: string): Promise<{ reply: string | null }> =>
+    api.post('/menu-bot/preview', { text }).then(res => res.data),
+};
+
+// ---- Add-ons por negocio (super admin) ----
+export interface SuperAdminTenantAddon {
+  code: string;
+  name: string;
+  active: boolean;
+  paidUntil?: string | null;
+  source?: string | null;
+}
+
+export interface SuperAdminAddonsRow {
+  tenantId: string;
+  businessName: string;
+  subdomain: string;
+  status: string;
+  addons: SuperAdminTenantAddon[];
+  monthlyTotal: number;
+}
+
+export const superAdminAddonsApi = {
+  tenants: (): Promise<SuperAdminAddonsRow[]> => api.get('/super-admin/feature-addons/tenants').then(res => res.data),
+  grant: (tenantId: string, code: string, months: number) =>
+    api.post('/super-admin/feature-addons/grant', { tenantId, code, months }).then(res => res.data),
+  revoke: (tenantId: string, code: string) =>
+    api.post('/super-admin/feature-addons/revoke', { tenantId, code, months: 1 }).then(res => res.data),
+};
+
 // ---- Detección de transferencias (add-on transfer_detection) ----
 export interface TransferDetectionStatus {
   addonActive: boolean;

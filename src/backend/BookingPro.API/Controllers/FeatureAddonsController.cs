@@ -71,6 +71,15 @@ namespace BookingPro.API.Controllers
             _featureAddonService = featureAddonService;
         }
 
+        /// <summary>Todos los negocios con el estado de cada add-on (pantalla de add-ons del super admin).</summary>
+        [HttpGet("tenants")]
+        public async Task<IActionResult> GetTenants()
+        {
+            var result = await _featureAddonService.GetAllTenantsAddonsAsync();
+            if (!result.Success) return BadRequest(new { error = result.Message });
+            return Ok(result.Data);
+        }
+
         /// <summary>Otorga manualmente un add-on a un tenant por N meses.</summary>
         [HttpPost("grant")]
         public async Task<IActionResult> Grant([FromBody] GrantFeatureAddonDto dto)

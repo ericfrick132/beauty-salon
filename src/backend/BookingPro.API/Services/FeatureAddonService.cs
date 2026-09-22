@@ -184,6 +184,51 @@ namespace BookingPro.API.Services
             }
         }
 
+        public async Task<ServiceResult<List<SuperAdminAddonsRowDto>>> GetAllTenantsAddonsAsync()
+        {
+            try
+            {
+                var now = DateTime.UtcNow;
+                var catalog = await _context.FeatureAddons.Where(a => a.IsActive).OrderBy(a => a.DisplayOrder).ToListAsync();
+                var tenants = await _context.Tenants.OrderBy(t => t.BusinessName).ToListAsync();
+                var owned = await _context.TenantFeatureAddons.IgnoreQueryFilters().ToListAsync();
+
+                var rows = tenants.Select(t =>
+                {
+                    var mine = owned.Where(o => o.TenantId == t.Id).ToList();
+                    var addons = catalog.Select(a =>
+                    {
+                        var o = mine.FirstOrDefault(x => x.AddonCode == a.Code);
+                        return new SuperAdminTenantAddonDto
+                        {
+                            Code = a.Code,
+                            Name = a.Name,
+                            Active = o != null && o.Status == "active" && o.PaidUntil > now,
+                            PaidUntil = o?.PaidUntil,
+                            Source = o?.Source,
+                        };
+                    }).ToList();
+
+                    return new SuperAdminAddonsRowDto
+                    {
+                        TenantId = t.Id,
+                        BusinessName = t.BusinessName ?? "",
+                        Subdomain = t.Subdomain ?? "",
+                        Status = t.Status ?? "",
+                        Addons = addons,
+                        MonthlyTotal = addons.Where(x => x.Active).Sum(x => catalog.First(c => c.Code == x.Code).MonthlyPrice),
+                    };
+                }).ToList();
+
+                return ServiceResult<List<SuperAdminAddonsRowDto>>.Ok(rows);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error listando add-ons por tenant");
+                return ServiceResult<List<SuperAdminAddonsRowDto>>.Fail("Error listando add-ons");
+            }
+        }
+
         public async Task<ServiceResult<PurchaseFeatureAddonResponseDto>> CreatePurchaseAsync(Guid tenantId, string code)
         {
             try

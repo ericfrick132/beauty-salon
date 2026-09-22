@@ -93,6 +93,7 @@ const Dashboard: React.FC = () => {
   const [showUnpaidDetails, setShowUnpaidDetails] = useState(false);
   const [copiedBookingLink, setCopiedBookingLink] = useState(false);
   const [confirmationBotAddon, setConfirmationBotAddon] = useState<FeatureAddonStatus | null>(null);
+  const [menuBotAddon, setMenuBotAddon] = useState<FeatureAddonStatus | null>(null);
   const [confirmationBotStats, setConfirmationBotStats] = useState<any>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [mpActive, setMpActive] = useState<boolean | null>(null);
@@ -126,6 +127,7 @@ const Dashboard: React.FC = () => {
         const addons = await featureAddonsApi.list();
         const bot = addons.find(a => a.code === 'confirmation_bot') || null;
         setConfirmationBotAddon(bot);
+        setMenuBotAddon(addons.find(a => a.code === 'menu_bot') || null);
         if (bot?.active) {
           const stats = await messagingApi.getConfirmationBotStats();
           setConfirmationBotStats(stats);
@@ -524,6 +526,49 @@ const Dashboard: React.FC = () => {
             </Card>
           </Grid>
         </Grid>
+
+        {/* Asistente de WhatsApp (bot por menú): promo mientras no lo tenga contratado */}
+        {canSeeAdmin && menuBotAddon && !menuBotAddon.active && (
+          <Grid container spacing={3} sx={{ mb: 3 }}>
+            <Grid item xs={12}>
+              <Card
+                sx={{
+                  background: 'linear-gradient(135deg, #0b3d2e 0%, #128c7e 55%, #25d366 100%)',
+                  color: '#fff', cursor: 'pointer',
+                  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                  '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 8px 24px rgba(18,140,126,0.35)' },
+                }}
+                onClick={() => navigate('/whatsapp-bot')}
+              >
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                    <Box sx={{ width: 56, height: 56, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(255,255,255,0.18)' }}>
+                      <WhatsApp sx={{ fontSize: 32 }} />
+                    </Box>
+                    <Box sx={{ flex: 1, minWidth: 240 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                        <Typography variant="h6" sx={{ fontWeight: 700 }}>Nuevo: Asistente de WhatsApp</Typography>
+                        <Chip label="NUEVO" size="small" sx={{ bgcolor: '#ffd54f', color: '#5d4000', fontWeight: 700, height: 20 }} />
+                      </Box>
+                      <Typography variant="body2" sx={{ opacity: 0.95, mt: 0.5 }}>
+                        Tus clientes reservan, consultan y cancelan turnos solos por WhatsApp, 24/7, desde tu número.
+                        {menuBotAddon.monthlyPrice > 0 && ` Desde $${Math.round(menuBotAddon.monthlyPrice).toLocaleString('es-AR')}/mes.`}
+                      </Typography>
+                    </Box>
+                    <Button
+                      variant="contained"
+                      startIcon={<WhatsApp />}
+                      sx={{ bgcolor: '#fff', color: '#0b3d2e', fontWeight: 700, flexShrink: 0, '&:hover': { bgcolor: '#e8f5e9' } }}
+                      onClick={(e) => { e.stopPropagation(); navigate('/whatsapp-bot'); }}
+                    >
+                      Conocelo
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        )}
 
         {/* Bot de Confirmación: promo (no activo) o resumen (activo) */}
         {canSeeAdmin && confirmationBotAddon && !confirmationBotAddon.active && (

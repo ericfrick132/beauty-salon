@@ -95,6 +95,10 @@ namespace BookingPro.API.Data
         // Auditoría de emails enviados (plataforma, NO filtrada por tenant)
         public DbSet<EmailLog> EmailLogs { get; set; }
 
+        // Asistente de WhatsApp por menú (add-on menu_bot)
+        public DbSet<MenuBotSettings> MenuBotSettings { get; set; }
+        public DbSet<MenuBotSession> MenuBotSessions { get; set; }
+
         // Detección de transferencias en Mercado Pago (add-on transfer_detection)
         public DbSet<TransferDetectionSettings> TransferDetectionSettings { get; set; }
         public DbSet<IncomingPayment> IncomingPayments { get; set; }
@@ -811,6 +815,19 @@ namespace BookingPro.API.Data
             modelBuilder.Entity<TenantFeatureAddon>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<FeatureAddonPurchase>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<BookingConfirmationRequest>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+
+            // Asistente de WhatsApp por menú
+            modelBuilder.Entity<MenuBotSettings>(e =>
+            {
+                e.HasQueryFilter(x => x.TenantId == GetCurrentTenantId());
+                e.HasIndex(x => x.TenantId).IsUnique();
+            });
+            modelBuilder.Entity<MenuBotSession>(e =>
+            {
+                e.HasQueryFilter(x => x.TenantId == GetCurrentTenantId());
+                e.HasIndex(x => new { x.TenantId, x.Phone }).IsUnique();
+                e.HasIndex(x => x.LastMessageAt);
+            });
 
             // Detección de transferencias
             modelBuilder.Entity<TransferDetectionSettings>(e =>

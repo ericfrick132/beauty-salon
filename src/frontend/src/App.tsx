@@ -22,6 +22,7 @@ import SuperAdminLogin from './pages/SuperAdminLogin';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import SuperAdminPlans from './pages/SuperAdminPlans';
 import SuperAdminWhatsApp from './pages/SuperAdminWhatsApp';
+import SuperAdminAddons from './pages/SuperAdminAddons';
 import SuperAdminPayments from './pages/admin/SuperAdminPayments';
 import SuperAdminEmails from './pages/admin/SuperAdminEmails';
 import TrackingDashboard from './pages/TrackingDashboard';
@@ -56,6 +57,7 @@ import MessagingSettings from './pages/MessagingSettings';
 import WhatsAppSettings from './pages/WhatsAppSettings';
 import ConfirmationBot from './pages/ConfirmationBot';
 import TransferDetection from './pages/TransferDetection';
+import WhatsAppBot from './pages/WhatsAppBot';
 import AiAgent from './pages/AiAgent';
 import MessageHistory from './pages/MessageHistory';
 import MessagingHub from './pages/MessagingHub';
@@ -353,6 +355,7 @@ function App() {
                 <Route path="/super-admin/emails" element={<SuperAdminEmails />} />
                 <Route path="/super-admin/marketing" element={<TrackingDashboard />} />
                 <Route path="/super-admin/whatsapp" element={<SuperAdminWhatsApp />} />
+                <Route path="/super-admin/addons" element={<SuperAdminAddons />} />
 
                 {/* Main Domain Routes - Landing Page */}
                 {isMainDomain() ? (
@@ -425,6 +428,7 @@ function App() {
                   <Route path="/whatsapp" element={<WhatsAppSettings />} />
                   <Route path="/confirmation-bot" element={<ConfirmationBot />} />
                   <Route path="/transfer-detection" element={<TransferDetection />} />
+                  <Route path="/whatsapp-bot" element={<WhatsAppBot />} />
                   <Route path="/agente-ia" element={<AiAgent />} />
                 </Route>
               </Routes>
