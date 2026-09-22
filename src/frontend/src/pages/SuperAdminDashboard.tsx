@@ -57,6 +57,7 @@ import {
   WhatsApp as WhatsAppIcon,
   TrendingUp as TrendIcon,
   CreditCard,
+  Edit,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import TenantsManagement from './TenantsManagement';
@@ -203,7 +204,14 @@ const SuperAdminDashboard: React.FC = () => {
   // Estados para mostrar invitación creada
   const [createdInvitation, setCreatedInvitation] = useState<Invitation | null>(null);
   const [openInvitationCreatedDialog, setOpenInvitationCreatedDialog] = useState(false);
-  
+
+  // Estados para editar una invitación pendiente (nombre/subdominio mal cargados)
+  const [editInvitationDialog, setEditInvitationDialog] = useState(false);
+  const [editInvitationTarget, setEditInvitationTarget] = useState<Invitation | null>(null);
+  const [editInvitationForm, setEditInvitationForm] = useState<{ businessName: string; subdomain: string }>({ businessName: '', subdomain: '' });
+  const [editInvitationLoading, setEditInvitationLoading] = useState(false);
+  const [editInvitationError, setEditInvitationError] = useState('');
+
   const [stats, setStats] = useState({
     totalTenants: 0,
     activeTenants: 0,
@@ -340,6 +348,33 @@ const SuperAdminDashboard: React.FC = () => {
       setSuccess('Invitación reenviada exitosamente');
     } catch (error: any) {
       setError(error.response?.data?.message || 'Error reenviando invitación');
+    }
+  };
+
+  const handleOpenEditInvitationDialog = (invitation: Invitation) => {
+    setEditInvitationTarget(invitation);
+    setEditInvitationForm({ businessName: invitation.businessName, subdomain: invitation.subdomain });
+    setEditInvitationError('');
+    setEditInvitationDialog(true);
+  };
+
+  const handleUpdateInvitation = async () => {
+    if (!editInvitationTarget) return;
+    setEditInvitationLoading(true);
+    setEditInvitationError('');
+    try {
+      const payload: { businessName?: string; subdomain?: string } = {};
+      if (editInvitationForm.businessName.trim()) payload.businessName = editInvitationForm.businessName.trim();
+      if (editInvitationForm.subdomain.trim()) payload.subdomain = editInvitationForm.subdomain.trim();
+
+      await superAdminApi.updateInvitation(editInvitationTarget.id, payload);
+      await loadInvitations();
+      setSuccess('Invitación actualizada exitosamente');
+      setEditInvitationDialog(false);
+    } catch (error: any) {
+      setEditInvitationError(error.response?.data?.message || 'Error actualizando invitación');
+    } finally {
+      setEditInvitationLoading(false);
     }
   };
 
@@ -654,6 +689,13 @@ const SuperAdminDashboard: React.FC = () => {
                               <ContentCopy fontSize="small" />
                             </IconButton>
                           </Tooltip>
+                          {!isSales && String(inv.status).toLowerCase() === 'pending' && (
+                          <Tooltip title="Editar nombre / subdominio">
+                            <IconButton size="small" color="default" onClick={() => handleOpenEditInvitationDialog(inv)}>
+                              <Edit fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          )}
                           {!isSales && (
                           <Tooltip title="Reenviar invitación">
                             <IconButton size="small" color="primary" onClick={() => handleResendInvitation(inv.id)}>
@@ -1059,6 +1101,53 @@ const SuperAdminDashboard: React.FC = () => {
             variant="contained"
           >
             Cerrar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Invitation Dialog */}
+      <Dialog
+        open={editInvitationDialog}
+        onClose={() => setEditInvitationDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Editar nombre / subdominio
+          {editInvitationTarget && (
+            <Typography variant="body2" color="text.secondary">
+              {editInvitationTarget.businessName} ({editInvitationTarget.subdomain})
+            </Typography>
+          )}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {editInvitationError && (
+              <Alert severity="error">{editInvitationError}</Alert>
+            )}
+            <TextField
+              fullWidth
+              label="Nombre del negocio"
+              value={editInvitationForm.businessName}
+              onChange={(e) => setEditInvitationForm({ ...editInvitationForm, businessName: e.target.value })}
+            />
+            <TextField
+              fullWidth
+              label="Subdominio"
+              value={editInvitationForm.subdomain}
+              onChange={(e) => setEditInvitationForm({ ...editInvitationForm, subdomain: e.target.value })}
+              helperText="Solo letras, números y guiones. Se limpia automáticamente al guardar."
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditInvitationDialog(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={handleUpdateInvitation}
+            disabled={editInvitationLoading || (!editInvitationForm.businessName.trim() && !editInvitationForm.subdomain.trim())}
+          >
+            {editInvitationLoading ? 'Guardando...' : 'Guardar'}
           </Button>
         </DialogActions>
       </Dialog>

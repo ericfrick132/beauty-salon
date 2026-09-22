@@ -2,6 +2,13 @@ using System.ComponentModel.DataAnnotations;
 
 namespace BookingPro.API.Models.DTOs
 {
+    /// <summary>Corrige nombre/subdominio de una invitación que todavía no fue aceptada.</summary>
+    public class UpdateInvitationDto
+    {
+        public string? BusinessName { get; set; }
+        public string? Subdomain { get; set; }
+    }
+
     public class CreateInvitationDto
     {
         [Required]
