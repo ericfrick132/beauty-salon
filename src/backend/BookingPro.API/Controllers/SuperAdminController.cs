@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using System.Security.Claims;
 using BookingPro.API.Data;
 using BookingPro.API.Models.Entities;
@@ -22,17 +23,32 @@ namespace BookingPro.API.Controllers
         private readonly ILogger<SuperAdminController> _logger;
         private readonly ISuperAdminService _superAdminService;
         private readonly IPlatformWhatsAppService _platformWhatsApp;
+        private readonly IMemoryCache _cache;
+
+        // Subdomains que nunca se entregan (mismo criterio que TenantsController,
+        // que es el que arma subdominios durante el onboarding).
+        private static readonly HashSet<string> ReservedSubdomains = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "www", "api", "admin", "app", "mail", "email", "ftp", "blog", "shop", "store",
+            "support", "help", "docs", "dev", "test", "staging", "prod", "production",
+            "cdn", "static", "assets", "images", "media", "files", "download", "upload",
+            "secure", "ssl", "vpn", "remote", "proxy", "gateway", "router", "firewall",
+            "database", "db", "redis", "cache", "queue", "worker", "cron", "backup",
+            "monitor", "stats", "analytics", "metrics", "health", "status", "ping"
+        };
 
         public SuperAdminController(
             ApplicationDbContext context,
             ILogger<SuperAdminController> logger,
             ISuperAdminService superAdminService,
-            IPlatformWhatsAppService platformWhatsApp)
+            IPlatformWhatsAppService platformWhatsApp,
+            IMemoryCache cache)
         {
             _context = context;
             _logger = logger;
             _superAdminService = superAdminService;
             _platformWhatsApp = platformWhatsApp;
+            _cache = cache;
         }
 
         // ─── WhatsApp de plataforma (número que envía los OTP de registro/login) ───
@@ -588,6 +604,106 @@ namespace BookingPro.API.Controllers
             return Ok(new { success = true, message = $"Tenant '{tenant.BusinessName}' eliminado permanentemente" });
         }
 
+        /// <summary>
+        /// Corrige el nombre de negocio y/o subdominio de un tenant ya creado (ej. una
+        /// invitación que se aceptó con datos mal cargados). A diferencia del onboarding
+        /// del propio tenant, acá el subdominio se puede fijar a mano en vez de derivarse
+        /// solo del nombre.
+        /// </summary>
+        [HttpPut("tenants/{tenantId}/identity")]
+        [Authorize(Roles = Roles.SuperAdmin)]
+        public async Task<IActionResult> UpdateTenantIdentity(Guid tenantId, [FromBody] UpdateTenantIdentityDto dto)
+        {
+            var adminEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? "unknown";
+
+            var tenant = await _context.Tenants
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(t => t.Id == tenantId);
+
+            if (tenant == null)
+                return NotFound(new { success = false, message = "Tenant no encontrado" });
+
+            var oldSubdomain = tenant.Subdomain;
+            var subdomainChanged = false;
+
+            if (!string.IsNullOrWhiteSpace(dto.BusinessName))
+                tenant.BusinessName = dto.BusinessName.Trim();
+
+            if (!string.IsNullOrWhiteSpace(dto.Subdomain))
+            {
+                var candidate = SanitizeSubdomain(dto.Subdomain);
+
+                if (candidate.Length < 3)
+                    return BadRequest(new { success = false, message = "El subdominio debe tener al menos 3 caracteres" });
+
+                if (ReservedSubdomains.Contains(candidate))
+                    return BadRequest(new { success = false, message = "Ese subdominio está reservado" });
+
+                if (!string.Equals(candidate, tenant.Subdomain, StringComparison.OrdinalIgnoreCase))
+                {
+                    var taken = await _context.Tenants
+                        .IgnoreQueryFilters()
+                        .AnyAsync(t => t.Id != tenantId && t.Subdomain.ToLower() == candidate.ToLower());
+
+                    if (taken)
+                        return Conflict(new { success = false, message = "Ese subdominio ya está en uso" });
+
+                    tenant.Subdomain = candidate;
+                    tenant.SchemaName = $"tenant_{candidate.Replace("-", "_")}";
+                    subdomainChanged = true;
+                }
+            }
+
+            tenant.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            if (subdomainChanged)
+            {
+                // Las resoluciones de tenant por subdominio se cachean por header/query
+                // string (mismo criterio que el onboarding en TenantsController) — sin
+                // esto, el subdominio viejo seguiría resolviendo al tenant hasta que
+                // expire el caché.
+                _cache.Remove($"tenant_header_{oldSubdomain}");
+                _cache.Remove($"tenant_qs_{oldSubdomain}");
+            }
+
+            _logger.LogWarning(
+                "SuperAdmin {Admin} updated identity for tenant {TenantId}: businessName={BusinessName}, subdomain {Old} -> {New}",
+                adminEmail, tenantId, tenant.BusinessName, oldSubdomain, tenant.Subdomain);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Datos actualizados correctamente",
+                businessName = tenant.BusinessName,
+                subdomain = tenant.Subdomain,
+                subdomainChanged
+            });
+        }
+
+        /// <summary>
+        /// Limpia un subdominio ingresado a mano: sin acentos, minúsculas, solo
+        /// [a-z0-9-], sin guiones repetidos ni en las puntas. Mismo criterio que
+        /// TenantsController.SanitizeSubdomain (onboarding), para que un subdominio
+        /// fijado acá se comporte igual que uno derivado del nombre del negocio.
+        /// </summary>
+        private static string SanitizeSubdomain(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+            var normalized = value.Normalize(System.Text.NormalizationForm.FormD);
+            var sb = new System.Text.StringBuilder();
+            foreach (var c in normalized)
+            {
+                if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+                    sb.Append(c);
+            }
+            var cleaned = sb.ToString().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
+            cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"[^a-z0-9-]", "-");
+            cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"-+", "-");
+            cleaned = cleaned.Trim('-');
+            return cleaned.Length > 30 ? cleaned[..30] : cleaned;
+        }
+
         [HttpGet("tenants/list")]
         [Authorize(Roles = Roles.SuperAdmin)]
         public async Task<IActionResult> GetTenantsForImpersonation()
@@ -622,6 +738,12 @@ namespace BookingPro.API.Controllers
     {
         public int Amount { get; set; }
         public string? Reason { get; set; }
+    }
+
+    public class UpdateTenantIdentityDto
+    {
+        public string? BusinessName { get; set; }
+        public string? Subdomain { get; set; }
     }
 
     public class ResetTenantPasswordDto
