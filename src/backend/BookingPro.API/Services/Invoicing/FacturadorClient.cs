@@ -58,6 +58,8 @@ public class FacturadorException(HttpStatusCode status, string message) : Except
 public interface IFacturadorClient
 {
     bool IsConfigured { get; }
+    /// <summary>Guía paso a paso de ARCA con capturas, para embeber (iframe) aunque el emisor todavía no exista.</summary>
+    string? GuideUrl { get; }
     Task<FacturadorEmitter> UpsertEmitterAsync(string externalId, FacturadorEmitterRequest request, CancellationToken ct = default);
     Task<FacturadorEmitter?> GetEmitterAsync(string externalId, CancellationToken ct = default);
     Task<FacturadorEmitter> VerifyAsync(string externalId, CancellationToken ct = default);
@@ -84,12 +86,14 @@ public class FacturadorClient : IFacturadorClient
         if (IsConfigured)
         {
             _http.BaseAddress = new Uri(baseUrl!.TrimEnd('/') + "/");
+            GuideUrl = baseUrl.TrimEnd('/') + "/guia-arca?embed=1";
             _http.DefaultRequestHeaders.Remove("X-Api-Key");
             _http.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
         }
     }
 
     public bool IsConfigured { get; }
+    public string? GuideUrl { get; }
 
     private static string E(string value) => Uri.EscapeDataString(value);
 

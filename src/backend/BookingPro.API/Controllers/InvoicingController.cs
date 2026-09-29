@@ -47,7 +47,7 @@ namespace BookingPro.API.Controllers
             FacturadorEmitter? emitter = null;
             if (_facturador.IsConfigured && tenant.InvoicingCuit is not null)
                 emitter = await _facturador.GetEmitterAsync(EmitterId, ct);
-            return Data(new { platformEnabled = _facturador.IsConfigured, cuit = tenant.InvoicingCuit, autoInvoice = tenant.AutoInvoice, autoInvoiceSince = tenant.AutoInvoiceSince, emitter });
+            return Data(new { platformEnabled = _facturador.IsConfigured, guideUrl = emitter?.GuideUrl ?? _facturador.GuideUrl, cuit = tenant.InvoicingCuit, autoInvoice = tenant.AutoInvoice, autoInvoiceSince = tenant.AutoInvoiceSince, emitter });
         });
 
         [HttpPut("settings")]

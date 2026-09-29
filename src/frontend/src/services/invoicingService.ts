@@ -30,6 +30,8 @@ export interface Emitter {
 
 export interface InvoicingStatus {
   platformEnabled: boolean;
+  /** Guía de ARCA con capturas (embebible), aunque todavía no haya emisor. */
+  guideUrl?: string | null;
   cuit?: string | null;
   autoInvoice: boolean;
   autoInvoiceSince?: string | null;

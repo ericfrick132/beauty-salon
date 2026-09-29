@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, Box, Button, Card, CardContent, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent,
+  Alert, Box, Button, Card, CardContent, Checkbox, Chip, CircularProgress, Collapse, Dialog, DialogActions, DialogContent,
   DialogContentText, FormControl, FormControlLabel, Grid, InputLabel, MenuItem, Paper, Select, Stack, Step, StepContent,
   Snackbar, StepLabel, Stepper, Switch, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField,
   Typography,
@@ -478,6 +478,60 @@ const Vat: React.FC<{ s: VatSummary; onSaved: () => void }> = ({ s, onSaved }) =
 const TAX_LABELS: Record<TaxConditionCode, string> = { monotributo: 'Monotributo', responsable_inscripto: 'Responsable Inscripto', exento: 'Exento' };
 const formatCuit = (c: string) => (c.length === 11 ? `${c.slice(0, 2)}-${c.slice(2, 10)}-${c.slice(10)}` : c);
 
+/**
+ * Instructivo para conectar ARCA: siempre a mano en la pestaña, aunque todavía no haya CUIT cargado. Resume los
+ * pasos y abre la guía con capturas del facturador (la misma que se le puede mandar al contador).
+ */
+const ArcaInstructions: React.FC<{ guideUrl?: string | null; emitter?: Emitter | null; defaultOpen: boolean }> = ({ guideUrl, emitter, defaultOpen }) => {
+  const toast = useToast();
+  const [open, setOpen] = useState(defaultOpen);
+  const [showGuide, setShowGuide] = useState(false);
+  const shareUrl = guideUrl?.replace('embed=1&', '').replace('?embed=1', '?') ?? '';
+  const representative = emitter ? <><b>{emitter.platformName}</b> (CUIT {formatCuit(emitter.platformCuit)})</> : <b>nuestro CUIT</b>;
+  const system = emitter?.pointOfSaleSystemName;
+  const steps: { where: string; text: React.ReactNode }[] = [
+    { where: 'Acá', text: <>Cargá tu CUIT en <b>Tus datos fiscales</b>. El resto lo traemos de ARCA.</> },
+    { where: 'En ARCA', text: <>Entrá con tu clave fiscal (nivel 3) → <b>Administrador de Relaciones</b> → Nueva Relación → ARCA → WebServices → <b>Facturación Electrónica</b> → en Representante poné {representative} → Confirmar.</> },
+    { where: 'En ARCA', text: <><b>Administración de Puntos de Venta y Domicilios</b> → A/B/M → Agregar → Sistema {system ? <b>“{system}”</b> : <><b>“Factura Electrónica - Monotributo - Web Services”</b> (Responsable Inscripto: “RECE para aplicativo y web services”)</>}.</> },
+    { where: 'Nosotros', text: <>Activamos tu autorización en ARCA (en el día hábil). No tenés que hacer nada.</> },
+    { where: 'Acá', text: <>Tocá <b>Verificar</b> y listo: ya podés facturar.</> },
+  ];
+  return (
+    <Paper sx={{ p: 3 }}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ cursor: 'pointer' }} onClick={() => setOpen(!open)}>
+        <Box>
+          <Typography variant="h6" fontWeight={700}>Instructivo: cómo conectar ARCA</Typography>
+          <Typography variant="caption" color="text.secondary">Una sola vez, unos 10 minutos. Lo puede hacer tu contador.</Typography>
+        </Box>
+        <Typography variant="h5" color="text.secondary">{open ? '−' : '+'}</Typography>
+      </Stack>
+      <Collapse in={open}>
+        <Stack spacing={1.5} mt={2}>
+          {steps.map((s, i) => (
+            <Stack key={i} direction="row" spacing={1.5} alignItems="flex-start">
+              <Chip size="small" label={i + 1} sx={{ fontWeight: 700, minWidth: 28 }} />
+              <Typography variant="body2">
+                <Typography component="span" variant="caption" color="primary" fontWeight={700} sx={{ textTransform: 'uppercase', mr: 1 }}>{s.where}</Typography>
+                {s.text}
+              </Typography>
+            </Stack>
+          ))}
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap pt={1}>
+            <Button variant="contained" href="https://auth.afip.gob.ar/contribuyente_/login.xhtml" target="_blank">Abrir ARCA ↗</Button>
+            {guideUrl && <Button variant="outlined" onClick={() => setShowGuide(!showGuide)}>{showGuide ? 'Ocultar paso a paso' : 'Ver paso a paso con capturas'}</Button>}
+            {guideUrl && <Button variant="outlined" onClick={() => navigator.clipboard.writeText(shareUrl).then(() => toast.showSuccess('Link copiado: mandáselo a tu contador'))}>Copiar link para mi contador</Button>}
+          </Stack>
+          {showGuide && guideUrl && (
+            <Box sx={{ borderRadius: 2, overflow: 'hidden', border: 1, borderColor: 'divider', bgcolor: '#fff' }}>
+              <iframe src={guideUrl} title="Guía paso a paso de ARCA" style={{ width: '100%', height: 720, border: 0 }} loading="lazy" />
+            </Box>
+          )}
+        </Stack>
+      </Collapse>
+    </Paper>
+  );
+};
+
 const SettingsTab: React.FC<{ status: InvoicingStatus; onChanged: () => void }> = ({ status, onChanged }) => {
   const toast = useToast();
   const [current, setCurrent] = useState<Emitter | null>(status.emitter ?? null);
@@ -535,6 +589,7 @@ const SettingsTab: React.FC<{ status: InvoicingStatus; onChanged: () => void }> 
 
   return (
     <Stack spacing={2}>
+      <ArcaInstructions guideUrl={status.guideUrl ?? current?.guideUrl} emitter={current} defaultOpen={!current?.readyToInvoice} />
       {current?.environment === 'testing' && <Alert severity="info">Modo prueba (homologación de ARCA): los comprobantes no tienen validez fiscal.</Alert>}
       <Paper sx={{ p: 3 }}>
         <Stepper activeStep={activeStep} orientation="vertical">
