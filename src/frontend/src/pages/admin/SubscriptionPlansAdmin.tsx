@@ -17,7 +17,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   FormControlLabel,
   Switch,
   Grid,
@@ -36,6 +35,7 @@ import {
   Close,
 } from '@mui/icons-material';
 import api from '../../services/api';
+import TextField from '../../components/common/TextField';
 
 interface SubscriptionPlan {
   code: string;

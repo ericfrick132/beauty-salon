@@ -34,6 +34,7 @@ import {
   MonetizationOn,
   Schedule,
   Star,
+  ShoppingBag,
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -61,13 +62,18 @@ import {
 
 interface ReportData {
   totalRevenue: number;
+  serviceRevenue: number;
+  productRevenue: number;
+  productProfit: number;
+  productSalesCount: number;
+  topProducts: Array<{ name: string; quantity: number; revenue: number; profit: number }>;
   totalBookings: number;
   totalCustomers: number;
   averageServicePrice: number;
   topServices: Array<{ name: string; count: number; revenue: number }>;
   topProfessionals: Array<{ name: string; bookings: number; revenue: number }>;
   bookingsByDay: Array<{ date: string; count: number }>;
-  revenueByMonth: Array<{ month: string; revenue: number }>;
+  revenueByMonth: Array<{ month: string; revenue: number; serviceRevenue: number; productRevenue: number }>;
   bookingsByStatus: Array<{ status: string; count: number }>;
 }
 
@@ -127,6 +133,11 @@ const Reports: React.FC = () => {
 
   const getMockData = (): ReportData => ({
     totalRevenue: 15750,
+    serviceRevenue: 13400,
+    productRevenue: 2350,
+    productProfit: 980,
+    productSalesCount: 21,
+    topProducts: [],
     totalBookings: 245,
     totalCustomers: 89,
     averageServicePrice: 64.29,
@@ -153,9 +164,9 @@ const Reports: React.FC = () => {
       { date: 'Dom', count: 5 },
     ],
     revenueByMonth: [
-      { month: 'Ene', revenue: 12500 },
-      { month: 'Feb', revenue: 14200 },
-      { month: 'Mar', revenue: 15750 },
+      { month: 'Ene', revenue: 12500, serviceRevenue: 11000, productRevenue: 1500 },
+      { month: 'Feb', revenue: 14200, serviceRevenue: 12300, productRevenue: 1900 },
+      { month: 'Mar', revenue: 15750, serviceRevenue: 13400, productRevenue: 2350 },
     ],
     bookingsByStatus: [
       { status: 'Confirmado', count: 210 },
@@ -181,6 +192,9 @@ const Reports: React.FC = () => {
     let csv = 'Reporte de Gestión\n\n';
     csv += `Período: ${dateRange}\n`;
     csv += `Ingresos Totales,$${reportData.totalRevenue}\n`;
+    csv += `Ingresos por Servicios,$${reportData.serviceRevenue}\n`;
+    csv += `Ingresos por Productos,$${reportData.productRevenue}\n`;
+    csv += `Ganancia por Productos,$${reportData.productProfit}\n`;
     csv += `Total de Reservas,${reportData.totalBookings}\n`;
     csv += `Total de Clientes,${reportData.totalCustomers}\n`;
     csv += `Precio Promedio,$${reportData.averageServicePrice}\n\n`;
@@ -189,6 +203,12 @@ const Reports: React.FC = () => {
     csv += 'Servicio,Cantidad,Ingresos\n';
     reportData.topServices.forEach(service => {
       csv += `${service.name},${service.count},$${service.revenue}\n`;
+    });
+
+    csv += '\nProductos Más Vendidos\n';
+    csv += 'Producto,Unidades,Ingresos,Ganancia\n';
+    reportData.topProducts.forEach(product => {
+      csv += `${product.name},${product.quantity},$${product.revenue},$${product.profit}\n`;
     });
     
     return csv;
@@ -304,8 +324,8 @@ const Reports: React.FC = () => {
                       <Typography variant="h4" sx={{ fontWeight: 600 }}>
                         ${reportData.totalRevenue.toLocaleString()}
                       </Typography>
-                      <Typography variant="body2" color="success.main" sx={{ mt: 1 }}>
-                        +12% vs período anterior
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        Servicios ${reportData.serviceRevenue.toLocaleString()} · Productos ${reportData.productRevenue.toLocaleString()}
                       </Typography>
                     </CardContent>
                   </Card>
@@ -431,6 +451,73 @@ const Reports: React.FC = () => {
                       <Tooltip />
                     </PieChart>
                   </ResponsiveContainer>
+                </Paper>
+              </Grid>
+            </Grid>
+
+            {/* Servicios vs productos */}
+            <Grid container spacing={3} sx={{ mb: 3 }}>
+              <Grid item xs={12} md={7}>
+                <Paper sx={{ p: 3, height: '100%' }}>
+                  <Typography variant="h6" gutterBottom>
+                    Ingresos por Mes: Servicios y Productos
+                  </Typography>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={reportData.revenueByMonth}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis />
+                      <Tooltip formatter={(value: any) => `$${Number(value).toLocaleString()}`} />
+                      <Legend />
+                      <Bar dataKey="serviceRevenue" stackId="rev" fill="#8884d8" name="Servicios" />
+                      <Bar dataKey="productRevenue" stackId="rev" fill="#00C49F" name="Productos" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Paper>
+              </Grid>
+
+              <Grid item xs={12} md={5}>
+                <Paper sx={{ p: 3, height: '100%' }}>
+                  <Typography variant="h6" gutterBottom>
+                    <ShoppingBag sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    Productos Más Vendidos
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    {reportData.productSalesCount} ventas · ganancia ${reportData.productProfit.toLocaleString()}
+                  </Typography>
+                  {reportData.topProducts.length === 0 ? (
+                    <Box sx={{ py: 4, textAlign: 'center' }}>
+                      <Typography color="text.secondary" gutterBottom>
+                        Sin ventas de productos en el período
+                      </Typography>
+                      <Button size="small" onClick={() => navigate('/pos')}>
+                        Ir al punto de venta
+                      </Button>
+                    </Box>
+                  ) : (
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Producto</TableCell>
+                            <TableCell align="center">Unid.</TableCell>
+                            <TableCell align="right">Ingresos</TableCell>
+                            <TableCell align="right">Ganancia</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {reportData.topProducts.map((product, index) => (
+                            <TableRow key={index}>
+                              <TableCell>{product.name}</TableCell>
+                              <TableCell align="center">{product.quantity}</TableCell>
+                              <TableCell align="right">${product.revenue.toLocaleString()}</TableCell>
+                              <TableCell align="right">${product.profit.toLocaleString()}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
                 </Paper>
               </Grid>
             </Grid>

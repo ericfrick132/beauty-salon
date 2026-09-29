@@ -68,6 +68,9 @@ import {
 interface DailyReport {
   date: string;
   totalRevenue: number;
+  serviceRevenue: number;
+  productRevenue: number;
+  productSalesCount: number;
   cashRevenue: number;
   cardRevenue: number;
   transferRevenue: number;
@@ -83,11 +86,14 @@ interface EmployeeCommission {
   employeeId: string;
   employeeName: string;
   totalServices: number;
+  serviceRevenue: number;
+  productRevenue: number;
   totalRevenue: number;
   commissionPercentage: number;
+  productCommissionPercentage: number;
+  serviceCommission: number;
+  productCommission: number;
   commissionAmount: number;
-  fixedSalary: number;
-  totalEarnings: number;
 }
 
 const FinancialReports: React.FC = () => {
@@ -102,6 +108,9 @@ const FinancialReports: React.FC = () => {
   
   const [summary, setSummary] = useState({
     totalRevenue: 0,
+    serviceRevenue: 0,
+    productRevenue: 0,
+    productSalesCount: 0,
     totalCash: 0,
     totalCard: 0,
     totalTransfer: 0,
@@ -159,6 +168,9 @@ const FinancialReports: React.FC = () => {
       // Calculate summary
       const totals = reportsRes.data.reports.reduce((acc: any, report: DailyReport) => ({
         totalRevenue: acc.totalRevenue + report.totalRevenue,
+        serviceRevenue: acc.serviceRevenue + report.serviceRevenue,
+        productRevenue: acc.productRevenue + report.productRevenue,
+        productSalesCount: acc.productSalesCount + report.productSalesCount,
         totalCash: acc.totalCash + report.cashRevenue,
         totalCard: acc.totalCard + report.cardRevenue,
         totalTransfer: acc.totalTransfer + report.transferRevenue,
@@ -168,6 +180,9 @@ const FinancialReports: React.FC = () => {
         totalTips: acc.totalTips + report.totalTips,
       }), {
         totalRevenue: 0,
+        serviceRevenue: 0,
+        productRevenue: 0,
+        productSalesCount: 0,
         totalCash: 0,
         totalCard: 0,
         totalTransfer: 0,
@@ -179,7 +194,10 @@ const FinancialReports: React.FC = () => {
       
       setSummary({
         ...totals,
-        averageTicket: totals.totalBookings > 0 ? totals.totalRevenue / totals.totalBookings : 0,
+        // Cada turno cobrado y cada venta de productos es un ticket
+        averageTicket: totals.totalBookings + totals.productSalesCount > 0
+          ? totals.totalRevenue / (totals.totalBookings + totals.productSalesCount)
+          : 0,
       });
     } catch (error) {
       console.error('Error fetching reports:', error);
@@ -206,6 +224,9 @@ const FinancialReports: React.FC = () => {
     
     csv += 'Resumen General\n';
     csv += `Ingresos Totales,$${summary.totalRevenue}\n`;
+    csv += `Servicios,$${summary.serviceRevenue}\n`;
+    csv += `Productos,$${summary.productRevenue}\n`;
+    csv += `Ventas de Productos,${summary.productSalesCount}\n`;
     csv += `Efectivo,$${summary.totalCash}\n`;
     csv += `Tarjeta,$${summary.totalCard}\n`;
     csv += `Transferencia,$${summary.totalTransfer}\n`;
@@ -216,10 +237,12 @@ const FinancialReports: React.FC = () => {
     csv += `Propinas,$${summary.totalTips}\n\n`;
     
     csv += 'Detalle por Día\n';
-    csv += 'Fecha,Ingresos,Efectivo,Tarjeta,Transferencia,MercadoPago,Reservas,Comisiones,Propinas\n';
+    csv += 'Fecha,Ingresos,Servicios,Productos,Efectivo,Tarjeta,Transferencia,MercadoPago,Reservas,Comisiones,Propinas\n';
     dailyReports.forEach(report => {
       csv += `${format(new Date(report.date), 'dd/MM/yyyy')},`;
       csv += `$${report.totalRevenue},`;
+      csv += `$${report.serviceRevenue},`;
+      csv += `$${report.productRevenue},`;
       csv += `$${report.cashRevenue},`;
       csv += `$${report.cardRevenue},`;
       csv += `$${report.transferRevenue},`;
@@ -230,15 +253,16 @@ const FinancialReports: React.FC = () => {
     });
     
     csv += '\nComisiones por Empleado\n';
-    csv += 'Empleado,Servicios,Ingresos,Comisión %,Comisión $,Salario Fijo,Total\n';
+    csv += 'Empleado,Turnos,Ingresos Servicios,Ingresos Productos,Comisión Servicios $,Comisión Productos %,Comisión Productos $,Total Comisión\n';
     employeeCommissions.forEach(commission => {
       csv += `${commission.employeeName},`;
       csv += `${commission.totalServices},`;
-      csv += `$${commission.totalRevenue},`;
-      csv += `${commission.commissionPercentage}%,`;
-      csv += `$${commission.commissionAmount},`;
-      csv += `$${commission.fixedSalary},`;
-      csv += `$${commission.totalEarnings}\n`;
+      csv += `$${commission.serviceRevenue},`;
+      csv += `$${commission.productRevenue},`;
+      csv += `$${commission.serviceCommission},`;
+      csv += `${commission.productCommissionPercentage}%,`;
+      csv += `$${commission.productCommission},`;
+      csv += `$${commission.commissionAmount}\n`;
     });
     
     return csv;
@@ -336,7 +360,10 @@ const FinancialReports: React.FC = () => {
                       ${summary.totalRevenue.toLocaleString()}
                     </Typography>
                     <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>
-                      {summary.totalBookings} reservas
+                      Servicios ${summary.serviceRevenue.toLocaleString()} · Productos ${summary.productRevenue.toLocaleString()}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>
+                      {summary.totalBookings} reservas · {summary.productSalesCount} ventas de productos
                     </Typography>
                   </CardContent>
                 </Card>
@@ -411,7 +438,8 @@ const FinancialReports: React.FC = () => {
                         labelFormatter={(date) => format(new Date(date), 'dd/MM/yyyy')}
                       />
                       <Legend />
-                      <Bar dataKey="totalRevenue" fill="#8884d8" name="Ingresos" />
+                      <Bar dataKey="serviceRevenue" stackId="rev" fill="#8884d8" name="Servicios" />
+                      <Bar dataKey="productRevenue" stackId="rev" fill="#00C49F" name="Productos" />
                       <Bar dataKey="totalCommissions" fill="#82ca9d" name="Comisiones" />
                     </BarChart>
                   </ResponsiveContainer>
@@ -509,12 +537,12 @@ const FinancialReports: React.FC = () => {
                   <TableHead>
                     <TableRow>
                       <TableCell>Empleado</TableCell>
-                      <TableCell align="center">Servicios</TableCell>
-                      <TableCell align="right">Ingresos Generados</TableCell>
-                      <TableCell align="center">Comisión %</TableCell>
-                      <TableCell align="right">Comisión $</TableCell>
-                      <TableCell align="right">Salario Fijo</TableCell>
-                      <TableCell align="right">Total a Pagar</TableCell>
+                      <TableCell align="center">{getTerm('booking')}s</TableCell>
+                      <TableCell align="right">Servicios</TableCell>
+                      <TableCell align="right">Comisión servicios</TableCell>
+                      <TableCell align="right">Productos</TableCell>
+                      <TableCell align="right">Comisión productos</TableCell>
+                      <TableCell align="right">Total comisión</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -536,26 +564,26 @@ const FinancialReports: React.FC = () => {
                             <Chip label={commission.totalServices} size="small" />
                           </TableCell>
                           <TableCell align="right">
-                            ${commission.totalRevenue.toFixed(2)}
-                          </TableCell>
-                          <TableCell align="center">
-                            <Chip 
-                              label={`${commission.commissionPercentage}%`}
-                              size="small"
-                              color="info"
-                            />
+                            ${commission.serviceRevenue.toFixed(2)}
                           </TableCell>
                           <TableCell align="right">
-                            <Typography color="warning.main" sx={{ fontWeight: 500 }}>
-                              ${commission.commissionAmount.toFixed(2)}
+                            ${commission.serviceCommission.toFixed(2)}
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              {commission.commissionPercentage}%
                             </Typography>
                           </TableCell>
                           <TableCell align="right">
-                            ${commission.fixedSalary.toFixed(2)}
+                            ${commission.productRevenue.toFixed(2)}
+                          </TableCell>
+                          <TableCell align="right">
+                            ${commission.productCommission.toFixed(2)}
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              {commission.productCommissionPercentage}%
+                            </Typography>
                           </TableCell>
                           <TableCell align="right">
                             <Typography variant="h6" color="success.main" sx={{ fontWeight: 600 }}>
-                              ${commission.totalEarnings.toFixed(2)}
+                              ${commission.commissionAmount.toFixed(2)}
                             </Typography>
                           </TableCell>
                         </TableRow>
@@ -568,7 +596,7 @@ const FinancialReports: React.FC = () => {
                         </TableCell>
                         <TableCell align="right">
                           <Typography variant="h6" color="primary" sx={{ fontWeight: 600 }}>
-                            ${employeeCommissions.reduce((acc, c) => acc + c.totalEarnings, 0).toFixed(2)}
+                            ${employeeCommissions.reduce((acc, c) => acc + c.commissionAmount, 0).toFixed(2)}
                           </Typography>
                         </TableCell>
                       </TableRow>

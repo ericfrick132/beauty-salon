@@ -46,5 +46,6 @@ namespace BookingPro.API.Services.Interfaces
         Task<SaleDto> CreateSaleAsync(CreateSaleDto dto, string? soldBy = null);
         Task<List<SaleDto>> GetSalesAsync(DateTime? startDate = null, DateTime? endDate = null);
         Task<SaleDto?> GetSaleByIdAsync(Guid saleId);
+        Task<SaleDto> CancelSaleAsync(Guid saleId, string? reason, string? cancelledBy = null);
     }
 }

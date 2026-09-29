@@ -643,6 +643,12 @@ namespace BookingPro.API.Data
                     .WithMany()
                     .HasForeignKey(s => s.EmployeeId)
                     .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasIndex(s => s.BookingId);
+                entity.HasOne(s => s.Booking)
+                    .WithMany()
+                    .HasForeignKey(s => s.BookingId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
             
             modelBuilder.Entity<SaleItem>(entity =>

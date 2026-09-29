@@ -6,7 +6,6 @@ import {
   Grid,
   Button,
   Box,
-  TextField,
   Switch,
   FormControlLabel,
   Card,
@@ -68,6 +67,7 @@ import {
 import { motion } from 'framer-motion';
 import api, { authApi, serviceCategoryApi } from '../services/api';
 import { useTenant } from '../contexts/TenantContext';
+import TextField from '../components/common/TextField';
 
 interface TabPanelProps {
   children?: React.ReactNode;

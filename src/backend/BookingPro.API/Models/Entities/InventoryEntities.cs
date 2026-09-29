@@ -118,7 +118,10 @@ namespace BookingPro.API.Models.Entities
         public Guid? CustomerId { get; set; }
         
         public Guid? EmployeeId { get; set; }
-        
+
+        // Turno al que se sumaron estos productos al cobrarlo (null = venta suelta por POS)
+        public Guid? BookingId { get; set; }
+
         // Financial details
         [Required]
         public decimal SubTotal { get; set; }
@@ -166,6 +169,7 @@ namespace BookingPro.API.Models.Entities
         // Navigation properties
         public Customer? Customer { get; set; }
         public Employee? Employee { get; set; }
+        public Booking? Booking { get; set; }
         public ICollection<SaleItem> SaleItems { get; set; } = new List<SaleItem>();
     }
     

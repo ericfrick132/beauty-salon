@@ -40,10 +40,35 @@ namespace BookingPro.API.Controllers
                 endDate ??= DateTime.UtcNow;
                 startDate ??= endDate.Value.AddDays(-30);
 
-                // Total Revenue - use Payments table for actual revenue
-                var totalRevenue = await _context.Payments
+                // Ingresos = turnos cobrados (Payments) + venta de productos (Sales)
+                var serviceRevenue = await _context.Payments
                     .Where(p => p.PaymentDate >= startDate && p.PaymentDate <= endDate && p.Status == "completed")
                     .SumAsync(p => (decimal?)p.Amount) ?? 0;
+
+                var periodSales = _context.Sales
+                    .Where(s => s.SaleDate >= startDate && s.SaleDate <= endDate && s.Status != "cancelled");
+
+                var productRevenue = await periodSales.SumAsync(s => (decimal?)s.TotalAmount) ?? 0;
+                var productSalesCount = await periodSales.CountAsync();
+                var productCost = await _context.SaleItems
+                    .Where(i => i.Sale.SaleDate >= startDate && i.Sale.SaleDate <= endDate && i.Sale.Status != "cancelled")
+                    .SumAsync(i => (decimal?)(i.UnitCost * i.Quantity)) ?? 0;
+
+                var totalRevenue = serviceRevenue + productRevenue;
+
+                var topProducts = await _context.SaleItems
+                    .Where(i => i.Sale.SaleDate >= startDate && i.Sale.SaleDate <= endDate && i.Sale.Status != "cancelled")
+                    .GroupBy(i => new { i.ProductId, i.Product.Name })
+                    .Select(g => new
+                    {
+                        name = g.Key.Name,
+                        quantity = g.Sum(i => i.Quantity),
+                        revenue = g.Sum(i => i.TotalAmount),
+                        profit = g.Sum(i => i.TotalAmount - i.UnitCost * i.Quantity)
+                    })
+                    .OrderByDescending(x => x.revenue)
+                    .Take(5)
+                    .ToListAsync();
 
                 // Total Bookings
                 var totalBookings = await _context.Bookings
@@ -119,25 +144,35 @@ namespace BookingPro.API.Controllers
                     });
                 }
 
-                // Revenue by Month - use Payments
-                var revenueByMonth = await _context.Payments
+                // Revenue by Month - turnos y productos por separado
+                var serviceByMonth = await _context.Payments
                     .Where(p => p.PaymentDate >= startDate && p.PaymentDate <= endDate && p.Status == "completed")
                     .GroupBy(p => new { p.PaymentDate.Year, p.PaymentDate.Month })
-                    .Select(g => new
-                    {
-                        year = g.Key.Year,
-                        month = g.Key.Month,
-                        revenue = g.Sum(p => p.Amount)
-                    })
-                    .OrderBy(x => x.year).ThenBy(x => x.month)
+                    .Select(g => new { g.Key.Year, g.Key.Month, Amount = g.Sum(p => p.Amount) })
+                    .ToListAsync();
+
+                var productByMonth = await periodSales
+                    .GroupBy(s => new { s.SaleDate.Year, s.SaleDate.Month })
+                    .Select(g => new { g.Key.Year, g.Key.Month, Amount = g.Sum(s => s.TotalAmount) })
                     .ToListAsync();
 
                 var monthNames = new[] { "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic" };
-                var revenueByMonthFormatted = revenueByMonth.Select(x => new
-                {
-                    month = monthNames[x.month - 1],
-                    revenue = x.revenue
-                }).ToList();
+                var revenueByMonthFormatted = serviceByMonth.Select(x => (x.Year, x.Month))
+                    .Union(productByMonth.Select(x => (x.Year, x.Month)))
+                    .OrderBy(k => k.Year).ThenBy(k => k.Month)
+                    .Select(k =>
+                    {
+                        var services = serviceByMonth.Where(x => x.Year == k.Year && x.Month == k.Month).Sum(x => x.Amount);
+                        var products = productByMonth.Where(x => x.Year == k.Year && x.Month == k.Month).Sum(x => x.Amount);
+                        return new
+                        {
+                            month = monthNames[k.Month - 1],
+                            revenue = services + products,
+                            serviceRevenue = services,
+                            productRevenue = products
+                        };
+                    })
+                    .ToList();
 
                 // Bookings by Status
                 var bookingsByStatus = await _context.Bookings
@@ -167,6 +202,12 @@ namespace BookingPro.API.Controllers
                 var reportData = new
                 {
                     totalRevenue,
+                    serviceRevenue,
+                    productRevenue,
+                    productCost,
+                    productProfit = productRevenue - productCost,
+                    productSalesCount,
+                    topProducts,
                     totalBookings,
                     totalCustomers,
                     averageServicePrice,
@@ -201,26 +242,55 @@ namespace BookingPro.API.Controllers
                     .Include(p => p.Booking)
                     .ToListAsync();
 
-                // Group by day to produce DailyReport-compatible objects
-                var reports = payments
-                    .GroupBy(p => p.PaymentDate.Date)
-                    .Select(g => new
+                var sales = await _context.Sales
+                    .Where(s => s.SaleDate >= startDate && s.SaleDate <= endDate && s.Status != "cancelled")
+                    .Select(s => new { s.SaleDate, s.EmployeeId, s.TotalAmount, s.PaymentMethod })
+                    .ToListAsync();
+
+                var productPctByEmployee = (await _context.Employees.ToListAsync())
+                    .ToDictionary(e => e.Id, e => CommissionRates.EarnsCommission(e) ? CommissionRates.ProductPct(e) : 0m);
+
+                decimal ProductCommission(Guid? employeeId, decimal amount) =>
+                    employeeId.HasValue && productPctByEmployee.TryGetValue(employeeId.Value, out var pct)
+                        ? amount * pct / 100 : 0;
+
+                // Un día aparece si tuvo cobros de turnos o ventas de productos
+                var days = payments.Select(p => p.PaymentDate.Date)
+                    .Union(sales.Select(s => s.SaleDate.Date))
+                    .OrderBy(d => d);
+
+                var reports = days.Select(day =>
+                {
+                    var dayPayments = payments.Where(p => p.PaymentDate.Date == day).ToList();
+                    var daySales = sales.Where(s => s.SaleDate.Date == day).ToList();
+
+                    decimal ByMethod(string method) =>
+                        dayPayments.Where(p => p.PaymentMethod == method).Sum(p => p.Amount)
+                        + daySales.Where(s => s.PaymentMethod == method).Sum(s => s.TotalAmount);
+
+                    var serviceRevenue = dayPayments.Sum(p => p.Amount);
+                    var productRevenue = daySales.Sum(s => s.TotalAmount);
+
+                    return new
                     {
-                        date = g.Key.ToString("yyyy-MM-dd"),
-                        totalRevenue = g.Sum(p => p.Amount),
-                        cashRevenue = g.Where(p => p.PaymentMethod == "cash").Sum(p => p.Amount),
-                        cardRevenue = g.Where(p => p.PaymentMethod == "card").Sum(p => p.Amount),
-                        transferRevenue = g.Where(p => p.PaymentMethod == "transfer").Sum(p => p.Amount),
-                        mercadoPagoRevenue = g.Where(p => p.PaymentMethod == "mercadopago").Sum(p => p.Amount),
-                        totalBookings = g.Select(p => p.BookingId).Distinct().Count(),
-                        completedBookings = g.Where(p => p.Booking != null && p.Booking.Status == "completed")
+                        date = day.ToString("yyyy-MM-dd"),
+                        totalRevenue = serviceRevenue + productRevenue,
+                        serviceRevenue,
+                        productRevenue,
+                        productSalesCount = daySales.Count,
+                        cashRevenue = ByMethod("cash"),
+                        cardRevenue = ByMethod("card"),
+                        transferRevenue = ByMethod("transfer"),
+                        mercadoPagoRevenue = ByMethod("mercadopago"),
+                        totalBookings = dayPayments.Select(p => p.BookingId).Distinct().Count(),
+                        completedBookings = dayPayments.Where(p => p.Booking != null && p.Booking.Status == "completed")
                             .Select(p => p.BookingId).Distinct().Count(),
                         cancelledBookings = 0,
-                        totalCommissions = g.Sum(p => p.CommissionAmount ?? 0),
-                        totalTips = g.Sum(p => p.TipAmount ?? 0),
-                    })
-                    .OrderBy(x => x.date)
-                    .ToList();
+                        totalCommissions = dayPayments.Sum(p => p.CommissionAmount ?? 0)
+                            + daySales.Sum(s => ProductCommission(s.EmployeeId, s.TotalAmount)),
+                        totalTips = dayPayments.Sum(p => p.TipAmount ?? 0),
+                    };
+                }).ToList();
 
                 return Ok(new { reports });
             }
@@ -241,24 +311,47 @@ namespace BookingPro.API.Controllers
                 endDate ??= DateTime.UtcNow;
                 startDate ??= endDate.Value.AddDays(-30);
 
-                var paymentsWithEmployee = await _context.Payments
-                    .Where(p => p.PaymentDate >= startDate && p.PaymentDate <= endDate && p.Status == "completed")
-                    .Include(p => p.Employee)
+                var payments = await _context.Payments
+                    .Where(p => p.PaymentDate >= startDate && p.PaymentDate <= endDate && p.Status == "completed" && p.EmployeeId != null)
+                    .Select(p => new { p.EmployeeId, p.BookingId, p.Amount, p.CommissionAmount })
                     .ToListAsync();
 
-                var commissions = paymentsWithEmployee
-                    .GroupBy(p => new { p.EmployeeId, EmployeeName = p.Employee?.Name ?? "Sin nombre" })
-                    .Select(g =>
+                var sales = await _context.Sales
+                    .Where(s => s.SaleDate >= startDate && s.SaleDate <= endDate && s.Status != "cancelled" && s.EmployeeId != null)
+                    .Select(s => new { s.EmployeeId, s.TotalAmount })
+                    .ToListAsync();
+
+                var employeeIds = payments.Select(p => p.EmployeeId!.Value)
+                    .Union(sales.Select(s => s.EmployeeId!.Value))
+                    .ToList();
+
+                var employees = await _context.Employees
+                    .Where(e => employeeIds.Contains(e.Id))
+                    .ToListAsync();
+
+                var commissions = employees
+                    .Select(emp =>
                     {
-                        var emp = _context.Employees.FirstOrDefault(e => e.Id == g.Key.EmployeeId);
+                        var empPayments = payments.Where(p => p.EmployeeId == emp.Id).ToList();
+                        var serviceRevenue = empPayments.Sum(p => p.Amount);
+                        var productRevenue = sales.Where(s => s.EmployeeId == emp.Id).Sum(s => s.TotalAmount);
+                        var earns = CommissionRates.EarnsCommission(emp);
+                        var serviceCommission = empPayments.Sum(p => p.CommissionAmount ?? 0);
+                        var productCommission = earns ? productRevenue * CommissionRates.ProductPct(emp) / 100 : 0;
+
                         return new
                         {
-                            employeeId = g.Key.EmployeeId,
-                            employeeName = g.Key.EmployeeName,
-                            totalServices = g.Select(p => p.BookingId).Distinct().Count(),
-                            totalRevenue = g.Sum(p => p.Amount),
-                            commissionPercentage = emp?.CommissionPercentage ?? 0,
-                            commissionAmount = g.Sum(p => p.CommissionAmount ?? 0),
+                            employeeId = emp.Id,
+                            employeeName = emp.Name,
+                            totalServices = empPayments.Select(p => p.BookingId).Distinct().Count(),
+                            serviceRevenue,
+                            productRevenue,
+                            totalRevenue = serviceRevenue + productRevenue,
+                            commissionPercentage = CommissionRates.ServicePct(emp),
+                            productCommissionPercentage = earns ? CommissionRates.ProductPct(emp) : 0,
+                            serviceCommission,
+                            productCommission = Math.Round(productCommission, 2),
+                            commissionAmount = Math.Round(serviceCommission + productCommission, 2),
                         };
                     })
                     .OrderByDescending(x => x.totalRevenue)

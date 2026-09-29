@@ -45,10 +45,25 @@ namespace BookingPro.API.Controllers
                 startDate ??= new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
                 endDate ??= now;
 
-                // Facturación total (todos los ingresos)
-                var totalRevenue = await _context.Payments
+                // Facturación total = turnos cobrados + venta de productos
+                var serviceRevenue = await _context.Payments
                     .Where(p => p.PaymentDate >= startDate && p.PaymentDate <= endDate)
                     .SumAsync(p => p.Amount);
+
+                var sales = await _context.Sales
+                    .Where(s => s.SaleDate >= startDate && s.SaleDate <= endDate && s.Status != "cancelled")
+                    .Select(s => new
+                    {
+                        s.EmployeeId,
+                        s.TotalAmount,
+                        Cost = s.SaleItems.Sum(i => i.UnitCost * i.Quantity)
+                    })
+                    .ToListAsync();
+
+                var productRevenue = sales.Sum(s => s.TotalAmount);
+                // Costo de la mercadería vendida: sale de la ganancia igual que sueldos y comisiones
+                var productCost = sales.Sum(s => s.Cost);
+                var totalRevenue = serviceRevenue + productRevenue;
 
                 // Calcular sueldos y comisiones a pagar
                 var employees = await _context.Employees
@@ -69,21 +84,24 @@ namespace BookingPro.API.Controllers
                         totalSalaries += (employee.FixedSalary * daysInPeriod) / monthlyDays;
                     }
 
-                    if (employee.PaymentMethod == "percentage" || employee.PaymentMethod == "mixed")
+                    if (CommissionRates.EarnsCommission(employee))
                     {
                         // Comisiones basadas en servicios realizados
                         var employeeRevenue = await _context.Payments
                             .Where(p => p.EmployeeId == employee.Id &&
-                                       p.PaymentDate >= startDate && 
+                                       p.PaymentDate >= startDate &&
                                        p.PaymentDate <= endDate)
                             .SumAsync(p => p.Amount);
 
-                        totalCommissions += employeeRevenue * (employee.CommissionPercentage / 100);
+                        totalCommissions += employeeRevenue * (CommissionRates.ServicePct(employee) / 100);
+
+                        var employeeProductRevenue = sales.Where(s => s.EmployeeId == employee.Id).Sum(s => s.TotalAmount);
+                        totalCommissions += employeeProductRevenue * (CommissionRates.ProductPct(employee) / 100);
                     }
                 }
 
-                // Ganancia neta = Facturación - Sueldos - Comisiones
-                var netProfit = totalRevenue - totalSalaries - totalCommissions;
+                // Ganancia neta = Facturación - Sueldos - Comisiones - Costo de productos vendidos
+                var netProfit = totalRevenue - totalSalaries - totalCommissions - productCost;
 
                 // Comparación con período anterior
                 var previousStart = startDate.Value.AddMonths(-1);
@@ -91,7 +109,10 @@ namespace BookingPro.API.Controllers
 
                 var previousRevenue = await _context.Payments
                     .Where(p => p.PaymentDate >= previousStart && p.PaymentDate <= previousEnd)
-                    .SumAsync(p => p.Amount);
+                    .SumAsync(p => p.Amount)
+                    + await _context.Sales
+                    .Where(s => s.SaleDate >= previousStart && s.SaleDate <= previousEnd && s.Status != "cancelled")
+                    .SumAsync(s => s.TotalAmount);
 
                 var revenueGrowth = previousRevenue > 0 
                     ? ((totalRevenue - previousRevenue) / previousRevenue) * 100 
@@ -100,9 +121,12 @@ namespace BookingPro.API.Controllers
                 return Ok(new
                 {
                     totalRevenue,
+                    serviceRevenue,
+                    productRevenue,
+                    productCost,
                     totalSalaries,
                     totalCommissions,
-                    totalExpenses = totalSalaries + totalCommissions,
+                    totalExpenses = totalSalaries + totalCommissions + productCost,
                     netProfit,
                     profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0,
                     revenueGrowth,
@@ -115,6 +139,7 @@ namespace BookingPro.API.Controllers
                     {
                         salariesPercentage = totalRevenue > 0 ? (totalSalaries / totalRevenue) * 100 : 0,
                         commissionsPercentage = totalRevenue > 0 ? (totalCommissions / totalRevenue) * 100 : 0,
+                        productCostPercentage = totalRevenue > 0 ? (productCost / totalRevenue) * 100 : 0,
                         netProfitPercentage = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0
                     }
                 });
@@ -179,7 +204,7 @@ namespace BookingPro.API.Controllers
                     }
 
                     // Calcular comisiones separadas para servicios y productos
-                    if (employee.PaymentMethod == "percentage" || employee.PaymentMethod == "mixed")
+                    if (CommissionRates.EarnsCommission(employee))
                     {
                         var employeePayments = payments.Where(p => p.EmployeeId == employee.Id);
                         servicesCount = employeePayments.Count();
@@ -188,15 +213,8 @@ namespace BookingPro.API.Controllers
                         var employeeSales = sales.Where(s => s.EmployeeId == employee.Id);
                         productRevenue = employeeSales.Sum(s => s.TotalAmount);
 
-                        var serviceCommissionPct = employee.ServiceCommissionPercentage > 0 
-                            ? employee.ServiceCommissionPercentage 
-                            : employee.CommissionPercentage;
-                        var productCommissionPct = employee.ProductCommissionPercentage > 0 
-                            ? employee.ProductCommissionPercentage 
-                            : (employee.CommissionPercentage > 0 ? employee.CommissionPercentage : serviceCommissionPct);
-
-                        serviceCommission = serviceRevenue * (serviceCommissionPct / 100);
-                        productCommission = productRevenue * (productCommissionPct / 100);
+                        serviceCommission = serviceRevenue * (CommissionRates.ServicePct(employee) / 100);
+                        productCommission = productRevenue * (CommissionRates.ProductPct(employee) / 100);
                         commissions = serviceCommission + productCommission;
                     }
 
@@ -223,9 +241,9 @@ namespace BookingPro.API.Controllers
                         serviceRevenue = Math.Round(serviceRevenue, 2),
                         productRevenue = Math.Round(productRevenue, 2),
                         fixedSalary = Math.Round(fixedSalary, 2),
-                        commissionPercentage = employee.ServiceCommissionPercentage > 0 ? employee.ServiceCommissionPercentage : employee.CommissionPercentage,
-                        serviceCommissionPercentage = employee.ServiceCommissionPercentage > 0 ? employee.ServiceCommissionPercentage : employee.CommissionPercentage,
-                        productCommissionPercentage = employee.ProductCommissionPercentage > 0 ? employee.ProductCommissionPercentage : employee.CommissionPercentage,
+                        commissionPercentage = CommissionRates.ServicePct(employee),
+                        serviceCommissionPercentage = CommissionRates.ServicePct(employee),
+                        productCommissionPercentage = CommissionRates.ProductPct(employee),
                         serviceCommission = Math.Round(serviceCommission, 2),
                         productCommission = Math.Round(productCommission, 2),
                         commissions = Math.Round(commissions, 2),

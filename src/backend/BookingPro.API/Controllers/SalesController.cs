@@ -48,6 +48,25 @@ namespace BookingPro.API.Controllers
             var sale = await _inventoryService.GetSaleByIdAsync(id);
             return sale != null ? Ok(sale) : NotFound(new { error = "Venta no encontrada" });
         }
+
+        [HttpPost("{id}/cancel")]
+        [Authorize(Roles = "admin,super_admin")]
+        public async Task<IActionResult> CancelSale([FromRoute] Guid id, [FromBody] CancelSaleDto? dto)
+        {
+            try
+            {
+                var sale = await _inventoryService.CancelSaleAsync(id, dto?.Reason, User.Identity?.Name);
+                return Ok(sale);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { error = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+        }
     }
 }
 

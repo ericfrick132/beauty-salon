@@ -366,6 +366,12 @@ export const inventoryApi = {
     api.post(`/inventory/stock/${id}`, data).then(res => res.data),
 };
 
+export const salesApi = {
+  list: (params?: { startDate?: string; endDate?: string }) => api.get('/sales', { params }).then(res => res.data),
+  create: (data: any) => api.post('/sales', data).then(res => res.data),
+  cancel: (id: string, reason?: string) => api.post(`/sales/${id}/cancel`, { reason }).then(res => res.data),
+};
+
 export const productCategoryApi = {
   list: (includeInactive = false) => api.get('/inventory/categories', { params: { includeInactive } }).then(res => res.data),
   create: (data: { name: string; description?: string; displayOrder?: number; isActive?: boolean }) =>

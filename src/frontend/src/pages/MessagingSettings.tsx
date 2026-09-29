@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Card, CardContent, Typography, Switch, TextField, Button, Grid, Alert, Chip } from '@mui/material';
+import { Box, Card, CardContent, Typography, Switch, Button, Grid, Alert, Chip } from '@mui/material';
 import { WhatsApp, CheckCircle, Info } from '@mui/icons-material';
 import { messagingApi } from '../services/api';
 import { useSubscription } from '../contexts/SubscriptionContext';
+import TextField from '../components/common/TextField';
 
 const defaultTemplate = 'Hola {customer_name}! Te recordamos tu turno para {service_name} el {date} a las {time}. Si no podés asistir, avisanos respondiendo este mensaje.';
 

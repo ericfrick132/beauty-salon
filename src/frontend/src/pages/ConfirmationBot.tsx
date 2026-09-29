@@ -10,7 +10,6 @@ import {
   Grid,
   MenuItem,
   Switch,
-  TextField,
   Typography,
 } from '@mui/material';
 import {
@@ -27,6 +26,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { featureAddonsApi, messagingApi, whatsappApi, FeatureAddonStatus } from '../services/api';
+import TextField from '../components/common/TextField';
 
 const CONFIRMATION_BOT_CODE = 'confirmation_bot';
 

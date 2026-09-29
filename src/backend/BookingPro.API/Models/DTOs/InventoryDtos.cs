@@ -217,6 +217,7 @@ namespace BookingPro.API.Models.DTOs
         public string? CustomerName { get; set; }
         public Guid? EmployeeId { get; set; }
         public string? EmployeeName { get; set; }
+        public Guid? BookingId { get; set; }
         public decimal SubTotal { get; set; }
         public decimal DiscountAmount { get; set; }
         public decimal TaxAmount { get; set; }
@@ -230,6 +231,8 @@ namespace BookingPro.API.Models.DTOs
         public string? InvoiceNumber { get; set; }
         public DateTime SaleDate { get; set; }
         public DateTime? CompletedAt { get; set; }
+        public DateTime? CancelledAt { get; set; }
+        public string? CancellationReason { get; set; }
         public string? SoldBy { get; set; }
         public List<SaleItemDto> Items { get; set; } = new List<SaleItemDto>();
     }
@@ -255,6 +258,8 @@ namespace BookingPro.API.Models.DTOs
         public Guid? CustomerId { get; set; }
         
         public Guid? EmployeeId { get; set; }
+        
+        public Guid? BookingId { get; set; }
         
         [MaxLength(500)]
         public string? Notes { get; set; }
@@ -282,6 +287,12 @@ namespace BookingPro.API.Models.DTOs
         
         [MaxLength(500)]
         public string? Notes { get; set; }
+    }
+    
+    public class CancelSaleDto
+    {
+        [MaxLength(500)]
+        public string? Reason { get; set; }
     }
     
     public class AddSaleItemDto

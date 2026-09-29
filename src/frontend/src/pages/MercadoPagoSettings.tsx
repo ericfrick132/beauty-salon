@@ -11,7 +11,6 @@ import {
   CardContent,
   Switch,
   FormControlLabel,
-  TextField,
   InputAdornment,
   Divider,
   IconButton,
@@ -38,6 +37,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../services/api';
+import TextField from '../components/common/TextField';
 
 interface MercadoPagoConnectionStatus {
   isConnected: boolean;

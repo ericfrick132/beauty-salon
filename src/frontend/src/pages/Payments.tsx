@@ -12,7 +12,6 @@ import {
   TableRow,
   TablePagination,
   Button,
-  TextField,
   InputAdornment,
   Dialog,
   DialogTitle,
@@ -55,8 +54,10 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTenant } from '../contexts/TenantContext';
 import api from '../services/api';
+import ProductLinesPicker, { ProductLine, productLinesTotal } from '../components/sales/ProductLinesPicker';
 import { es } from 'date-fns/locale';
 import { format, startOfDay, endOfDay } from 'date-fns';
+import TextField from '../components/common/TextField';
 
 interface Payment {
   id: string;
@@ -100,6 +101,7 @@ const Payments: React.FC = () => {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [employees, setEmployees] = useState<any[]>([]);
   
+  const [paymentProducts, setPaymentProducts] = useState<ProductLine[]>([]);
   const [paymentForm, setPaymentForm] = useState({
     bookingId: '',
     employeeId: '',
@@ -175,6 +177,7 @@ const Payments: React.FC = () => {
       });
     }
     setErrors({});
+    setPaymentProducts([]);
     setOpenPaymentDialog(true);
   };
 
@@ -218,12 +221,18 @@ const Payments: React.FC = () => {
     if (!validatePaymentForm()) return;
 
     try {
-      await api.post('/payments', paymentForm);
+      await api.post('/payments', {
+        ...paymentForm,
+        employeeId: paymentForm.employeeId || null,
+        transactionId: paymentForm.transactionId || null,
+        notes: paymentForm.notes || null,
+        products: paymentProducts.map((l) => ({ productId: l.productId, quantity: l.quantity })),
+      });
       fetchData();
       handleClosePaymentDialog();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving payment:', error);
-      setErrors({ submit: 'Error al registrar el pago' });
+      setErrors({ submit: error?.response?.data?.message || 'Error al registrar el pago' });
     }
   };
 
@@ -665,9 +674,13 @@ const Payments: React.FC = () => {
               </Grid>
 
               <Grid item xs={12}>
+                <ProductLinesPicker value={paymentProducts} onChange={setPaymentProducts} />
+              </Grid>
+
+              <Grid item xs={12}>
                 <Alert severity="success">
                   <Typography variant="h6">
-                    Total a cobrar: ${(paymentForm.amount + paymentForm.tipAmount).toFixed(2)}
+                    Total a cobrar: ${(paymentForm.amount + paymentForm.tipAmount + productLinesTotal(paymentProducts)).toFixed(2)}
                   </Typography>
                 </Alert>
               </Grid>

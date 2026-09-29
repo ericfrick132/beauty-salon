@@ -6,7 +6,6 @@ import {
   Grid,
   Card,
   CardContent,
-  TextField,
   Button,
   Alert,
   Table,
@@ -35,6 +34,7 @@ import {
 } from '@mui/material';
 import { MoreVert, Add, Delete, Edit, Inventory, LocalOffer, Category } from '@mui/icons-material';
 import { inventoryApi, productCategoryApi } from '../services/api';
+import TextField from '../components/common/TextField';
 
 interface ProductDto {
   id: string;

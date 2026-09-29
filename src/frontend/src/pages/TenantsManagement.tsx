@@ -13,7 +13,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   Grid,
   Chip,
   IconButton,
@@ -64,6 +63,7 @@ import { motion } from 'framer-motion';
 import api from '../services/api';
 import { superAdminService } from '../services/superAdminService';
 import TenantThemeDialog from '../components/superAdmin/TenantThemeDialog';
+import TextField from '../components/common/TextField';
 
 interface Tenant {
   id: string;

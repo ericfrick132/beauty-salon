@@ -12,7 +12,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   FormControl,
   InputLabel,
   Select,
@@ -59,6 +58,8 @@ import { fetchBookings, updateBooking, deleteBooking } from '../../store/slices/
 import { isEmployee } from '../../utils/permissions';
 import { EventImpl } from '@fullcalendar/core/internal';
 import api from '../../services/api';
+import ProductLinesPicker, { ProductLine, productLinesTotal } from '../sales/ProductLinesPicker';
+import TextField from '../common/TextField';
 
 interface BookingEvent {
   id: string;
@@ -190,6 +191,7 @@ const CalendarView: React.FC = () => {
   });
   
   const [paymentErrors, setPaymentErrors] = useState<any>({});
+  const [paymentProducts, setPaymentProducts] = useState<ProductLine[]>([]);
 
   // Colores del tema
   const primaryColor = config?.theme?.primaryColor || '#1976d2';
@@ -519,6 +521,7 @@ const CalendarView: React.FC = () => {
       notes: '',
     });
     setPaymentErrors({});
+    setPaymentProducts([]);
   };
 
   const handleClosePaymentDialog = () => {
@@ -565,16 +568,17 @@ const CalendarView: React.FC = () => {
         ...paymentForm,
         employeeId: paymentForm.employeeId === '' ? null : paymentForm.employeeId,
         transactionId: paymentForm.transactionId === '' ? null : paymentForm.transactionId,
-        notes: paymentForm.notes === '' ? null : paymentForm.notes
+        notes: paymentForm.notes === '' ? null : paymentForm.notes,
+        products: paymentProducts.map((l) => ({ productId: l.productId, quantity: l.quantity })),
       };
 
       await api.post('/payments', paymentData);
       dispatch(fetchBookings()); // Refresh calendar
       handleClosePaymentDialog();
       setEventDialog({ open: false, event: null, mode: 'view' });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving payment:', error);
-      setPaymentErrors({ submit: 'Error al registrar el pago' });
+      setPaymentErrors({ submit: error?.response?.data?.message || 'Error al registrar el pago' });
     }
   };
 
@@ -1228,9 +1232,13 @@ const CalendarView: React.FC = () => {
             </Grid>
 
             <Grid item xs={12}>
+              <ProductLinesPicker value={paymentProducts} onChange={setPaymentProducts} />
+            </Grid>
+
+            <Grid item xs={12}>
               <Alert severity="success">
                 <Typography variant="h6">
-                  Total a cobrar: ${(paymentForm.amount + paymentForm.tipAmount).toFixed(2)}
+                  Total a cobrar: ${(paymentForm.amount + paymentForm.tipAmount + productLinesTotal(paymentProducts)).toFixed(2)}
                 </Typography>
               </Alert>
             </Grid>

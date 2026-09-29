@@ -19,7 +19,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   Alert,
   Switch,
   FormControlLabel,
@@ -45,6 +44,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import TextField from '../components/common/TextField';
 
 interface SubscriptionPlan {
   id: string;

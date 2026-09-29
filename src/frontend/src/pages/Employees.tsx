@@ -11,7 +11,6 @@ import {
   TableHead,
   TableRow,
   Button,
-  TextField,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -59,6 +58,7 @@ import { format } from 'date-fns';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import TextField from '../components/common/TextField';
 
 // Indexado por DayOfWeek de .NET: 0 = domingo.
 const DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];

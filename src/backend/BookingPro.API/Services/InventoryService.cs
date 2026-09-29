@@ -809,12 +809,26 @@ namespace BookingPro.API.Services
         // Sales
         public async Task<SaleDto> CreateSaleAsync(CreateSaleDto dto, string? soldBy = null)
         {
-            using var tx = await _context.Database.BeginTransactionAsync();
+            // Si el llamador ya abrió una transacción (cobro de turno + productos), la reutilizamos
+            // para que pago y venta se confirmen o descarten juntos.
+            var ownsTx = _context.Database.CurrentTransaction == null;
+            using var tx = ownsTx ? await _context.Database.BeginTransactionAsync() : null;
             try
             {
                 if (dto.Items == null || dto.Items.Count == 0)
                 {
                     throw new ArgumentException("Sale must contain at least one item");
+                }
+
+                if (dto.BookingId.HasValue)
+                {
+                    var booking = await _context.Bookings
+                        .Where(b => b.Id == dto.BookingId.Value)
+                        .Select(b => new { b.CustomerId, b.EmployeeId })
+                        .FirstOrDefaultAsync()
+                        ?? throw new KeyNotFoundException("Booking not found");
+                    dto.CustomerId ??= booking.CustomerId;
+                    dto.EmployeeId ??= booking.EmployeeId;
                 }
 
                 var productIds = dto.Items.Select(i => i.ProductId).ToList();
@@ -843,6 +857,7 @@ namespace BookingPro.API.Services
                     SaleNumber = saleNumber,
                     CustomerId = dto.CustomerId,
                     EmployeeId = dto.EmployeeId,
+                    BookingId = dto.BookingId,
                     Notes = dto.Notes,
                     PaymentMethod = dto.PaymentMethod,
                     SaleDate = DateTime.UtcNow,
@@ -926,24 +941,69 @@ namespace BookingPro.API.Services
                 sale.CompletedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
-                await tx.CommitAsync();
+                if (tx != null) await tx.CommitAsync();
 
                 return await GetSaleByIdAsync(sale.Id) ?? throw new InvalidOperationException("Failed to load created sale");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating sale");
-                await tx.RollbackAsync();
+                if (tx != null) await tx.RollbackAsync();
                 throw;
             }
         }
 
-        public async Task<List<SaleDto>> GetSalesAsync(DateTime? startDate = null, DateTime? endDate = null)
+        public async Task<SaleDto> CancelSaleAsync(Guid saleId, string? reason, string? cancelledBy = null)
         {
-            var query = _context.Sales
+            using var tx = await _context.Database.BeginTransactionAsync();
+
+            var sale = await _context.Sales
                 .Include(s => s.SaleItems)
                     .ThenInclude(si => si.Product)
-                .AsQueryable();
+                .FirstOrDefaultAsync(s => s.Id == saleId)
+                ?? throw new KeyNotFoundException("Venta no encontrada");
+
+            if (sale.Status == "cancelled")
+                throw new InvalidOperationException("La venta ya está anulada");
+
+            // Devolver al stock lo que se descontó en la venta
+            foreach (var item in sale.SaleItems)
+            {
+                var prod = item.Product;
+                if (!prod.TrackInventory) continue;
+
+                var previous = prod.CurrentStock;
+                prod.CurrentStock = previous + item.Quantity;
+                prod.UpdatedAt = DateTime.UtcNow;
+
+                _context.StockMovements.Add(new StockMovement
+                {
+                    ProductId = prod.Id,
+                    MovementType = "Return",
+                    Quantity = item.Quantity,
+                    PreviousStock = previous,
+                    NewStock = prod.CurrentStock,
+                    ReferenceType = "SaleCancellation",
+                    ReferenceId = sale.Id,
+                    UnitCost = item.UnitCost,
+                    Reason = "Venta anulada",
+                    PerformedBy = cancelledBy,
+                });
+            }
+
+            sale.Status = "cancelled";
+            sale.CancelledAt = DateTime.UtcNow;
+            sale.CancellationReason = reason;
+
+            await _context.SaveChangesAsync();
+            await tx.CommitAsync();
+
+            return await GetSaleByIdAsync(sale.Id) ?? throw new InvalidOperationException("Failed to load cancelled sale");
+        }
+
+        public async Task<List<SaleDto>> GetSalesAsync(DateTime? startDate = null, DateTime? endDate = null)
+        {
+            var query = _context.Sales.AsQueryable();
 
             if (startDate.HasValue)
                 query = query.Where(s => s.SaleDate >= startDate.Value);
@@ -952,89 +1012,61 @@ namespace BookingPro.API.Services
 
             return await query
                 .OrderByDescending(s => s.SaleDate)
-                .Select(s => new SaleDto
-                {
-                    Id = s.Id,
-                    SaleNumber = s.SaleNumber,
-                    CustomerId = s.CustomerId,
-                    EmployeeId = s.EmployeeId,
-                    SubTotal = s.SubTotal,
-                    DiscountAmount = s.DiscountAmount,
-                    TaxAmount = s.TaxAmount,
-                    TotalAmount = s.TotalAmount,
-                    PaymentMethod = s.PaymentMethod,
-                    Status = s.Status,
-                    PaymentReference = s.PaymentReference,
-                    ReceivedAmount = s.ReceivedAmount,
-                    ChangeAmount = s.ChangeAmount,
-                    Notes = s.Notes,
-                    InvoiceNumber = s.InvoiceNumber,
-                    SaleDate = s.SaleDate,
-                    CompletedAt = s.CompletedAt,
-                    SoldBy = s.SoldBy,
-                    Items = s.SaleItems.Select(si => new SaleItemDto
-                    {
-                        Id = si.Id,
-                        ProductId = si.ProductId,
-                        ProductName = si.Product.Name,
-                        ProductBarcode = si.Product.Barcode,
-                        Quantity = si.Quantity,
-                        UnitPrice = si.UnitPrice,
-                        DiscountPercentage = si.DiscountPercentage,
-                        DiscountAmount = si.DiscountAmount,
-                        TaxAmount = si.TaxAmount,
-                        TotalAmount = si.TotalAmount,
-                        UnitCost = si.UnitCost,
-                        ProfitAmount = si.ProfitAmount,
-                    }).ToList()
-                })
+                .Select(MapToSaleDto())
                 .ToListAsync();
         }
 
         public async Task<SaleDto?> GetSaleByIdAsync(Guid saleId)
         {
-            var sale = await _context.Sales
-                .Include(s => s.SaleItems)
-                    .ThenInclude(si => si.Product)
+            return await _context.Sales
                 .Where(s => s.Id == saleId)
-                .Select(s => new SaleDto
-                {
-                    Id = s.Id,
-                    SaleNumber = s.SaleNumber,
-                    CustomerId = s.CustomerId,
-                    EmployeeId = s.EmployeeId,
-                    SubTotal = s.SubTotal,
-                    DiscountAmount = s.DiscountAmount,
-                    TaxAmount = s.TaxAmount,
-                    TotalAmount = s.TotalAmount,
-                    PaymentMethod = s.PaymentMethod,
-                    Status = s.Status,
-                    PaymentReference = s.PaymentReference,
-                    ReceivedAmount = s.ReceivedAmount,
-                    ChangeAmount = s.ChangeAmount,
-                    Notes = s.Notes,
-                    InvoiceNumber = s.InvoiceNumber,
-                    SaleDate = s.SaleDate,
-                    CompletedAt = s.CompletedAt,
-                    SoldBy = s.SoldBy,
-                    Items = s.SaleItems.Select(si => new SaleItemDto
-                    {
-                        Id = si.Id,
-                        ProductId = si.ProductId,
-                        ProductName = si.Product.Name,
-                        ProductBarcode = si.Product.Barcode,
-                        Quantity = si.Quantity,
-                        UnitPrice = si.UnitPrice,
-                        DiscountPercentage = si.DiscountPercentage,
-                        DiscountAmount = si.DiscountAmount,
-                        TaxAmount = si.TaxAmount,
-                        TotalAmount = si.TotalAmount,
-                        UnitCost = si.UnitCost,
-                        ProfitAmount = si.ProfitAmount,
-                    }).ToList()
-                })
+                .Select(MapToSaleDto())
                 .FirstOrDefaultAsync();
-            return sale;
+        }
+
+        private static Expression<Func<Sale, SaleDto>> MapToSaleDto()
+        {
+            return s => new SaleDto
+            {
+                Id = s.Id,
+                SaleNumber = s.SaleNumber,
+                CustomerId = s.CustomerId,
+                CustomerName = s.Customer != null ? (s.Customer.FirstName + " " + (s.Customer.LastName ?? "")).Trim() : null,
+                EmployeeId = s.EmployeeId,
+                EmployeeName = s.Employee != null ? s.Employee.Name : null,
+                BookingId = s.BookingId,
+                SubTotal = s.SubTotal,
+                DiscountAmount = s.DiscountAmount,
+                TaxAmount = s.TaxAmount,
+                TotalAmount = s.TotalAmount,
+                PaymentMethod = s.PaymentMethod,
+                Status = s.Status,
+                PaymentReference = s.PaymentReference,
+                ReceivedAmount = s.ReceivedAmount,
+                ChangeAmount = s.ChangeAmount,
+                Notes = s.Notes,
+                InvoiceNumber = s.InvoiceNumber,
+                SaleDate = s.SaleDate,
+                CompletedAt = s.CompletedAt,
+                CancelledAt = s.CancelledAt,
+                CancellationReason = s.CancellationReason,
+                SoldBy = s.SoldBy,
+                Items = s.SaleItems.Select(si => new SaleItemDto
+                {
+                    Id = si.Id,
+                    ProductId = si.ProductId,
+                    ProductName = si.Product.Name,
+                    ProductBarcode = si.Product.Barcode,
+                    Quantity = si.Quantity,
+                    UnitPrice = si.UnitPrice,
+                    DiscountPercentage = si.DiscountPercentage,
+                    DiscountAmount = si.DiscountAmount,
+                    TaxAmount = si.TaxAmount,
+                    TotalAmount = si.TotalAmount,
+                    UnitCost = si.UnitCost,
+                    ProfitAmount = (si.UnitPrice - si.UnitCost) * si.Quantity - si.DiscountAmount,
+                }).ToList()
+            };
         }
 
         // Helper method to map Product entity to ProductDto

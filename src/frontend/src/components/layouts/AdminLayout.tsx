@@ -58,6 +58,7 @@ import {
   Business,
   Block as BlockIcon,
   Inventory2Outlined,
+  ReceiptLong,
   Storefront,
   WhatsApp,
   VpnKey,
@@ -299,6 +300,7 @@ export const AdminLayout: React.FC = () => {
       icon: <AttachMoney />,
       children: [
         { text: 'Punto de venta', path: '/pos', icon: <Storefront fontSize="small" /> },
+        { text: 'Historial de ventas', path: '/sales-history', icon: <ReceiptLong fontSize="small" /> },
         { text: 'Productos', path: '/products', icon: <Inventory2Outlined fontSize="small" /> },
         { text: 'Pagos', path: '/payments', icon: <Payment fontSize="small" />, adminOnly: true },
       ],

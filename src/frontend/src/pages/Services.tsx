@@ -9,7 +9,6 @@ import {
   CardContent,
   CardActions,
   Button,
-  TextField,
   InputAdornment,
   Dialog,
   DialogTitle,
@@ -46,6 +45,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTenant } from '../contexts/TenantContext';
 import api, { serviceCategoryApi } from '../services/api';
+import TextField from '../components/common/TextField';
 
 interface Service {
   id: string;

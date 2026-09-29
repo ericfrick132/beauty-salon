@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Card, CardContent, Grid, TextField, Switch, Button, IconButton, Alert } from '@mui/material';
+import { Box, Typography, Card, CardContent, Grid, Switch, Button, IconButton, Alert } from '@mui/material';
 import { messagePackagesAdminApi } from '../../services/api';
 import DeleteIcon from '@mui/icons-material/Delete';
+import TextField from '../../components/common/TextField';
 
 type Pack = { id?: string; name: string; quantity: number; price: number; currency: string; isActive: boolean };
 

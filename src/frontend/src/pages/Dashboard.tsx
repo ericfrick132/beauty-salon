@@ -694,13 +694,19 @@ const Dashboard: React.FC = () => {
                         <Typography variant="h5" color={primaryColor}>
                           ${financialStats.totalRevenue?.toLocaleString() || 0}
                         </Typography>
+                        {financialStats.productRevenue > 0 && (
+                          <Typography variant="caption" color="textSecondary">
+                            Servicios: ${financialStats.serviceRevenue?.toLocaleString() || 0} | 
+                            Productos: ${financialStats.productRevenue?.toLocaleString() || 0}
+                          </Typography>
+                        )}
                       </Box>
                     </Grid>
                     
                     <Grid item xs={12} md={3}>
                       <Box>
                         <Typography color="textSecondary" variant="body2" gutterBottom>
-                          Gastos (Sueldos + Comisiones)
+                          Gastos
                         </Typography>
                         <Typography variant="h5" color="error">
                           -${financialStats.totalExpenses?.toLocaleString() || 0}
@@ -708,6 +714,9 @@ const Dashboard: React.FC = () => {
                         <Typography variant="caption" color="textSecondary">
                           Sueldos: ${financialStats.totalSalaries?.toLocaleString() || 0} | 
                           Comisiones: ${financialStats.totalCommissions?.toLocaleString() || 0}
+                          {financialStats.productCost > 0 && (
+                            <> | Costo productos: ${financialStats.productCost?.toLocaleString() || 0}</>
+                          )}
                         </Typography>
                       </Box>
                     </Grid>

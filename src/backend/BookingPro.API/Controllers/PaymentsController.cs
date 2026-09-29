@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using BookingPro.API.Data;
 using BookingPro.API.Models.Entities;
 using BookingPro.API.Services;
+using BookingPro.API.Services.Interfaces;
+using BookingPro.API.Models.DTOs;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -18,13 +20,16 @@ namespace BookingPro.API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly ITenantService _tenantService;
+        private readonly IInventoryService _inventoryService;
 
         public PaymentsController(
             ApplicationDbContext context,
-            ITenantService tenantService)
+            ITenantService tenantService,
+            IInventoryService inventoryService)
         {
             _context = context;
             _tenantService = tenantService;
+            _inventoryService = inventoryService;
         }
 
         [HttpGet]
@@ -143,9 +148,27 @@ namespace BookingPro.API.Controllers
                 // Update booking status to completed
                 booking.Status = "completed";
 
+                // Productos sumados al cobro: pago y venta se confirman juntos (si falta stock, no se cobra nada)
+                await using var tx = await _context.Database.BeginTransactionAsync();
                 await _context.SaveChangesAsync();
 
-                return Ok(new { id = payment.Id, message = "Payment created successfully" });
+                Guid? saleId = null;
+                if (dto.Products is { Count: > 0 })
+                {
+                    var sale = await _inventoryService.CreateSaleAsync(new CreateSaleDto
+                    {
+                        BookingId = booking.Id,
+                        CustomerId = booking.CustomerId,
+                        EmployeeId = dto.EmployeeId ?? booking.EmployeeId,
+                        PaymentMethod = dto.PaymentMethod,
+                        Items = dto.Products,
+                    }, User.Identity?.Name);
+                    saleId = sale.Id;
+                }
+
+                await tx.CommitAsync();
+
+                return Ok(new { id = payment.Id, saleId, message = "Payment created successfully" });
             }
             catch (Exception ex)
             {
@@ -231,6 +254,8 @@ namespace BookingPro.API.Controllers
         public string PaymentMethod { get; set; } = "cash";
         public string? TransactionId { get; set; }
         public string? Notes { get; set; }
+        // Productos vendidos junto con el turno (opcional)
+        public List<CreateSaleItemDto>? Products { get; set; }
     }
 
     public class UpdateStatusDto

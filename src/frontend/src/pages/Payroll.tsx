@@ -23,7 +23,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   MenuItem,
   Tabs,
   Tab,
@@ -45,6 +44,7 @@ import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-f
 import { es } from 'date-fns/locale';
 import api from '../services/api';
 import { useTenant } from '../contexts/TenantContext';
+import TextField from '../components/common/TextField';
 
 interface PayrollItem {
   employeeId: string;
@@ -87,6 +87,9 @@ interface PayrollData {
 
 interface FinancialStats {
   totalRevenue: number;
+  serviceRevenue: number;
+  productRevenue: number;
+  productCost: number;
   totalSalaries: number;
   totalCommissions: number;
   totalExpenses: number;
@@ -491,6 +494,12 @@ const Payroll: React.FC = () => {
                       {formatCurrency(financialStats.totalRevenue)}
                     </Typography>
                   </Box>
+
+                  {financialStats.productRevenue > 0 && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: -1.5, mb: 2 }}>
+                      Servicios {formatCurrency(financialStats.serviceRevenue)} · Productos {formatCurrency(financialStats.productRevenue)}
+                    </Typography>
+                  )}
                   
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                     <Typography>Sueldos Fijos:</Typography>
@@ -505,6 +514,15 @@ const Payroll: React.FC = () => {
                       -{formatCurrency(financialStats.totalCommissions)}
                     </Typography>
                   </Box>
+
+                  {financialStats.productCost > 0 && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                      <Typography>Costo de productos vendidos:</Typography>
+                      <Typography color="error">
+                        -{formatCurrency(financialStats.productCost)}
+                      </Typography>
+                    </Box>
+                  )}
                   
                   <Box
                     sx={{

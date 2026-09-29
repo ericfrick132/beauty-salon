@@ -6,7 +6,6 @@ import {
   Grid,
   Button,
   Box,
-  TextField,
   Switch,
   FormControlLabel,
   Card,
@@ -38,6 +37,7 @@ import { motion } from 'framer-motion';
 import api from '../services/api';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { ThemeConfiguration } from '../types';
+import TextField from '../components/common/TextField';
 
 const TIMEZONES = [
   { value: '-3', label: 'Argentina (UTC-3)' },

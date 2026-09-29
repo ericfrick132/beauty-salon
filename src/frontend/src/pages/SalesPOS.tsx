@@ -8,7 +8,6 @@ import {
   Divider,
   Grid,
   IconButton,
-  TextField,
   Typography,
   Alert,
   Table,
@@ -20,10 +19,13 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Autocomplete,
 } from '@mui/material';
 import { Add, Delete, Remove, QrCodeScanner } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import api, { inventoryApi } from '../services/api';
+import api, { inventoryApi, customerApi } from '../services/api';
+import { Customer } from '../types';
+import TextField from '../components/common/TextField';
 
 interface ProductDto {
   id: string;
@@ -59,13 +61,21 @@ const SalesPOS: React.FC = () => {
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [employees, setEmployees] = useState<Array<{ id: string; name: string }>>([]);
   const [employeeId, setEmployeeId] = useState('');
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customer, setCustomer] = useState<Customer | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
-    const handler = () => inputRef.current?.focus();
+    // Vuelve al lector de código de barras, salvo que se haya clickeado otro campo (cliente, importe)
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input, textarea, [role="listbox"], [role="option"]')) return;
+      inputRef.current?.focus();
+    };
     window.addEventListener('click', handler);
     loadEmployees();
+    loadCustomers();
     loadProducts();
     return () => window.removeEventListener('click', handler);
   }, []);
@@ -151,6 +161,14 @@ const SalesPOS: React.FC = () => {
       inputRef.current?.focus();
   };
 
+  const loadCustomers = async () => {
+    try {
+      setCustomers(await customerApi.getCustomers());
+    } catch (err) {
+      console.error('Error fetching customers', err);
+    }
+  };
+
   const loadEmployees = async () => {
     try {
       const resp = await api.get('/employees');
@@ -189,6 +207,7 @@ const SalesPOS: React.FC = () => {
       const payload = {
         paymentMethod,
         employeeId: employeeId || undefined,
+        customerId: customer?.id,
         receivedAmount: paymentMethod === 'cash' ? (receivedAmount || 0) : undefined,
         items: items.map(i => ({ productId: i.productId, quantity: i.quantity, discountPercentage: i.discountPct }))
       };
@@ -196,6 +215,7 @@ const SalesPOS: React.FC = () => {
       setMessage({ type: 'success', text: 'Venta registrada correctamente' });
       setItems([]);
       setReceivedAmount('');
+      setCustomer(null);
     } catch (err: any) {
       const text = err?.response?.data?.error || 'Error al registrar la venta';
       setMessage({ type: 'error', text });
@@ -261,6 +281,16 @@ const SalesPOS: React.FC = () => {
                   <MenuItem value="mercadopago">MercadoPago</MenuItem>
                 </Select>
               </FormControl>
+            </Grid>
+            <Grid item xs={12} md={5}>
+              <Autocomplete
+                options={customers}
+                value={customer}
+                onChange={(_, c) => setCustomer(c)}
+                getOptionLabel={(c) => `${c.firstName} ${c.lastName ?? ''}`.trim() + (c.phone ? ` · ${c.phone}` : '')}
+                isOptionEqualToValue={(a, b) => a.id === b.id}
+                renderInput={(params) => <TextField {...params} label="Cliente (opcional)" />}
+              />
             </Grid>
             {paymentMethod === 'cash' && (
               <Grid item xs={12} md={3}>
