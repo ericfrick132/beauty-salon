@@ -174,6 +174,11 @@ builder.Services.AddHostedService<BookingPro.API.Services.BookingConfirmationBot
 builder.Services.AddHostedService<BookingPro.API.Services.TrialReminderBackgroundService>();
 // Recupera OTP abandonados (pidió código y no entró) — apagado por default (OtpFollowup:Enabled)
 builder.Services.AddHostedService<BookingPro.API.Services.OtpFollowupBackgroundService>();
+
+// Facturación electrónica (ARCA) vía el facturador compartido con PlayCrew / GymHero / UniStock
+builder.Services.AddHttpClient<BookingPro.API.Services.Invoicing.IFacturadorClient, BookingPro.API.Services.Invoicing.FacturadorClient>(c => c.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddScoped<BookingPro.API.Services.Invoicing.SalonInvoicingService>();
+builder.Services.AddHostedService<BookingPro.API.Services.Invoicing.SalonInvoicingBackgroundService>();
 // Follow-up de onboarding incompleto, milestone-aware — apagado por default (OnboardingFollowup:Enabled)
 builder.Services.AddScoped<BookingPro.API.Services.IOnboardingMilestoneResolver, BookingPro.API.Services.OnboardingMilestoneResolver>();
 builder.Services.AddHostedService<BookingPro.API.Services.OnboardingFollowupBackgroundService>();

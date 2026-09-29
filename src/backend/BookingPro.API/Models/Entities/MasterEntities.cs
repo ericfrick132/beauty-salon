@@ -183,6 +183,14 @@ namespace BookingPro.API.Models.Entities
         [MaxLength(20)]
         public string? DefaultPaymentProvider { get; set; }
 
+        // ── Facturación electrónica (ARCA, vía el facturador compartido) ──
+        /// <summary>CUIT con el que factura el negocio; null = todavía no configuró la facturación.</summary>
+        [MaxLength(11)]
+        public string? InvoicingCuit { get; set; }
+        /// <summary>Facturar solo cada cobro de turno y venta de productos.</summary>
+        public bool AutoInvoice { get; set; }
+        public DateTime? AutoInvoiceSince { get; set; }
+
         // Navigation properties
         public Vertical? Vertical { get; set; }
         public Plan? Plan { get; set; }

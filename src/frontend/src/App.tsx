@@ -53,6 +53,7 @@ import PlatformSubscriptionStatus from './pages/PlatformSubscriptionStatus';
 import SalesPOS from './pages/SalesPOS';
 import Products from './pages/Products';
 import SalesHistory from './pages/SalesHistory';
+import InvoicingPage from './pages/InvoicingPage';
 import MessagingCredits from './pages/MessagingCredits';
 import MessagingSettings from './pages/MessagingSettings';
 import WhatsAppSettings from './pages/WhatsAppSettings';
@@ -415,6 +416,7 @@ function App() {
                   <Route path="/pos" element={<SalesPOS />} />
                   <Route path="/products" element={<Products />} />
                   <Route path="/sales-history" element={<SalesHistory />} />
+                  <Route path="/invoicing" element={<InvoicingPage />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/theme-settings" element={<ThemeSettings />} />
                   <Route path="/mercadopago-settings" element={<MercadoPagoSettings />} />

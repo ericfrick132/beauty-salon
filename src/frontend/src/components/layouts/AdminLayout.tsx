@@ -301,6 +301,7 @@ export const AdminLayout: React.FC = () => {
       children: [
         { text: 'Punto de venta', path: '/pos', icon: <Storefront fontSize="small" /> },
         { text: 'Historial de ventas', path: '/sales-history', icon: <ReceiptLong fontSize="small" /> },
+        { text: 'Facturación', path: '/invoicing', icon: <ReceiptLong fontSize="small" />, adminOnly: true, badge: 'Nuevo' },
         { text: 'Productos', path: '/products', icon: <Inventory2Outlined fontSize="small" /> },
         { text: 'Pagos', path: '/payments', icon: <Payment fontSize="small" />, adminOnly: true },
       ],

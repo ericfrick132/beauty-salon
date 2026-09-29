@@ -83,6 +83,7 @@ namespace BookingPro.API.Data
         public DbSet<ProductCategory> ProductCategories { get; set; }
         public DbSet<Product> Products { get; set; }
         public DbSet<Sale> Sales { get; set; }
+        public DbSet<ElectronicInvoice> ElectronicInvoices { get; set; }
         public DbSet<SaleItem> SaleItems { get; set; }
         public DbSet<StockMovement> StockMovements { get; set; }
         public DbSet<PriceHistory> PriceHistories { get; set; }
@@ -833,6 +834,24 @@ namespace BookingPro.API.Data
                 e.HasQueryFilter(x => x.TenantId == GetCurrentTenantId());
                 e.HasIndex(x => new { x.TenantId, x.Phone }).IsUnique();
                 e.HasIndex(x => x.LastMessageAt);
+            });
+
+            // Facturación electrónica (ARCA) vía el facturador compartido
+            modelBuilder.Entity<ElectronicInvoice>(entity =>
+            {
+                entity.ToTable("electronic_invoices");
+                entity.HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+                entity.HasIndex(e => new { e.TenantId, e.ExternalRef }).IsUnique();
+                entity.HasIndex(e => new { e.TenantId, e.SourceType, e.SourceId });
+                entity.HasIndex(e => new { e.Status, e.LastSyncedAt });
+                entity.Property(e => e.SourceType).HasMaxLength(20);
+                entity.Property(e => e.ExternalRef).HasMaxLength(100);
+                entity.Property(e => e.Status).HasMaxLength(20);
+                entity.Property(e => e.VoucherName).HasMaxLength(60);
+                entity.Property(e => e.FullNumber).HasMaxLength(20);
+                entity.Property(e => e.Cae).HasMaxLength(20);
+                entity.Property(e => e.Error).HasMaxLength(1000);
+                entity.Property(e => e.Total).HasPrecision(18, 2);
             });
 
             // Detección de transferencias
