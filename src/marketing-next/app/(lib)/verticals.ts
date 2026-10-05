@@ -27,7 +27,7 @@ export const verticals: VerticalContent[] = [
     ...verticalLinks[0],
     title: 'Sistema de turnos para peluquerías | TurnosPro',
     description:
-      'Agenda online por estilista, señas con MercadoPago y recordatorios por WhatsApp para tu peluquería. Probá TurnosPro 7 días gratis.',
+      'Sistema de turnos para peluquerías: agenda online por estilista, señas con MercadoPago y recordatorios por WhatsApp. Probalo gratis.',
     h1: 'Sistema de turnos para peluquerías',
     eyebrow: 'Peluquerías',
     intro: [
@@ -85,6 +85,23 @@ export const verticals: VerticalContent[] = [
         ],
       },
       {
+        h2: 'Qué tiene que tener un sistema de turnos para peluquerías',
+        paragraphs: [
+          'Si estás comparando sistemas de turnos para tu peluquería, no alcanza con un calendario donde la gente anote su nombre. Antes de elegir, fijate que resuelva esto:',
+        ],
+        bullets: [
+          'Agenda por estilista: que cada profesional tenga sus horarios y la clienta elija con quién atenderse.',
+          'Duración por servicio: que un color o un alisado bloquee el tiempo real y no se pise con el turno siguiente.',
+          'Señas online: que la clienta pague una parte al reservar y la plata entre en tu cuenta, no en la del sistema.',
+          'Recordatorios por WhatsApp: que salgan solos, desde tu número, y que la confirmación o la cancelación se refleje en la agenda.',
+          'Reserva sin app ni registro: que la clienta reserve desde el link de tu Instagram en un par de toques.',
+          'Precios claros y sin permanencia: que sepas cuánto pagás por mes y puedas irte cuando quieras.',
+        ],
+        after: [
+          'TurnosPro cumple todos estos puntos en un solo plan, con turnos ilimitados y todos los profesionales que tengas.',
+        ],
+      },
+      {
         h2: 'Cómo arranca una peluquería con TurnosPro',
         paragraphs: [
           'La puesta a punto lleva unos 15 minutos y no necesitás a nadie técnico:',
@@ -119,12 +136,16 @@ export const verticals: VerticalContent[] = [
         a: 'No. Reservan desde tu web de turnos, en cualquier celular, sin registrarse ni instalar nada. La app para iPhone es para vos, para gestionar la agenda.',
       },
       {
+        q: '¿Hay un sistema de turnos gratis para peluquerías?',
+        a: 'Podés probar TurnosPro gratis antes de pagar nada: creás tu cuenta, cargás tus estilistas y servicios y empezás a recibir reservas. Si no te sirve, lo cancelás sin costo. Los sistemas gratis para siempre suelen limitar la cantidad de turnos o profesionales y no incluyen señas ni recordatorios por WhatsApp.',
+      },
+      {
         q: '¿Cuánto cuesta un sistema de turnos para peluquerías?',
         a: 'TurnosPro cuesta ARS 50.000 por mes en el plan mensual y baja hasta ARS 37.500 por mes en el plan de 12 meses. Todos los planes arrancan con 7 días gratis (dejás tu tarjeta en Mercado Pago y el primer cobro es al terminar la prueba) y no tienen permanencia.',
       },
     ],
     datePublished: '2026-09-03',
-    dateModified: '2026-09-03',
+    dateModified: '2026-10-05',
   },
   {
     ...verticalLinks[1],
