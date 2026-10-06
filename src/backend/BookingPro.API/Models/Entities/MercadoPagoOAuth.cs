@@ -26,6 +26,17 @@ namespace BookingPro.API.Models.Entities
 
         [MaxLength(10)]
         public string? CodeChallengeMethod { get; set; } // e.g., S256 or plain
+
+        /// <summary>
+        /// Desde dónde se inició la vinculación: "web" (panel) o "app" (apps móviles).
+        /// Define a dónde vuelve el callback: a la web o al deep link de la app.
+        /// </summary>
+        [Required, MaxLength(10)]
+        public string ClientMode { get; set; } = MercadoPagoOAuthClientModes.Web;
+
+        /// <summary>Usuario del tenant que inició la vinculación.</summary>
+        public Guid? InitiatedByUserId { get; set; }
+
         
         public bool IsCompleted { get; set; } = false;
         public bool IsExpired { get; set; } = false;
@@ -96,5 +107,18 @@ namespace BookingPro.API.Models.Entities
         // Public key for frontend (no encryption needed)
         [MaxLength(500)]
         public string? PublicKey { get; set; }
+    }
+}
+
+namespace BookingPro.API.Models.Entities
+{
+    public static class MercadoPagoOAuthClientModes
+    {
+        public const string Web = "web";
+        public const string App = "app";
+
+        /// <summary>Normaliza lo que manda el cliente; cualquier valor desconocido es web.</summary>
+        public static string Normalize(string? value) =>
+            string.Equals(value?.Trim(), App, StringComparison.OrdinalIgnoreCase) ? App : Web;
     }
 }

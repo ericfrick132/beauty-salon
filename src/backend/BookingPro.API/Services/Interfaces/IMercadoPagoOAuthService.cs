@@ -11,7 +11,7 @@ namespace BookingPro.API.Services.Interfaces
         /// <summary>
         /// Generates OAuth authorization URL for tenant to connect their MP account
         /// </summary>
-        Task<ServiceResult<MercadoPagoOAuthUrlDto>> InitiateOAuthFlowAsync(InitiateMercadoPagoOAuthDto dto);
+        Task<ServiceResult<MercadoPagoOAuthUrlDto>> InitiateOAuthFlowAsync(InitiateMercadoPagoOAuthDto dto, Guid? initiatedByUserId = null);
         
         /// <summary>
         /// Processes OAuth callback and exchanges code for tokens
@@ -43,6 +43,13 @@ namespace BookingPro.API.Services.Interfaces
         /// </summary>
         Task<ServiceResult<bool>> ConfigurePlatformOAuthAsync(PlatformOAuthConfigDto dto);
         
+        /// <summary>
+        /// Devuelve desde dónde se inició el flujo ("web" o "app") para un state emitido
+        /// por este backend, o null si el state no existe. El state es un valor aleatorio
+        /// guardado en la base, así que el modo no se puede falsificar desde la URL.
+        /// </summary>
+        Task<string?> GetStateClientModeAsync(string? state);
+
         /// <summary>
         /// Validates OAuth state parameter
         /// </summary>

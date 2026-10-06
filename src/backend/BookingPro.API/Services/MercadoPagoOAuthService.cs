@@ -38,7 +38,7 @@ namespace BookingPro.API.Services
             _httpClient = httpClientFactory.CreateClient();
         }
 
-        public async Task<ServiceResult<MercadoPagoOAuthUrlDto>> InitiateOAuthFlowAsync(InitiateMercadoPagoOAuthDto dto)
+        public async Task<ServiceResult<MercadoPagoOAuthUrlDto>> InitiateOAuthFlowAsync(InitiateMercadoPagoOAuthDto dto, Guid? initiatedByUserId = null)
         {
             try
             {
@@ -74,7 +74,9 @@ namespace BookingPro.API.Services
                     ExpiresAt = DateTime.UtcNow.AddMinutes(15),
                     CodeVerifier = pkce.CodeVerifier,
                     CodeChallenge = pkce.CodeChallenge,
-                    CodeChallengeMethod = pkce.CodeChallengeMethod
+                    CodeChallengeMethod = pkce.CodeChallengeMethod,
+                    ClientMode = MercadoPagoOAuthClientModes.Normalize(dto?.Client),
+                    InitiatedByUserId = initiatedByUserId
                 };
 
                 _context.Set<MercadoPagoOAuthState>().Add(oauthState);
@@ -85,7 +87,7 @@ namespace BookingPro.API.Services
                 oauthState.AuthorizationUrl = authUrl;
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation("OAuth flow initiated for tenant {TenantId}", tenantId);
+                _logger.LogInformation("OAuth flow initiated for tenant {TenantId} (client {ClientMode})", tenantId, oauthState.ClientMode);
 
                 return ServiceResult<MercadoPagoOAuthUrlDto>.Ok(new MercadoPagoOAuthUrlDto
                 {
@@ -109,7 +111,7 @@ namespace BookingPro.API.Services
                 var stateResult = await ValidateOAuthStateAsync(dto.State);
                 if (!stateResult.Success || stateResult.Data == Guid.Empty)
                 {
-                    return ServiceResult<bool>.Fail("Invalid OAuth state");
+                    return CallbackFail("Invalid OAuth state", "invalid_state");
                 }
 
                 var tenantId = stateResult.Data;
@@ -121,7 +123,30 @@ namespace BookingPro.API.Services
 
                 if (oauthState == null || oauthState.IsExpired || oauthState.ExpiresAt < DateTime.UtcNow)
                 {
-                    return ServiceResult<bool>.Fail("OAuth state expired");
+                    return CallbackFail("OAuth state expired", "expired_state");
+                }
+
+                // Un state sirve una sola vez: un callback repetido no vuelve a canjear códigos.
+                if (oauthState.IsCompleted)
+                {
+                    return CallbackFail("OAuth state already used", "invalid_state");
+                }
+
+                // El state queda atado al usuario que lo inició: tiene que seguir siendo
+                // admin de ese mismo negocio al momento de volver de Mercado Pago.
+                if (oauthState.InitiatedByUserId.HasValue)
+                {
+                    var initiator = await _context.Users
+                        .IgnoreQueryFilters()
+                        .Where(u => u.Id == oauthState.InitiatedByUserId.Value)
+                        .Select(u => new { u.TenantId, u.Role })
+                        .FirstOrDefaultAsync();
+                    var role = initiator?.Role?.Trim().ToLowerInvariant();
+                    if (initiator == null || initiator.TenantId != tenantId || (role != "admin" && role != "super_admin"))
+                    {
+                        _logger.LogWarning("OAuth state for tenant {TenantId} rejected: initiating user no longer allowed", tenantId);
+                        return CallbackFail("OAuth state not bound to an allowed user", "invalid_state");
+                    }
                 }
 
                 // Handle OAuth error response
@@ -134,14 +159,14 @@ namespace BookingPro.API.Services
 
                     _logger.LogWarning("OAuth error for tenant {TenantId}: {Error} - {Description}", 
                         tenantId, dto.Error, dto.ErrorDescription);
-                    return ServiceResult<bool>.Fail($"OAuth error: {dto.Error}");
+                    return CallbackFail($"OAuth error: {dto.Error}", string.Equals(dto.Error, "access_denied", StringComparison.OrdinalIgnoreCase) ? "access_denied" : "mp_error");
                 }
 
                 // Ensure PKCE verifier exists if PKCE is enabled on the app
                 if (string.IsNullOrWhiteSpace(oauthState.CodeVerifier))
                 {
                     _logger.LogWarning("OAuth state missing code_verifier for tenant {TenantId}. User must restart OAuth flow.", tenantId);
-                    return ServiceResult<bool>.Fail("Missing PKCE verifier. Please restart the Mercado Pago connection.");
+                    return CallbackFail("Missing PKCE verifier. Please restart the Mercado Pago connection.", "invalid_state");
                 }
 
                 // Exchange code for tokens (include PKCE code_verifier)
@@ -159,7 +184,7 @@ namespace BookingPro.API.Services
                     var reason = string.IsNullOrWhiteSpace(tokenResult.Message)
                         ? "Failed to exchange code for token"
                         : $"Failed to exchange code for token: {tokenResult.Message}";
-                    return ServiceResult<bool>.Fail(reason);
+                    return CallbackFail(reason, "exchange_failed");
                 }
 
                 // Get user info (best effort). If it fails, proceed with minimal info.
@@ -196,7 +221,32 @@ namespace BookingPro.API.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing OAuth callback");
-                return ServiceResult<bool>.Fail("Error processing OAuth callback");
+                return CallbackFail("Error processing OAuth callback", "server_error");
+            }
+        }
+
+        private static ServiceResult<bool> CallbackFail(string message, string reason)
+        {
+            var result = ServiceResult<bool>.Fail(message);
+            result.Reason = reason;
+            return result;
+        }
+
+        public async Task<string?> GetStateClientModeAsync(string? state)
+        {
+            if (string.IsNullOrEmpty(state)) return null;
+            try
+            {
+                return await _context.Set<MercadoPagoOAuthState>()
+                    .IgnoreQueryFilters()
+                    .Where(s => s.State == state)
+                    .Select(s => s.ClientMode)
+                    .FirstOrDefaultAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not read client mode for OAuth state");
+                return null;
             }
         }
 
@@ -553,9 +603,8 @@ namespace BookingPro.API.Services
 
         private string GenerateStateParameter(Guid tenantId)
         {
-            var randomBytes = new byte[16];
-            RandomNumberGenerator.Fill(randomBytes);
-            var randomString = Convert.ToBase64String(randomBytes).Replace("+", "").Replace("/", "").Replace("=", "")[..10];
+            // 256 bits aleatorios en hex: imposible de adivinar y sin '_' (el formato es de 3 partes).
+            var randomString = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
             return $"tenant_{tenantId}_{randomString}";
         }
 

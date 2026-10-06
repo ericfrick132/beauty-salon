@@ -9,6 +9,13 @@ namespace BookingPro.API.Models.DTOs
     {
         [MaxLength(1000)]
         public string? RedirectUrl { get; set; } // Optional custom redirect
+
+        /// <summary>
+        /// "app" cuando lo inician las apps móviles: el callback vuelve al deep link
+        /// (turnospro://mercadopago?status=...). Sin valor o cualquier otro valor = web.
+        /// </summary>
+        [MaxLength(10)]
+        public string? Client { get; set; }
     }
 
     /// <summary>

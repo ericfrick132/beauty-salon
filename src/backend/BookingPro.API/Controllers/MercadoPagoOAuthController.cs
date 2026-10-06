@@ -1,5 +1,6 @@
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Models.Entities;
+using BookingPro.API.Services;
 using BookingPro.API.Services.Interfaces;
 using BookingPro.API.Data;
 using Microsoft.AspNetCore.Authorization;
@@ -17,31 +18,59 @@ namespace BookingPro.API.Controllers
         private readonly ApplicationDbContext _context;
         private readonly BookingPro.API.Services.IPlatformPaymentConnectionService _platformConnections;
         private readonly IConfiguration _configuration;
+        private readonly ITenantProvider _tenantProvider;
+
+        /// <summary>Deep link de las apps móviles al que vuelve el callback cuando el flujo se inició desde la app.</summary>
+        private const string DefaultAppDeepLink = "turnospro://mercadopago";
 
         public MercadoPagoOAuthController(
             IMercadoPagoOAuthService oauthService,
             ILogger<MercadoPagoOAuthController> logger,
             ApplicationDbContext context,
             BookingPro.API.Services.IPlatformPaymentConnectionService platformConnections,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            ITenantProvider tenantProvider)
         {
             _oauthService = oauthService;
             _logger = logger;
             _context = context;
             _platformConnections = platformConnections;
             _configuration = configuration;
+            _tenantProvider = tenantProvider;
         }
 
         /// <summary>
         /// Initiates OAuth flow and returns authorization URL for tenant
         /// </summary>
+        /// <remarks>
+        /// Apps móviles: POST con body <c>{ "client": "app" }</c> (o <c>?client=app</c>), abren
+        /// <c>authorizationUrl</c> en ASWebAuthenticationSession / Custom Tab y el callback
+        /// vuelve a <c>turnospro://mercadopago?status=connected</c> o
+        /// <c>?status=error&amp;reason=...</c>. Después consultan <c>GET status</c>.
+        /// </remarks>
         [HttpPost("initiate")]
-        [Authorize]
-        public async Task<IActionResult> InitiateOAuth([FromBody] InitiateMercadoPagoOAuthDto dto)
+        [Authorize(Roles = "admin,super_admin")]
+        public async Task<IActionResult> InitiateOAuth([FromBody] InitiateMercadoPagoOAuthDto? dto, [FromQuery] string? client = null)
         {
             try
             {
-                var result = await _oauthService.InitiateOAuthFlowAsync(dto);
+                dto ??= new InitiateMercadoPagoOAuthDto();
+                if (string.IsNullOrWhiteSpace(dto.Client) && !string.IsNullOrWhiteSpace(client))
+                    dto.Client = client;
+
+                // El usuario tiene que pertenecer al negocio para el que pide vincular la cuenta
+                // (el tenant sale del host / header; el token trae su tenant_id).
+                var currentTenantId = _tenantProvider.GetCurrentTenantId();
+                var claimTenant = User.FindFirst("tenant_id")?.Value;
+                var isSuperAdmin = User.IsInRole("super_admin");
+                if (!isSuperAdmin && (!Guid.TryParse(claimTenant, out var userTenantId) || userTenantId != currentTenantId))
+                {
+                    return Forbid();
+                }
+
+                Guid? userId = Guid.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var uid) ? uid : null;
+
+                var result = await _oauthService.InitiateOAuthFlowAsync(dto, userId);
                 
                 if (result.Success && result.Data != null)
                 {
@@ -116,8 +145,19 @@ namespace BookingPro.API.Controllers
                     ErrorDescription = error_description
                 };
 
+                // Lo lee antes de procesar: el state se cierra al completarse.
+                var isApp = await _oauthService.GetStateClientModeAsync(state) == MercadoPagoOAuthClientModes.App;
+
                 var result = await _oauthService.ProcessOAuthCallbackAsync(callbackDto);
-                
+
+                if (isApp)
+                {
+                    if (result.Success)
+                        return Redirect(AppDeepLink("connected"));
+                    _logger.LogWarning("OAuth callback (app) failed: {Message}", result.Message);
+                    return Redirect(AppDeepLink("error", result.Reason ?? "exchange_failed"));
+                }
+
                 if (result.Success)
                 {
                     // Return HTML page that closes popup and notifies parent window
@@ -134,6 +174,8 @@ namespace BookingPro.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing OAuth callback");
+                if (await IsAppStateSafeAsync(state))
+                    return Redirect(AppDeepLink("error", "server_error"));
                 var errorHtml = GenerateCallbackHtml(false, "Error procesando callback", ex.Message, null);
                 return Content(errorHtml, "text/html");
             }
@@ -171,6 +213,22 @@ namespace BookingPro.API.Controllers
                 _logger.LogError(ex, "Platform MP OAuth callback error");
                 return Redirect($"{errorRedirect}&reason=exchange_failed");
             }
+        }
+
+        private string AppDeepLink(string status, string? reason = null)
+        {
+            var configured = _configuration["MercadoPago:AppDeepLink"];
+            var baseLink = string.IsNullOrWhiteSpace(configured) ? DefaultAppDeepLink : configured.Trim();
+            var url = $"{baseLink}?status={Uri.EscapeDataString(status)}";
+            if (!string.IsNullOrEmpty(reason))
+                url += $"&reason={Uri.EscapeDataString(reason)}";
+            return url;
+        }
+
+        private async Task<bool> IsAppStateSafeAsync(string? state)
+        {
+            try { return await _oauthService.GetStateClientModeAsync(state) == MercadoPagoOAuthClientModes.App; }
+            catch { return false; }
         }
 
         private string RequestBaseUrl() => $"{Request.Scheme}://{Request.Host}";
