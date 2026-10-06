@@ -444,10 +444,10 @@ export const verticals: VerticalContent[] = [
     path: '/reservas-online',
     label: 'Reservas online',
     businessTypeLabel: 'Reservas online',
-    title: 'Sistema de reservas online con recordatorios por WhatsApp | TurnosPro',
+    title: 'Recordatorio de turnos por WhatsApp y reservas online',
     description:
-      'Sistema de reservas online para tu negocio: web de turnos 24/7, señas con MercadoPago sin comisión y recordatorios y confirmación por WhatsApp. Probá 7 días gratis.',
-    h1: 'Sistema de reservas online con recordatorios por WhatsApp',
+      'Recordatorio de turnos por WhatsApp desde tu número, reservas online 24/7 y señas con MercadoPago sin comisión. Probá TurnosPro 7 días gratis.',
+    h1: 'Reservas online con recordatorio de turnos por WhatsApp',
     eyebrow: 'Reservas online',
     intro: [
       'Un sistema de reservas online tiene que hacer tres cosas: dejar que el cliente reserve solo a cualquier hora, cobrarle una seña para que no falte y recordarle el turno por el canal que sí lee. TurnosPro hace las tres desde una sola cuenta: tu propia web de turnos disponible 24/7, señas con MercadoPago directo en tu cuenta y recordatorios y confirmación por WhatsApp desde tu propio número.',
@@ -474,7 +474,7 @@ export const verticals: VerticalContent[] = [
         ],
       },
       {
-        h2: 'Recordatorios y confirmación por WhatsApp desde tu número',
+        h2: 'Recordatorio de turnos por WhatsApp desde tu número',
         paragraphs: [
           'Tus clientes no leen el mail: leen WhatsApp. TurnosPro manda el recordatorio de cada turno por WhatsApp desde el número de tu negocio, no desde uno genérico, y está incluido en el plan sin paquetes de mensajes. Con el agente de IA de confirmación, además, el sistema le escribe al cliente antes del turno, entiende la respuesta y actúa solo: confirma la asistencia o cancela y te libera el horario para que otra persona lo tome.',
           'Los negocios que combinan señas y recordatorios con TurnosPro reportan hasta un 80% menos de ausencias. Es la diferencia entre agendar turnos y cobrarlos.',
@@ -509,6 +509,10 @@ export const verticals: VerticalContent[] = [
         a: 'Sí. Los recordatorios salen desde tu propio número y están incluidos en el plan, sin paquetes de mensajes. El agente de IA que pide confirmación y entiende la respuesta se activa como complemento.',
       },
       {
+        q: '¿Cómo funciona el recordatorio de turnos por WhatsApp?',
+        a: 'Conectás el WhatsApp de tu negocio, activás los recordatorios y elegís con cuánta anticipación salen. Desde ahí, cada turno confirmado, reservado por la web o cargado por vos en la agenda, recibe su recordatorio automático por WhatsApp desde tu número y con el texto que vos definas. No tenés que mandar nada a mano. Si activás el agente de IA de confirmación, el cliente puede responder ese mensaje para confirmar o cancelar, y el horario cancelado vuelve a quedar libre en la agenda.',
+      },
+      {
         q: '¿TurnosPro cobra comisión por las reservas o por las señas?',
         a: 'No. La seña o el pago completo entran directo en tu cuenta de MercadoPago y no hay comisión por turno ni por cobro. Pagás solo la cuota del plan.',
       },
@@ -526,7 +530,7 @@ export const verticals: VerticalContent[] = [
       },
     ],
     datePublished: '2026-09-04',
-    dateModified: '2026-09-04',
+    dateModified: '2026-10-06',
   },
 ];
 
