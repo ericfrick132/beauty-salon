@@ -313,10 +313,12 @@ namespace BookingPro.API.Services
                         return ServiceResult<bool>.Ok(true);
                     }
 
+                    // Mercado Pago repite notificaciones: si ya se acreditó, no volver a sumar créditos.
+                    var alreadyCredited = mpurchase.PaidAt != null;
                     mpurchase.PlatformPaymentId = paymentId;
                     mpurchase.Status = MapPaymentStatus(payment.Status);
                     mpurchase.UpdatedAt = DateTime.UtcNow;
-                    if (payment.Status == "approved")
+                    if (payment.Status == "approved" && !alreadyCredited)
                     {
                         mpurchase.PaidAt = DateTime.UtcNow;
 
