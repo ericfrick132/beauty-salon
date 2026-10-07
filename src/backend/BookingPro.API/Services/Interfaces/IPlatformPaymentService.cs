@@ -51,6 +51,9 @@ namespace BookingPro.API.Services.Interfaces
         // Messaging packages
         Task<ServiceResult<PurchaseMessagePackageResponseDto>> CreateMessagePackagePurchaseAsync(Guid tenantId, Guid packageId);
 
+        /// <summary>Acredita créditos de mensajería comprados (Mercado Pago o tiendas in-app). Devuelve el saldo.</summary>
+        Task<int> CreditMessageWalletAsync(Guid tenantId, int quantity);
+
         /// <summary>
         /// Records a manual subscription payment for a tenant and activates the period.
         /// </summary>

@@ -151,6 +151,34 @@ namespace BookingPro.API.Services
             }
         }
 
+        /// <summary>
+        /// Acredita créditos de mensajería comprados a la billetera del negocio. Lo usan el webhook
+        /// de Mercado Pago (MSG-) y las compras in-app (App Store), para que ambas acrediten igual.
+        /// Guarda los cambios y devuelve el saldo resultante.
+        /// </summary>
+        public async Task<int> CreditMessageWalletAsync(Guid tenantId, int quantity)
+        {
+            var wallet = await _context.TenantMessageWallets
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(w => w.TenantId == tenantId);
+            if (wallet == null)
+            {
+                wallet = new TenantMessageWallet
+                {
+                    TenantId = tenantId,
+                    Balance = 0,
+                    TotalPurchased = 0,
+                    TotalSent = 0
+                };
+                _context.TenantMessageWallets.Add(wallet);
+            }
+            wallet.Balance += quantity;
+            wallet.TotalPurchased += quantity;
+            wallet.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            return wallet.Balance;
+        }
+
         public async Task<ServiceResult<TenantSubscriptionPaymentResponseDto>> CreateTenantSubscriptionPaymentAsync(CreateTenantSubscriptionPaymentDto dto)
         {
             try
@@ -292,25 +320,8 @@ namespace BookingPro.API.Services
                     {
                         mpurchase.PaidAt = DateTime.UtcNow;
 
-                        // Credit wallet
-                        var wallet = await _context.TenantMessageWallets
-                            .IgnoreQueryFilters()
-                            .FirstOrDefaultAsync(w => w.TenantId == mpurchase.TenantId);
-                        if (wallet == null)
-                        {
-                            wallet = new TenantMessageWallet
-                            {
-                                TenantId = mpurchase.TenantId,
-                                Balance = 0,
-                                TotalPurchased = 0,
-                                TotalSent = 0
-                            };
-                            _context.TenantMessageWallets.Add(wallet);
-                        }
-                        wallet.Balance += mpurchase.Quantity;
-                        wallet.TotalPurchased += mpurchase.Quantity;
-                        wallet.UpdatedAt = DateTime.UtcNow;
                         await _context.SaveChangesAsync();
+                        await CreditMessageWalletAsync(mpurchase.TenantId, mpurchase.Quantity);
 
                         _logger.LogInformation("Credited {Qty} message credits to tenant {TenantId}", mpurchase.Quantity, mpurchase.TenantId);
                     }

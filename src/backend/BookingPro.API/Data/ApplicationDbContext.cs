@@ -57,6 +57,7 @@ namespace BookingPro.API.Data
         public DbSet<FeatureAddon> FeatureAddons { get; set; }
         public DbSet<TenantFeatureAddon> TenantFeatureAddons { get; set; }
         public DbSet<FeatureAddonPurchase> FeatureAddonPurchases { get; set; }
+        public DbSet<StorePurchase> StorePurchases { get; set; }
         public DbSet<BookingConfirmationRequest> BookingConfirmationRequests { get; set; }
         
         // Platform entities (B2B)
@@ -764,6 +765,16 @@ namespace BookingPro.API.Data
                 entity.HasIndex(p => p.Status);
                 entity.HasIndex(p => p.ExternalReference);
                 entity.Property(p => p.Amount).HasPrecision(18, 2);
+            });
+
+            // Compras in-app (App Store / Google Play) de add-ons y créditos. Plataforma: sin filtro por tenant.
+            modelBuilder.Entity<StorePurchase>(entity =>
+            {
+                entity.ToTable("store_purchases");
+                entity.HasIndex(p => new { p.Store, p.TransactionId }).IsUnique();
+                entity.HasIndex(p => p.TenantId);
+                entity.HasIndex(p => p.OriginalTransactionId);
+                entity.Property(p => p.Price).HasPrecision(18, 2);
             });
 
             modelBuilder.Entity<BookingConfirmationRequest>(entity =>

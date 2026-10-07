@@ -142,6 +142,7 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IAppleAppStoreServ
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ISubscriptionService, BookingPro.API.Services.SubscriptionService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ICouponService, BookingPro.API.Services.CouponService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IFeatureAddonService, BookingPro.API.Services.FeatureAddonService>();
+builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IStorePurchaseService, BookingPro.API.Services.StorePurchaseService>();
 // Add-on detección de transferencias: cruza la plata que entra a la cuenta MP del negocio con los turnos con seña pendiente.
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ITransferDetectionService, BookingPro.API.Services.TransferDetectionService>();
 // Asistente de WhatsApp por menú (add-on menu_bot): reserva, consulta y cancela turnos sin IA.

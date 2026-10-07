@@ -25,6 +25,7 @@ namespace BookingPro.API.Services
         private readonly HttpClient _httpClient;
         private readonly IEmailService _emailService;
         private readonly IAppleAppStoreService _appleService;
+        private readonly IStorePurchaseService _storePurchases;
         private readonly ICouponService _couponService;
         private readonly IPlatformPaymentConnectionService _platformConnections;
         private readonly IMetaCapiService _metaCapi;
@@ -40,8 +41,10 @@ namespace BookingPro.API.Services
             ICouponService couponService,
             IPlatformPaymentConnectionService platformConnections,
             IMetaCapiService metaCapi,
-            IPreapprovalService preapprovals)
+            IPreapprovalService preapprovals,
+            IStorePurchaseService storePurchases)
         {
+            _storePurchases = storePurchases;
             _metaCapi = metaCapi;
             _preapprovals = preapprovals;
             _context = context;
@@ -1314,6 +1317,14 @@ namespace BookingPro.API.Services
 
                 if (subscription == null)
                 {
+                    // Add-ons y créditos comprados in-app no son suscripciones: un reembolso los revierte.
+                    var notifType = notification.NotificationType?.ToUpperInvariant();
+                    if ((notifType == "REFUND" || notifType == "REVOKE") &&
+                        await _storePurchases.ProcessAppleRefundAsync(tx.TransactionId))
+                    {
+                        return ServiceResult<bool>.Ok(true);
+                    }
+
                     _logger.LogInformation(
                         "Apple notification {Type} for unknown originalTx {OTx} — ignored",
                         notification.NotificationType, originalTxId);
