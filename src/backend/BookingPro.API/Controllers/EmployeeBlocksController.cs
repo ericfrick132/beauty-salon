@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using BookingPro.API.Utilities;
 using Microsoft.EntityFrameworkCore;
 using BookingPro.API.Data;
 using BookingPro.API.Models.Entities;
@@ -6,8 +8,12 @@ using BookingPro.API.Services;
 
 namespace BookingPro.API.Controllers
 {
+    // Solo lo usa el calendario del panel (con sesión); la reserva pública calcula la
+    // disponibilidad con api/public/available-slots, así que nada queda anónimo.
     [ApiController]
     [Route("api/employees/{employeeId:guid}/blocks")]
+    [Authorize]
+    [TenantStaffOnly]
     public class EmployeeBlocksController : ControllerBase
     {
         private readonly ApplicationDbContext _context;

@@ -280,6 +280,8 @@ app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseAuthentication();
 // Impersonation audit middleware after authentication
 app.UseMiddleware<BookingPro.API.Middleware.ImpersonationAuditMiddleware>();
+// El tenant_id del JWT tiene que coincidir con el negocio del host/header (super admin pasa).
+app.UseMiddleware<BookingPro.API.Middleware.JwtTenantValidationMiddleware>();
 app.UseAuthorization();
 
 // Add subscription verification middleware
