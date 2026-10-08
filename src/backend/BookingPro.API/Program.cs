@@ -143,6 +143,8 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ISubscriptionServi
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ICouponService, BookingPro.API.Services.CouponService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IFeatureAddonService, BookingPro.API.Services.FeatureAddonService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IStorePurchaseService, BookingPro.API.Services.StorePurchaseService>();
+// Push a las apps (FCM / APNs): turnos nuevos y cancelados.
+builder.Services.AddScoped<BookingPro.API.Services.IPushNotificationService, BookingPro.API.Services.PushNotificationService>();
 // Add-on detección de transferencias: cruza la plata que entra a la cuenta MP del negocio con los turnos con seña pendiente.
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ITransferDetectionService, BookingPro.API.Services.TransferDetectionService>();
 // Asistente de WhatsApp por menú (add-on menu_bot): reserva, consulta y cancela turnos sin IA.
@@ -225,6 +227,7 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+BookingPro.API.Services.PushDispatch.Init(app.Services);
 
 // Apply migrations and seed data on startup
 using (var scope = app.Services.CreateScope())

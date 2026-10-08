@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using System.Linq;
@@ -191,6 +192,68 @@ namespace BookingPro.API.Controllers
             catch (Exception ex)
             {
                 return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        // Pestañas Pagos / Personal / Notificaciones / Avanzado de /settings: cada una se guarda entera
+        // como un objeto JSON dentro de Tenant.Settings ("section:<nombre>"). La web y las apps leen lo
+        // guardado y completan con sus valores por defecto lo que falte.
+        private static readonly HashSet<string> Sections = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "payments", "staff", "notifications", "advanced"
+        };
+
+        public static string SectionKey(string section) => $"section:{section.ToLowerInvariant()}";
+
+        [HttpGet("{section}")]
+        [Authorize]
+        public async Task<IActionResult> GetSection(string section)
+        {
+            if (!Sections.Contains(section)) return NotFound(new { message = "Sección inexistente" });
+            try
+            {
+                var tenant = _tenantService.GetCurrentTenant();
+                if (tenant == null) return NotFound(new { message = "Tenant not found" });
+
+                var settings = await _settingsService.GetSettingsAsync(tenant.Id);
+                if (settings.TryGetValue(SectionKey(section), out var value) && value is JsonElement je && je.ValueKind == JsonValueKind.Object)
+                    return Ok(je);
+                return Ok(new { });
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(new { message = "Tenant not found" });
+            }
+        }
+
+        [HttpPut("{section}")]
+        [Authorize(Roles = "admin,super_admin")]
+        public async Task<IActionResult> UpdateSection(string section, [FromBody] JsonElement body)
+        {
+            if (!Sections.Contains(section)) return NotFound(new { message = "Sección inexistente" });
+            if (body.ValueKind != JsonValueKind.Object) return BadRequest(new { message = "Se espera un objeto" });
+            if (body.GetRawText().Length > 8000) return BadRequest(new { message = "Configuración demasiado grande" });
+
+            // Solo valores simples (bool, número, texto): son switches y campos de la pantalla.
+            foreach (var prop in body.EnumerateObject())
+            {
+                if (prop.Value.ValueKind is JsonValueKind.Object or JsonValueKind.Array)
+                    return BadRequest(new { message = $"Valor inválido en {prop.Name}" });
+            }
+
+            try
+            {
+                var tenant = _tenantService.GetCurrentTenant();
+                if (tenant == null) return NotFound(new { message = "Tenant not found" });
+
+                var settings = await _settingsService.GetSettingsAsync(tenant.Id);
+                settings[SectionKey(section)] = body.Clone();
+                await _settingsService.SaveSettingsAsync(tenant.Id, settings);
+                return Ok(new { message = "Configuración guardada" });
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(new { message = "Tenant not found" });
             }
         }
 

@@ -574,6 +574,7 @@ namespace BookingPro.API.Services
             var label = Describe(tenant, booking);
             Reset(s);
             await _context.SaveChangesAsync(ct);
+            PushDispatch.BookingEvent(tenant.Id, booking.Id, "cancelled");
             return $"✅ Listo, cancelé tu turno del {label}.\n\nEscribí *menu* para volver al inicio.";
         }
 

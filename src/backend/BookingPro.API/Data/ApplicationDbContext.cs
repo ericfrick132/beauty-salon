@@ -58,6 +58,7 @@ namespace BookingPro.API.Data
         public DbSet<TenantFeatureAddon> TenantFeatureAddons { get; set; }
         public DbSet<FeatureAddonPurchase> FeatureAddonPurchases { get; set; }
         public DbSet<StorePurchase> StorePurchases { get; set; }
+        public DbSet<DeviceToken> DeviceTokens { get; set; }
         public DbSet<BookingConfirmationRequest> BookingConfirmationRequests { get; set; }
         
         // Platform entities (B2B)
@@ -775,6 +776,15 @@ namespace BookingPro.API.Data
                 entity.HasIndex(p => p.TenantId);
                 entity.HasIndex(p => p.OriginalTransactionId);
                 entity.Property(p => p.Price).HasPrecision(18, 2);
+            });
+
+            // Tokens de push (FCM / APNs) de las apps. Plataforma: sin filtro por tenant.
+            modelBuilder.Entity<DeviceToken>(entity =>
+            {
+                entity.ToTable("device_tokens");
+                entity.HasIndex(d => d.Token).IsUnique();
+                entity.HasIndex(d => d.TenantId);
+                entity.HasIndex(d => d.UserId);
             });
 
             modelBuilder.Entity<BookingConfirmationRequest>(entity =>

@@ -370,6 +370,7 @@ namespace BookingPro.API.Controllers
 
                 _context.Bookings.Add(booking);
                 await _context.SaveChangesAsync();
+                PushDispatch.BookingEvent(booking.TenantId, booking.Id, "created");
 
                 // Generate confirmation code
                 var confirmationCode = GenerateConfirmationCode(booking.Id);

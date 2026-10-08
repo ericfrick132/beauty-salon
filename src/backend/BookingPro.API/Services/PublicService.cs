@@ -152,6 +152,7 @@ namespace BookingPro.API.Services
 
             _context.Bookings.Add(booking);
             await _context.SaveChangesAsync();
+            PushDispatch.BookingEvent(booking.TenantId, booking.Id, "created");
 
             return booking;
         }

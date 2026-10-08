@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using BookingPro.API.Data;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Services;
 using BookingPro.API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace BookingPro.API.Controllers
@@ -18,13 +20,16 @@ namespace BookingPro.API.Controllers
     {
         private readonly ISubscriptionService _subscriptionService;
         private readonly ILogger<SubscriptionController> _logger;
+        private readonly ApplicationDbContext _context;
 
         public SubscriptionController(
             ISubscriptionService subscriptionService,
-            ILogger<SubscriptionController> logger)
+            ILogger<SubscriptionController> logger,
+            ApplicationDbContext context)
         {
             _subscriptionService = subscriptionService;
             _logger = logger;
+            _context = context;
         }
 
         private string GetTenantId()
@@ -166,6 +171,79 @@ namespace BookingPro.API.Controllers
             {
                 _logger.LogError(ex, "Error getting subscription status");
                 return StatusCode(500, new { error = "Error al obtener estado de suscripción" });
+            }
+        }
+
+        /// <summary>
+        /// Historial de pagos de la suscripción del negocio (lo que muestra /subscription): débitos
+        /// automáticos de Mercado Pago, pagos sueltos de suscripción y pagos de plataforma.
+        /// </summary>
+        [HttpGet("payment-history")]
+        [Authorize(Roles = "admin,super_admin")]
+        public async Task<IActionResult> GetPaymentHistory()
+        {
+            try
+            {
+                if (!Guid.TryParse(GetTenantId(), out var tenantId))
+                    return BadRequest(new { error = "Invalid tenant ID" });
+
+                static string Norm(string? status) => (status ?? "").ToLowerInvariant() switch
+                {
+                    "approved" or "authorized" or "accredited" or "completed" or "paid" => "completed",
+                    "" => "pending",
+                    var other => other
+                };
+
+                var preapproval = await _context.PreapprovalPayments.AsNoTracking()
+                    .Where(p => p.TenantId == tenantId)
+                    .OrderByDescending(p => p.PaymentDate ?? p.CreatedAt).Take(100)
+                    .Select(p => new { p.Id, p.Amount, Date = p.PaymentDate ?? p.CreatedAt, p.Status, p.PaymentMethodId, p.CardLastFourDigits })
+                    .ToListAsync();
+                var single = await _context.SubscriptionPayments.AsNoTracking()
+                    .Where(p => p.TenantId == tenantId)
+                    .OrderByDescending(p => p.PaymentDate).Take(100)
+                    .Select(p => new { p.Id, p.Amount, p.PaymentDate, p.Status, p.PaymentMethod })
+                    .ToListAsync();
+                var platform = await _context.TenantSubscriptionPayments.AsNoTracking()
+                    .Where(p => p.TenantId == tenantId && p.Status != "pending")
+                    .OrderByDescending(p => p.PaidAt ?? p.CreatedAt).Take(100)
+                    .Select(p => new { p.Id, p.Amount, Date = p.PaidAt ?? p.CreatedAt, p.Status, p.Period })
+                    .ToListAsync();
+
+                var items = preapproval.Select(p => new
+                    {
+                        id = p.Id,
+                        amount = p.Amount,
+                        date = p.Date,
+                        status = Norm(p.Status),
+                        description = "Débito automático" + (string.IsNullOrEmpty(p.CardLastFourDigits) ? "" : $" · tarjeta •••• {p.CardLastFourDigits}")
+                    })
+                    .Concat(single.Select(p => new
+                    {
+                        id = p.Id,
+                        amount = p.Amount,
+                        date = p.PaymentDate,
+                        status = Norm(p.Status),
+                        description = "Pago de suscripción" + (string.IsNullOrEmpty(p.PaymentMethod) ? "" : $" · {p.PaymentMethod}")
+                    }))
+                    .Concat(platform.Select(p => new
+                    {
+                        id = p.Id,
+                        amount = p.Amount,
+                        date = p.Date,
+                        status = Norm(p.Status),
+                        description = "Pago de plataforma" + (string.IsNullOrEmpty(p.Period) ? "" : $" ({p.Period})")
+                    }))
+                    .OrderByDescending(x => x.date)
+                    .Take(100)
+                    .ToList();
+
+                return Ok(items);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting subscription payment history");
+                return StatusCode(500, new { error = "Error al obtener el historial de pagos" });
             }
         }
 
