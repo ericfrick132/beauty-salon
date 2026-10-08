@@ -328,6 +328,17 @@ const Settings: React.FC = () => {
         console.log('Services settings not available');
       }
 
+      // Pestañas Pagos / Personal / Notificaciones / Avanzado: lo guardado pisa los valores por defecto.
+      const [savedPayments, savedStaff, savedNotifications, savedAdvanced] = await Promise.all(
+        ['payments', 'staff', 'notifications', 'advanced'].map((section) =>
+          api.get(`/settings/${section}`).then((r) => r?.data || {}).catch(() => ({}))
+        )
+      );
+      setPaymentSettings(prev => ({ ...prev, ...savedPayments, mercadoPagoConnected: prev.mercadoPagoConnected }));
+      setStaffSettings(prev => ({ ...prev, ...savedStaff }));
+      setNotificationSettings(prev => ({ ...prev, ...savedNotifications }));
+      setAdvancedSettings(prev => ({ ...prev, ...savedAdvanced }));
+
       // Load business hours
       try {
         const businessHoursRes = await api.get('/settings/business-hours');
@@ -1926,7 +1937,7 @@ const Settings: React.FC = () => {
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                       Información de suscripción de plataforma.
                     </Typography>
-                    <Button variant="contained" onClick={() => window.location.assign('/platform-subscription')}>
+                    <Button variant="contained" onClick={() => window.location.assign('/subscription')}>
                       Ver Estado
                     </Button>
                   </CardContent>

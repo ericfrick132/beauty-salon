@@ -27,6 +27,11 @@ import {
   BottomNavigationAction,
   SwipeableDrawer,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Alert,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import {
@@ -38,7 +43,6 @@ import {
   Assessment,
   Settings,
   Logout,
-  AccountCircle,
   Notifications,
   AttachMoney,
   Group,
@@ -63,6 +67,7 @@ import {
   WhatsApp,
   VpnKey,
   SmartToy,
+  DeleteForever,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useAppDispatch, useAppSelector } from '../../store';
@@ -81,6 +86,7 @@ import { useCardGate } from '../../hooks/useCardGate';
 import MercadoPagoIcon from '../icons/MercadoPagoIcon';
 import { isAdminLike } from '../../utils/permissions';
 import ChangePasswordDialog from '../auth/ChangePasswordDialog';
+import api from '../../services/api';
 
 const drawerWidth = 280;
 const mobileDrawerWidth = 260;
@@ -261,6 +267,25 @@ export const AdminLayout: React.FC = () => {
   const [notifications, setNotifications] = useState(0);
   const [notificationList] = useState<any[]>([]);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
+
+  // Borrar cuenta (DELETE auth/me), igual que en las apps.
+  const handleDeleteAccount = async () => {
+    setDeletingAccount(true);
+    setDeleteAccountError(null);
+    try {
+      await api.delete('/auth/me');
+      setDeleteAccountOpen(false);
+      dispatch(logout());
+      navigate('/login');
+    } catch (error: any) {
+      setDeleteAccountError(error?.response?.data?.message || error?.response?.data?.error || 'No pudimos eliminar la cuenta. Probá de nuevo.');
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
   
   // Colores específicos del vertical
   const primaryColor = config?.theme?.primaryColor || '#1E40AF';
@@ -995,12 +1020,6 @@ export const AdminLayout: React.FC = () => {
           },
         }}
       >
-        <MenuItem onClick={() => { handleNavigation('/profile'); handleUserMenuClose(); }}>
-          <ListItemIcon>
-            <AccountCircle sx={{ color: 'primary.main' }} />
-          </ListItemIcon>
-          <ListItemText primary="Mi Perfil" />
-        </MenuItem>
         <MenuItem onClick={() => { setChangePasswordOpen(true); handleUserMenuClose(); }}>
           <ListItemIcon>
             <VpnKey sx={{ color: 'primary.main' }} />
@@ -1015,6 +1034,12 @@ export const AdminLayout: React.FC = () => {
             <ListItemText primary="Configuración" />
           </MenuItem>
         )}
+        <MenuItem onClick={() => { setDeleteAccountOpen(true); handleUserMenuClose(); }}>
+          <ListItemIcon>
+            <DeleteForever sx={{ color: 'error.main' }} />
+          </ListItemIcon>
+          <ListItemText primary="Eliminar mi cuenta" />
+        </MenuItem>
         <Divider sx={{ borderColor: 'divider' }} />
         <MenuItem onClick={handleLogout}>
           <ListItemIcon>
@@ -1025,6 +1050,21 @@ export const AdminLayout: React.FC = () => {
       </Menu>
 
       <ChangePasswordDialog open={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />
+      <Dialog open={deleteAccountOpen} onClose={() => !deletingAccount && setDeleteAccountOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>¿Eliminar tu cuenta de forma permanente?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 1 }}>• Se desactiva tu acceso y no vas a poder volver a iniciar sesión.</Typography>
+          <Typography variant="body2" sx={{ mb: 1 }}>• Los datos del negocio (turnos, clientes, pagos) se conservan según la política de tu cuenta.</Typography>
+          <Typography variant="body2" sx={{ mb: 1 }}>• Esta acción no se puede deshacer.</Typography>
+          {deleteAccountError && <Alert severity="error" sx={{ mt: 1 }}>{deleteAccountError}</Alert>}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteAccountOpen(false)} disabled={deletingAccount}>Cancelar</Button>
+          <Button color="error" variant="contained" onClick={handleDeleteAccount} disabled={deletingAccount}>
+            {deletingAccount ? 'Eliminando…' : 'Eliminar mi cuenta'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

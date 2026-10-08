@@ -49,7 +49,6 @@ import Settings from './pages/Settings';
 import SubscriptionPlans from './pages/SubscriptionPlans';
 import SubscriptionSuccess from './pages/SubscriptionSuccess';
 import SubscriptionManagement from './pages/SubscriptionManagement';
-import PlatformSubscriptionStatus from './pages/PlatformSubscriptionStatus';
 import SalesPOS from './pages/SalesPOS';
 import Products from './pages/Products';
 import SalesHistory from './pages/SalesHistory';
@@ -423,7 +422,7 @@ function App() {
                   <Route path="/chytapay-settings" element={<ChytapaySettings />} />
                   <Route path="/subscription" element={<SubscriptionManagement />} />
                   <Route path="/subscription/recurring" element={<RecurringSubscription />} />
-                  <Route path="/platform-subscription" element={<PlatformSubscriptionStatus />} />
+                  <Route path="/platform-subscription" element={<Navigate to="/subscription" replace />} />
                   <Route path="/team" element={<TeamUsers />} />
                   <Route path="/messaging" element={<MessagingHub />} />
                   <Route path="/messaging/credits" element={<MessagingCredits />} />
