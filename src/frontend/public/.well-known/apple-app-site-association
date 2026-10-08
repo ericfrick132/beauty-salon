@@ -1,0 +1,13 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["68J69H8A72.com.ericfrick.turnospro"],
+        "components": [
+          { "/": "/book", "comment": "Reserva del cliente final" },
+          { "/": "/book/*" }
+        ]
+      }
+    ]
+  }
+}
