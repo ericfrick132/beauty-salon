@@ -11,6 +11,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Configuration;
+using BookingPro.API.Utilities;
 
 namespace BookingPro.API.Controllers
 {
@@ -26,6 +28,7 @@ namespace BookingPro.API.Controllers
         private readonly IEmailService _emailService;
         private readonly IWhatsAppService _whatsAppService;
         private readonly ILogger<PublicController> _logger;
+        private readonly IConfiguration _configuration;
 
         public PublicController(
             ApplicationDbContext context,
@@ -35,7 +38,8 @@ namespace BookingPro.API.Controllers
             IBookingService bookingService,
             IEmailService emailService,
             IWhatsAppService whatsAppService,
-            ILogger<PublicController> logger)
+            ILogger<PublicController> logger,
+            IConfiguration configuration)
         {
             _context = context;
             _tenantService = tenantService;
@@ -45,6 +49,7 @@ namespace BookingPro.API.Controllers
             _emailService = emailService;
             _whatsAppService = whatsAppService;
             _logger = logger;
+            _configuration = configuration;
         }
 
         /// <summary>
@@ -374,6 +379,8 @@ namespace BookingPro.API.Controllers
 
                 // Generate confirmation code
                 var confirmationCode = GenerateConfirmationCode(booking.Id);
+                // Token para que esta misma página consulte el estado del turno (seña) sin sesión.
+                var statusToken = BookingStatusToken.Create(_configuration, booking.TenantId, booking.Id);
 
                 // Procesar pago/Seña según configuración del servicio y MP del tenant
                 var tenantInfo = _tenantService.GetCurrentTenant();
@@ -421,6 +428,7 @@ namespace BookingPro.API.Controllers
                             {
                                 success = true,
                                 bookingId = booking.Id,
+                                statusToken,
                                 confirmationCode,
                                 requiresPayment = true,
                                 provider = "chytapay",
@@ -461,6 +469,7 @@ namespace BookingPro.API.Controllers
                         {
                             success = true,
                             bookingId = booking.Id,
+                            statusToken,
                             confirmationCode = confirmationCode,
                             requiresPayment = true,
                             provider = "mercadopago",
@@ -515,6 +524,7 @@ namespace BookingPro.API.Controllers
                 { 
                     success = true,
                     bookingId = booking.Id,
+                    statusToken,
                     confirmationCode = confirmationCode,
                     requiresPayment = false,
                     message = "Reserva creada exitosamente" 
@@ -524,6 +534,52 @@ namespace BookingPro.API.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
+        }
+
+        /// <summary>
+        /// Estado de un turno para la reserva pública (sondeo tras pagar la seña). Exige el
+        /// statusToken que devolvió POST public/bookings y devuelve solo lo que muestra la
+        /// página: nada de datos del cliente, notas ni precios.
+        /// </summary>
+        [HttpGet("bookings/{id:guid}/status")]
+        public async Task<IActionResult> GetPublicBookingStatus(Guid id, [FromQuery] string? token)
+        {
+            var tenant = _tenantService.GetCurrentTenant();
+            if (tenant == null || !BookingStatusToken.IsValid(_configuration, tenant.Id, id, token))
+                return NotFound(new { message = "Turno no encontrado" });
+
+            // El query filter de Booking ya acota al tenant del host.
+            var booking = await _context.Bookings
+                .AsNoTracking()
+                .Where(b => b.Id == id)
+                .Select(b => new
+                {
+                    b.Status,
+                    b.StartTime,
+                    b.EndTime,
+                    b.ServiceId
+                })
+                .FirstOrDefaultAsync();
+
+            if (booking == null)
+                return NotFound(new { message = "Turno no encontrado" });
+
+            // Aparte y sin el filtro de IsActive: un servicio dado de baja no debe esconder el turno.
+            var serviceName = await _context.Services
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(s => s.Id == booking.ServiceId && s.TenantId == tenant.Id)
+                .Select(s => s.Name)
+                .FirstOrDefaultAsync();
+
+            return Ok(new
+            {
+                status = booking.Status,
+                startTime = booking.StartTime,
+                endTime = booking.EndTime,
+                serviceName,
+                businessName = tenant.BusinessName
+            });
         }
 
         /// <summary>

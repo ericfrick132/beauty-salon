@@ -4,6 +4,7 @@ using BookingPro.API.Services;
 using BookingPro.API.Services.Interfaces;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Models.Entities;
+using BookingPro.API.Utilities;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -11,8 +12,12 @@ using System.Collections.Generic;
 
 namespace BookingPro.API.Controllers
 {
+    // Todo el controller es del panel del negocio: antes no tenía [Authorize] y cualquiera
+    // con un id podía leer (o modificar) un turno. La reserva pública usa api/public/*.
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
+    [TenantStaffOnly]
     public class BookingsController : ControllerBase
     {
         private readonly IBookingService _bookingService;

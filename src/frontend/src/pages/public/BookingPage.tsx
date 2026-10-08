@@ -176,6 +176,8 @@ const BookingPage: React.FC = () => {
   const [paymentInfo, setPaymentInfo] = useState<{ initPoint?: string; amount?: number } | null>(null);
   const [serviceSearchValue, setServiceSearchValue] = useState<Service | null>(null);
   const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
+  // Token que da el backend al crear la reserva: solo con él se puede consultar su estado sin sesión.
+  const [statusToken, setStatusToken] = useState<string | null>(null);
 
   useEffect(() => {
     fetchInitialData();
@@ -344,6 +346,7 @@ const BookingPage: React.FC = () => {
 
       setConfirmationCode(response.data.confirmationCode);
       setCreatedBookingId(response.data.bookingId);
+      setStatusToken(response.data.statusToken || null);
       // El backend es la única fuente de verdad de si hay que cobrar. Antes esto además
       // exigía services.find(...)?.requiresDeposit de la lista en memoria: si esa lista
       // estaba desactualizada mostrábamos "Turno confirmado" mientras el backend había
@@ -387,7 +390,7 @@ const BookingPage: React.FC = () => {
 
   // Poll booking status after initiating MercadoPago until confirmed or timeout
   useEffect(() => {
-    if (!paymentRequired || !createdBookingId) return;
+    if (!paymentRequired || !createdBookingId || !statusToken) return;
 
     let cancelled = false;
     let attempts = 0;
@@ -397,7 +400,7 @@ const BookingPage: React.FC = () => {
     const tick = async () => {
       if (cancelled) return;
       try {
-        const res = await api.get(`/bookings/${createdBookingId}`);
+        const res = await api.get(`/public/bookings/${createdBookingId}/status`, { params: { token: statusToken } });
         const status = (res?.data?.status || res?.data?.Status || '').toString().toLowerCase();
         if (status === 'confirmed' || status === 'completed') {
           setPaymentRequired(false);
@@ -418,7 +421,7 @@ const BookingPage: React.FC = () => {
 
     let timer = window.setTimeout(tick, intervalMs);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [paymentRequired, createdBookingId]);
+  }, [paymentRequired, createdBookingId, statusToken]);
 
   const renderStepContent = () => {
     switch (activeStep) {
