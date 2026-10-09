@@ -27,6 +27,8 @@ namespace BookingPro.API.Utilities
             if (path.StartsWith("/api/super-admin") ||
                 path.StartsWith("/api/admin") ||
                 path.StartsWith("/api/platform") ||
+                // sales-hub lee los tenants de todos los negocios (MRR), sin tenant en contexto.
+                path.StartsWith("/api/hub/") ||
                 path.StartsWith("/api/invitation") ||
                 path.StartsWith("/api/self-registration") ||
                 path.StartsWith("/api/registration") ||
