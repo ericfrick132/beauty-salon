@@ -92,13 +92,13 @@ namespace BookingPro.API.Services
                 var when = local.ToString("ddd d/M HH:mm", new System.Globalization.CultureInfo("es-AR"));
                 var customer = $"{booking.Customer?.FirstName} {booking.Customer?.LastName}".Trim();
                 var service = booking.Service?.Name ?? "Turno";
-                var title = kind == "cancelled" ? "Turno cancelado" : "Nuevo turno";
+                var title = kind switch { "cancelled" => "Turno cancelado", "paid" => "Seña recibida ✓", _ => "Nuevo turno" };
                 var body = $"{(string.IsNullOrEmpty(customer) ? "Un cliente" : customer)} · {service} · {when}" +
                            (string.IsNullOrEmpty(booking.Employee?.Name) ? "" : $" con {booking.Employee!.Name}");
 
                 await SendToUsersAsync(recipients, title, body, new Dictionary<string, string>
                 {
-                    ["type"] = kind == "cancelled" ? "booking_cancelled" : "booking_created",
+                    ["type"] = kind switch { "cancelled" => "booking_cancelled", "paid" => "booking_paid", _ => "booking_created" },
                     ["bookingId"] = booking.Id.ToString(),
                     ["date"] = local.ToString("yyyy-MM-dd")
                 });

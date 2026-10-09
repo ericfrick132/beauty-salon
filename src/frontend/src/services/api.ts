@@ -434,8 +434,23 @@ export interface MenuBotStatus {
   recent: { phone: string; contactName: string | null; step: string; lastMessageAt: string; bookingsCreated: number }[];
 }
 
+/** Mensaje entrante de WhatsApp y qué hizo el asistente (backend: WhatsAppInboundEvent). */
+export interface WhatsAppInboundEvent {
+  id: number;
+  receivedAt: string;
+  phone: string | null;
+  contactName: string | null;
+  fromMe: boolean;
+  messageType: string | null;
+  status: 'queued' | 'ignored' | 'replied' | 'failed' | string;
+  reason: string | null;
+  detail: string | null;
+  processedAt: string | null;
+}
+
 export const menuBotApi = {
   status: (): Promise<MenuBotStatus> => api.get('/menu-bot/status').then(res => res.data),
+  activity: (): Promise<WhatsAppInboundEvent[]> => api.get('/menu-bot/activity').then(res => res.data),
   updateSettings: (data: Partial<MenuBotSettings> & { enabled?: boolean }): Promise<{ message: string }> =>
     api.put('/menu-bot/settings', data).then(res => res.data),
   preview: (text: string): Promise<{ reply: string | null }> =>

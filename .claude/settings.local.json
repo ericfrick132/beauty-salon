@@ -11,6 +11,7 @@
       "Bash(rm:*)",
       "Bash(dotnet build)",
       "Bash(npm run build:*)",
+      "Bash(psql:*)",
       "Bash(find:*)",
       "Bash(dotnet build:*)",
       "Bash(npm install)",

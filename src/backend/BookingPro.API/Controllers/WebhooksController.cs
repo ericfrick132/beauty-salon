@@ -355,41 +355,97 @@ namespace BookingPro.API.Controllers
 
         private async Task ProcessInboundMessage(string instanceName, JsonElement item)
         {
-            if (!item.TryGetProperty("key", out var key)) return;
+            if (!item.TryGetProperty("key", out var key) || key.ValueKind != JsonValueKind.Object) return;
 
             var fromMe = key.TryGetProperty("fromMe", out var fm) && fm.ValueKind == JsonValueKind.True;
-            if (fromMe) return;
-
             var remoteJid = key.TryGetProperty("remoteJid", out var jid) ? jid.GetString() ?? "" : "";
             if (string.IsNullOrEmpty(remoteJid) || remoteJid.Contains("@g.us")) return; // ignorar grupos
 
-            var text = ExtractMessageText(item);
+            var text = ExtractMessageText(item)?.Trim();
+
+            // LÍNEA DE PLATAFORMA (la que manda OTPs y follow-ups al DUEÑO del negocio): si el
+            // que escribe es un lead/tenant que estamos siguiendo, la respuesta va al cerebro
+            // central de sales-hub (relay). No es la línea de ningún negocio: sin registro de actividad.
+            var platformInstance = _configuration["EVOLUTION_API_INSTANCE"];
+            if (!string.IsNullOrEmpty(platformInstance) && instanceName == platformInstance)
+            {
+                if (!fromMe && !string.IsNullOrWhiteSpace(text))
+                    await RelayPlatformInboundAsync(remoteJid, text, key, item);
+                return;
+            }
+
+            // Sólo chats individuales: estados, canales y grupos no se atienden ni se registran.
+            var sender = WhatsAppSender.Resolve(key, item);
+            if (sender == null) return;
+
+            var connection = await _context.TenantWhatsAppConnections
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(c => c.InstanceName == instanceName);
+
+            // Mensajes salientes del celular del negocio (las respuestas del propio bot, lo que el dueño
+            // escribe a mano): no se atienden ni se registran, salvo el "mensaje a vos mismo", que es
+            // como muchos prueban el asistente y hay que explicarles por qué no contesta.
+            if (fromMe && !await IsSelfChatAsync(sender, connection)) return;
+
+            var pushName = item.TryGetProperty("pushName", out var pnEl) && pnEl.ValueKind == JsonValueKind.String ? pnEl.GetString() : null;
+            var ev = new WhatsAppInboundEvent
+            {
+                InstanceName = Clip(instanceName, 100)!,
+                TenantId = connection?.TenantId,
+                RemoteJid = Clip(remoteJid, 100),
+                Phone = Clip(sender, 100),
+                ContactName = Clip(pushName, 100),
+                FromMe = fromMe,
+                MessageType = Clip(MessageTypeOf(item), 60),
+                Status = "queued",
+            };
+            _context.WhatsAppInboundEvents.Add(ev);
+            await _context.SaveChangesAsync();
+
+            InboundHandleResult result;
+            try
+            {
+                if (fromMe)
+                    result = InboundHandleResult.Ignored("from_me", "Mensaje enviado desde el mismo WhatsApp conectado (probá desde otro celular)");
+                else if (connection == null)
+                    result = InboundHandleResult.Ignored("no_tenant", "La instancia no está asociada a ningún negocio");
+                else
+                    result = await RouteInboundAsync(connection.TenantId, sender, remoteJid, pushName, text, item);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error atendiendo el mensaje entrante de WhatsApp {EventId} (instancia {Instance})", ev.Id, instanceName);
+                result = InboundHandleResult.Failed("error", ex.GetBaseException().Message);
+            }
+
+            await RecordInboundResultAsync(ev.Id, result);
+            await PurgeOldInboundEventsAsync();
+        }
+
+        /// <summary>
+        /// Enruta un mensaje de la línea de un negocio: comprobante → detección de transferencias;
+        /// respuesta a una confirmación pendiente → bot de confirmación; el resto → asistente por
+        /// menú o agente IA. Devuelve qué pasó, para el registro de actividad.
+        /// </summary>
+        private async Task<InboundHandleResult> RouteInboundAsync(Guid tenantId, string sender, string remoteJid, string? pushName, string? text, JsonElement item)
+        {
+            if (WhatsAppSender.IsLid(sender))
+                return InboundHandleResult.Ignored("lid", "WhatsApp ocultó el número del remitente (chat con Linked ID): no se puede responder por número");
+            var senderDigits = sender;
+
             if (string.IsNullOrWhiteSpace(text))
             {
                 // Una imagen o un PDF de un cliente es, casi siempre, el comprobante de la seña. Con el
                 // add-on de detección de transferencias activo no se ignora: se contesta y se cruza
                 // con Mercado Pago (no se lee la imagen; la identidad la da el teléfono que la mandó).
                 if (IsReceiptMessage(item))
-                    await TryRegisterReceiptAsync(instanceName, remoteJid, item);
-                return;
+                {
+                    return await TryRegisterReceiptAsync(tenantId, senderDigits, pushName)
+                        ? new InboundHandleResult("replied", "receipt", "Comprobante recibido: se verifica contra Mercado Pago")
+                        : InboundHandleResult.Ignored("no_text", "Imagen o archivo recibido, pero la detección de transferencias no está activa");
+                }
+                return InboundHandleResult.Ignored("no_text", $"Sólo se atienden mensajes de texto ({MessageTypeOf(item) ?? "sin contenido"})");
             }
-
-            // LÍNEA DE PLATAFORMA (la que manda OTPs y follow-ups al DUEÑO del negocio): si el
-            // que escribe es un lead/tenant que estamos siguiendo, la respuesta va al cerebro
-            // central de sales-hub (relay). No toca el flujo de las líneas de los tenants.
-            var platformInstance = _configuration["EVOLUTION_API_INSTANCE"];
-            if (!string.IsNullOrEmpty(platformInstance) && instanceName == platformInstance)
-            {
-                await RelayPlatformInboundAsync(remoteJid, text, key, item);
-                return;
-            }
-
-            var connection = await _context.TenantWhatsAppConnections
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(c => c.InstanceName == instanceName);
-            if (connection == null) return;
-
-            var tenantId = connection.TenantId;
 
             var settings = await _context.TenantMessagingSettings
                 .IgnoreQueryFilters()
@@ -399,29 +455,22 @@ namespace BookingPro.API.Controllers
             // Asistente por menú (add-on menu_bot): atiende todo lo que no sea una respuesta a un
             // pedido de confirmación pendiente. No usa IA, así que no depende de créditos ni de una API key.
             var menuBot = HttpContext.RequestServices.GetRequiredService<BookingPro.API.Services.Interfaces.IWhatsAppMenuBotService>();
-            var hasMenuBot = await menuBot.IsActiveAsync(tenantId);
+            var hasMenuBotAddon = await _featureAddonService.HasActiveAddonAsync(tenantId, BookingPro.API.Models.Constants.FeatureCodes.MenuBot);
+            var hasMenuBot = hasMenuBotAddon && await menuBot.IsActiveAsync(tenantId);
             var confirmationEnabled = settings != null && settings.ConfirmationBotEnabled
                 && await _featureAddonService.HasActiveAddonAsync(tenantId, BookingPro.API.Models.Constants.FeatureCodes.ConfirmationBot);
 
-            if (!hasAiAgent && !confirmationEnabled && !hasMenuBot) return;
-
-            var senderDigitsForBot = new string(remoteJid.Split('@')[0].Where(char.IsDigit).ToArray());
-            var pushName = item.TryGetProperty("pushName", out var pnEl) && pnEl.ValueKind == JsonValueKind.String ? pnEl.GetString() : null;
+            if (!hasAiAgent && !confirmationEnabled && !hasMenuBot)
+                return hasMenuBotAddon
+                    ? InboundHandleResult.Ignored("disabled", "El asistente está apagado en Asistente de WhatsApp")
+                    : InboundHandleResult.Ignored("no_plan", "El negocio no tiene contratado el asistente de WhatsApp ni el agente IA");
 
             // Sin bot de confirmación: atiende el asistente por menú (o el agente IA, si lo tiene).
             if (!confirmationEnabled)
-            {
-                if (hasMenuBot && senderDigitsForBot.Length >= 8)
-                    await menuBot.HandleIncomingMessageAsync(tenantId, senderDigitsForBot, pushName, text);
-                else if (hasAiAgent)
-                    await HandleAiAgentMessageAsync(tenantId, remoteJid, text);
-                return;
-            }
+                return await DispatchAssistantAsync(tenantId, senderDigits, remoteJid, pushName, text, menuBot, hasMenuBot, hasMenuBotAddon, hasAiAgent);
 
             // Matchear el remitente con un pedido de confirmación pendiente (sufijo de 8 dígitos
             // para tolerar variantes de prefijo AR: 549..., 54..., 0..., 15...)
-            var senderDigits = new string(remoteJid.Split('@')[0].Where(char.IsDigit).ToArray());
-            if (senderDigits.Length < 8) return;
             var senderSuffix = senderDigits[^8..];
 
             var pendingRequests = await _context.BookingConfirmationRequests
@@ -437,11 +486,7 @@ namespace BookingPro.API.Controllers
             {
                 // No es respuesta a una confirmación pendiente → lo atiende el asistente por menú
                 // (o el agente IA, si es lo único que tiene contratado).
-                if (hasMenuBot && senderDigitsForBot.Length >= 8)
-                    await menuBot.HandleIncomingMessageAsync(tenantId, senderDigitsForBot, pushName, text);
-                else if (hasAiAgent)
-                    await HandleAiAgentMessageAsync(tenantId, remoteJid, text);
-                return;
+                return await DispatchAssistantAsync(tenantId, senderDigits, remoteJid, pushName, text, menuBot, hasMenuBot, hasMenuBotAddon, hasAiAgent);
             }
 
             var booking = await _context.Bookings
@@ -449,14 +494,14 @@ namespace BookingPro.API.Controllers
                 .Include(b => b.Customer)
                 .Include(b => b.Service)
                 .FirstOrDefaultAsync(b => b.Id == request.BookingId && b.TenantId == tenantId);
-            if (booking == null) return;
+            if (booking == null) return InboundHandleResult.Ignored("confirmation_missing", "El turno del pedido de confirmación ya no existe");
 
             if (booking.StartTime <= DateTime.UtcNow)
             {
                 request.Status = "expired";
                 request.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
-                return;
+                return InboundHandleResult.Ignored("confirmation_expired", "El turno ya pasó: el pedido de confirmación venció");
             }
 
             var intent = ParseConfirmationIntent(text);
@@ -465,7 +510,7 @@ namespace BookingPro.API.Controllers
                 // Respuesta no reconocida: forzar la respuesta re-preguntando,
                 // con tope de reintentos para no loopear si el cliente se pone a chatear
                 const int maxReprompts = 2;
-                if (request.RepromptCount >= maxReprompts) return;
+                if (request.RepromptCount >= maxReprompts) return InboundHandleResult.Ignored("confirmation_reprompt_limit", "No se entendió la respuesta y ya se repreguntó dos veces");
 
                 request.RepromptCount++;
                 request.UpdatedAt = DateTime.UtcNow;
@@ -496,8 +541,9 @@ namespace BookingPro.API.Controllers
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "Failed to send confirmation reprompt to {Phone}", senderDigits);
+                    return InboundHandleResult.Failed("send_failed", ex.Message);
                 }
-                return;
+                return InboundHandleResult.Replied(reprompt, "confirmation");
             }
 
             var now = DateTime.UtcNow;
@@ -581,18 +627,101 @@ namespace BookingPro.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to send confirmation ack to {Phone}", senderDigits);
+                return InboundHandleResult.Failed("send_failed", ex.Message);
             }
+            return InboundHandleResult.Replied(ack, "confirmation");
+        }
+
+
+        /// <summary>Asistente por menú si está contratado y prendido; si no, agente IA; si no, se explica por qué no.</summary>
+        private async Task<InboundHandleResult> DispatchAssistantAsync(Guid tenantId, string senderDigits, string remoteJid, string? pushName, string text,
+            BookingPro.API.Services.Interfaces.IWhatsAppMenuBotService menuBot, bool hasMenuBot, bool hasMenuBotAddon, bool hasAiAgent)
+        {
+            if (hasMenuBot) return await menuBot.HandleIncomingDetailedAsync(tenantId, senderDigits, pushName, text);
+            if (hasAiAgent) return await HandleAiAgentMessageAsync(tenantId, remoteJid, text);
+            return hasMenuBotAddon
+                ? InboundHandleResult.Ignored("disabled", "El asistente está apagado en Asistente de WhatsApp")
+                : InboundHandleResult.Ignored("no_plan", "Sólo está activo el bot de confirmación y este mensaje no responde a un pedido pendiente");
+        }
+
+        /// <summary>Chat con el propio número del negocio (el conectado o el del dueño).</summary>
+        private async Task<bool> IsSelfChatAsync(string sender, TenantWhatsAppConnection? connection)
+        {
+            if (connection == null || WhatsAppSender.IsLid(sender)) return false;
+            var suffix = WhatsAppSender.Suffix(sender);
+            if (suffix.Length < 8) return false;
+            if (WhatsAppSender.Suffix(connection.ConnectedPhone) == suffix) return true;
+            var ownerPhone = await _context.Tenants.IgnoreQueryFilters()
+                .Where(t => t.Id == connection.TenantId)
+                .Select(t => t.OwnerPhone)
+                .FirstOrDefaultAsync();
+            return !string.IsNullOrEmpty(ownerPhone) && WhatsAppSender.Suffix(ownerPhone) == suffix;
+        }
+
+        private async Task RecordInboundResultAsync(long eventId, InboundHandleResult result)
+        {
+            try
+            {
+                var detail = result.Detail is { Length: > 1000 } d ? d[..1000] : result.Detail;
+                await _context.WhatsAppInboundEvents
+                    .Where(e => e.Id == eventId)
+                    .ExecuteUpdateAsync(s => s
+                        .SetProperty(e => e.Status, result.Status)
+                        .SetProperty(e => e.Reason, result.Reason)
+                        .SetProperty(e => e.Detail, detail)
+                        .SetProperty(e => e.ProcessedAt, DateTime.UtcNow));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No se pudo registrar el resultado del mensaje de WhatsApp {EventId}", eventId);
+            }
+        }
+
+        private static DateTime _lastInboundPurgeUtc = DateTime.MinValue;
+
+        /// <summary>Borra el registro de mensajes de más de 14 días, a lo sumo una vez por hora.</summary>
+        private async Task PurgeOldInboundEventsAsync()
+        {
+            if (DateTime.UtcNow - _lastInboundPurgeUtc < TimeSpan.FromHours(1)) return;
+            _lastInboundPurgeUtc = DateTime.UtcNow;
+            try
+            {
+                var cutoff = DateTime.UtcNow.AddDays(-14);
+                await _context.WhatsAppInboundEvents.Where(e => e.ReceivedAt < cutoff).ExecuteDeleteAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No se pudo purgar el registro de mensajes de WhatsApp");
+            }
+        }
+
+        private static string? Clip(string? value, int max) =>
+            value == null ? null : value.Length <= max ? value : value[..max];
+
+        /// <summary>Primer tipo de contenido del mensaje (conversation, audioMessage...).</summary>
+        private static string? MessageTypeOf(JsonElement item)
+        {
+            if (!item.TryGetProperty("message", out var message) || message.ValueKind != JsonValueKind.Object)
+                return item.TryGetProperty("messageType", out var mt) && mt.ValueKind == JsonValueKind.String ? mt.GetString() : null;
+            foreach (var prop in message.EnumerateObject())
+            {
+                if (prop.Name is "messageContextInfo") continue;
+                return prop.Name;
+            }
+            return null;
         }
 
         // Agente IA (add-on ai_agent): delega el turno del cliente al asistente conversacional,
         // que responde servicios/precios/disponibilidad y crea reservas reales. Envía la respuesta
         // por WhatsApp y la registra en MessageLogs.
-        private async Task HandleAiAgentMessageAsync(Guid tenantId, string remoteJid, string text)
+        private async Task<InboundHandleResult> HandleAiAgentMessageAsync(Guid tenantId, string remoteJid, string text)
         {
-            if (!_whatsAppAgentService.IsEnabled) return;
+            if (!_whatsAppAgentService.IsEnabled)
+                return InboundHandleResult.Ignored("no_ai_key", "El agente IA no está configurado en el servidor");
 
             var senderDigits = new string(remoteJid.Split('@')[0].Where(char.IsDigit).ToArray());
-            if (senderDigits.Length < 8) return;
+            if (senderDigits.Length < 8)
+                return InboundHandleResult.Ignored("lid", "WhatsApp ocultó el número del remitente: no se puede responder por número");
 
             string? reply;
             try
@@ -602,9 +731,10 @@ namespace BookingPro.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "AI agent failed to handle message for tenant {TenantId}", tenantId);
-                return;
+                return InboundHandleResult.Failed("ai_error", ex.GetBaseException().Message);
             }
-            if (string.IsNullOrWhiteSpace(reply)) return;
+            if (string.IsNullOrWhiteSpace(reply))
+                return InboundHandleResult.Ignored("no_reply", "El agente IA no tenía respuesta para este mensaje");
 
             try
             {
@@ -622,10 +752,14 @@ namespace BookingPro.API.Controllers
                     ErrorMessage = sendResult.Success ? null : sendResult.Message
                 });
                 await _context.SaveChangesAsync();
+                return sendResult.Success
+                    ? InboundHandleResult.Replied(reply, "ai_agent")
+                    : InboundHandleResult.Failed("send_failed", sendResult.Message);
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to send AI agent reply to {Phone}", senderDigits);
+                return InboundHandleResult.Failed("send_failed", ex.Message);
             }
         }
 
@@ -641,22 +775,14 @@ namespace BookingPro.API.Controllers
             return false;
         }
 
-        private async Task TryRegisterReceiptAsync(string instanceName, string remoteJid, JsonElement item)
+        /// <summary>Con el add-on de detección de transferencias activo, registra el comprobante. true si se atendió.</summary>
+        private async Task<bool> TryRegisterReceiptAsync(Guid tenantId, string senderDigits, string? pushName)
         {
-            var platformInstance = _configuration["EVOLUTION_API_INSTANCE"];
-            if (!string.IsNullOrEmpty(platformInstance) && instanceName == platformInstance) return;
-
-            var connection = await _context.TenantWhatsAppConnections.IgnoreQueryFilters()
-                .FirstOrDefaultAsync(c => c.InstanceName == instanceName);
-            if (connection == null) return;
-
             var detection = HttpContext.RequestServices.GetRequiredService<BookingPro.API.Services.Interfaces.ITransferDetectionService>();
-            if (!await detection.IsActiveAsync(connection.TenantId)) return;
-
-            var senderDigits = new string(remoteJid.Split('@')[0].Where(char.IsDigit).ToArray());
-            if (senderDigits.Length < 8) return;
-            var pushName = item.TryGetProperty("pushName", out var pn) && pn.ValueKind == JsonValueKind.String ? pn.GetString() : null;
-            await detection.RegisterReceiptAsync(connection.TenantId, senderDigits, pushName);
+            if (!await detection.IsActiveAsync(tenantId)) return false;
+            if (senderDigits.Length < 8) return false;
+            await detection.RegisterReceiptAsync(tenantId, senderDigits, pushName);
+            return true;
         }
 
         private static string? ExtractMessageText(JsonElement item)

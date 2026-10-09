@@ -349,6 +349,10 @@ namespace BookingPro.API.Services
                     }
 
                     await _context.SaveChangesAsync();
+
+                    // Aviso al negocio: la seña ya entró a su Mercado Pago, sin pedir comprobante.
+                    if (payment.Status == "approved")
+                        PushDispatch.BookingEvent(tenantId, bookingId, "paid");
                 }
             }
             catch (Exception ex)

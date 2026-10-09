@@ -1,4 +1,5 @@
 using BookingPro.API.Models.Entities;
+using BookingPro.API.Services;
 
 namespace BookingPro.API.Services.Interfaces
 {
@@ -18,5 +19,11 @@ namespace BookingPro.API.Services.Interfaces
         /// Devuelve el texto respondido, o null si no correspondía contestar (bot pausado, etc.).
         /// </summary>
         Task<string?> HandleIncomingMessageAsync(Guid tenantId, string phone, string? contactName, string text, CancellationToken ct = default);
+
+        /// <summary>
+        /// Igual que <see cref="HandleIncomingMessageAsync"/>, pero devuelve qué pasó con el mensaje
+        /// (respondió / ignorado y por qué / falló el envío) para el registro de actividad del panel.
+        /// </summary>
+        Task<InboundHandleResult> HandleIncomingDetailedAsync(Guid tenantId, string phone, string? contactName, string text, CancellationToken ct = default);
     }
 }

@@ -87,9 +87,15 @@ namespace BookingPro.API.Services
         // ---------------------------------------------------------------------------------
 
         public async Task<string?> HandleIncomingMessageAsync(Guid tenantId, string phone, string? contactName, string text, CancellationToken ct = default)
+            => (await HandleCoreAsync(tenantId, phone, contactName, text, ct)).Reply;
+
+        public async Task<InboundHandleResult> HandleIncomingDetailedAsync(Guid tenantId, string phone, string? contactName, string text, CancellationToken ct = default)
+            => (await HandleCoreAsync(tenantId, phone, contactName, text, ct)).Result;
+
+        private async Task<(string? Reply, InboundHandleResult Result)> HandleCoreAsync(Guid tenantId, string phone, string? contactName, string text, CancellationToken ct)
         {
             var tenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, ct);
-            if (tenant == null) return null;
+            if (tenant == null) return (null, InboundHandleResult.Ignored("no_tenant", "El negocio no existe"));
 
             // Contexto de tenant: el filtro global del DbContext lee HttpContext.Items["TenantId"],
             // y PublicService resuelve el negocio desde ITenantService (mismo patrón que el agente IA).
@@ -109,7 +115,11 @@ namespace BookingPro.API.Services
             // "Hablar con el negocio": el bot se calla hasta que el cliente escribe "menu".
             if (session.PausedUntil.HasValue && session.PausedUntil.Value > DateTime.UtcNow)
             {
-                if (!IsMenuWord(text)) { await _context.SaveChangesAsync(ct); return null; }
+                if (!IsMenuWord(text))
+                {
+                    await _context.SaveChangesAsync(ct);
+                    return (null, InboundHandleResult.Ignored("no_reply", "El cliente pidió hablar con el negocio: el asistente está en pausa hasta que escriba \"menu\""));
+                }
                 session.PausedUntil = null;
                 session.Step = StepMenu;
             }
@@ -120,18 +130,24 @@ namespace BookingPro.API.Services
             session.MessagesIn++;
             await _context.SaveChangesAsync(ct);
 
-            if (string.IsNullOrWhiteSpace(reply)) return null;
+            if (string.IsNullOrWhiteSpace(reply)) return (null, InboundHandleResult.Ignored("no_reply", "El asistente no tenía respuesta para este mensaje"));
             // La vista previa del panel corre el mismo bot pero no manda nada por WhatsApp.
-            if (phone.StartsWith("preview", StringComparison.OrdinalIgnoreCase)) return reply;
+            if (phone.StartsWith("preview", StringComparison.OrdinalIgnoreCase)) return (reply, InboundHandleResult.Replied(reply));
             try
             {
-                await _whatsApp.SendTextAsync(tenantId, phone, reply);
+                var send = await _whatsApp.SendTextAsync(tenantId, phone, reply);
+                if (!send.Success)
+                {
+                    _logger.LogWarning("Bot por menú: no se pudo responder a {Phone} del tenant {TenantId}: {Error}", phone, tenantId, send.Message);
+                    return (reply, InboundHandleResult.Failed("send_failed", send.Message));
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Bot por menú: no se pudo responder a {Phone} del tenant {TenantId}", phone, tenantId);
+                return (reply, InboundHandleResult.Failed("send_failed", ex.Message));
             }
-            return reply;
+            return (reply, InboundHandleResult.Replied(reply));
         }
 
         private async Task<MenuBotSession> LoadSessionAsync(Guid tenantId, string phone, string? contactName, CancellationToken ct)

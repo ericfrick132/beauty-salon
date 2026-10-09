@@ -60,7 +60,7 @@ namespace BookingPro.API.Controllers
                 active = addonActive && settings.Enabled && whatsAppConnected,
                 whatsAppConnected,
                 connectedPhone = connection?.ConnectedPhone,
-                blockedReason = whatsAppConnected ? null : "Conectá el WhatsApp del negocio escaneando el QR en Mensajería: el asistente contesta desde tu propio número.",
+                blockedReason = whatsAppConnected ? null : "Conectá el WhatsApp del negocio escaneando el QR de esta misma página: el asistente contesta desde tu propio número.",
                 settings = new
                 {
                     settings.CancellationCutoffHours,
@@ -107,6 +107,29 @@ namespace BookingPro.API.Controllers
             settings.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
             return Ok(new { message = "Configuración guardada." });
+        }
+
+        /// <summary>
+        /// Últimos mensajes que recibió el WhatsApp del negocio y qué hizo el asistente con cada uno
+        /// (respondió, lo ignoró y por qué, o falló), para que "no me contesta" tenga explicación.
+        /// </summary>
+        [HttpGet("activity")]
+        public async Task<IActionResult> GetActivity()
+        {
+            var tenantId = GetTenantId();
+            if (tenantId == Guid.Empty) return Unauthorized();
+
+            var events = await _context.WhatsAppInboundEvents.AsNoTracking()
+                .Where(e => e.TenantId == tenantId)
+                .OrderByDescending(e => e.ReceivedAt)
+                .Take(15)
+                .Select(e => new
+                {
+                    e.Id, e.ReceivedAt, e.Phone, e.ContactName, e.FromMe, e.MessageType,
+                    e.Status, e.Reason, e.Detail, e.ProcessedAt,
+                })
+                .ToListAsync();
+            return Ok(events);
         }
 
         /// <summary>Simula un mensaje entrante para ver qué contestaría el bot, sin mandar nada por WhatsApp.</summary>

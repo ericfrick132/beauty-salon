@@ -23,8 +23,10 @@ import {
   CheckCircle,
   Schedule,
 } from '@mui/icons-material';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { featureAddonsApi, menuBotApi, FeatureAddonStatus, MenuBotStatus } from '../services/api';
+import WhatsAppConnectionCard from '../components/whatsapp/WhatsAppConnectionCard';
+import WhatsAppActivityCard from '../components/whatsapp/WhatsAppActivityCard';
 
 const ADDON_CODE = 'menu_bot';
 
@@ -73,7 +75,6 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: number; 
 );
 
 const WhatsAppBot: React.FC = () => {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const paymentResult = searchParams.get('payment');
 
@@ -183,12 +184,6 @@ const WhatsAppBot: React.FC = () => {
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
       <Snackbar open={!!toast} autoHideDuration={6000} onClose={() => setToast(null)} message={toast} />
 
-      {status && !status.whatsAppConnected && (
-        <Alert severity="warning" sx={{ mb: 2 }} action={<Button color="inherit" size="small" onClick={() => navigate('/messaging')}>Conectar WhatsApp</Button>}>
-          {status.blockedReason}
-        </Alert>
-      )}
-
       {!active ? (
         <Card variant="outlined">
           <CardContent>
@@ -227,7 +222,7 @@ const WhatsAppBot: React.FC = () => {
                       {purchasing ? 'Generando link…' : 'Activar con Mercado Pago'}
                     </Button>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                      Después de pagar, conectás tu WhatsApp escaneando un QR y el asistente arranca.
+                      Después de pagar, el QR para conectar tu WhatsApp aparece acá mismo y el asistente arranca.
                     </Typography>
                   </CardContent>
                 </Card>
@@ -253,6 +248,11 @@ const WhatsAppBot: React.FC = () => {
               </Box>
             </CardContent>
           </Card>
+
+          {/* Con el add-on activo el QR va acá mismo: conectar es el primer paso, no otra pantalla. */}
+          <WhatsAppConnectionCard onConnectedChange={(connected) => {
+            setStatus((prev) => (prev && prev.whatsAppConnected !== connected ? { ...prev, whatsAppConnected: connected, active: connected && prev.addonActive && enabled } : prev));
+          }} />
 
           {status && (
             <Grid container spacing={2} sx={{ mb: 2 }}>
@@ -328,6 +328,8 @@ const WhatsAppBot: React.FC = () => {
               </Card>
             </Grid>
           </Grid>
+
+          <WhatsAppActivityCard whoAnswers="el negocio" />
 
           {status && status.recent.length > 0 && (
             <Card variant="outlined" sx={{ mt: 2 }}>
