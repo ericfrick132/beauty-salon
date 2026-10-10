@@ -288,9 +288,9 @@ export default function DemoAdmin() {
           }}
         >
           <Box component="span" sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: '#E8593C', flexShrink: 0 }} />
-          <Box component="span" sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Estás viendo una demo del panel de TurnosPro con datos de ejemplo.</Box>
-            <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Demo con datos de ejemplo</Box>
+          <Box component="h1" sx={{ m: 0, font: 'inherit', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Demo del panel de TurnosPro
+            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}> con datos de ejemplo</Box>
           </Box>
           <Box
             component="button"
