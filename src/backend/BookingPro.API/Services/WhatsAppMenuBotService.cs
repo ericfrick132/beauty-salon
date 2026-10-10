@@ -812,6 +812,7 @@ namespace BookingPro.API.Services
                     PaymentType = "deposit",
                     CustomerName = customerName,
                     Subdomain = tenant.Subdomain,
+                    Origin = BookingPro.API.Models.DTOs.CreatePaymentDto.WhatsAppBotOrigin,
                 });
                 var link = !string.IsNullOrWhiteSpace(result.Data?.InitPoint) ? result.Data!.InitPoint : result.Data?.SandboxInitPoint;
                 if (!result.Success || string.IsNullOrWhiteSpace(link))

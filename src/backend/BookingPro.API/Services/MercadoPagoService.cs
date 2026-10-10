@@ -184,7 +184,8 @@ namespace BookingPro.API.Services
                     {
                         { "tenant_id", tenantId.ToString() },
                         { "booking_id", booking.Id.ToString() },
-                        { "payment_type", dto.PaymentType }
+                        { "payment_type", dto.PaymentType },
+                        { "origin", dto.Origin ?? "web" }
                     }
                 };
 
@@ -207,7 +208,9 @@ namespace BookingPro.API.Services
                     {
                         ServiceName = booking.Service.Name,
                         BookingDate = booking.StartTime,
-                        CustomerName = $"{booking.Customer?.FirstName} {booking.Customer?.LastName}".Trim()
+                        CustomerName = $"{booking.Customer?.FirstName} {booking.Customer?.LastName}".Trim(),
+                        // Marca de origen: el webhook solo le avisa al cliente por WhatsApp si es "whatsapp_bot".
+                        Origin = dto.Origin
                     })
                 };
 
@@ -392,8 +395,9 @@ namespace BookingPro.API.Services
                     if (payment.Status == "approved")
                         PushDispatch.BookingEvent(tenantId, bookingId, "paid");
 
-                    // Aviso al cliente por WhatsApp (best-effort: nunca rompe el webhook).
-                    if (newlyApproved && approvedBooking != null)
+                    // Aviso al cliente por WhatsApp (best-effort: nunca rompe el webhook). Solo si el link de
+                    // pago lo generó el asistente de WhatsApp; la reserva pública y el panel no lo reciben.
+                    if (newlyApproved && approvedBooking != null && IsFromWhatsAppBot(transaction))
                         await NotifyDepositReceivedAsync(tenantId, approvedBooking, payment.TransactionAmount ?? transaction.Amount);
                 }
             }
@@ -401,6 +405,27 @@ namespace BookingPro.API.Services
             {
                 _logger.LogError(ex, "Error processing payment notification for payment {PaymentId}", paymentId);
                 throw;
+            }
+        }
+
+        /// <summary>
+        /// True si la transacción la creó el asistente de WhatsApp (Origin = "whatsapp_bot" en MetadataJson,
+        /// que solo se setea desde código: CreatePaymentDto.Origin no se bindea desde HTTP).
+        /// </summary>
+        private static bool IsFromWhatsAppBot(PaymentTransaction transaction)
+        {
+            if (string.IsNullOrWhiteSpace(transaction.MetadataJson)) return false;
+            try
+            {
+                using var doc = JsonDocument.Parse(transaction.MetadataJson);
+                return doc.RootElement.ValueKind == JsonValueKind.Object
+                    && doc.RootElement.TryGetProperty("Origin", out var origin)
+                    && origin.ValueKind == JsonValueKind.String
+                    && origin.GetString() == CreatePaymentDto.WhatsAppBotOrigin;
+            }
+            catch (JsonException)
+            {
+                return false;
             }
         }
 

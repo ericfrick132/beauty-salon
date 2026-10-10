@@ -28,6 +28,16 @@ namespace BookingPro.API.Models.DTOs
         // Payment type
         [Required]
         public string PaymentType { get; set; } = "full"; // full, deposit, balance
+
+        /// <summary>
+        /// Origen del cobro, solo para llamadas internas (p.ej. <see cref="WhatsAppBotOrigin"/> desde el asistente
+        /// de WhatsApp). No se bindea desde HTTP: un cliente de la API no puede marcarse como bot.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        [Microsoft.AspNetCore.Mvc.ModelBinding.BindNever]
+        public string? Origin { get; set; }
+
+        public const string WhatsAppBotOrigin = "whatsapp_bot";
     }
 
     public class UpdatePaymentDto
