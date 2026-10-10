@@ -101,6 +101,7 @@ namespace BookingPro.API.Data
         // Asistente de WhatsApp por menú (add-on menu_bot)
         public DbSet<MenuBotSettings> MenuBotSettings { get; set; }
         public DbSet<MenuBotSession> MenuBotSessions { get; set; }
+        public DbSet<WhatsAppInboundEvent> WhatsAppInboundEvents { get; set; }
 
         // Detección de transferencias en Mercado Pago (add-on transfer_detection)
         public DbSet<TransferDetectionSettings> TransferDetectionSettings { get; set; }
@@ -873,6 +874,14 @@ namespace BookingPro.API.Data
                 entity.Property(e => e.Cae).HasMaxLength(20);
                 entity.Property(e => e.Error).HasMaxLength(1000);
                 entity.Property(e => e.Total).HasPrecision(18, 2);
+            });
+
+            // Actividad del WhatsApp de cada negocio: sin filtro por tenant (el webhook escribe sin
+            // tenant en contexto); el panel filtra por TenantId y la purga por ReceivedAt.
+            modelBuilder.Entity<WhatsAppInboundEvent>(e =>
+            {
+                e.HasIndex(x => new { x.TenantId, x.ReceivedAt });
+                e.HasIndex(x => x.ReceivedAt);
             });
 
             // Detección de transferencias
