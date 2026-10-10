@@ -23,19 +23,22 @@ namespace BookingPro.API.Services
         private readonly IConfiguration _configuration;
         private readonly ITenantProvider _tenantProvider;
         private readonly IMercadoPagoOAuthService _oauthService;
+        private readonly IWhatsAppConnectionService _whatsApp;
 
         public MercadoPagoService(
             ApplicationDbContext context,
             ILogger<MercadoPagoService> logger,
             IConfiguration configuration,
             ITenantProvider tenantProvider,
-            IMercadoPagoOAuthService oauthService)
+            IMercadoPagoOAuthService oauthService,
+            IWhatsAppConnectionService whatsApp)
         {
             _context = context;
             _logger = logger;
             _configuration = configuration;
             _tenantProvider = tenantProvider;
             _oauthService = oauthService;
+            _whatsApp = whatsApp;
         }
 
         public async Task<ServiceResult<CreatePaymentResponseDto>> CreatePaymentPreferenceAsync(CreatePaymentDto dto)
@@ -277,15 +280,15 @@ namespace BookingPro.API.Services
                 // Procesar notificación según el tipo
                 if (data.ContainsKey("type") && data["type"]?.ToString() == "payment")
                 {
-                    var paymentId = data["data"]?
-                        .GetType()
-                        .GetProperty("id")?
-                        .GetValue(data["data"], null)?
-                        .ToString();
+                    var paymentId = ExtractDataId(data["data"]);
 
-                    if (!string.IsNullOrEmpty(paymentId))
+                    if (!string.IsNullOrEmpty(paymentId) && long.TryParse(paymentId, out var paymentIdNumber))
                     {
-                        await ProcessPaymentNotificationAsync(tenantGuid, long.Parse(paymentId), webhookRequestOptions);
+                        await ProcessPaymentNotificationAsync(tenantGuid, paymentIdNumber, webhookRequestOptions);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Webhook de pago sin data.id legible para el tenant {TenantId}", tenantGuid);
                     }
                 }
 
@@ -324,6 +327,10 @@ namespace BookingPro.API.Services
 
                 if (transaction != null)
                 {
+                    // MP manda varias notificaciones por el mismo pago (created/updated): lo que pasa
+                    // "una sola vez" (registrar el cobro, avisar al cliente) solo corre en la transición a aprobado.
+                    var wasApproved = transaction.Status == PaymentTransactionStatus.Approved;
+
                     // Actualizar estado de la transacción
                     transaction.MercadoPagoPaymentId = payment.Id.ToString();
                     transaction.Status = MapMercadoPagoStatus(payment.Status);
@@ -334,17 +341,48 @@ namespace BookingPro.API.Services
                     transaction.UpdatedAt = DateTime.UtcNow;
 
                     // Si el pago fue aprobado, actualizar la reserva
+                    Booking? approvedBooking = null;
+                    var newlyApproved = payment.Status == "approved" && !wasApproved;
                     if (payment.Status == "approved")
                     {
-                        var booking = await _context.Bookings
-                            .FirstOrDefaultAsync(b => b.Id == bookingId);
+                        approvedBooking = await _context.Bookings
+                            .IgnoreQueryFilters()
+                            .Include(b => b.Customer)
+                            .Include(b => b.Service)
+                            .Include(b => b.Payments)
+                            .FirstOrDefaultAsync(b => b.Id == bookingId && b.TenantId == tenantId);
                         
-                        if (booking != null)
+                        if (approvedBooking != null)
                         {
-                            booking.Status = "confirmed";
-                            booking.UpdatedAt = DateTime.UtcNow;
-                            
-                            // Aquí podrías enviar email de confirmación, SMS, etc.
+                            approvedBooking.Status = "confirmed";
+                            approvedBooking.UpdatedAt = DateTime.UtcNow;
+
+                            // El panel marca un turno como pago por sus Payment "completed" (HasPayment /
+                            // IsPaymentSuccessful, saldo de Detección de transferencias): se registra el cobro
+                            // igual que cuando se aplica una transferencia, una sola vez por pago de MP.
+                            var mpPaymentId = payment.Id?.ToString();
+                            var alreadyRecorded = approvedBooking.Payments.Any(p => p.MercadoPagoPaymentId == mpPaymentId);
+                            if (!alreadyRecorded && !string.IsNullOrEmpty(mpPaymentId))
+                            {
+                                var recorded = new Models.Entities.Payment
+                                {
+                                    TenantId = tenantId,
+                                    BookingId = approvedBooking.Id,
+                                    CustomerId = approvedBooking.CustomerId,
+                                    Amount = payment.TransactionAmount ?? transaction.Amount,
+                                    PaymentMethod = "mercadopago",
+                                    Status = "completed",
+                                    MercadoPagoPaymentId = mpPaymentId,
+                                    MercadoPagoPreferenceId = transaction.MercadoPagoPreferenceId,
+                                    TransactionId = mpPaymentId,
+                                    PayerEmail = payment.Payer?.Email,
+                                    PaymentDate = payment.DateApproved ?? DateTime.UtcNow,
+                                    PaymentType = string.IsNullOrEmpty(transaction.PaymentType) ? "deposit" : transaction.PaymentType,
+                                    Notes = "Cobrado con Mercado Pago (link de pago del turno)",
+                                };
+                                _context.Payments.Add(recorded);
+                                approvedBooking.Payments.Add(recorded);
+                            }
                         }
                     }
 
@@ -353,12 +391,70 @@ namespace BookingPro.API.Services
                     // Aviso al negocio: la seña ya entró a su Mercado Pago, sin pedir comprobante.
                     if (payment.Status == "approved")
                         PushDispatch.BookingEvent(tenantId, bookingId, "paid");
+
+                    // Aviso al cliente por WhatsApp (best-effort: nunca rompe el webhook).
+                    if (newlyApproved && approvedBooking != null)
+                        await NotifyDepositReceivedAsync(tenantId, approvedBooking, payment.TransactionAmount ?? transaction.Amount);
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing payment notification for payment {PaymentId}", paymentId);
                 throw;
+            }
+        }
+
+        /// <summary>
+        /// data.id del webhook: el body se deserializa a Dictionary&lt;string, object&gt;, así que "data" llega
+        /// como JsonElement (el id puede venir como string o número).
+        /// </summary>
+        private static string? ExtractDataId(object? dataObj)
+        {
+            if (dataObj is JsonElement el && el.ValueKind == JsonValueKind.Object && el.TryGetProperty("id", out var idEl))
+            {
+                return idEl.ValueKind switch
+                {
+                    JsonValueKind.String => idEl.GetString(),
+                    JsonValueKind.Number => idEl.GetRawText(),
+                    _ => null
+                };
+            }
+            return dataObj?.GetType().GetProperty("id")?.GetValue(dataObj, null)?.ToString();
+        }
+
+        /// <summary>
+        /// Le avisa al cliente por el WhatsApp del negocio (Evolution) que su seña se acreditó. Solo si el
+        /// turno tiene un teléfono real (los turnos del asistente guardan el número de WhatsApp) y el
+        /// negocio tiene WhatsApp conectado. La vista previa del panel ("preview-panel") no tiene dígitos,
+        /// así que nunca manda nada. Cualquier error se loguea y se ignora.
+        /// </summary>
+        private async Task NotifyDepositReceivedAsync(Guid tenantId, Booking booking, decimal amount)
+        {
+            try
+            {
+                var phone = new string((booking.Customer?.Phone ?? "").Where(char.IsDigit).ToArray());
+                if (phone.Length < 8) return;
+
+                var connection = await _whatsApp.GetConnectionByTenantIdAsync(tenantId);
+                if (connection == null || connection.Status != "open") return;
+
+                var tenant = await _context.Tenants.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(t => t.Id == tenantId);
+                // Misma convención que el asistente: offset en horas del tenant ("-3"), si no Argentina.
+                var offset = int.TryParse(tenant?.TimeZone, out var h) && h is >= -12 and <= 14 ? h : -3;
+                var local = booking.StartTime.AddHours(offset);
+                var es = new System.Globalization.CultureInfo("es-AR");
+                var day = local.ToString("dddd dd/MM", es);
+                day = string.IsNullOrEmpty(day) ? day : char.ToUpper(day[0]) + day[1..];
+                var money = "$" + amount.ToString("N0", es);
+
+                var msg = $"¡Recibimos tu seña de {money} ✅! Tu turno del {day} a las {local:HH:mm} quedó confirmado. ¡Te esperamos!";
+                var send = await _whatsApp.SendTextAsync(tenantId, phone, msg);
+                if (!send.Success)
+                    _logger.LogWarning("Seña acreditada: no se pudo avisar por WhatsApp al turno {BookingId}: {Error}", booking.Id, send.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Seña acreditada: no se pudo avisar por WhatsApp al turno {BookingId}", booking.Id);
             }
         }
 

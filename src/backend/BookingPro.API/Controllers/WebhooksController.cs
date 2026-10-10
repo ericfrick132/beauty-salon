@@ -77,6 +77,12 @@ namespace BookingPro.API.Controllers
                     _logger.LogWarning("Subscription webhook handler reported: {Error}", subResult.Message);
                 }
 
+                // /api/webhooks/ no pasa por TenantResolutionMiddleware: sin tenant en contexto los
+                // filtros globales (config OAuth, transacciones, turnos) buscan TenantId == Guid.Empty y
+                // el pago nunca se encuentra. El tenant viene en la URL de notificación que armamos nosotros.
+                if (Guid.TryParse(tenantId, out var webhookTenantId))
+                    HttpContext.Items["TenantId"] = webhookTenantId.ToString();
+
                 var result = await _mercadoPagoService.ProcessWebhookNotificationAsync(tenantId, data);
                 if (!result.Success)
                 {

@@ -45,6 +45,7 @@ namespace BookingPro.API.Services
         private readonly IWhatsAppConnectionService _whatsApp;
         private readonly ITenantService _tenantService;
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly IMercadoPagoService _mercadoPago;
         private readonly ILogger<WhatsAppMenuBotService> _logger;
 
         public WhatsAppMenuBotService(
@@ -54,6 +55,7 @@ namespace BookingPro.API.Services
             IWhatsAppConnectionService whatsApp,
             ITenantService tenantService,
             IHttpContextAccessor httpContextAccessor,
+            IMercadoPagoService mercadoPago,
             ILogger<WhatsAppMenuBotService> logger)
         {
             _context = context;
@@ -62,6 +64,7 @@ namespace BookingPro.API.Services
             _whatsApp = whatsApp;
             _tenantService = tenantService;
             _httpContextAccessor = httpContextAccessor;
+            _mercadoPago = mercadoPago;
             _logger = logger;
         }
 
@@ -387,7 +390,7 @@ namespace BookingPro.API.Services
             {
                 d.Name = $"{known.FirstName} {known.LastName}".Trim();
                 s.Step = StepConfirm;
-                return await RenderConfirmAsync(tenant, d, ct);
+                return await RenderConfirmAsync(tenant, s, d, ct);
             }
 
             s.Step = StepName;
@@ -400,10 +403,10 @@ namespace BookingPro.API.Services
             if (name.Length < 2 || name.Length > 80) return "Decime un nombre para la reserva 🙏 (ej: María Pérez)";
             d.Name = name;
             s.Step = StepConfirm;
-            return await RenderConfirmAsync(tenant, d, ct);
+            return await RenderConfirmAsync(tenant, s, d, ct);
         }
 
-        private async Task<string> RenderConfirmAsync(Tenant tenant, SessionData d, CancellationToken ct)
+        private async Task<string> RenderConfirmAsync(Tenant tenant, MenuBotSession s, SessionData d, CancellationToken ct)
         {
             var service = await _context.Services.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == d.ServiceId, ct);
             var pro = d.EmployeeId.HasValue
@@ -417,7 +420,20 @@ namespace BookingPro.API.Services
             if (pro != null) sb.AppendLine($"• Con {pro.Name}");
             if (service != null && service.Price > 0) sb.AppendLine($"• Precio: {Money(service.Price)}");
             var deposit = DepositFor(service);
-            if (deposit.HasValue) sb.AppendLine($"• Seña: {Money(deposit.Value)} (se coordina con el negocio)");
+            if (deposit.HasValue && service != null)
+            {
+                // Con Mercado Pago conectado la seña se cobra con link al confirmar, con la misma política
+                // que la reserva pública (puede no corresponder, p.ej. cliente habitual); si no, queda como
+                // antes: se arregla con el negocio.
+                if (await CanChargeDepositWithMercadoPagoAsync(tenant, ct))
+                {
+                    var startUtc = date.Add(TimeSpan.Parse(d.Time!)).AddHours(-OffsetHours(tenant));
+                    var customer = await FindCustomerAsync(s.Phone, ct);
+                    var mpDeposit = await DepositByPolicyAsync(service.Id, customer?.Id, startUtc);
+                    if (mpDeposit.HasValue) sb.AppendLine($"• Seña: {Money(mpDeposit.Value)} (al confirmar te paso el link de Mercado Pago)");
+                }
+                else sb.AppendLine($"• Seña: {Money(deposit.Value)} (se coordina con el negocio)");
+            }
             sb.AppendLine($"• A nombre de: {d.Name}");
             sb.AppendLine();
             sb.AppendLine("1) ✅ Confirmar");
@@ -456,6 +472,8 @@ namespace BookingPro.API.Services
 
             try
             {
+                // Cliente previo (por teléfono) para la política de seña "solo clientes nuevos".
+                var knownCustomer = await FindCustomerAsync(s.Phone, ct);
                 var booking = await _public.CreatePublicBookingAsync(new CreatePublicBookingDto
                 {
                     CustomerName = d.Name!,
@@ -471,8 +489,26 @@ namespace BookingPro.API.Services
                 Reset(s);
 
                 var pro = await _context.Employees.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == employeeId, ct);
+                var whenText = $"{Capitalize(date.ToString("dddd dd/MM", Es))} a las {d.Time}";
+
+                // Seña con el Mercado Pago del negocio: mismo camino que la reserva pública
+                // (CalculateDepositAsync + CreatePaymentPreferenceAsync). Si no hay MP o falla, sigue como antes.
+                var depositLink = await TryCreateDepositLinkAsync(tenant, booking, service, knownCustomer?.Id ?? booking.CustomerId, d.Name!, ct);
+                if (depositLink != null)
+                {
+                    var pay = new StringBuilder();
+                    pay.AppendLine($"📅 Reservamos tu turno: {service.Name}{(pro != null ? $" con {pro.Name}" : "")}, {whenText}.");
+                    pay.AppendLine($"Para confirmarlo, aboná la seña de {Money(depositLink.Value.Amount)} acá 👇");
+                    pay.AppendLine(depositLink.Value.Link);
+                    pay.AppendLine("Apenas se acredite te aviso por acá ✅");
+                    pay.AppendLine();
+                    pay.AppendLine($"Podés cancelarlo por acá hasta {settings.CancellationCutoffHours} hs antes (escribí *cancelar*).");
+                    pay.Append("Escribí *menu* para volver al inicio.");
+                    return pay.ToString();
+                }
+
                 var sb = new StringBuilder("✅ ¡Turno confirmado!\n");
-                sb.AppendLine($"• {Capitalize(date.ToString("dddd dd/MM", Es))} a las {d.Time}");
+                sb.AppendLine($"• {whenText}");
                 sb.AppendLine($"• {service.Name}{(pro != null ? $" con {pro.Name}" : "")}");
                 if (service.Price > 0) sb.AppendLine($"• Precio: {Money(service.Price)}");
                 var deposit = DepositFor(service);
@@ -729,6 +765,74 @@ namespace BookingPro.API.Services
                 return ids.Any(x => Guid.TryParse(x, out var g) && g == serviceId);
             }
             catch { return true; }
+        }
+
+        /// <summary>
+        /// ¿Se puede cobrar la seña con link? Igual que la reserva pública: proveedor por defecto Mercado Pago
+        /// (con Chytapay el cobro va por otro lado) y cuenta conectada por OAuth o credenciales manuales.
+        /// </summary>
+        private async Task<bool> CanChargeDepositWithMercadoPagoAsync(Tenant tenant, CancellationToken ct)
+        {
+            var provider = (tenant.DefaultPaymentProvider ?? "mercadopago").ToLowerInvariant();
+            if (provider != "mercadopago") return false;
+            if (await _context.MercadoPagoOAuthConfigurations.IgnoreQueryFilters()
+                    .AnyAsync(c => c.TenantId == tenant.Id && c.IsActive, ct)) return true;
+            return await _context.PaymentConfigurations.IgnoreQueryFilters()
+                .AnyAsync(c => c.TenantId == tenant.Id && c.MercadoPagoAccessToken != null && c.MercadoPagoAccessToken != "", ct);
+        }
+
+        /// <summary>Monto de seña según la política del servicio (la misma cuenta que usa la reserva pública).</summary>
+        private async Task<decimal?> DepositByPolicyAsync(Guid serviceId, Guid? customerId, DateTime startUtc)
+        {
+            var calc = await _mercadoPago.CalculateDepositAsync(serviceId, customerId, startUtc);
+            return calc.Success && calc.Data != null && calc.Data.RequiresDeposit && calc.Data.Amount > 0 ? calc.Data.Amount : null;
+        }
+
+        /// <summary>
+        /// Crea el link de pago de la seña con el Mercado Pago del negocio y deja el turno como la reserva
+        /// pública: RequiresDeposit + DepositAmount + "pending_payment" hasta que el webhook de MP lo apruebe
+        /// (ahí pasa a "confirmed", se registra el Payment y se le avisa al cliente). El pago queda atado al
+        /// turno por external_reference = booking.Id. Devuelve null si no corresponde seña, no hay MP o falla:
+        /// en ese caso el turno queda confirmado como antes.
+        /// </summary>
+        private async Task<(decimal Amount, string Link)?> TryCreateDepositLinkAsync(Tenant tenant, Booking booking, Service service, Guid? customerId, string customerName, CancellationToken ct)
+        {
+            if (!service.RequiresDeposit) return null;
+            try
+            {
+                if (!await CanChargeDepositWithMercadoPagoAsync(tenant, ct)) return null;
+                var amount = await DepositByPolicyAsync(service.Id, customerId, booking.StartTime);
+                if (!amount.HasValue) return null;
+
+                var result = await _mercadoPago.CreatePaymentPreferenceAsync(new BookingPro.API.Models.DTOs.CreatePaymentDto
+                {
+                    BookingId = booking.Id,
+                    Amount = amount.Value,
+                    PaymentMethod = "mercadopago",
+                    PaymentType = "deposit",
+                    CustomerName = customerName,
+                    Subdomain = tenant.Subdomain,
+                });
+                var link = !string.IsNullOrWhiteSpace(result.Data?.InitPoint) ? result.Data!.InitPoint : result.Data?.SandboxInitPoint;
+                if (!result.Success || string.IsNullOrWhiteSpace(link))
+                {
+                    _logger.LogWarning("Bot por menú: no se pudo crear el link de seña del turno {BookingId}: {Error}", booking.Id, result.Message);
+                    return null;
+                }
+
+                booking.RequiresDeposit = true;
+                booking.DepositAmount = result.Data!.Amount;
+                booking.Price ??= service.Price;
+                booking.Status = "pending_payment";
+                booking.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync(ct);
+                return (result.Data.Amount, link);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Bot por menú: error creando el link de seña del turno {BookingId}", booking.Id);
+                return null;
+            }
         }
 
         private static decimal? DepositFor(Service? service)
