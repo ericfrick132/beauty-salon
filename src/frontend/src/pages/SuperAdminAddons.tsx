@@ -35,6 +35,9 @@ const money = (n: number) =>
  * Add-ons por negocio: quién tiene cada extra, hasta cuándo y cuánto factura. Desde acá el super
  * admin puede regalar meses (cortesía, prueba, compensación) o revocar sin tocar la base.
  */
+/** Valor del select de duración que significa "prueba gratis de 7 días" (en vez de N meses). */
+const TRIAL = 0;
+
 const SuperAdminAddons: React.FC = () => {
   const navigate = useNavigate();
   const [rows, setRows] = useState<SuperAdminAddonsRow[]>([]);
@@ -91,8 +94,13 @@ const SuperAdminAddons: React.FC = () => {
     if (!grantRow || !grantCode) return;
     setSaving(true);
     try {
-      await superAdminAddonsApi.grant(grantRow.tenantId, grantCode, grantMonths);
-      setToast(`Add-on otorgado a ${grantRow.businessName} por ${grantMonths} mes(es).`);
+      if (grantMonths === TRIAL) {
+        await superAdminAddonsApi.trial(grantRow.tenantId, grantCode, 7);
+        setToast(`Prueba gratis de 7 días para ${grantRow.businessName}. Se corta sola y el negocio ve el aviso en su panel.`);
+      } else {
+        await superAdminAddonsApi.grant(grantRow.tenantId, grantCode, grantMonths);
+        setToast(`Add-on otorgado a ${grantRow.businessName} por ${grantMonths} mes(es).`);
+      }
       setGrantRow(null);
       await load();
     } catch (e: any) {
@@ -174,9 +182,9 @@ const SuperAdminAddons: React.FC = () => {
                           <>
                             <Chip
                               size="small"
-                              color="success"
-                              label={a.paidUntil ? new Date(a.paidUntil).toLocaleDateString('es-AR') : 'activo'}
-                              title={a.source === 'manual' ? 'Otorgado a mano' : 'Pago del negocio'}
+                              color={a.source === 'trial' ? 'warning' : 'success'}
+                              label={(a.source === 'trial' ? 'prueba hasta ' : '') + (a.paidUntil ? new Date(a.paidUntil).toLocaleDateString('es-AR') : 'activo')}
+                              title={a.source === 'trial' ? 'Prueba gratis: se corta sola al vencer' : a.source === 'manual' ? 'Otorgado a mano' : 'Pago del negocio'}
                             />
                             <Button size="small" color="error" onClick={() => handleRevoke(row, code)} startIcon={<RemoveCircleOutline />} sx={{ minWidth: 0 }}>{''}</Button>
                           </>
@@ -203,16 +211,19 @@ const SuperAdminAddons: React.FC = () => {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             {grantRow?.businessName} · {codes.find(([c]) => c === grantCode)?.[1]}
           </Typography>
-          <TextField select fullWidth label="Meses" value={grantMonths} onChange={(e) => setGrantMonths(Number(e.target.value))}>
+          <TextField select fullWidth label="Duración" value={grantMonths} onChange={(e) => setGrantMonths(Number(e.target.value))}>
+            <MenuItem value={TRIAL}>Prueba gratis 7 días</MenuItem>
             {[1, 2, 3, 6, 12].map((m) => <MenuItem key={m} value={m}>{m} mes{m > 1 ? 'es' : ''}</MenuItem>)}
           </TextField>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-            Queda marcado como otorgado a mano (no cobra Mercado Pago). Si ya tenía vigencia, se suma desde ahí.
+            {grantMonths === TRIAL
+              ? 'Se corta solo a los 7 días. El negocio ve en su panel cuántos días le quedan y, al vencer, el aviso para activarlo.'
+              : 'Queda marcado como otorgado a mano (no cobra Mercado Pago). Si ya tenía vigencia, se suma desde ahí.'}
           </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setGrantRow(null)} disabled={saving}>Cancelar</Button>
-          <Button variant="contained" onClick={handleGrant} disabled={saving}>{saving ? 'Guardando…' : 'Otorgar'}</Button>
+          <Button variant="contained" onClick={handleGrant} disabled={saving}>{saving ? 'Guardando…' : grantMonths === TRIAL ? 'Dar prueba' : 'Otorgar'}</Button>
         </DialogActions>
       </Dialog>
     </Box>

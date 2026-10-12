@@ -10,6 +10,7 @@ namespace BookingPro.API.Services.Interfaces
         Task<ServiceResult<List<FeatureAddonStatusDto>>> GetTenantAddonsAsync(Guid tenantId);
         Task<ServiceResult<PurchaseFeatureAddonResponseDto>> CreatePurchaseAsync(Guid tenantId, string code);
         Task<ServiceResult<bool>> ActivateAsync(Guid tenantId, string code, int months, string source);
+        Task<ServiceResult<bool>> StartTrialAsync(Guid tenantId, string code, int days);
         Task<ServiceResult<bool>> RevokeAsync(Guid tenantId, string code);
 
         /// <summary>Super admin: todos los negocios con el estado de cada add-on del catálogo.</summary>

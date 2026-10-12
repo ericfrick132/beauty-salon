@@ -412,6 +412,10 @@ export interface FeatureAddonStatus {
   active: boolean;
   paidUntil?: string;
   hasPendingPurchase: boolean;
+  /** payment | manual | plan | trial */
+  source?: string | null;
+  /** Prueba gratis dada por el super admin (vigente o ya vencida). */
+  isTrial?: boolean;
 }
 
 // ---- Asistente de WhatsApp por menú (add-on menu_bot) ----
@@ -481,6 +485,9 @@ export const superAdminAddonsApi = {
     api.post('/super-admin/feature-addons/grant', { tenantId, code, months }).then(res => res.data),
   revoke: (tenantId: string, code: string) =>
     api.post('/super-admin/feature-addons/revoke', { tenantId, code, months: 1 }).then(res => res.data),
+  /** Prueba gratis por N días: vence sola y el panel del negocio avisa. */
+  trial: (tenantId: string, code: string, days = 7) =>
+    api.post('/super-admin/feature-addons/trial', { tenantId, code, days }).then(res => res.data),
 };
 
 // ---- Detección de transferencias (add-on transfer_detection) ----

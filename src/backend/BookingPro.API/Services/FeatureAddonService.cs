@@ -125,6 +125,9 @@ namespace BookingPro.API.Services
             }
         }
 
+        /// <summary>Source de una prueba gratis dada por el super admin (vence sola por PaidUntil).</summary>
+        public const string TrialSource = "trial";
+
         public async Task<bool> HasActiveAddonAsync(Guid tenantId, string code)
         {
             var now = DateTime.UtcNow;
@@ -171,7 +174,9 @@ namespace BookingPro.API.Services
                         Currency = a.Currency,
                         Active = owned != null && owned.Status == "active" && owned.PaidUntil > now,
                         PaidUntil = owned?.PaidUntil,
-                        HasPendingPurchase = pendingPurchases.Contains(a.Code)
+                        HasPendingPurchase = pendingPurchases.Contains(a.Code),
+                        Source = owned?.Source,
+                        IsTrial = owned?.Source == TrialSource
                     };
                 }).ToList();
 
@@ -216,7 +221,8 @@ namespace BookingPro.API.Services
                         Subdomain = t.Subdomain ?? "",
                         Status = t.Status ?? "",
                         Addons = addons,
-                        MonthlyTotal = addons.Where(x => x.Active).Sum(x => catalog.First(c => c.Code == x.Code).MonthlyPrice),
+                        // Las pruebas gratis no facturan.
+                        MonthlyTotal = addons.Where(x => x.Active && x.Source != TrialSource).Sum(x => catalog.First(c => c.Code == x.Code).MonthlyPrice),
                     };
                 }).ToList();
 
@@ -360,6 +366,50 @@ namespace BookingPro.API.Services
             {
                 _logger.LogError(ex, "Error activating addon {Code} for tenant {TenantId}", code, tenantId);
                 return ServiceResult<bool>.Fail("Error activating addon");
+            }
+        }
+
+        /// <summary>
+        /// Prueba gratis de N días dada por el super admin. Se corta sola: todo lo que usa el add-on
+        /// exige PaidUntil &gt; ahora. Si el negocio lo paga durante la prueba, ActivateAsync suma los
+        /// meses desde el fin de la prueba. No pisa un add-on pago u otorgado que siga vigente.
+        /// </summary>
+        public async Task<ServiceResult<bool>> StartTrialAsync(Guid tenantId, string code, int days)
+        {
+            try
+            {
+                if (days < 1 || days > 60) return ServiceResult<bool>.Fail("La prueba tiene que ser de 1 a 60 días");
+                if (!await _context.FeatureAddons.AnyAsync(a => a.Code == code && a.IsActive))
+                    return ServiceResult<bool>.Fail("Add-on desconocido o desactivado");
+                if (!await _context.Tenants.AnyAsync(t => t.Id == tenantId))
+                    return ServiceResult<bool>.Fail("Negocio no encontrado");
+
+                var now = DateTime.UtcNow;
+                var owned = await _context.TenantFeatureAddons
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(a => a.TenantId == tenantId && a.AddonCode == code);
+                if (owned != null && owned.Status == "active" && owned.PaidUntil > now && owned.Source != TrialSource)
+                    return ServiceResult<bool>.Fail("Ya tiene el add-on activo (pago u otorgado): no hace falta prueba");
+
+                if (owned == null)
+                {
+                    owned = new TenantFeatureAddon { TenantId = tenantId, AddonCode = code, ActivatedAt = now };
+                    _context.TenantFeatureAddons.Add(owned);
+                }
+                owned.Status = "active";
+                owned.Source = TrialSource;
+                owned.PaidUntil = now.AddDays(days);
+                owned.ActivatedAt ??= now;
+                owned.UpdatedAt = now;
+
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Trial of addon {Code} for tenant {TenantId} until {PaidUntil}", code, tenantId, owned.PaidUntil);
+                return ServiceResult<bool>.Ok(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error starting addon trial {Code} for tenant {TenantId}", code, tenantId);
+                return ServiceResult<bool>.Fail("Error starting trial");
             }
         }
 

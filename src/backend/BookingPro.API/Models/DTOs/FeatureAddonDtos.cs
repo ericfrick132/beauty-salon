@@ -10,6 +10,10 @@ namespace BookingPro.API.Models.DTOs
         public bool Active { get; set; }
         public DateTime? PaidUntil { get; set; }
         public bool HasPendingPurchase { get; set; }
+        /// <summary>payment | manual | plan | trial</summary>
+        public string? Source { get; set; }
+        /// <summary>Prueba gratis dada por el super admin (vigente o ya vencida): el panel avisa cuánto le queda o que terminó.</summary>
+        public bool IsTrial { get; set; }
     }
 
     public class PurchaseFeatureAddonRequestDto
@@ -54,6 +58,13 @@ namespace BookingPro.API.Models.DTOs
         public Guid TenantId { get; set; }
         public string Code { get; set; } = string.Empty;
         public int Months { get; set; } = 1;
+    }
+
+    public class TrialFeatureAddonDto
+    {
+        public Guid TenantId { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public int Days { get; set; } = 7;
     }
 
     public class ConfirmationBotStatsDto

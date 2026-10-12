@@ -89,6 +89,15 @@ namespace BookingPro.API.Controllers
             return Ok(new { success = true });
         }
 
+        /// <summary>Prueba gratis de un add-on por N días (default 7): vence sola y el panel del negocio avisa.</summary>
+        [HttpPost("trial")]
+        public async Task<IActionResult> Trial([FromBody] TrialFeatureAddonDto dto)
+        {
+            var result = await _featureAddonService.StartTrialAsync(dto.TenantId, dto.Code, dto.Days);
+            if (!result.Success) return BadRequest(new { error = result.Message });
+            return Ok(new { success = true });
+        }
+
         /// <summary>Revoca un add-on de un tenant (vence de inmediato).</summary>
         [HttpPost("revoke")]
         public async Task<IActionResult> Revoke([FromBody] GrantFeatureAddonDto dto)

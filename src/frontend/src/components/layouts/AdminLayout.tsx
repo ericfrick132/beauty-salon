@@ -82,6 +82,7 @@ import {
   getCardBackground 
 } from '../../utils/themeUtils';
 import ImpersonationBanner from '../common/ImpersonationBanner';
+import AddonTrialBanner from '../common/AddonTrialBanner';
 import { useCardGate } from '../../hooks/useCardGate';
 import MercadoPagoIcon from '../icons/MercadoPagoIcon';
 import { isAdminLike } from '../../utils/permissions';
@@ -751,6 +752,7 @@ export const AdminLayout: React.FC = () => {
         <Toolbar />
         <Box sx={{ p: 2, pt: 1 }}>
           <ImpersonationBanner />
+          <AddonTrialBanner />
         </Box>
         {/* Prueba sin tarjeta autorizada: pedirla ahora, MP debita recién al terminar (free_trial). */}
         <motion.div
