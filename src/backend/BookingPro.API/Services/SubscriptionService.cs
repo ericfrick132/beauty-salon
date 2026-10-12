@@ -1129,7 +1129,7 @@ namespace BookingPro.API.Services
 
         // ===================== Apple In-App Purchase =====================
         //
-        // Guarantees (same as UniStock):
+        // Guarantees (same as DashFlow):
         //  - The purchased product decides the plan: com.ericfrick.turnospro.<code>.mensual → SubscriptionPlan.Code.
         //  - Dates are never pulled earlier: access paid on the web, or the App Review demo account
         //    (its sandbox purchase expires in minutes), keeps the furthest end date.

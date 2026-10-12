@@ -6,7 +6,7 @@ namespace BookingPro.API.Services.Invoicing;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Cliente del Facturador (facturación electrónica ARCA compartida por PlayCrew, GymHero, TurnosPro y
-// UniStock). Mismo archivo en los cuatro productos: sólo cambia el namespace.
+// DashFlow). Mismo archivo en los cuatro productos: sólo cambia el namespace.
 // Config: Facturador:BaseUrl (ej. https://facturador.efcloud.com.ar) y Facturador:ApiKey.
 // ─────────────────────────────────────────────────────────────────────────────
 
