@@ -843,7 +843,9 @@ const BookingPage: React.FC = () => {
           <Fade in timeout={500}>
             <Box>
               <StepHeading title="Tus datos" hint="Los usamos para confirmarte el turno y avisarte si algo cambia." />
-              <Grid container spacing={2} sx={{ maxWidth: 600, margin: '0 auto' }}>
+              {/* El Grid va dentro de un Box centrado: un margin en el container pisa el margen negativo del spacing y corre los campos a la derecha */}
+              <Box sx={{ maxWidth: 600, mx: 'auto' }}>
+              <Grid container spacing={2}>
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
@@ -893,6 +895,7 @@ const BookingPage: React.FC = () => {
                   />
                 </Grid>
               </Grid>
+              </Box>
             </Box>
           </Fade>
         );
@@ -1375,7 +1378,7 @@ const BookingPage: React.FC = () => {
         </Paper>
 
         {/* Footer Info */}
-        {businessInfo && (
+        {businessInfo && (businessInfo.address || businessInfo.phone || businessInfo.email) && (
           <Paper sx={{ p: 3, mt: 3 }}>
             <Grid container spacing={2} justifyContent="center">
               {businessInfo.address && (
