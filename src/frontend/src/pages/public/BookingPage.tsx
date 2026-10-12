@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Container,
@@ -133,6 +133,9 @@ interface Professional {
   avatar?: string;
 }
 
+const CONTACT_FIELDS = ['customerName', 'customerEmail', 'customerPhone'] as const;
+type ContactField = typeof CONTACT_FIELDS[number];
+
 interface TimeSlot {
   time: string;
   available: boolean;
@@ -166,6 +169,13 @@ const BookingPage: React.FC = () => {
   });
   
   const [errors, setErrors] = useState<any>({});
+  // Campos de "Tus datos" que el cliente ya tocó (blur): recién ahí mostramos su error.
+  const [touched, setTouched] = useState<Partial<Record<ContactField, boolean>>>({});
+  const contactInputRefs = useRef<Partial<Record<ContactField, HTMLInputElement | null>>>({});
+  // Timer del auto-avance al elegir horario y momento en que se entró a cada paso: un toque
+  // en "Siguiente" justo después del auto-avance validaba "Tus datos" vacío y lo pintaba de rojo.
+  const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stepEnteredAt = useRef<number>(Date.now());
   // Próximos horarios libres que devuelve el backend cuando rechaza la reserva, para
   // no dejar al cliente sin salida.
   const [alternatives, setAlternatives] = useState<{ date: string; times: string[] }[]>([]);
@@ -265,6 +275,50 @@ const BookingPage: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    stepEnteredAt.current = Date.now();
+  }, [activeStep]);
+
+  useEffect(() => () => {
+    if (autoAdvanceTimer.current) clearTimeout(autoAdvanceTimer.current);
+  }, []);
+
+  const validateContactField = (field: ContactField, value: string): string | undefined => {
+    const v = value.trim();
+    switch (field) {
+      case 'customerName':
+        return v ? undefined : 'Por favor ingresa tu nombre';
+      case 'customerEmail':
+        if (!v) return 'Por favor ingresa tu email';
+        return /\S+@\S+\.\S+/.test(v) ? undefined : 'Email inválido';
+      case 'customerPhone':
+        return v ? undefined : 'Por favor ingresa tu teléfono';
+    }
+  };
+
+  const handleContactChange = (field: ContactField, value: string) => {
+    setBookingData(prev => ({ ...prev, [field]: value }));
+    // Si el campo ya mostraba error (o ya fue tocado), revalidar: el error se va apenas es válido.
+    if (errors[field] || touched[field]) {
+      const message = validateContactField(field, value);
+      setErrors((prev: any) => {
+        const next = { ...prev };
+        if (message) next[field] = message; else delete next[field];
+        return next;
+      });
+    }
+  };
+
+  const handleContactBlur = (field: ContactField) => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+    const message = validateContactField(field, bookingData[field]);
+    setErrors((prev: any) => {
+      const next = { ...prev };
+      if (message) next[field] = message; else delete next[field];
+      return next;
+    });
+  };
+
   const validateStep = () => {
     const newErrors: any = {};
     
@@ -284,19 +338,22 @@ const BookingPage: React.FC = () => {
           newErrors.time = 'Por favor selecciona un horario';
         }
         break;
-      case 3:
-        if (!bookingData.customerName.trim()) {
-          newErrors.customerName = 'Por favor ingresa tu nombre';
+      case 3: {
+        let firstInvalid: ContactField | undefined;
+        for (const field of CONTACT_FIELDS) {
+          const message = validateContactField(field, bookingData[field]);
+          if (message) {
+            newErrors[field] = message;
+            firstInvalid = firstInvalid ?? field;
+          }
         }
-        if (!bookingData.customerEmail.trim()) {
-          newErrors.customerEmail = 'Por favor ingresa tu email';
-        } else if (!/\S+@\S+\.\S+/.test(bookingData.customerEmail)) {
-          newErrors.customerEmail = 'Email inválido';
-        }
-        if (!bookingData.customerPhone.trim()) {
-          newErrors.customerPhone = 'Por favor ingresa tu teléfono';
+        if (firstInvalid) {
+          setTouched({ customerName: true, customerEmail: true, customerPhone: true });
+          const input = contactInputRefs.current[firstInvalid];
+          setTimeout(() => input?.focus(), 0);
         }
         break;
+      }
     }
     
     setErrors(newErrors);
@@ -304,6 +361,13 @@ const BookingPage: React.FC = () => {
   };
 
   const handleNext = () => {
+    if (autoAdvanceTimer.current) {
+      clearTimeout(autoAdvanceTimer.current);
+      autoAdvanceTimer.current = null;
+    }
+    // Toque fantasma: el mismo dedo que eligió el horario (o un doble toque) cae en "Siguiente"
+    // apenas se abre "Tus datos". No validar el formulario vacío en ese instante.
+    if (activeStep === 3 && Date.now() - stepEnteredAt.current < 600) return;
     if (validateStep()) {
       setActiveStep((prev) => prev + 1);
     }
@@ -747,7 +811,10 @@ const BookingPage: React.FC = () => {
                             onClick={() => {
                               setBookingData(prev => ({ ...prev, time: slot.time }));
                               // Auto-advance after selection
-                              setTimeout(() => {
+                              if (autoAdvanceTimer.current) clearTimeout(autoAdvanceTimer.current);
+                              autoAdvanceTimer.current = setTimeout(() => {
+                                autoAdvanceTimer.current = null;
+                                setErrors({});
                                 setActiveStep(3);
                               }, 300);
                             }}
@@ -782,7 +849,9 @@ const BookingPage: React.FC = () => {
                     fullWidth
                     label="Nombre completo"
                     value={bookingData.customerName}
-                    onChange={(e) => setBookingData({ ...bookingData, customerName: e.target.value })}
+                    onChange={(e) => handleContactChange('customerName', e.target.value)}
+                    onBlur={() => handleContactBlur('customerName')}
+                    inputRef={(el: HTMLInputElement | null) => { contactInputRefs.current.customerName = el; }}
                     error={!!errors.customerName}
                     helperText={errors.customerName}
                   />
@@ -793,7 +862,9 @@ const BookingPage: React.FC = () => {
                     label="Email"
                     type="email"
                     value={bookingData.customerEmail}
-                    onChange={(e) => setBookingData({ ...bookingData, customerEmail: e.target.value })}
+                    onChange={(e) => handleContactChange('customerEmail', e.target.value)}
+                    onBlur={() => handleContactBlur('customerEmail')}
+                    inputRef={(el: HTMLInputElement | null) => { contactInputRefs.current.customerEmail = el; }}
                     error={!!errors.customerEmail}
                     helperText={errors.customerEmail}
                   />
@@ -803,7 +874,9 @@ const BookingPage: React.FC = () => {
                     fullWidth
                     label="Teléfono"
                     value={bookingData.customerPhone}
-                    onChange={(e) => setBookingData({ ...bookingData, customerPhone: e.target.value })}
+                    onChange={(e) => handleContactChange('customerPhone', e.target.value)}
+                    onBlur={() => handleContactBlur('customerPhone')}
+                    inputRef={(el: HTMLInputElement | null) => { contactInputRefs.current.customerPhone = el; }}
                     error={!!errors.customerPhone}
                     helperText={errors.customerPhone}
                   />
