@@ -28,6 +28,20 @@ namespace BookingPro.API.Controllers
         private readonly IConfiguration _config;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IMetaAttributionEnricher _attributionEnricher;
+        private readonly IMetaTrialTracker _trialTracker;
+
+        /// <summary>
+        /// Meta CAPI StartTrial del tenant recién creado (todas las altas arrancan en trial).
+        /// En el alta del bot la request viene del servidor de sales-hub: no mandamos su IP/UA.
+        /// </summary>
+        private void SendStartTrialCapi(Guid tenantId, bool fromBot = false)
+        {
+            if (fromBot) { _trialTracker.SendStartTrial(tenantId); return; }
+            var ip = Request.Headers["X-Forwarded-For"].FirstOrDefault()?.Split(',')[0].Trim()
+                     ?? HttpContext.Connection.RemoteIpAddress?.ToString();
+            var referer = Request.Headers.Referer.FirstOrDefault();
+            _trialTracker.SendStartTrial(tenantId, ip, Request.Headers.UserAgent.ToString(), referer);
+        }
 
         private readonly HashSet<string> _reservedSubdomains = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -50,9 +64,11 @@ namespace BookingPro.API.Controllers
             ILogger<RegistrationController> logger,
             IConfiguration config,
             IHttpClientFactory httpClientFactory,
-            IMetaAttributionEnricher attributionEnricher)
+            IMetaAttributionEnricher attributionEnricher,
+            IMetaTrialTracker trialTracker)
         {
             _attributionEnricher = attributionEnricher;
+            _trialTracker = trialTracker;
             _context = context;
             _tenantService = tenantService;
             _authService = authService;
@@ -370,6 +386,7 @@ namespace BookingPro.API.Controllers
                 await transaction.CommitAsync();
                 // Sin id de anuncio en el alta → sales-hub puede tenerlo (CTWA / form de leads con este teléfono).
                 if (!MetaAttribution.HasAdAttribution(tenant)) _attributionEnricher.Enqueue(tenant.Id);
+                SendStartTrialCapi(tenant.Id);
 
                 // Generate JWT for auto-login
                 var token = _authService.GenerateJwtToken(adminUser);
@@ -543,6 +560,7 @@ namespace BookingPro.API.Controllers
                 await transaction.CommitAsync();
                 // Sin id de anuncio en el alta → sales-hub puede tenerlo (CTWA / form de leads con este teléfono).
                 if (!MetaAttribution.HasAdAttribution(tenant)) _attributionEnricher.Enqueue(tenant.Id);
+                SendStartTrialCapi(tenant.Id);
 
                 var token = _authService.GenerateJwtToken(adminUser);
                 var host = HttpContext.Request.Host.Host;
@@ -766,6 +784,7 @@ namespace BookingPro.API.Controllers
                 await transaction.CommitAsync();
                 // Sin id de anuncio en el alta → sales-hub puede tenerlo (CTWA / form de leads con este teléfono).
                 if (!MetaAttribution.HasAdAttribution(tenant)) _attributionEnricher.Enqueue(tenant.Id);
+                SendStartTrialCapi(tenant.Id, fromBot: true);
 
                 // Link de acceso directo con email + contraseña en la query: la página /login
                 // los prefila y el dueño solo toca "entrar". Es una cuenta privada creada por el
@@ -1188,6 +1207,7 @@ namespace BookingPro.API.Controllers
                 await transaction.CommitAsync();
                 // Sin id de anuncio en el alta → sales-hub puede tenerlo (form de leads con este email).
                 if (!MetaAttribution.HasAdAttribution(tenant)) _attributionEnricher.Enqueue(tenant.Id);
+                SendStartTrialCapi(tenant.Id);
 
                 var token = _authService.GenerateJwtToken(adminUser);
                 var tenantUrl = isLocal
@@ -1513,6 +1533,7 @@ namespace BookingPro.API.Controllers
                 await transaction.CommitAsync();
                 // Sin id de anuncio en el alta → sales-hub puede tenerlo (CTWA / form de leads con este teléfono).
                 if (!MetaAttribution.HasAdAttribution(tenant)) _attributionEnricher.Enqueue(tenant.Id);
+                SendStartTrialCapi(tenant.Id);
 
                 var token = _authService.GenerateJwtToken(adminUser);
                 var host = HttpContext.Request.Host.Host;

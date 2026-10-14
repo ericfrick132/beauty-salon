@@ -440,6 +440,11 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
       sendRegFlow('COMPLETED');
       fbqTrack('CompleteRegistration');
       sendTrackingEvent('CompleteRegistration', { name: state.businessName, email: state.email, phone: fullPhone });
+      // StartTrial: el backend lo manda por CAPI con event_id "tenant-{tenantId}-StartTrial"
+      // (MetaTrialTracker); mismo eventID acá para que Meta deduplique browser + server.
+      if (body.tenantId && typeof window !== 'undefined' && (window as any).fbq) {
+        (window as any).fbq('track', 'StartTrial', { value: 0, currency: 'ARS' }, { eventID: `tenant-${body.tenantId}-StartTrial` });
+      }
 
       if (body.redirectUrl) {
         window.location.href = body.redirectUrl;

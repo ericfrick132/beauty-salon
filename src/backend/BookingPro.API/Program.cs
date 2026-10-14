@@ -163,6 +163,7 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IEmailService, Boo
 // Meta Conversions API (server-side pixel mirror) — singleton, no per-request state.
 builder.Services.AddSingleton<BookingPro.API.Services.IMetaCapiService, BookingPro.API.Services.MetaCapiService>();
 builder.Services.AddSingleton<BookingPro.API.Services.IMetaAttributionEnricher, BookingPro.API.Services.MetaAttributionEnricher>();
+builder.Services.AddSingleton<BookingPro.API.Services.IMetaTrialTracker, BookingPro.API.Services.MetaTrialTracker>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();
