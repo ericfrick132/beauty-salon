@@ -315,13 +315,13 @@ namespace BookingPro.API.Services
                 if (connection == null)
                     return ServiceResult<string>.Fail("No active WhatsApp connection for this tenant");
 
-                // Normalize phone: remove "whatsapp:", "+", spaces, dashes
-                var normalizedPhone = phone
-                    .Replace("whatsapp:", "")
-                    .Replace("+", "")
-                    .Replace(" ", "")
-                    .Replace("-", "")
-                    .Trim();
+                // Normalize phone: remove "whatsapp:", "+", spaces, dashes. Si el número es local (sin código
+                // de país), se completa con el del país del negocio (Argentina por defecto).
+                var tenantCountry = await _context.Tenants.IgnoreQueryFilters().AsNoTracking()
+                    .Where(t => t.Id == tenantId)
+                    .Select(t => t.Country)
+                    .FirstOrDefaultAsync();
+                var normalizedPhone = Utilities.PhoneNumbers.ForWhatsApp(phone, tenantCountry);
 
                 var payload = new { number = normalizedPhone, text };
                 var content = new StringContent(

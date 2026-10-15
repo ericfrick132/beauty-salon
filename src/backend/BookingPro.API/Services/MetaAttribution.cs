@@ -85,12 +85,14 @@ namespace BookingPro.API.Services
                 EventTime = DateTime.UtcNow,
                 Email = tenant.OwnerEmail,
                 Phone = tenant.OwnerPhone,
+                Country = tenant.Country,
                 Fbclid = tenant.Fbclid,
                 Fbp = tenant.Fbp,
                 CtwaClid = tenant.CtwaClid,
                 ExternalId = $"tenant-{tenant.Id}",
                 Value = value,
-                Currency = currency ?? "ARS",
+                // Los pagos de plataforma pasan "ARS" explícito; el resto (StartTrial) va en la moneda del negocio.
+                Currency = currency ?? Utilities.CountryProfile.CurrencyFor(tenant),
                 PredictedLtv = predictedLtv,
                 OrderId = orderId
             };

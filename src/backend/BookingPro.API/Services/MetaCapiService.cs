@@ -49,7 +49,7 @@ namespace BookingPro.API.Services
                 var userData = new Dictionary<string, object>();
                 if (!string.IsNullOrWhiteSpace(ev.Email))
                     userData["em"] = new[] { Sha256(ev.Email.Trim().ToLowerInvariant()) };
-                var phone = NormalizePhone(ev.Phone);
+                var phone = NormalizePhone(ev.Phone, ev.Country);
                 if (!string.IsNullOrWhiteSpace(phone))
                     userData["ph"] = new[] { Sha256(phone) };
                 if (!string.IsNullOrWhiteSpace(ev.ExternalId))
@@ -136,16 +136,11 @@ namespace BookingPro.API.Services
             return Convert.ToHexString(bytes).ToLowerInvariant();
         }
 
-        /// <summary>Solo dígitos, con código de país (Meta exige E.164 sin "+"). Números AR sin 54 → se agrega.</summary>
-        private static string? NormalizePhone(string? phone)
-        {
-            if (string.IsNullOrWhiteSpace(phone)) return null;
-            var digits = new string(phone.Where(char.IsDigit).ToArray());
-            if (digits.Length < 8) return null;
-            if (digits.Length == 10 && !digits.StartsWith("54")) digits = "549" + digits;      // 11xxxxxxxx (AR sin 9)
-            else if (digits.Length == 11 && digits.StartsWith("0")) digits = "549" + digits[1..]; // 011xxxxxxxx
-            else if (digits.StartsWith("54") && digits.Length == 12 && !digits.StartsWith("549")) digits = "549" + digits[2..];
-            return digits;
-        }
+        /// <summary>
+        /// Solo dígitos, con código de país (Meta exige E.164 sin "+"). Los números locales toman el código
+        /// del país del negocio (Argentina por defecto, con el 9 de móvil).
+        /// </summary>
+        private static string? NormalizePhone(string? phone, string? country) =>
+            Utilities.PhoneNumbers.ToDigits(phone, country);
     }
 }

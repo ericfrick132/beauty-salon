@@ -17,6 +17,8 @@ namespace BookingPro.API.Services
         public string? EventSourceUrl { get; set; }
         public string? Email { get; set; }
         public string? Phone { get; set; }
+        /// <summary>País del negocio (ISO-2). Completa el código de país de teléfonos locales; null → Argentina.</summary>
+        public string? Country { get; set; }
         public string? Fbclid { get; set; }
         /// <summary>Cookie _fbp del browser (si la app la capturó). Mejora el match rate.</summary>
         public string? Fbp { get; set; }
