@@ -12,7 +12,8 @@ import api from '../services/api';
 import OnboardingWizard, {
   OnboardingPayload,
 } from '../components/onboarding/OnboardingWizard';
-import turnosProOnboardingConfig from '../config/onboardingConfig';
+import { onboardingConfigForCountry } from '../config/onboardingConfig';
+import { useTenantOptional } from '../contexts/TenantContext';
 import { useCardGate } from '../hooks/useCardGate';
 
 // Preload the landing's fonts by injecting <link> tags if not already present.
@@ -130,12 +131,14 @@ const CompletarPerfil: React.FC = () => {
     };
   }, [tenantPhone, tenantEmail, tenantOwnerName, tenantBusinessName]);
 
+  // Tú y "citas" para negocios de México y España; el resto ve el onboarding de siempre.
+  const businessCountry = useTenantOptional()?.config?.country;
   const config = useMemo(
     () => ({
-      ...turnosProOnboardingConfig,
+      ...onboardingConfigForCountry(businessCountry),
       prefill,
     }),
-    [prefill]
+    [prefill, businessCountry]
   );
 
   const handleLogoUpload = async (file: File): Promise<string> => {

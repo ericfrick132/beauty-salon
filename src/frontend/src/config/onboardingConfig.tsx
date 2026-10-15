@@ -14,6 +14,7 @@ import type {
   ThemePreset,
 } from '../components/onboarding/OnboardingWizard';
 import AiChatStoryPanel from '../components/onboarding/AiChatStoryPanel';
+import { getWording } from '../utils/wording';
 
 // Images served via Unsplash CDN on beauty / salon / barber verticals.
 // Step panels are 4:5 (1200×1500) and the background is 16:9 hero.
@@ -171,6 +172,38 @@ export const turnosProOnboardingConfig: OnboardingConfig = {
     },
   },
   themePresets,
+};
+
+/**
+ * El mismo onboarding en tú y con "cita" para negocios de México y España. Argentina y Uruguay usan el
+ * config de arriba tal cual.
+ */
+export const onboardingConfigForCountry = (country?: string | null): OnboardingConfig => {
+  const w = getWording(country);
+  if (!w.usesTu) return turnosProOnboardingConfig;
+  const base = turnosProOnboardingConfig;
+  const q = base.qualification;
+  return {
+    ...base,
+    copy: {
+      ...base.copy,
+      step1Subtitle: '¿Cómo te llamas?',
+      step2Title: 'Cuéntanos de tu estudio',
+      step3Title: 'Personaliza tu marca',
+      step4Subtitle: 'Te hacemos un regalo en tu cumpleaños — y si quieres, un poco de difusión en redes.',
+      step5Subtitle: 'Tu TurnosPro está listo. Entra y carga tus primeras citas.',
+    },
+    qualification: {
+      ...q,
+      activity: q.activity && { ...q.activity, label: '¿Qué tipo de negocio tienes?' },
+      volume: q.volume && {
+        ...q.volume,
+        label: '¿Cuántas citas manejas al mes?',
+        options: q.volume.options.map((o) => (o.value === 'none' ? { ...o, label: 'Aún no doy citas' } : o)),
+      },
+      workMode: q.workMode && { ...q.workMode, label: '¿Cómo gestionas las citas hoy?' },
+    },
+  } as OnboardingConfig;
 };
 
 export default turnosProOnboardingConfig;
