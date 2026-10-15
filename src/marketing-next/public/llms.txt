@@ -12,6 +12,7 @@ TurnosPro es un producto de efcloud (Argentina). Cada negocio tiene su página p
 - [Sistema de turnos para centros de estética](https://turnos-pro.com/sistema-de-turnos-para-centros-de-estetica): cabinas, servicios combinados y señas.
 - [Sistema de turnos para consultorios](https://turnos-pro.com/sistema-de-turnos-para-consultorios): agenda por profesional y confirmación de turnos.
 - [Sistema de reservas online con recordatorios](https://turnos-pro.com/reservas-online): cómo funcionan las reservas 24/7, las señas y los recordatorios automáticos.
+- [Sistema de turnos con seña por Mercado Pago](https://turnos-pro.com/sistema-de-turnos-con-sena): cómo se cobra la seña al reservar (porcentaje o monto fijo por servicio), confirmación automática al aprobarse el pago, qué pasa si el cliente no paga o cancela, y la plata directo en la cuenta de Mercado Pago del negocio, sin comisión de TurnosPro.
 
 ## Precios (checkout de turnos-pro.com, septiembre de 2026, pesos argentinos)
 

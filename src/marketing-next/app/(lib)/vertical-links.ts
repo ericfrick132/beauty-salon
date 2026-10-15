@@ -9,6 +9,11 @@ export const verticalLinks: VerticalLink[] = [
   { slug: 'sistema-de-turnos-para-consultorios', path: '/sistema-de-turnos-para-consultorios', label: 'Consultorios', businessTypeLabel: 'Consultorios' },
 ];
 
+// Landings de funcionalidad (no son rubros): van al Footer pero no a BusinessTypes ni a RelatedVerticals.
+export const featureLinks = [
+  { path: '/sistema-de-turnos-con-sena', label: 'Turnos con seña por Mercado Pago' },
+];
+
 /** Etiqueta de BusinessTypes → path de la landing vertical (si existe). */
 export const verticalPathByBusinessType: Record<string, string> = Object.fromEntries(
   verticalLinks.map((v) => [v.businessTypeLabel, v.path]),

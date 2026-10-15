@@ -2,7 +2,7 @@ import { Box, Container, Grid, IconButton, Link as MuiLink } from '@mui/material
 import Link from 'next/link';
 import { brand } from '@/app/(lib)/brand';
 import { palette } from '@/app/(lib)/theme';
-import { verticalLinks, blogLinks } from '@/app/(lib)/vertical-links';
+import { verticalLinks, featureLinks, blogLinks } from '@/app/(lib)/vertical-links';
 
 function InstagramIcon() {
   return (
@@ -196,6 +196,17 @@ export default function Footer() {
                   sx={{ color: 'rgba(244,239,230,0.7)', fontSize: '0.92rem', '&:hover': { color: palette.paper } }}
                 >
                   Turnos para {v.label.toLowerCase()}
+                </MuiLink>
+              ))}
+              {featureLinks.map((f) => (
+                <MuiLink
+                  key={f.path}
+                  component={Link}
+                  href={f.path}
+                  underline="hover"
+                  sx={{ color: 'rgba(244,239,230,0.7)', fontSize: '0.92rem', '&:hover': { color: palette.paper } }}
+                >
+                  {f.label}
                 </MuiLink>
               ))}
               {blogLinks.map((b) => (

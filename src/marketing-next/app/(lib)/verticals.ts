@@ -20,6 +20,8 @@ export type VerticalContent = VerticalLink & {
   faqs: { q: string; a: string }[];
   datePublished: string;
   dateModified: string;
+  /** 'feature' = landing de funcionalidad (no rubro): VerticalLanding usa títulos neutros y otro callout. */
+  kind?: 'feature';
 };
 
 export const verticals: VerticalContent[] = [
@@ -531,6 +533,92 @@ export const verticals: VerticalContent[] = [
     ],
     datePublished: '2026-09-04',
     dateModified: '2026-10-06',
+  },
+  {
+    // Landing de funcionalidad (señas). Cada afirmación sale del backend:
+    // Service.RequiresDeposit/DepositPercentage/DepositFixedAmount/DepositPolicy (TenantEntities.cs),
+    // MercadoPagoService.CalculateDepositAsync / CreatePaymentPreferenceAsync / webhook, PublicController.CreateBooking.
+    // Ojo: el webhook NO libera turnos impagos solos y TurnosPro NO devuelve señas: no prometer eso.
+    slug: 'sistema-de-turnos-con-sena',
+    path: '/sistema-de-turnos-con-sena',
+    label: 'Turnos con seña',
+    businessTypeLabel: 'Turnos con seña',
+    kind: 'feature',
+    title: 'Sistema de turnos con seña por Mercado Pago | TurnosPro',
+    description:
+      'Cobrá la seña del turno online con Mercado Pago: el cliente paga al reservar, el turno se confirma solo y la plata entra en tu cuenta. Sin comisión.',
+    h1: 'Sistema de turnos con seña por Mercado Pago',
+    eyebrow: 'Señas con Mercado Pago',
+    intro: [
+      'Un turno sin seña es una promesa; un turno con seña es un compromiso. Con TurnosPro cobrás la seña del turno online con Mercado Pago en el mismo momento en que el cliente reserva: elige servicio, profesional y horario en tu web de turnos, paga desde el celular y el turno se confirma solo cuando Mercado Pago aprueba el pago.',
+      'La plata entra directo en tu cuenta de Mercado Pago, que conectás una sola vez desde el panel. TurnosPro no le suma comisión a la seña: pagás la cuota del plan y listo. Vos elegís qué servicios piden seña, de cuánto y a qué clientes.',
+    ],
+    sections: [
+      {
+        h2: 'Por qué pedir seña para los turnos',
+        paragraphs: [
+          'Cuando reservar no cuesta nada, cancelar tampoco: el cliente que se olvida o le surge otra cosa simplemente no viene, y ese horario ya no lo vendés. En los servicios largos o caros, un turno perdido es una parte grande del día.',
+          'La seña cambia esa ecuación. Filtra las reservas al pasar y hace que el que no puede venir te avise antes, porque tiene plata puesta. Y si no avisa, la seña cubre parte del horario que perdiste.',
+          'El problema es cobrarla a mano: pasar el alias, esperar el comprobante, revisar la cuenta y recién ahí confirmar el turno. Un sistema de turnos con seña online hace todo ese ida y vuelta solo.',
+        ],
+      },
+      {
+        h2: 'Cómo funciona la seña con Mercado Pago en TurnosPro, paso a paso',
+        bullets: [
+          'El cliente entra a tu web de turnos, elige servicio, profesional y horario y deja sus datos. No tiene que crear una cuenta ni descargar nada.',
+          'Si ese servicio pide seña, TurnosPro calcula el monto según tu configuración y abre el pago de Mercado Pago por ese importe, a nombre de tu negocio.',
+          'Mientras el cliente paga, el turno queda en tu agenda como pendiente de pago y ese horario no se le ofrece a nadie más.',
+          'Cuando Mercado Pago aprueba el pago, el turno pasa a confirmado automáticamente y el cobro queda registrado en el turno.',
+          'Te llega el aviso de seña recibida en la app de TurnosPro, sin pedir comprobantes ni revisar la cuenta.',
+        ],
+        after: [
+          'Si usás el asistente de WhatsApp de TurnosPro, el cliente que reserva por chat recibe el link de la seña en la misma conversación y, cuando el pago se acredita, un mensaje que le confirma el turno.',
+        ],
+      },
+      {
+        h2: 'Qué pasa si el cliente no paga la seña o cancela',
+        paragraphs: [
+          'Si el cliente no completa el pago, el turno no se confirma: queda como pendiente de pago. TurnosPro no lo da de baja solo, así que vos decidís qué hacer: esperarlo, escribirle o cancelarlo desde la agenda. Cuando lo cancelás, el horario vuelve a quedar libre para otra reserva.',
+          'Si el cliente ya pagó y después cancela, la seña está en tu cuenta de Mercado Pago, no en TurnosPro. La política la ponés vos: si avisó con tiempo podés devolverla desde tu Mercado Pago o acordar usarla en otro turno; si no avisó, te la quedás como compensación. TurnosPro no hace devoluciones automáticas ni retiene la plata en el medio.',
+        ],
+      },
+      {
+        h2: 'Cómo configurar las señas en TurnosPro',
+        bullets: [
+          'Conectás tu cuenta de Mercado Pago desde el panel: autorizás a TurnosPro en Mercado Pago, sin copiar claves ni tokens a mano.',
+          'En cada servicio activás "Requiere seña para reservar". Los servicios sin seña se siguen reservando como siempre.',
+          'Elegís el tipo de seña: un porcentaje del precio del servicio o un monto fijo. La seña nunca supera el precio del servicio.',
+          'Elegís a quién se la pedís: a todos los clientes, solo a los clientes nuevos o solo cuando el turno se reserva con cierta cantidad de días de anticipación.',
+        ],
+        after: [
+          'Podés cambiar la configuración de cada servicio cuando quieras. Todo esto viene en el mismo plan, con 7 días de prueba gratis: dejás tu tarjeta en Mercado Pago y el primer cobro es recién al terminar la prueba.',
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: '¿Cómo cobro la seña de un turno con Mercado Pago?',
+        a: 'Conectás tu cuenta de Mercado Pago a TurnosPro y activás la seña en los servicios que quieras. Cuando un cliente reserva uno de esos servicios desde tu web de turnos, paga la seña con Mercado Pago en ese momento y el turno se confirma solo cuando el pago se aprueba.',
+      },
+      {
+        q: '¿La seña puede ser un porcentaje o un monto fijo?',
+        a: 'Las dos cosas. En cada servicio elegís si la seña es un porcentaje del precio o un monto fijo, y si se la pedís a todos los clientes, solo a los nuevos o solo a las reservas hechas con cierta anticipación. La seña nunca supera el precio del servicio.',
+      },
+      {
+        q: '¿Qué pasa si el cliente reserva y no paga la seña?',
+        a: 'El turno no se confirma: queda en tu agenda como pendiente de pago y ese horario no se ofrece a otros clientes. TurnosPro no lo cancela solo; si no paga, lo cancelás vos desde la agenda y el horario vuelve a quedar libre.',
+      },
+      {
+        q: '¿TurnosPro cobra comisión por las señas?',
+        a: 'No. La seña entra directo en tu cuenta de Mercado Pago y TurnosPro no le suma comisión: pagás solo la cuota del plan. Las comisiones de Mercado Pago son las de tu propia cuenta.',
+      },
+      {
+        q: '¿Cómo devuelvo una seña si el cliente cancela?',
+        a: 'Como la plata está en tu cuenta de Mercado Pago, la devolución la hacés vos desde Mercado Pago, según la política de cancelación que tengas. TurnosPro no devuelve señas automáticamente ni retiene el dinero.',
+      },
+    ],
+    datePublished: '2026-10-15',
+    dateModified: '2026-10-15',
   },
 ];
 
