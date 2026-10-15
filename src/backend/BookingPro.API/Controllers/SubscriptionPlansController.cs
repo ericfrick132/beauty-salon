@@ -29,7 +29,7 @@ namespace BookingPro.API.Controllers
         // GET: api/subscription-plans
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> GetPlans([FromQuery] bool? isActive = null)
+        public async Task<IActionResult> GetPlans([FromQuery] bool? isActive = null, [FromQuery] string? country = null)
         {
             try
             {
@@ -67,6 +67,8 @@ namespace BookingPro.API.Controllers
                         TrialDays = p.TrialDays
                     })
                     .ToListAsync();
+
+                await ApplyCountryPricesAsync(plans, country);
 
                 return Ok(plans);
             }
@@ -300,6 +302,36 @@ namespace BookingPro.API.Controllers
             {
                 _logger.LogError(ex, "Error updating subscription plan {Code}", code);
                 return StatusCode(500, new { error = "Error al actualizar el plan" });
+            }
+        }
+
+        /// <summary>
+        /// ?country=UY|MX|ES: el precio de cada plan en la moneda con la que se le cobra la suscripción a un
+        /// negocio de ese país (subscription_plan_prices; si falta, el equivalente del precio en ARS). Sin país,
+        /// AR o desconocido, los planes salen en ARS como siempre.
+        /// </summary>
+        private async Task ApplyCountryPricesAsync(List<SubscriptionPlanDto> plans, string? country)
+        {
+            if (!BookingPro.API.Utilities.CountryProfile.IsSupported(country)) return;
+            var profile = BookingPro.API.Utilities.CountryProfile.Get(country);
+            if (!profile.BillsWithStripe) return;
+
+            var currency = profile.PlatformCurrency;
+            var codes = plans.Select(p => p.Code).ToList();
+            var prices = await _context.SubscriptionPlanPrices.AsNoTracking()
+                .Where(pp => pp.Currency == currency && codes.Contains(pp.SubscriptionPlan.Code))
+                .Select(pp => new { pp.SubscriptionPlan.Code, pp.Amount })
+                .ToListAsync();
+
+            foreach (var plan in plans)
+            {
+                var row = prices.FirstOrDefault(p => p.Code == plan.Code);
+                plan.Price = row?.Amount ?? (plan.Price > 0 ? BookingPro.API.Utilities.PlatformPricing.FromArs(plan.Price, currency) : 0m);
+                plan.WhatsAppExtraMessageCost = plan.WhatsAppExtraMessageCost > 0
+                    ? Math.Round(plan.WhatsAppExtraMessageCost / BookingPro.API.Utilities.PlatformPricing.ArsPerUsd
+                        * (currency == "MXN" ? BookingPro.API.Utilities.PlatformPricing.MxnPerUsd : currency == "EUR" ? BookingPro.API.Utilities.PlatformPricing.EurPerUsd : 1m), 2)
+                    : 0m;
+                plan.Currency = currency;
             }
         }
 
