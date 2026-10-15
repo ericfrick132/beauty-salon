@@ -46,6 +46,7 @@ import { motion } from 'framer-motion';
 import { useTenant } from '../contexts/TenantContext';
 import api, { serviceCategoryApi } from '../services/api';
 import TextField from '../components/common/TextField';
+import { useTenantMoney } from '../hooks/useTenantMoney';
 
 interface Service {
   id: string;
@@ -73,6 +74,8 @@ interface ServiceCategory {
 }
 
 const Services: React.FC = () => {
+  // Montos en la moneda del negocio; en ARS se ven igual que antes.
+  const { formatKeepingArs } = useTenantMoney();
   const navigate = useNavigate();
   const { config } = useTenant();
   
@@ -451,7 +454,7 @@ const Services: React.FC = () => {
                               variant={service.requiresDeposit ? 'filled' : 'outlined'}
                               label={service.requiresDeposit
                                 ? (service.depositFixedAmount
-                                  ? `Seña $${service.depositFixedAmount}`
+                                  ? `Seña ${formatKeepingArs(service.depositFixedAmount, `$${service.depositFixedAmount}`, { maximumFractionDigits: 2 })}`
                                   : (service.depositPercentage
                                     ? `Seña ${service.depositPercentage}%`
                                     : 'Requiere seña'))

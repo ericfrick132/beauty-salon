@@ -35,6 +35,7 @@ import { useNavigate } from 'react-router-dom';
 import { salesApi } from '../services/api';
 import { isAdminLike } from '../utils/permissions';
 import { useAppSelector } from '../store';
+import { useTenantMoney } from '../hooks/useTenantMoney';
 
 interface SaleItem {
   id: string;
@@ -65,9 +66,14 @@ const METHOD_LABELS: Record<string, string> = {
   mercadopago: 'MercadoPago',
 };
 
-const money = (n: number) => `$${n.toLocaleString('es-AR', { maximumFractionDigits: 2 })}`;
+/** Montos de ventas en la moneda del negocio (ARS: "$1.500,5" como antes). */
+const useMoney = () => {
+  const { formatMoney } = useTenantMoney();
+  return (n: number) => formatMoney(n, { maximumFractionDigits: 2 });
+};
 
 const SaleRow: React.FC<{ sale: Sale; canCancel: boolean; onCancel: (s: Sale) => void }> = ({ sale, canCancel, onCancel }) => {
+  const money = useMoney();
   const [open, setOpen] = useState(false);
   const cancelled = sale.status === 'cancelled';
   return (
@@ -130,6 +136,7 @@ const SaleRow: React.FC<{ sale: Sale; canCancel: boolean; onCancel: (s: Sale) =>
 };
 
 const SalesHistory: React.FC = () => {
+  const money = useMoney();
   const navigate = useNavigate();
   const currentUser = useAppSelector((state) => state.auth.user);
   const canCancel = isAdminLike(currentUser?.role);

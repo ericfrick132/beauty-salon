@@ -27,6 +27,7 @@ import {
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { featureAddonsApi, messagingApi, whatsappApi, FeatureAddonStatus } from '../services/api';
 import TextField from '../components/common/TextField';
+import { formatMoney } from '../utils/intl';
 
 const CONFIRMATION_BOT_CODE = 'confirmation_bot';
 
@@ -232,7 +233,7 @@ const ConfirmationBot: React.FC = () => {
   }, [template]);
 
   const priceLabel = addon
-    ? `$${Math.round(addon.monthlyPrice).toLocaleString('es-AR')} ${addon.currency}/mes`
+    ? `${formatMoney(Math.round(addon.monthlyPrice), { currency: addon.currency || 'ARS' })} ${addon.currency}/mes`
     : '';
 
   if (loading) {

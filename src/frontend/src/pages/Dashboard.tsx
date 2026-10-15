@@ -77,8 +77,12 @@ import {
 import { startOnboardingTour } from '../tours/onboarding';
 import TemplateSelectionModal from '../components/TemplateSelectionModal';
 import api, { templatesApi, featureAddonsApi, messagingApi, FeatureAddonStatus } from '../services/api';
+import { formatMoney } from '../utils/intl';
+import { useTenantMoney } from '../hooks/useTenantMoney';
 
 const Dashboard: React.FC = () => {
+  // Montos en la moneda del negocio; en ARS se ven igual que antes.
+  const { formatKeepingArs } = useTenantMoney();
   const { config, getTerm } = useTenant();
   const navigate = useNavigate();
   const { subscription } = useSubscription();
@@ -386,7 +390,7 @@ const Dashboard: React.FC = () => {
       },
       {
         title: 'Ingresos del Día',
-        value: `$${todayRevenue.toLocaleString()}`,
+        value: formatKeepingArs(todayRevenue, `$${todayRevenue.toLocaleString()}`),
         icon: <AttachMoney />,
         color: accentColor,
         bgColor: `${accentColor}15`,
@@ -552,7 +556,7 @@ const Dashboard: React.FC = () => {
                       </Box>
                       <Typography variant="body2" sx={{ opacity: 0.95, mt: 0.5 }}>
                         Tus clientes reservan, consultan y cancelan turnos solos por WhatsApp, 24/7, desde tu número.
-                        {menuBotAddon.monthlyPrice > 0 && ` Desde $${Math.round(menuBotAddon.monthlyPrice).toLocaleString('es-AR')}/mes.`}
+                        {menuBotAddon.monthlyPrice > 0 && ` Desde ${formatMoney(Math.round(menuBotAddon.monthlyPrice), { currency: 'ARS' })}/mes.`}
                       </Typography>
                     </Box>
                     <Button
@@ -610,7 +614,7 @@ const Dashboard: React.FC = () => {
                         <Typography variant="body2" sx={{ opacity: 0.95, mt: 0.5 }}>
                           Confirmá tus turnos automáticamente por WhatsApp y recuperá los horarios de los que no vienen.
                           {confirmationBotAddon.monthlyPrice > 0 &&
-                            ` Desde $${Math.round(confirmationBotAddon.monthlyPrice).toLocaleString('es-AR')}/mes.`}
+                            ` Desde ${formatMoney(Math.round(confirmationBotAddon.monthlyPrice), { currency: 'ARS' })}/mes.`}
                         </Typography>
                       </Box>
                       <Button
@@ -839,7 +843,7 @@ const Dashboard: React.FC = () => {
                             />
                             <ListItemSecondaryAction>
                               <Chip
-                                label={`$${booking.price}`}
+                                label={formatKeepingArs(booking.price, `$${booking.price}`, { maximumFractionDigits: 2 })}
                                 sx={{
                                   backgroundColor: 'rgba(255, 255, 255, 0.2)',
                                   color: 'white',
@@ -954,7 +958,7 @@ const Dashboard: React.FC = () => {
                   <XAxis dataKey="day" stroke="#6B7280" />
                   <YAxis stroke="#6B7280" />
                   <RechartsTooltip
-                    formatter={(value: any) => `$${value}`}
+                    formatter={(value: any) => formatKeepingArs(Number(value), `$${value}`, { maximumFractionDigits: 2 })}
                     contentStyle={{
                       backgroundColor: '#FFFFFF',
                       border: '1px solid #E5E7EB',

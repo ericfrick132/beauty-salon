@@ -27,11 +27,12 @@ import { useSearchParams } from 'react-router-dom';
 import { featureAddonsApi, menuBotApi, FeatureAddonStatus, MenuBotStatus } from '../services/api';
 import WhatsAppConnectionCard from '../components/whatsapp/WhatsAppConnectionCard';
 import WhatsAppActivityCard from '../components/whatsapp/WhatsAppActivityCard';
+import { formatMoney } from '../utils/intl';
 
 const ADDON_CODE = 'menu_bot';
 
-const money = (n: number) =>
-  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
+// Precio del add-on: lo cobra la plataforma, en pesos (no es la moneda del negocio).
+const money = (n: number) => formatMoney(n, { currency: 'ARS', variant: 'intl' });
 
 // Burbujas estilo WhatsApp para la demo del paywall
 const ChatBubble: React.FC<{ from: 'bot' | 'client'; children: React.ReactNode }> = ({ from, children }) => (

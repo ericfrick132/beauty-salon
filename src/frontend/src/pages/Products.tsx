@@ -35,6 +35,7 @@ import {
 import { MoreVert, Add, Delete, Edit, Inventory, LocalOffer, Category } from '@mui/icons-material';
 import { inventoryApi, productCategoryApi } from '../services/api';
 import TextField from '../components/common/TextField';
+import { useTenantMoney } from '../hooks/useTenantMoney';
 
 interface ProductDto {
   id: string;
@@ -115,6 +116,8 @@ const emptyForm: ProductForm = {
 };
 
 const Products: React.FC = () => {
+  // Montos en la moneda del negocio; en ARS se ven igual que antes.
+  const { formatKeepingArs, currencySymbol } = useTenantMoney();
   const [items, setItems] = useState<ProductDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -496,7 +499,7 @@ const Products: React.FC = () => {
                         </Stack>
                       </TableCell>
                       <TableCell align="right">{p.trackInventory ? p.currentStock : '—'}</TableCell>
-                      <TableCell align="right">${p.salePrice.toFixed(2)}</TableCell>
+                      <TableCell align="right">{formatKeepingArs(p.salePrice, `$${p.salePrice.toFixed(2)}`, { maximumFractionDigits: 2 })}</TableCell>
                       <TableCell align="center">
                         <IconButton
                           size="small"
@@ -683,7 +686,7 @@ const Products: React.FC = () => {
                     type="number"
                     value={form.costPrice}
                     onChange={(e) => setForm({ ...form, costPrice: e.target.value })}
-                    InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                    InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -693,7 +696,7 @@ const Products: React.FC = () => {
                     type="number"
                     value={form.salePrice}
                     onChange={(e) => setForm({ ...form, salePrice: e.target.value })}
-                    InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                    InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
                   />
                 </Grid>
                 {!isEditing && (

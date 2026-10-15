@@ -58,6 +58,7 @@ import ProductLinesPicker, { ProductLine, productLinesTotal } from '../component
 import { es } from 'date-fns/locale';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import TextField from '../components/common/TextField';
+import { useTenantMoney } from '../hooks/useTenantMoney';
 
 interface Payment {
   id: string;
@@ -86,6 +87,8 @@ interface Booking {
 }
 
 const Payments: React.FC = () => {
+  // Montos en la moneda del negocio; en ARS se ven igual que antes.
+  const { formatKeepingArs, currencySymbol } = useTenantMoney();
   const navigate = useNavigate();
   const { getTerm } = useTenant();
   
@@ -476,7 +479,7 @@ const Payments: React.FC = () => {
                           </Typography>
                         </TableCell>
                         <TableCell>
-                          {payment.tipAmount ? `$${payment.tipAmount.toFixed(2)}` : '-'}
+                          {payment.tipAmount ? formatKeepingArs(payment.tipAmount, `$${payment.tipAmount.toFixed(2)}`, { maximumFractionDigits: 2 }) : '-'}
                         </TableCell>
                         <TableCell>
                           <Chip
@@ -609,7 +612,7 @@ const Payments: React.FC = () => {
                   error={!!errors.amount}
                   helperText={errors.amount}
                   InputProps={{
-                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                    startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                   }}
                 />
               </Grid>
@@ -622,7 +625,7 @@ const Payments: React.FC = () => {
                   value={paymentForm.tipAmount}
                   onChange={(e) => setPaymentForm({ ...paymentForm, tipAmount: parseFloat(e.target.value) || 0 })}
                   InputProps={{
-                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                    startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                   }}
                 />
               </Grid>

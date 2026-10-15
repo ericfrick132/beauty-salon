@@ -26,6 +26,7 @@ import { useNavigate } from 'react-router-dom';
 import api, { inventoryApi, customerApi } from '../services/api';
 import { Customer } from '../types';
 import TextField from '../components/common/TextField';
+import { useTenantMoney } from '../hooks/useTenantMoney';
 
 interface ProductDto {
   id: string;
@@ -51,6 +52,8 @@ interface CartItem {
 }
 
 const SalesPOS: React.FC = () => {
+  // Montos en la moneda del negocio; en ARS se ven igual que antes.
+  const { formatKeepingArs } = useTenantMoney();
   const navigate = useNavigate();
   const [productInput, setProductInput] = useState('');
   const [products, setProducts] = useState<ProductDto[]>([]);
@@ -339,7 +342,7 @@ const SalesPOS: React.FC = () => {
                         <TableCell align="center">
                           {item.trackInventory ? item.currentStock : '—'}
                         </TableCell>
-                        <TableCell align="right">${item.unitPrice.toFixed(2)}</TableCell>
+                        <TableCell align="right">{formatKeepingArs(item.unitPrice, `$${item.unitPrice.toFixed(2)}`, { maximumFractionDigits: 2 })}</TableCell>
                         <TableCell align="center">
                           <IconButton size="small" onClick={() => updateQty(item.productId, -1)} aria-label="Quitar unidad">
                             <Remove />
@@ -358,7 +361,7 @@ const SalesPOS: React.FC = () => {
                             sx={{ width: 90 }}
                           />
                         </TableCell>
-                        <TableCell align="right">${lineTotal.toFixed(2)}</TableCell>
+                        <TableCell align="right">{formatKeepingArs(lineTotal, `$${lineTotal.toFixed(2)}`, { maximumFractionDigits: 2 })}</TableCell>
                         <TableCell align="center">
                           <IconButton color="error" onClick={() => removeItem(item.productId)} aria-label="Eliminar producto del carrito">
                             <Delete />
@@ -385,7 +388,7 @@ const SalesPOS: React.FC = () => {
               <Typography variant="h6" gutterBottom>Resumen</Typography>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                 <Typography color="text.secondary">Subtotal</Typography>
-                <Typography>${totals.sub.toFixed(2)}</Typography>
+                <Typography>{formatKeepingArs(totals.sub, `$${totals.sub.toFixed(2)}`, { maximumFractionDigits: 2 })}</Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                 <Typography color="text.secondary">Descuentos</Typography>
@@ -393,17 +396,17 @@ const SalesPOS: React.FC = () => {
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                 <Typography color="text.secondary">Impuestos</Typography>
-                <Typography>${totals.tax.toFixed(2)}</Typography>
+                <Typography>{formatKeepingArs(totals.tax, `$${totals.tax.toFixed(2)}`, { maximumFractionDigits: 2 })}</Typography>
               </Box>
               <Divider sx={{ my: 1 }} />
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                 <Typography variant="h6">Total</Typography>
-                <Typography variant="h6">${totals.total.toFixed(2)}</Typography>
+                <Typography variant="h6">{formatKeepingArs(totals.total, `$${totals.total.toFixed(2)}`, { maximumFractionDigits: 2 })}</Typography>
               </Box>
               {paymentMethod === 'cash' && (
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                   <Typography color="text.secondary">Vuelto</Typography>
-                  <Typography>${change.toFixed(2)}</Typography>
+                  <Typography>{formatKeepingArs(change, `$${change.toFixed(2)}`, { maximumFractionDigits: 2 })}</Typography>
                 </Box>
               )}
               <Button

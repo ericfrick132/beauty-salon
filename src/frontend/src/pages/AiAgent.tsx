@@ -22,6 +22,7 @@ import {
 } from '@mui/icons-material';
 import { useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { featureAddonsApi, whatsappApi, FeatureAddonStatus } from '../services/api';
+import { formatMoney } from '../utils/intl';
 
 const AI_AGENT_CODE = 'ai_agent';
 
@@ -104,7 +105,7 @@ const AiAgent: React.FC = () => {
   };
 
   const priceLabel = addon
-    ? `$${Math.round(addon.monthlyPrice).toLocaleString('es-AR')} ${addon.currency}/mes`
+    ? `${formatMoney(Math.round(addon.monthlyPrice), { currency: addon.currency || 'ARS' })} ${addon.currency}/mes`
     : '';
 
   if (loading) {

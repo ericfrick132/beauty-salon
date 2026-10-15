@@ -59,6 +59,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import { useTenantMoney } from '../hooks/useTenantMoney';
 
 interface ReportData {
   totalRevenue: number;
@@ -78,6 +79,8 @@ interface ReportData {
 }
 
 const Reports: React.FC = () => {
+  // Montos en la moneda del negocio; en ARS se ven igual que antes.
+  const { formatKeepingArs } = useTenantMoney();
   const navigate = useNavigate();
   const { getTerm } = useTenant();
   
@@ -467,7 +470,7 @@ const Reports: React.FC = () => {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="month" />
                       <YAxis />
-                      <Tooltip formatter={(value: any) => `$${Number(value).toLocaleString()}`} />
+                      <Tooltip formatter={(value: any) => formatKeepingArs(Number(value), `$${Number(value).toLocaleString()}`)} />
                       <Legend />
                       <Bar dataKey="serviceRevenue" stackId="rev" fill="#8884d8" name="Servicios" />
                       <Bar dataKey="productRevenue" stackId="rev" fill="#00C49F" name="Productos" />

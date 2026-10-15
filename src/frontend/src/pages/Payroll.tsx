@@ -45,6 +45,7 @@ import { es } from 'date-fns/locale';
 import api from '../services/api';
 import { useTenant } from '../contexts/TenantContext';
 import TextField from '../components/common/TextField';
+import { useTenantMoney } from '../hooks/useTenantMoney';
 
 interface PayrollItem {
   employeeId: string;
@@ -104,6 +105,7 @@ interface FinancialStats {
 }
 
 const Payroll: React.FC = () => {
+  const tenantMoney = useTenantMoney();
   const { config, getTerm } = useTenant();
   const [activeTab, setActiveTab] = useState(0);
   const [period, setPeriod] = useState<'weekly' | 'monthly'>('monthly');
@@ -230,12 +232,9 @@ const Payroll: React.FC = () => {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS',
-    }).format(amount);
-  };
+  // Moneda y locale del negocio (ARS/es-AR se ve igual que antes: "$ 1.500,00").
+  const formatCurrency = (amount: number) =>
+    tenantMoney.formatMoney(amount, { variant: 'intl', maximumFractionDigits: 2 });
 
   return (
     <Container maxWidth="xl">
