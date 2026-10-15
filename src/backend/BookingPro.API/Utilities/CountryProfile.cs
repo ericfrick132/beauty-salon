@@ -22,25 +22,60 @@ namespace BookingPro.API.Utilities
     {
         public const string DefaultCode = "AR";
 
+        /// <summary>
+        /// Cómo conecta el negocio su Mercado Pago para cobrar señas: "oauth" (app de la plataforma, solo
+        /// Argentina), "credentials" (pega el Access Token de su propia cuenta MP local: Uruguay y México) o
+        /// "none" (no hay Mercado Pago: España cobra con Stripe Connect).
+        /// </summary>
+        public string MercadoPagoConnect { get; init; } = MercadoPagoConnectModes.OAuth;
+
+        /// <summary>Señas con Stripe Connect (cuenta Express del negocio). Hoy solo España.</summary>
+        public bool StripeDeposits { get; init; }
+
+        /// <summary>Con qué cobra la plataforma la suscripción: "mercadopago" (Argentina, ARS) o "stripe".</summary>
+        public string PlatformBilling { get; init; } = PlatformBillingProviders.MercadoPago;
+
+        /// <summary>Moneda de la suscripción a la plataforma (UY se cobra en USD).</summary>
+        public string PlatformCurrency { get; init; } = "ARS";
+
         public static readonly CountryProfile Argentina = new(
             "AR", "Argentina", "ARS", "America/Argentina/Buenos_Aires", "es-AR", "54", "DNI",
             "11 2345 6789", ArcaInvoicing: true, Chytapay: true, TransferDetection: true);
 
         public static readonly CountryProfile Uruguay = new(
             "UY", "Uruguay", "UYU", "America/Montevideo", "es-UY", "598", "CI",
-            "94 123 456", ArcaInvoicing: false, Chytapay: false, TransferDetection: false);
+            "94 123 456", ArcaInvoicing: false, Chytapay: false, TransferDetection: false)
+        {
+            MercadoPagoConnect = MercadoPagoConnectModes.Credentials,
+            PlatformBilling = PlatformBillingProviders.Stripe,
+            PlatformCurrency = "USD",
+        };
 
         public static readonly CountryProfile Mexico = new(
             "MX", "México", "MXN", "America/Mexico_City", "es-MX", "52", "CURP",
-            "55 1234 5678", ArcaInvoicing: false, Chytapay: false, TransferDetection: false);
+            "55 1234 5678", ArcaInvoicing: false, Chytapay: false, TransferDetection: false)
+        {
+            MercadoPagoConnect = MercadoPagoConnectModes.Credentials,
+            PlatformBilling = PlatformBillingProviders.Stripe,
+            PlatformCurrency = "MXN",
+        };
 
         public static readonly CountryProfile Spain = new(
             "ES", "España", "EUR", "Europe/Madrid", "es-ES", "34", "DNI/NIE",
-            "612 34 56 78", ArcaInvoicing: false, Chytapay: false, TransferDetection: false);
+            "612 34 56 78", ArcaInvoicing: false, Chytapay: false, TransferDetection: false)
+        {
+            MercadoPagoConnect = MercadoPagoConnectModes.None,
+            StripeDeposits = true,
+            PlatformBilling = PlatformBillingProviders.Stripe,
+            PlatformCurrency = "EUR",
+        };
 
         public static readonly IReadOnlyList<CountryProfile> All = new[] { Argentina, Uruguay, Mexico, Spain };
 
         public bool IsArgentina => Code == "AR";
+
+        /// <summary>True si la suscripción a la plataforma se cobra con Stripe (todo lo que no es Argentina).</summary>
+        public bool BillsWithStripe => PlatformBilling == PlatformBillingProviders.Stripe;
 
         /// <summary>Perfil del país (código ISO-2, sin importar mayúsculas). Desconocido o vacío → Argentina.</summary>
         public static CountryProfile Get(string? code)
@@ -95,5 +130,18 @@ namespace BookingPro.API.Utilities
 
         /// <summary>Zona horaria IANA efectiva del negocio (acepta offsets viejos "-3").</summary>
         public static string TimeZoneIdFor(Tenant? tenant) => TenantTime.ResolveId(tenant?.TimeZone, tenant?.Country);
+    }
+
+    public static class MercadoPagoConnectModes
+    {
+        public const string OAuth = "oauth";
+        public const string Credentials = "credentials";
+        public const string None = "none";
+    }
+
+    public static class PlatformBillingProviders
+    {
+        public const string MercadoPago = "mercadopago";
+        public const string Stripe = "stripe";
     }
 }

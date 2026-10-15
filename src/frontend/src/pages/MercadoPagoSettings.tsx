@@ -38,6 +38,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../services/api';
 import TextField from '../components/common/TextField';
+import useTenantMoney from '../hooks/useTenantMoney';
 
 interface MercadoPagoConnectionStatus {
   isConnected: boolean;
@@ -50,6 +51,10 @@ interface MercadoPagoConnectionStatus {
   needsRefresh: boolean;
   isTestMode: boolean;
   lastError?: string;
+  /** 'oauth' (Argentina) o 'credentials' (Uruguay/México: Access Token pegado a mano). */
+  connectionMode?: 'oauth' | 'credentials';
+  siteId?: string;
+  hasPublicKey?: boolean;
 }
 
 interface MercadoPagoConfig {
@@ -72,6 +77,12 @@ const MercadoPagoSettings: React.FC = () => {
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [disconnectDialog, setDisconnectDialog] = useState(false);
+  // Uruguay y México conectan pegando las credenciales de su cuenta de MP (no hay OAuth por país).
+  const { features, country } = useTenantMoney();
+  const usesCredentials = features.mercadoPagoConnect === 'credentials';
+  const [credAccessToken, setCredAccessToken] = useState('');
+  const [credPublicKey, setCredPublicKey] = useState('');
+  const [savingCredentials, setSavingCredentials] = useState(false);
 
   useEffect(() => {
     // Volvemos de MercadoPago: el callback nos manda el resultado por query string.
@@ -184,6 +195,32 @@ const MercadoPagoSettings: React.FC = () => {
       console.error('Error getting auth URL:', error);
       setConnecting(false);
       setMessage({ type: 'error', text: 'Error al conectar con MercadoPago' });
+    }
+  };
+
+  const handleConnectCredentials = async () => {
+    if (!credAccessToken.trim()) {
+      setMessage({ type: 'error', text: 'Pegá el Access Token de tu cuenta de Mercado Pago.' });
+      return;
+    }
+    try {
+      setSavingCredentials(true);
+      const response = await api.post('/mercadopago/oauth/credentials', {
+        accessToken: credAccessToken.trim(),
+        publicKey: credPublicKey.trim() || undefined,
+      });
+      if (response.data?.success) {
+        setCredAccessToken('');
+        setCredPublicKey('');
+        setMessage({ type: 'success', text: 'Mercado Pago conectado. Ya podés cobrar señas.' });
+        await fetchConfiguration();
+      } else {
+        setMessage({ type: 'error', text: response.data?.error || 'No pudimos validar las credenciales' });
+      }
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error?.response?.data?.error || 'No pudimos validar las credenciales' });
+    } finally {
+      setSavingCredentials(false);
     }
   };
 
@@ -353,7 +390,7 @@ const MercadoPagoSettings: React.FC = () => {
                   </Alert>
                 )}
 
-                {connectionStatus.needsRefresh && (
+                {connectionStatus.needsRefresh && connectionStatus.connectionMode !== 'credentials' && (
                   <Alert severity="warning" sx={{ mb: 2 }}>
                     El token de acceso necesita ser renovado. Usa el botón "Actualizar Token".
                   </Alert>
@@ -379,14 +416,16 @@ const MercadoPagoSettings: React.FC = () => {
                     {testing ? 'Probando...' : 'Probar Conexión'}
                   </Button>
                   
-                  <Button
-                    variant="outlined"
-                    startIcon={<Refresh />}
-                    onClick={handleRefreshToken}
-                    disabled={refreshing}
-                  >
-                    {refreshing ? 'Actualizando...' : 'Actualizar Token'}
-                  </Button>
+                  {connectionStatus.connectionMode !== 'credentials' && (
+                    <Button
+                      variant="outlined"
+                      startIcon={<Refresh />}
+                      onClick={handleRefreshToken}
+                      disabled={refreshing}
+                    >
+                      {refreshing ? 'Actualizando...' : 'Actualizar Token'}
+                    </Button>
+                  )}
                   
                   <Button
                     variant="outlined"
@@ -398,6 +437,55 @@ const MercadoPagoSettings: React.FC = () => {
                     Desconectar
                   </Button>
                 </Box>
+              </>
+            ) : usesCredentials ? (
+              <>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Conectá tu cuenta de Mercado Pago de {country.name} para cobrar las señas de tus clientes.
+                  El dinero entra directo en tu cuenta.
+                </Typography>
+                <Alert severity="info" sx={{ mb: 3 }}>
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>¿Dónde encuentro mis credenciales?</strong>
+                  </Typography>
+                  <Typography variant="body2" component="ol" sx={{ mb: 0, pl: 2 }}>
+                    <li>Entrá a <strong>mercadopago.com/developers/panel</strong> con tu cuenta de Mercado Pago.</li>
+                    <li>Creá una aplicación (o abrí la que ya tengas).</li>
+                    <li>En <strong>Credenciales de producción</strong> copiá el <strong>Access Token</strong> (empieza con APP_USR-) y la <strong>Public Key</strong>.</li>
+                  </Typography>
+                </Alert>
+                <Box sx={{ display: 'grid', gap: 2, mb: 2, maxWidth: 560 }}>
+                  <TextField
+                    fullWidth
+                    label="Access Token"
+                    value={credAccessToken}
+                    onChange={(e) => setCredAccessToken(e.target.value)}
+                    placeholder="APP_USR-..."
+                    type="password"
+                    autoComplete="off"
+                  />
+                  <TextField
+                    fullWidth
+                    label="Public Key (opcional)"
+                    value={credPublicKey}
+                    onChange={(e) => setCredPublicKey(e.target.value)}
+                    placeholder="APP_USR-..."
+                    autoComplete="off"
+                  />
+                </Box>
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={<LinkIcon />}
+                  onClick={handleConnectCredentials}
+                  disabled={savingCredentials}
+                  sx={{ backgroundColor: '#009ee3', '&:hover': { backgroundColor: '#0084c7' } }}
+                >
+                  {savingCredentials ? 'Validando…' : 'Conectar Mercado Pago'}
+                </Button>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
+                  Validamos las credenciales con Mercado Pago antes de guardarlas. Podés desconectarlas cuando quieras.
+                </Typography>
               </>
             ) : (
               <>

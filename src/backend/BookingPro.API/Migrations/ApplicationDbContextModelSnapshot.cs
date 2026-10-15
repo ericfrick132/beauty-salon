@@ -1716,6 +1716,10 @@ namespace BookingPro.API.Migrations
                     b.Property<DateTime>("ConnectedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ConnectionMode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<string>("CountryId")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -1763,6 +1767,10 @@ namespace BookingPro.API.Migrations
 
                     b.Property<DateTime?>("RefreshTokenExpiresAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SiteId")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");

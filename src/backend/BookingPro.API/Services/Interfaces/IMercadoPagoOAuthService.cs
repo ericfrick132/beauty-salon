@@ -37,6 +37,12 @@ namespace BookingPro.API.Services.Interfaces
         /// Gets valid access token for tenant (refreshes if needed)
         /// </summary>
         Task<ServiceResult<string>> GetValidAccessTokenAsync(Guid? tenantId = null);
+
+        /// <summary>
+        /// Conecta la cuenta MP del negocio pegando su Access Token (Uruguay/México): valida con /users/me
+        /// y guarda la config con ConnectionMode = "credentials" (sin refresh ni marketplace_fee).
+        /// </summary>
+        Task<ServiceResult<MercadoPagoConnectionStatusDto>> ConnectWithCredentialsAsync(ConnectMercadoPagoCredentialsDto dto);
         
         /// <summary>
         /// Configures platform OAuth settings (admin only)

@@ -18,28 +18,42 @@ export interface CountryProfile {
   arcaInvoicing: boolean;
   chytapay: boolean;
   transferDetection: boolean;
+  /** Cómo se conecta Mercado Pago: OAuth (AR), pegando credenciales (UY/MX) o no hay (ES). */
+  mercadoPagoConnect: MercadoPagoConnectMode;
+  /** Señas con Stripe Connect (ES). */
+  stripeDeposits: boolean;
+  /** Con qué cobra la plataforma la suscripción. */
+  platformBilling: 'mercadopago' | 'stripe';
+  /** Moneda de la suscripción a la plataforma (UY en USD). */
+  platformCurrency: string;
 }
+
+export type MercadoPagoConnectMode = 'oauth' | 'credentials' | 'none';
 
 export const COUNTRIES: CountryProfile[] = [
   {
     code: 'AR', name: 'Argentina', flag: '🇦🇷', dialCode: '54', currency: 'ARS',
     timezone: 'America/Argentina/Buenos_Aires', locale: 'es-AR', documentLabel: 'DNI',
     phonePlaceholder: '11 2345 6789', arcaInvoicing: true, chytapay: true, transferDetection: true,
+    mercadoPagoConnect: 'oauth', stripeDeposits: false, platformBilling: 'mercadopago', platformCurrency: 'ARS',
   },
   {
     code: 'UY', name: 'Uruguay', flag: '🇺🇾', dialCode: '598', currency: 'UYU',
     timezone: 'America/Montevideo', locale: 'es-UY', documentLabel: 'CI',
     phonePlaceholder: '94 123 456', arcaInvoicing: false, chytapay: false, transferDetection: false,
+    mercadoPagoConnect: 'credentials', stripeDeposits: false, platformBilling: 'stripe', platformCurrency: 'USD',
   },
   {
     code: 'MX', name: 'México', flag: '🇲🇽', dialCode: '52', currency: 'MXN',
     timezone: 'America/Mexico_City', locale: 'es-MX', documentLabel: 'CURP',
     phonePlaceholder: '55 1234 5678', arcaInvoicing: false, chytapay: false, transferDetection: false,
+    mercadoPagoConnect: 'credentials', stripeDeposits: false, platformBilling: 'stripe', platformCurrency: 'MXN',
   },
   {
     code: 'ES', name: 'España', flag: '🇪🇸', dialCode: '34', currency: 'EUR',
     timezone: 'Europe/Madrid', locale: 'es-ES', documentLabel: 'DNI/NIE',
     phonePlaceholder: '612 34 56 78', arcaInvoicing: false, chytapay: false, transferDetection: false,
+    mercadoPagoConnect: 'none', stripeDeposits: true, platformBilling: 'stripe', platformCurrency: 'EUR',
   },
 ];
 

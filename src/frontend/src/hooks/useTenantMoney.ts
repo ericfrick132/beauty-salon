@@ -11,10 +11,15 @@ export const useTenantMoney = () => {
   const country = useMemo(() => getCountry(config?.country), [config?.country]);
   const currency = config?.currency || country.currency;
   const locale = config?.locale || country.locale;
-  const features = config?.countryFeatures ?? {
-    arcaInvoicing: country.arcaInvoicing,
-    chytapay: country.chytapay,
-    transferDetection: country.transferDetection,
+  const cf = config?.countryFeatures;
+  const features = {
+    arcaInvoicing: cf?.arcaInvoicing ?? country.arcaInvoicing,
+    chytapay: cf?.chytapay ?? country.chytapay,
+    transferDetection: cf?.transferDetection ?? country.transferDetection,
+    mercadoPagoConnect: cf?.mercadoPagoConnect ?? country.mercadoPagoConnect,
+    stripeDeposits: cf?.stripeDeposits ?? country.stripeDeposits,
+    platformBilling: cf?.platformBilling ?? country.platformBilling,
+    platformCurrency: cf?.platformCurrency ?? country.platformCurrency,
   };
 
   /** Monto del negocio (precios, cobros, ventas). Para precios de la plataforma pasar currency: 'ARS'. */

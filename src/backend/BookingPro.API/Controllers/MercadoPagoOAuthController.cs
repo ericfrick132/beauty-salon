@@ -68,6 +68,24 @@ namespace BookingPro.API.Controllers
                     return Forbid();
                 }
 
+                // OAuth usa la app de la plataforma, que es de Mercado Pago Argentina. Uruguay y México conectan
+                // pegando sus credenciales (POST credentials); España no tiene Mercado Pago.
+                var tenantCountry = await _context.Tenants.IgnoreQueryFilters().AsNoTracking()
+                    .Where(t => t.Id == currentTenantId)
+                    .Select(t => t.Country)
+                    .FirstOrDefaultAsync();
+                var connectMode = BookingPro.API.Utilities.CountryProfile.Get(tenantCountry).MercadoPagoConnect;
+                if (connectMode != BookingPro.API.Utilities.MercadoPagoConnectModes.OAuth)
+                {
+                    return BadRequest(new
+                    {
+                        error = connectMode == BookingPro.API.Utilities.MercadoPagoConnectModes.Credentials
+                            ? "En tu país Mercado Pago se conecta con las credenciales de tu cuenta (Access Token)."
+                            : "Mercado Pago no está disponible para negocios de este país.",
+                        code = "MP_CONNECT_MODE_" + connectMode.ToUpperInvariant()
+                    });
+                }
+
                 Guid? userId = Guid.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var uid) ? uid : null;
 
                 var result = await _oauthService.InitiateOAuthFlowAsync(dto, userId);
@@ -239,6 +257,39 @@ namespace BookingPro.API.Controllers
             if (!string.IsNullOrWhiteSpace(configured) && !configured.Contains("localhost"))
                 return configured.TrimEnd('/');
             return RequestBaseUrl();
+        }
+
+        /// <summary>
+        /// Conexión por credenciales para negocios de Uruguay y México: el negocio pega el Access Token
+        /// (y opcionalmente la Public Key) de su cuenta de Mercado Pago local. Argentina usa OAuth.
+        /// </summary>
+        [HttpPost("credentials")]
+        [Authorize(Roles = "admin,super_admin")]
+        public async Task<IActionResult> ConnectWithCredentials([FromBody] ConnectMercadoPagoCredentialsDto dto)
+        {
+            try
+            {
+                var currentTenantId = _tenantProvider.GetCurrentTenantId();
+                var claimTenant = User.FindFirst("tenant_id")?.Value;
+                var isSuperAdmin = User.IsInRole("super_admin");
+                if (!isSuperAdmin && (!Guid.TryParse(claimTenant, out var userTenantId) || userTenantId != currentTenantId))
+                {
+                    return Forbid();
+                }
+
+                var result = await _oauthService.ConnectWithCredentialsAsync(dto);
+                if (result.Success && result.Data != null)
+                {
+                    return Ok(new { success = true, status = result.Data });
+                }
+
+                return BadRequest(new { success = false, error = result.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error connecting MercadoPago by credentials");
+                return StatusCode(500, new { error = "Error connecting MercadoPago" });
+            }
         }
 
         /// <summary>

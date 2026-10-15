@@ -232,6 +232,16 @@ namespace BookingPro.API.Services
                         publicKey = mpConfig.PublicKey;
                     }
                 }
+                if (string.IsNullOrEmpty(publicKey))
+                {
+                    // Conexión por credenciales (Uruguay/México): la Public Key la pegó el negocio junto al token.
+                    publicKey = await _context.Set<MercadoPagoOAuthConfiguration>()
+                        .IgnoreQueryFilters()
+                        .AsNoTracking()
+                        .Where(c => c.TenantId == tenantId && c.IsActive && c.PublicKey != null)
+                        .Select(c => c.PublicKey)
+                        .FirstOrDefaultAsync();
+                }
 
                 var response = new CreatePaymentResponseDto
                 {
@@ -921,6 +931,10 @@ namespace BookingPro.API.Services
                     
                 if (config == null || string.IsNullOrEmpty(config.AccessToken))
                 {
+                    // Uruguay/México conectan pegando las credenciales de su propia cuenta MP: ese token no pasa
+                    // por la app de la plataforma, así que el link va sin marketplace_fee.
+                    var credentialsLink = await CreateCredentialsPaymentLinkAsync(tenantGuid, dto);
+                    if (credentialsLink != null) return credentialsLink;
                     return ServiceResult<PaymentLinkResponseDto>.Fail("MercadoPago not configured");
                 }
                 
@@ -999,6 +1013,85 @@ namespace BookingPro.API.Services
                 _logger.LogError(ex, "Error creating payment link");
                 return ServiceResult<PaymentLinkResponseDto>.Fail($"Error: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Link de pago con el token que pegó el negocio (ConnectionMode = "credentials"). marketplace_fee solo
+        /// es válido con tokens obtenidos por OAuth con la app de la plataforma (MP lo rechaza o lo ignora con
+        /// las credenciales propias del vendedor), así que acá NO se manda. Null si el negocio no está
+        /// conectado por credenciales (sigue el camino de siempre).
+        /// </summary>
+        private async Task<ServiceResult<PaymentLinkResponseDto>?> CreateCredentialsPaymentLinkAsync(Guid tenantId, CreatePaymentLinkDto dto)
+        {
+            var mode = await _context.Set<MercadoPagoOAuthConfiguration>()
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(c => c.TenantId == tenantId && c.IsActive)
+                .Select(c => c.ConnectionMode)
+                .FirstOrDefaultAsync();
+            if (!MercadoPagoConnectionModes.IsCredentials(mode)) return null;
+
+            var tokenResult = await _oauthService.GetValidAccessTokenAsync(tenantId);
+            if (!tokenResult.Success || string.IsNullOrEmpty(tokenResult.Data))
+                return ServiceResult<PaymentLinkResponseDto>.Fail("MercadoPago not configured");
+
+            const int expirationMinutes = 5;
+            var preferenceRequest = new
+            {
+                items = new[]
+                {
+                    new
+                    {
+                        title = dto.Title,
+                        description = dto.Description,
+                        quantity = 1,
+                        currency_id = await ResolveChargeCurrencyAsync(tenantId),
+                        unit_price = dto.Amount
+                    }
+                },
+                payer = new
+                {
+                    name = dto.CustomerName,
+                    email = dto.CustomerEmail
+                },
+                payment_methods = new
+                {
+                    excluded_payment_types = new[]
+                    {
+                        new { id = "ticket" },
+                        new { id = "atm" }
+                    }
+                },
+                expires = true,
+                expiration_date_to = DateTime.UtcNow.AddMinutes(expirationMinutes),
+                back_urls = new
+                {
+                    success = $"{_configuration["FrontendUrl"]}/booking-success",
+                    failure = $"{_configuration["FrontendUrl"]}/booking-failed",
+                    pending = $"{_configuration["FrontendUrl"]}/booking-pending"
+                },
+                auto_return = "approved"
+            };
+
+            using var httpClient = new HttpClient();
+            httpClient.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", tokenResult.Data);
+            var content = new StringContent(JsonSerializer.Serialize(preferenceRequest), System.Text.Encoding.UTF8, "application/json");
+            var response = await httpClient.PostAsync("https://api.mercadopago.com/checkout/preferences", content);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Credentials payment link failed for tenant {TenantId}: {Status} {Body}",
+                    tenantId, (int)response.StatusCode, await response.Content.ReadAsStringAsync());
+                return ServiceResult<PaymentLinkResponseDto>.Fail("Failed to create payment link");
+            }
+
+            var preferenceResponse = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(await response.Content.ReadAsStringAsync());
+            return ServiceResult<PaymentLinkResponseDto>.Ok(new PaymentLinkResponseDto
+            {
+                PaymentLink = preferenceResponse?["init_point"].GetString() ?? "",
+                PreferenceId = preferenceResponse?["id"].GetString() ?? "",
+                ExpiresAt = DateTime.UtcNow.AddMinutes(expirationMinutes)
+            });
         }
 
         public async Task<ServiceResult<bool>> RefreshTokenAsync(string tenantId)

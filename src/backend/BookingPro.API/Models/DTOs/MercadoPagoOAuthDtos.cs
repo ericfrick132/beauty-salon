@@ -66,7 +66,21 @@ namespace BookingPro.API.Models.DTOs
         public string Email { get; set; } = string.Empty;
         public string CountryId { get; set; } = string.Empty;
         public string CurrencyId { get; set; } = string.Empty;
+        public string SiteId { get; set; } = string.Empty;
         public bool SiteStatus { get; set; }
+    }
+
+    /// <summary>
+    /// Conexión por credenciales (Uruguay/México): el negocio pega el Access Token (y opcionalmente la
+    /// Public Key) de su propia cuenta de Mercado Pago, sacados de "Tus integraciones" en MP Developers.
+    /// </summary>
+    public class ConnectMercadoPagoCredentialsDto
+    {
+        [Required, MaxLength(500)]
+        public string AccessToken { get; set; } = string.Empty;
+
+        [MaxLength(500)]
+        public string? PublicKey { get; set; }
     }
 
     /// <summary>
@@ -84,6 +98,10 @@ namespace BookingPro.API.Models.DTOs
         public bool NeedsRefresh { get; set; }
         public bool IsTestMode { get; set; }
         public string? LastError { get; set; }
+        /// <summary>"oauth" o "credentials".</summary>
+        public string ConnectionMode { get; set; } = "oauth";
+        public string? SiteId { get; set; }
+        public bool HasPublicKey { get; set; }
     }
 
     /// <summary>

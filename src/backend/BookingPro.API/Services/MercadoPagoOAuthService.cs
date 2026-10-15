@@ -271,7 +271,8 @@ namespace BookingPro.API.Services
                     });
                 }
 
-                var needsRefresh = config.AccessTokenExpiresAt <= DateTime.UtcNow.AddDays(7);
+                // Las credenciales pegadas a mano no vencen ni se refrescan.
+                var needsRefresh = !config.IsCredentialsMode && config.AccessTokenExpiresAt <= DateTime.UtcNow.AddDays(7);
                 
                 return ServiceResult<MercadoPagoConnectionStatusDto>.Ok(new MercadoPagoConnectionStatusDto
                 {
@@ -284,7 +285,10 @@ namespace BookingPro.API.Services
                     AccessTokenExpiresAt = config.AccessTokenExpiresAt,
                     NeedsRefresh = needsRefresh,
                     IsTestMode = config.IsTestMode,
-                    LastError = config.LastRefreshError
+                    LastError = config.LastRefreshError,
+                    ConnectionMode = config.IsCredentialsMode ? MercadoPagoConnectionModes.Credentials : MercadoPagoConnectionModes.OAuth,
+                    SiteId = config.SiteId,
+                    HasPublicKey = !string.IsNullOrWhiteSpace(config.PublicKey)
                 });
             }
             catch (Exception ex)
@@ -306,6 +310,11 @@ namespace BookingPro.API.Services
 
                 var config = await _context.Set<MercadoPagoOAuthConfiguration>()
                     .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.IsActive);
+
+                if (config != null && config.IsCredentialsMode)
+                {
+                    return ServiceResult<bool>.Fail("Las credenciales de Mercado Pago cargadas a mano no se renuevan: si las regeneraste en Mercado Pago, volvé a cargarlas.");
+                }
 
                 if (config == null || string.IsNullOrEmpty(config.RefreshToken))
                 {
@@ -412,8 +421,9 @@ namespace BookingPro.API.Services
                     return ServiceResult<string>.Fail("MercadoPago not connected");
                 }
 
-                // Check if token needs refresh (expires in less than 1 hour)
-                if (config.AccessTokenExpiresAt <= DateTime.UtcNow.AddHours(1))
+                // Check if token needs refresh (expires in less than 1 hour). Las credenciales pegadas
+                // por el negocio (Uruguay/México) no tienen refresh token: se usan tal cual.
+                if (!config.IsCredentialsMode && config.AccessTokenExpiresAt <= DateTime.UtcNow.AddHours(1))
                 {
                     var refreshResult = await RefreshAccessTokenAsync(tenantId);
                     if (!refreshResult.Success)
@@ -518,7 +528,8 @@ namespace BookingPro.API.Services
                 var expiringConfigs = await _context.Set<MercadoPagoOAuthConfiguration>()
                     .Where(c => c.IsActive && 
                                c.AccessTokenExpiresAt <= DateTime.UtcNow.AddDays(7) &&
-                               !string.IsNullOrEmpty(c.RefreshToken))
+                               !string.IsNullOrEmpty(c.RefreshToken) &&
+                               (c.ConnectionMode == null || c.ConnectionMode != MercadoPagoConnectionModes.Credentials))
                     .ToListAsync();
 
                 var refreshedCount = 0;
@@ -571,6 +582,7 @@ namespace BookingPro.API.Services
                         config.AccountNickname = ui.Nickname;
                         config.CountryId = ui.CountryId;
                         config.CurrencyId = ui.CurrencyId;
+                        if (!string.IsNullOrEmpty(ui.SiteId)) config.SiteId = ui.SiteId;
                         config.UpdatedAt = DateTime.UtcNow;
                         await _context.SaveChangesAsync();
                     }
@@ -584,6 +596,105 @@ namespace BookingPro.API.Services
                 return ServiceResult<MercadoPagoUserInfoDto>.Fail("Error getting account info");
             }
         }
+
+        /// <summary>
+        /// Conexión por credenciales (Uruguay/México): no hay app de MP por país, así que el negocio (o
+        /// nosotros en el alta asistida) pega el Access Token de su propia cuenta MP local. Se valida contra
+        /// /users/me, se exige que la cuenta sea del país del negocio y se guarda en la misma config que
+        /// OAuth (token codificado igual), con ConnectionMode = "credentials" y sin refresh.
+        /// Argentina sigue conectando solo por OAuth.
+        /// </summary>
+        public async Task<ServiceResult<MercadoPagoConnectionStatusDto>> ConnectWithCredentialsAsync(ConnectMercadoPagoCredentialsDto dto)
+        {
+            try
+            {
+                var tenantId = _tenantProvider.GetCurrentTenantId();
+                if (tenantId == Guid.Empty)
+                {
+                    return ServiceResult<MercadoPagoConnectionStatusDto>.Fail("Tenant not found");
+                }
+
+                var tenant = await _context.Tenants.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(t => t.Id == tenantId);
+                var profile = Utilities.CountryProfile.For(tenant);
+                if (profile.MercadoPagoConnect != Utilities.MercadoPagoConnectModes.Credentials)
+                {
+                    return ServiceResult<MercadoPagoConnectionStatusDto>.Fail(profile.IsArgentina
+                        ? "En Argentina Mercado Pago se conecta con el botón \"Conectar con MercadoPago\"."
+                        : "Mercado Pago no está disponible para negocios de este país.");
+                }
+
+                var accessToken = (dto.AccessToken ?? string.Empty).Trim();
+                var publicKey = string.IsNullOrWhiteSpace(dto.PublicKey) ? null : dto.PublicKey.Trim();
+                if (!LooksLikeMercadoPagoCredential(accessToken))
+                {
+                    return ServiceResult<MercadoPagoConnectionStatusDto>.Fail("El Access Token no es válido: tiene que empezar con APP_USR- (o TEST- para pruebas).");
+                }
+                if (publicKey != null && !LooksLikeMercadoPagoCredential(publicKey))
+                {
+                    return ServiceResult<MercadoPagoConnectionStatusDto>.Fail("La Public Key no es válida: tiene que empezar con APP_USR- (o TEST- para pruebas).");
+                }
+
+                var userInfoResult = await GetUserInfoAsync(accessToken);
+                if (!userInfoResult.Success || userInfoResult.Data == null || string.IsNullOrEmpty(userInfoResult.Data.Id))
+                {
+                    return ServiceResult<MercadoPagoConnectionStatusDto>.Fail("Mercado Pago no aceptó el Access Token. Revisá que sea el de producción de tu cuenta y que esté completo.");
+                }
+
+                var info = userInfoResult.Data;
+                if (!string.IsNullOrEmpty(info.CountryId) && !string.Equals(info.CountryId, profile.Code, StringComparison.OrdinalIgnoreCase))
+                {
+                    return ServiceResult<MercadoPagoConnectionStatusDto>.Fail(
+                        $"Esa cuenta de Mercado Pago es de {info.CountryId} y tu negocio está en {profile.Name}. Usá las credenciales de tu cuenta de Mercado Pago de {profile.Name}.");
+                }
+
+                if (string.IsNullOrEmpty(info.CountryId)) info.CountryId = profile.Code;
+                if (string.IsNullOrEmpty(info.CurrencyId)) info.CurrencyId = profile.Currency;
+
+                var existingConfigs = await _context.Set<MercadoPagoOAuthConfiguration>()
+                    .Where(c => c.TenantId == tenantId && c.IsActive)
+                    .ToListAsync();
+                foreach (var old in existingConfigs)
+                {
+                    old.IsActive = false;
+                    old.DisconnectedAt = DateTime.UtcNow;
+                    old.UpdatedAt = DateTime.UtcNow;
+                }
+
+                var config = new MercadoPagoOAuthConfiguration
+                {
+                    TenantId = tenantId,
+                    MercadoPagoUserId = info.Id,
+                    AccessToken = EncryptToken(accessToken),
+                    RefreshToken = null,
+                    AccessTokenExpiresAt = MercadoPagoConnectionModes.NeverExpires,
+                    AccountEmail = info.Email,
+                    AccountNickname = info.Nickname,
+                    CountryId = info.CountryId,
+                    CurrencyId = info.CurrencyId,
+                    SiteId = string.IsNullOrEmpty(info.SiteId) ? null : info.SiteId,
+                    PublicKey = publicKey,
+                    ConnectionMode = MercadoPagoConnectionModes.Credentials,
+                    IsActive = true,
+                    IsTestMode = accessToken.StartsWith("TEST-", StringComparison.OrdinalIgnoreCase),
+                };
+                _context.Set<MercadoPagoOAuthConfiguration>().Add(config);
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("MercadoPago connected by credentials for tenant {TenantId} (MP user {UserId}, site {SiteId}, {Currency})",
+                    tenantId, info.Id, info.SiteId, info.CurrencyId);
+
+                return await GetConnectionStatusAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error connecting MercadoPago by credentials");
+                return ServiceResult<MercadoPagoConnectionStatusDto>.Fail("No pudimos validar las credenciales de Mercado Pago. Probá de nuevo en unos minutos.");
+            }
+        }
+
+        private static bool LooksLikeMercadoPagoCredential(string value) =>
+            value.Length >= 20 && value.Length <= 500 && !value.Any(char.IsWhiteSpace) &&
+            (value.StartsWith("APP_USR-", StringComparison.Ordinal) || value.StartsWith("TEST-", StringComparison.Ordinal));
 
         public async Task<ServiceResult<bool>> TestConnectionAsync()
         {
@@ -851,6 +962,7 @@ namespace BookingPro.API.Services
                     Email = ReadStringProperty(userInfo, "email"),
                     CountryId = ReadStringProperty(userInfo, "country_id"),
                     CurrencyId = ReadStringProperty(userInfo, "currency_id"),
+                    SiteId = ReadStringProperty(userInfo, "site_id"),
                     SiteStatus = !userInfo.TryGetProperty("site_status", out _)
                                  || string.Equals(ReadStringProperty(userInfo, "site_status"), "active", StringComparison.OrdinalIgnoreCase)
                 };
@@ -901,6 +1013,7 @@ namespace BookingPro.API.Services
                 AccountNickname = userInfo.Nickname,
                 CountryId = userInfo.CountryId,
                 CurrencyId = userInfo.CurrencyId,
+                SiteId = string.IsNullOrEmpty(userInfo.SiteId) ? null : userInfo.SiteId,
                 IsActive = true,
                 IsTestMode = _configuration["MercadoPago:IsTestMode"] == "true"
             };

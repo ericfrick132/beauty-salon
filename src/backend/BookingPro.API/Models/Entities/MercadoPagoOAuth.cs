@@ -107,11 +107,42 @@ namespace BookingPro.API.Models.Entities
         // Public key for frontend (no encryption needed)
         [MaxLength(500)]
         public string? PublicKey { get; set; }
+
+        /// <summary>
+        /// Cómo se conectó la cuenta: null/"oauth" = OAuth con la app de la plataforma (Argentina, con refresh
+        /// y marketplace_fee); "credentials" = el negocio pegó el Access Token de su propia cuenta MP de
+        /// Uruguay/México. Ese token no vence ni se refresca, y como no pasa por nuestra app no lleva
+        /// marketplace_fee.
+        /// </summary>
+        [MaxLength(20)]
+        public string? ConnectionMode { get; set; }
+
+        /// <summary>Sitio de MP de la cuenta (MLA, MLU, MLM), de /users/me.</summary>
+        [MaxLength(10)]
+        public string? SiteId { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public bool IsCredentialsMode => MercadoPagoConnectionModes.IsCredentials(ConnectionMode);
     }
 }
 
 namespace BookingPro.API.Models.Entities
 {
+    public static class MercadoPagoConnectionModes
+    {
+        public const string OAuth = "oauth";
+        public const string Credentials = "credentials";
+
+        /// <summary>
+        /// Vencimiento que se guarda para los tokens pegados a mano: no vencen (MP los invalida solo si el
+        /// negocio los regenera), así que nunca entran en la ventana de refresh.
+        /// </summary>
+        public static readonly DateTime NeverExpires = new(2100, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        public static bool IsCredentials(string? mode) =>
+            string.Equals(mode?.Trim(), Credentials, StringComparison.OrdinalIgnoreCase);
+    }
+
     public static class MercadoPagoOAuthClientModes
     {
         public const string Web = "web";

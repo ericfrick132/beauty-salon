@@ -35,6 +35,11 @@ export interface TenantConfig {
     arcaInvoicing: boolean;
     chytapay: boolean;
     transferDetection: boolean;
+    /** 'oauth' (AR), 'credentials' (UY/MX) o 'none' (ES). Backends viejos no lo mandan → país. */
+    mercadoPagoConnect?: 'oauth' | 'credentials' | 'none';
+    stripeDeposits?: boolean;
+    platformBilling?: 'mercadopago' | 'stripe';
+    platformCurrency?: string;
   };
   theme: ThemeConfiguration;
   features: {
