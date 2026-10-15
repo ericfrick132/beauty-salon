@@ -130,7 +130,7 @@ namespace BookingPro.API.Services
                 if (tenant == null)
                     return false;
 
-                tenant.TimeZone = timezone;
+                tenant.TimeZone = TenantTime.ResolveId(timezone, tenant.Country);
                 tenant.UpdatedAt = DateTime.UtcNow;
                 
                 await _context.SaveChangesAsync();

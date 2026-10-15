@@ -188,11 +188,14 @@ namespace BookingPro.API.Services
             await SendAndLogAsync(toEmail, subject, body, "welcome");
         }
 
-        public async Task SendBookingConfirmationAsync(string toEmail, string customerName, string serviceName, DateTime startTime, int durationMinutes, decimal price, string professionalName, string businessName, string confirmationCode)
+        public async Task SendBookingConfirmationAsync(string toEmail, string customerName, string serviceName, DateTime startTime, int durationMinutes, decimal price, string professionalName, string businessName, string confirmationCode, BookingPro.API.Models.TenantInfo? tenant = null)
         {
-            var tz = TimeZoneInfo.FindSystemTimeZoneById("America/Argentina/Buenos_Aires");
-            var localStart = TimeZoneInfo.ConvertTimeFromUtc(startTime, tz);
-            var dateStr = localStart.ToString("dddd d 'de' MMMM", new System.Globalization.CultureInfo("es-AR"));
+            // Hora y moneda del negocio; sin negocio (o sin país) → Argentina, como siempre.
+            var tz = Utilities.TenantTime.For(tenant);
+            var localStart = Utilities.TenantTime.ToLocal(startTime, tz);
+            var profile = Utilities.CountryProfile.Get(tenant?.Country);
+            var dateStr = localStart.ToString("dddd d 'de' MMMM", new System.Globalization.CultureInfo(profile.Culture));
+            var priceStr = Utilities.MoneyFormat.Format(price, tenant?.Currency ?? profile.Currency, profile.Culture);
             var timeStr = localStart.ToString("HH:mm");
             var endTime = localStart.AddMinutes(durationMinutes);
             var endTimeStr = endTime.ToString("HH:mm");
@@ -250,7 +253,7 @@ namespace BookingPro.API.Services
                     <tr>
                       <td style=""padding: 8px 0; border-top: 1px solid #e8ecf0;"">
                         <span style=""font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;"">Precio</span><br/>
-                        <span style=""font-size: 20px; font-weight: 700; color: #1565c0;"">$ {price:N0}</span>
+                        <span style=""font-size: 20px; font-weight: 700; color: #1565c0;"">{priceStr}</span>
                       </td>
                     </tr>
                   </table>

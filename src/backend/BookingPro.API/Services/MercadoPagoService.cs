@@ -464,13 +464,12 @@ namespace BookingPro.API.Services
                 if (connection == null || connection.Status != "open") return;
 
                 var tenant = await _context.Tenants.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(t => t.Id == tenantId);
-                // Misma convención que el asistente: offset en horas del tenant ("-3"), si no Argentina.
-                var offset = int.TryParse(tenant?.TimeZone, out var h) && h is >= -12 and <= 14 ? h : -3;
-                var local = booking.StartTime.AddHours(offset);
-                var es = new System.Globalization.CultureInfo("es-AR");
+                // Hora y moneda del negocio (zona IANA o el offset viejo "-3"; sin configurar → Argentina).
+                var local = Utilities.TenantTime.ToLocal(booking.StartTime, Utilities.TenantTime.For(tenant));
+                var es = Utilities.MoneyFormat.CultureFor(tenant);
                 var day = local.ToString("dddd dd/MM", es);
                 day = string.IsNullOrEmpty(day) ? day : char.ToUpper(day[0]) + day[1..];
-                var money = "$" + amount.ToString("N0", es);
+                var money = Utilities.MoneyFormat.Format(amount, tenant);
 
                 var msg = $"¡Recibimos tu seña de {money} ✅! Tu turno del {day} a las {local:HH:mm} quedó confirmado. ¡Te esperamos!";
                 var send = await _whatsApp.SendTextAsync(tenantId, phone, msg);

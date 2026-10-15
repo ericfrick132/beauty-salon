@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using BookingPro.API.Services;
 using BookingPro.API.Data;
+using BookingPro.API.Utilities;
 using System.Text.Json;
 
 namespace BookingPro.API.Controllers
@@ -58,12 +59,25 @@ namespace BookingPro.API.Controllers
                 }
                 catch { /* column may not exist pre-migration; stay graceful */ }
 
+                var countryProfile = CountryProfile.Get(tenant.Country);
                 var config = new
                 {
                     tenantId = tenant.Id,
                     businessName = tenant.BusinessName,
                     vertical = tenant.VerticalCode,
-                    timezone = tenant.TimeZone ?? "-3",
+                    timezone = tenant.TimeZone,
+                    country = tenant.Country,
+                    currency = tenant.Currency,
+                    locale = countryProfile.Culture,
+                    dialCode = countryProfile.DialCode,
+                    documentLabel = countryProfile.DocumentLabel,
+                    phonePlaceholder = countryProfile.PhonePlaceholder,
+                    countryFeatures = new
+                    {
+                        arcaInvoicing = countryProfile.ArcaInvoicing,
+                        chytapay = countryProfile.Chytapay,
+                        transferDetection = countryProfile.TransferDetection,
+                    },
                     theme = tenant.Theme,
                     features = tenant.Features,
                     terminology = tenant.Terminology,
@@ -114,8 +128,9 @@ namespace BookingPro.API.Controllers
                     phone = tenant.OwnerPhone,
                     email = tenant.OwnerEmail,
                     ownerName = tenant.OwnerName,
-                    timezone = tenant.TimeZone ?? "-3",
-                    currency = tenant.Currency ?? "ARS",
+                    timezone = TenantTime.ResolveId(tenant.TimeZone, tenant.Country),
+                    country = CountryProfile.For(tenant).Code,
+                    currency = CountryProfile.CurrencyFor(tenant),
                     language = tenant.Language ?? "es",
                     description = GetStringSetting(settings, "description"),
                     website = GetStringSetting(settings, "website"),
@@ -155,11 +170,18 @@ namespace BookingPro.API.Controllers
                 if (!string.IsNullOrWhiteSpace(request.Email))
                     tenant.OwnerEmail = request.Email.Trim();
 
+                if (!string.IsNullOrWhiteSpace(request.Country))
+                {
+                    if (!CountryProfile.IsSupported(request.Country))
+                        return BadRequest(new { message = "País no soportado" });
+                    tenant.Country = CountryProfile.Get(request.Country).Code;
+                }
+
                 if (!string.IsNullOrWhiteSpace(request.Timezone))
-                    tenant.TimeZone = request.Timezone.Trim();
+                    tenant.TimeZone = TenantTime.ResolveId(request.Timezone.Trim(), tenant.Country);
 
                 if (!string.IsNullOrWhiteSpace(request.Currency))
-                    tenant.Currency = request.Currency.Trim();
+                    tenant.Currency = request.Currency.Trim().ToUpperInvariant();
 
                 if (!string.IsNullOrWhiteSpace(request.Language))
                     tenant.Language = request.Language.Trim();
@@ -346,6 +368,7 @@ namespace BookingPro.API.Controllers
         public string? Email { get; set; }
         public string? Website { get; set; }
         public string? Timezone { get; set; }
+        public string? Country { get; set; }
         public string? Currency { get; set; }
         public string? Language { get; set; }
         public string? TaxId { get; set; }

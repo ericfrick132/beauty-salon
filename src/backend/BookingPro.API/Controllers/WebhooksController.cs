@@ -208,6 +208,16 @@ namespace BookingPro.API.Controllers
             }
         }
 
+        /// <summary>Zona horaria del negocio (StartTime se guarda en UTC; el servidor corre en UTC).</summary>
+        private async Task<TimeZoneInfo> TenantTzAsync(Guid tenantId)
+        {
+            var row = await _context.Tenants.IgnoreQueryFilters().AsNoTracking()
+                .Where(t => t.Id == tenantId)
+                .Select(t => new { t.TimeZone, t.Country })
+                .FirstOrDefaultAsync();
+            return Utilities.TenantTime.Get(row?.TimeZone, row?.Country);
+        }
+
         private async Task HandleConnectionUpdate(string instanceName, JsonElement json)
         {
             var state = "close";
@@ -522,7 +532,7 @@ namespace BookingPro.API.Controllers
                 request.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
 
-                var repromptTime = booking.StartTime.ToLocalTime();
+                var repromptTime = Utilities.TenantTime.ToLocal(booking.StartTime, await TenantTzAsync(tenantId));
                 var reprompt = $"No te entendí 🙂 Sobre tu turno del {repromptTime:dd/MM} a las {repromptTime:HH:mm}: " +
                     "respondé solo *1* para confirmarlo ✅ o *2* para cancelarlo ❌";
                 try
@@ -553,7 +563,7 @@ namespace BookingPro.API.Controllers
             }
 
             var now = DateTime.UtcNow;
-            var timeLocal = booking.StartTime.ToLocalTime();
+            var timeLocal = Utilities.TenantTime.ToLocal(booking.StartTime, await TenantTzAsync(tenantId));
             var firstName = booking.Customer?.FirstName ?? "";
             string ack;
 

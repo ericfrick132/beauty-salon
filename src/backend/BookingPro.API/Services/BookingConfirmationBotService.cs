@@ -146,7 +146,8 @@ namespace BookingPro.API.Services
                 var phone = booking.Customer?.Phone;
                 if (string.IsNullOrWhiteSpace(phone)) continue;
 
-                var timeLocal = booking.StartTime.ToLocalTime();
+                // StartTime está en UTC: hora del negocio, no la del servidor (que corre en UTC).
+                var timeLocal = Utilities.TenantTime.ToLocal(booking.StartTime, Utilities.TenantTime.For(tenant));
                 var template = settings.ConfirmationTemplate
                     ?? "Hola {customer_name}! Te escribimos de {business_name} por tu turno de {service_name} el {date} a las {time}.";
                 var body = template

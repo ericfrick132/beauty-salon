@@ -201,10 +201,7 @@ namespace BookingPro.API.Controllers
             if (minAdvance > 0)
             {
                 // Compute local tenant now, compare with each slot (on provided date)
-                var tenantInfo = _tenantService.GetCurrentTenant();
-                int offsetHours = 0;
-                int.TryParse(tenantInfo?.TimeZone ?? "0", out offsetHours);
-                var localNow = DateTime.UtcNow.AddHours(offsetHours);
+                var localNow = TenantTime.NowLocal(TenantTime.For(_tenantService.GetCurrentTenant()));
 
                 var filtered = new List<string>();
                 foreach (var slot in result.Data ?? Enumerable.Empty<string>())
@@ -292,11 +289,9 @@ namespace BookingPro.API.Controllers
                 var minAdvance = await GetMinAdvanceMinutesAsync();
                 if (minAdvance > 0)
                 {
-                    var currentTenantInfo = _tenantService.GetCurrentTenant();
-                    int offsetHours = 0;
-                    int.TryParse(currentTenantInfo?.TimeZone ?? "0", out offsetHours);
-                    var localNow = DateTime.UtcNow.AddHours(offsetHours);
-                    var localStart = dto.StartTime.AddHours(offsetHours);
+                    var tenantTz = TenantTime.For(_tenantService.GetCurrentTenant());
+                    var localNow = TenantTime.NowLocal(tenantTz);
+                    var localStart = TenantTime.ToLocal(dto.StartTime, tenantTz);
                     if (localStart < localNow.AddMinutes(minAdvance))
                     {
                         return BadRequest(new { message = $"Las reservas deben hacerse con al menos {minAdvance} minutos de anticipación" });
@@ -492,7 +487,8 @@ namespace BookingPro.API.Controllers
                 try
                 {
                     var employee = await _context.Employees.FindAsync(dto.EmployeeId);
-                    var tenantName = _tenantService.GetCurrentTenant()?.BusinessName ?? "TurnosPro";
+                    var currentTenant = _tenantService.GetCurrentTenant();
+                    var tenantName = currentTenant?.BusinessName ?? "TurnosPro";
                     await _emailService.SendBookingConfirmationAsync(
                         dto.CustomerEmail,
                         dto.CustomerName,
@@ -502,7 +498,8 @@ namespace BookingPro.API.Controllers
                         service.Price,
                         employee?.Name ?? "Sin asignar",
                         tenantName,
-                        confirmationCode
+                        confirmationCode,
+                        currentTenant
                     );
                 }
                 catch (Exception emailEx)
@@ -593,12 +590,10 @@ namespace BookingPro.API.Controllers
             var alternatives = new List<object>();
             try
             {
-                var tenantInfo = _tenantService.GetCurrentTenant();
-                int offsetHours = 0;
-                int.TryParse(tenantInfo?.TimeZone ?? "0", out offsetHours);
+                var tenantTz = TenantTime.For(_tenantService.GetCurrentTenant());
 
-                var attemptedLocalDate = attemptedStartUtc.AddHours(offsetHours).Date;
-                var todayLocal = DateTime.UtcNow.AddHours(offsetHours).Date;
+                var attemptedLocalDate = TenantTime.ToLocal(attemptedStartUtc, tenantTz).Date;
+                var todayLocal = TenantTime.NowLocal(tenantTz).Date;
                 var firstDay = attemptedLocalDate < todayLocal ? todayLocal : attemptedLocalDate;
 
                 for (var i = 0; i < daysToScan && alternatives.Count < maxDays; i++)

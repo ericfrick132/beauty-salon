@@ -7,6 +7,7 @@ using BookingPro.API.Models.Constants;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Models.Entities;
 using BookingPro.API.Services.Interfaces;
+using BookingPro.API.Utilities;
 using Microsoft.EntityFrameworkCore;
 
 namespace BookingPro.API.Services
@@ -109,7 +110,9 @@ namespace BookingPro.API.Services
                 Id = tenantId,
                 Subdomain = tenant.Subdomain ?? "",
                 BusinessName = tenant.BusinessName ?? "",
-                TimeZone = tenant.TimeZone ?? "-3",
+                TimeZone = TenantTime.ResolveId(tenant.TimeZone, tenant.Country),
+                Country = CountryProfile.For(tenant).Code,
+                Currency = CountryProfile.CurrencyFor(tenant),
             });
 
             var settings = await GetOrCreateSettingsAsync(tenantId);
@@ -247,7 +250,7 @@ namespace BookingPro.API.Services
             s.Step = StepService;
             var sb = new StringBuilder("💇 ¿Qué servicio querés?\n");
             for (var i = 0; i < services.Count; i++)
-                sb.AppendLine($"{i + 1}) {services[i].Name} · {Money(services[i].Price)} · {services[i].DurationMinutes} min");
+                sb.AppendLine($"{i + 1}) {services[i].Name} · {Money(tenant, services[i].Price)} · {services[i].DurationMinutes} min");
             sb.AppendLine("0) Volver al menú");
             return sb.ToString().TrimEnd();
         }
@@ -418,7 +421,7 @@ namespace BookingPro.API.Services
             sb.AppendLine($"• {Capitalize(date.ToString("dddd dd/MM", Es))} a las {d.Time}");
             sb.AppendLine($"• {service?.Name ?? "Servicio"}{(service != null ? $" ({service.DurationMinutes} min)" : "")}");
             if (pro != null) sb.AppendLine($"• Con {pro.Name}");
-            if (service != null && service.Price > 0) sb.AppendLine($"• Precio: {Money(service.Price)}");
+            if (service != null && service.Price > 0) sb.AppendLine($"• Precio: {Money(tenant, service.Price)}");
             var deposit = DepositFor(service);
             if (deposit.HasValue && service != null)
             {
@@ -430,9 +433,9 @@ namespace BookingPro.API.Services
                     var startUtc = date.Add(TimeSpan.Parse(d.Time!)).AddHours(-OffsetHours(tenant));
                     var customer = await FindCustomerAsync(s.Phone, ct);
                     var mpDeposit = await DepositByPolicyAsync(service.Id, customer?.Id, startUtc);
-                    if (mpDeposit.HasValue) sb.AppendLine($"• Seña: {Money(mpDeposit.Value)} (al confirmar te paso el link de Mercado Pago)");
+                    if (mpDeposit.HasValue) sb.AppendLine($"• Seña: {Money(tenant, mpDeposit.Value)} (al confirmar te paso el link de Mercado Pago)");
                 }
-                else sb.AppendLine($"• Seña: {Money(deposit.Value)} (se coordina con el negocio)");
+                else sb.AppendLine($"• Seña: {Money(tenant, deposit.Value)} (se coordina con el negocio)");
             }
             sb.AppendLine($"• A nombre de: {d.Name}");
             sb.AppendLine();
@@ -457,8 +460,7 @@ namespace BookingPro.API.Services
             }
 
             var date = DateTime.ParseExact(d.Date!, "yyyy-MM-dd", CultureInfo.InvariantCulture);
-            var offset = OffsetHours(tenant);
-            var startUtc = date.Add(TimeSpan.Parse(d.Time!)).AddHours(-offset);
+            var startUtc = TenantTime.ToUtc(date.Add(TimeSpan.Parse(d.Time!)), TenantTime.For(tenant));
             var endUtc = startUtc.AddMinutes(service.DurationMinutes);
 
             if (startUtc <= DateTime.UtcNow.AddMinutes(settings.MinBookingAdvanceMinutes))
@@ -498,7 +500,7 @@ namespace BookingPro.API.Services
                 {
                     var pay = new StringBuilder();
                     pay.AppendLine($"📅 Reservamos tu turno: {service.Name}{(pro != null ? $" con {pro.Name}" : "")}, {whenText}.");
-                    pay.AppendLine($"Para confirmarlo, aboná la seña de {Money(depositLink.Value.Amount)} acá 👇");
+                    pay.AppendLine($"Para confirmarlo, aboná la seña de {Money(tenant, depositLink.Value.Amount)} acá 👇");
                     pay.AppendLine(depositLink.Value.Link);
                     pay.AppendLine("Apenas se acredite te aviso por acá ✅");
                     pay.AppendLine();
@@ -510,9 +512,9 @@ namespace BookingPro.API.Services
                 var sb = new StringBuilder("✅ ¡Turno confirmado!\n");
                 sb.AppendLine($"• {whenText}");
                 sb.AppendLine($"• {service.Name}{(pro != null ? $" con {pro.Name}" : "")}");
-                if (service.Price > 0) sb.AppendLine($"• Precio: {Money(service.Price)}");
+                if (service.Price > 0) sb.AppendLine($"• Precio: {Money(tenant, service.Price)}");
                 var deposit = DepositFor(service);
-                if (deposit.HasValue) sb.AppendLine($"• Seña: {Money(deposit.Value)} (se coordina con el negocio)");
+                if (deposit.HasValue) sb.AppendLine($"• Seña: {Money(tenant, deposit.Value)} (se coordina con el negocio)");
                 sb.AppendLine();
                 sb.AppendLine($"Podés cancelarlo por acá hasta {settings.CancellationCutoffHours} hs antes (escribí *cancelar*).");
                 sb.Append("Escribí *menu* para volver al inicio.");
@@ -641,7 +643,7 @@ namespace BookingPro.API.Services
                 sb.AppendLine();
                 sb.AppendLine("💇 *Servicios y precios*");
                 foreach (var x in services)
-                    sb.AppendLine($"• {x.Name}: {Money(x.Price)} · {x.DurationMinutes} min");
+                    sb.AppendLine($"• {x.Name}: {Money(tenant, x.Price)} · {x.DurationMinutes} min");
             }
             if (!string.IsNullOrWhiteSpace(settings.InfoText))
             {
@@ -846,7 +848,7 @@ namespace BookingPro.API.Services
 
         private string Describe(Tenant tenant, Booking b)
         {
-            var local = b.StartTime.AddHours(OffsetHours(tenant));
+            var local = TenantTime.ToLocal(b.StartTime, TenantTime.For(tenant));
             var what = b.Service?.Name ?? "Turno";
             var who = b.Employee != null ? $" con {b.Employee.Name}" : "";
             return $"{Capitalize(local.ToString("ddd dd/MM", Es))} {local:HH:mm} · {what}{who}";
@@ -954,14 +956,14 @@ namespace BookingPro.API.Services
 
         private static readonly CultureInfo Es = new("es-AR");
 
-        private static int OffsetHours(Tenant tenant) =>
-            int.TryParse(tenant.TimeZone, out var h) && h is >= -12 and <= 14 ? h : -3;
+        // Hora local del negocio (zona IANA; los offsets viejos "-3" y "sin configurar" siguen siendo Argentina).
+        private static int OffsetHours(Tenant tenant) => TenantTime.OffsetHours(TenantTime.For(tenant));
 
-        private static DateTime NowLocal(Tenant tenant) => DateTime.UtcNow.AddHours(OffsetHours(tenant));
+        private static DateTime NowLocal(Tenant tenant) => TenantTime.NowLocal(TenantTime.For(tenant));
 
         private static string Digits(string? s) => new((s ?? "").Where(char.IsDigit).ToArray());
 
-        private static string Money(decimal amount) => "$" + amount.ToString("N0", Es);
+        private static string Money(Tenant tenant, decimal amount) => MoneyFormat.Format(amount, tenant);
 
         private static string HumanMinutes(int minutes) =>
             minutes % 60 == 0 ? (minutes / 60 == 1 ? "1 hora" : $"{minutes / 60} horas") : $"{minutes} minutos";

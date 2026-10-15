@@ -54,8 +54,9 @@ namespace BookingPro.API.Services
                 }
 
                 // Build message body from template
-                var timeLocal = booking.StartTime.ToLocalTime();
                 var tenant = await _context.Tenants.FirstOrDefaultAsync(t => t.Id == booking.TenantId);
+                // StartTime está en UTC: hora del negocio, no la del servidor (que corre en UTC).
+                var timeLocal = Utilities.TenantTime.ToLocal(booking.StartTime, Utilities.TenantTime.For(tenant));
                 var template = settings.ReminderTemplate
                     ?? "Hola {customer_name}! Te recordamos tu turno para {service_name} el {date} a las {time}.";
                 string body = template
@@ -138,7 +139,8 @@ namespace BookingPro.API.Services
                     return ServiceResult<bool>.Ok(true, "Already sent");
 
                 var tenant = await _context.Tenants.FirstOrDefaultAsync(t => t.Id == booking.TenantId);
-                var timeLocal = booking.StartTime.ToLocalTime();
+                // StartTime está en UTC: hora del negocio, no la del servidor (que corre en UTC).
+                var timeLocal = Utilities.TenantTime.ToLocal(booking.StartTime, Utilities.TenantTime.For(tenant));
                 var body = $"Hola {booking.Customer?.FirstName}! Tu turno para {booking.Service?.Name ?? "servicio"} " +
                            $"el {timeLocal:dd/MM/yyyy} a las {timeLocal:HH:mm} con {booking.Employee?.Name ?? "nosotros"} " +
                            $"fue confirmado. {tenant?.BusinessName ?? ""}";

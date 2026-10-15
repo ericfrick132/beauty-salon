@@ -32,12 +32,16 @@ namespace BookingPro.API.Services
         private static int Cfg(IConfiguration c, string key, int def) =>
             c.GetValue<int?>($"WhatsAppLine:{key}") ?? c.GetValue($"OtpFollowup:{key}", def);
 
-        public static bool WithinActiveHours(IConfiguration config)
+        /// <summary>
+        /// Franja horaria de envío de la línea de plataforma. Por defecto en hora de Argentina; con
+        /// <paramref name="tz"/> se evalúa en la zona del destinatario (p.ej. TenantTime.For(tenant)).
+        /// </summary>
+        public static bool WithinActiveHours(IConfiguration config, TimeZoneInfo? tz = null)
         {
             var fromHour = Cfg(config, "ActiveFromHour", 10);
             var toHour = Cfg(config, "ActiveToHour", 20);
-            var nowAr = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ArTz());
-            return nowAr.Hour >= fromHour && nowAr.Hour < toHour;
+            var nowLocal = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, tz ?? ArTz());
+            return nowLocal.Hour >= fromHour && nowLocal.Hour < toHour;
         }
 
         public static bool GaugeReady(IConfiguration config)
@@ -65,11 +69,7 @@ namespace BookingPro.API.Services
             }
         }
 
-        public static TimeZoneInfo ArTz()
-        {
-            try { return TimeZoneInfo.FindSystemTimeZoneById("America/Argentina/Buenos_Aires"); }
-            catch { return TimeZoneInfo.CreateCustomTimeZone("AR", TimeSpan.FromHours(-3), "AR", "AR"); }
-        }
+        public static TimeZoneInfo ArTz() => Utilities.TenantTime.Get(null, Utilities.CountryProfile.DefaultCode);
 
         /// <summary>
         /// Manda por la Evolution de plataforma respetando el modo prueba de la sección

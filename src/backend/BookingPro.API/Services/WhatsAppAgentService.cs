@@ -7,6 +7,7 @@ using BookingPro.API.Models;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Models.Entities;
 using BookingPro.API.Services.Interfaces;
+using BookingPro.API.Utilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -79,7 +80,9 @@ namespace BookingPro.API.Services
             {
                 Id = tenantId,
                 BusinessName = tenant.BusinessName ?? "",
-                TimeZone = tenant.TimeZone ?? "-3",
+                TimeZone = TenantTime.ResolveId(tenant.TimeZone, tenant.Country),
+                Country = CountryProfile.For(tenant).Code,
+                Currency = CountryProfile.CurrencyFor(tenant),
             });
 
             _client ??= new AnthropicClient { ApiKey = _apiKey };
@@ -90,8 +93,7 @@ namespace BookingPro.API.Services
             messages.Add(new MessageParam { Role = Role.User, Content = text });
 
             var tools = BuildTools();
-            var offsetH = int.TryParse(tenant.TimeZone, out var oh) && oh >= -12 && oh <= 14 ? oh : -3;
-            var system = BuildSystemPrompt(tenant.BusinessName ?? "el comercio", DateTime.UtcNow.AddHours(offsetH));
+            var system = BuildSystemPrompt(tenant.BusinessName ?? "el comercio", TenantTime.NowLocal(TenantTime.For(tenant)));
 
             string finalText = "";
             try
@@ -275,11 +277,9 @@ namespace BookingPro.API.Services
                     var professional = await _public.GetEmployeeByIdAsync(professionalId);
                     if (professional == null) return "El profesional elegido no existe o no atiende.";
 
-                    // El comercio trabaja en hora local (offset del tenant). El sistema guarda StartTime en UTC:
-                    // localSlot = fecha + hora local ; StartTime(UTC) = localSlot - offset.
-                    var offset = ParseOffsetHours(tenant.TimeZone);
+                    // El comercio trabaja en hora local (zona del tenant). El sistema guarda StartTime en UTC.
                     var localSlot = date.Date.Add(ts);
-                    var startUtc = localSlot.AddHours(-offset);
+                    var startUtc = TenantTime.ToUtc(localSlot, TenantTime.For(tenant));
                     var endUtc = startUtc.AddMinutes(service.DurationMinutes);
 
                     try
@@ -307,15 +307,6 @@ namespace BookingPro.API.Services
         }
 
         // ---------------- helpers ----------------
-
-        private static int ParseOffsetHours(string? tz)
-        {
-            // Los tenants guardan el offset como string ("-3"). Si viene un nombre IANA u otro
-            // formato no numérico, caemos a -3 (Argentina), que es el default del sistema.
-            if (!string.IsNullOrWhiteSpace(tz) && int.TryParse(tz, out var off) && off >= -12 && off <= 14)
-                return off;
-            return -3;
-        }
 
         private static bool TryParseDate(string s, out DateTime date)
         {

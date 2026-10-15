@@ -6,6 +6,7 @@ using BookingPro.API.Models.Common;
 using BookingPro.API.Models.Enums;
 using BookingPro.API.Services.Interfaces;
 using BookingPro.API.Repositories;
+using BookingPro.API.Utilities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -381,15 +382,12 @@ namespace BookingPro.API.Services
                 if (service == null)
                     return ServiceResult<IEnumerable<string>>.Fail("Service not found");
 
-                // Get tenant timezone offset
-                var tenantInfo = _tenantService.GetCurrentTenant();
-                var timezoneOffset = tenantInfo?.TimeZone ?? "-3";
-                
-                // Parse timezone offset (e.g., "-3" -> -3 hours)
-                if (!int.TryParse(timezoneOffset, out int offsetHours))
-                {
-                    offsetHours = -3; // Default to Argentina timezone
-                }
+                // Zona horaria del negocio (IANA; offsets viejos "-3" y sin configurar → país / Argentina).
+                // El offset se toma al mediodía del día pedido: en Argentina es siempre -3; en países con
+                // horario de verano (España) queda bien todo el día salvo la madrugada del cambio.
+                var tenantTz = TenantTime.For(_tenantService.GetCurrentTenant());
+                var refUtc = date.Kind == DateTimeKind.Utc ? date : DateTime.SpecifyKind(date.Date.AddHours(12), DateTimeKind.Utc);
+                int offsetHours = TenantTime.OffsetHours(tenantTz, refUtc);
 
                 // Convert input date to tenant timezone using simple offset
                 var localDate = date.Kind == DateTimeKind.Utc 
@@ -490,7 +488,7 @@ namespace BookingPro.API.Services
                     if (!hasConflict && IsWithinBusinessHours(localSlotStart, localSlotEnd, businessConfig))
                     {
                         // Compare with current time in tenant timezone
-                        var currentTimeInTenantZone = DateTime.UtcNow.AddHours(offsetHours);
+                        var currentTimeInTenantZone = TenantTime.NowLocal(tenantTz);
                         var isPast = localSlotStart <= currentTimeInTenantZone;
                         var timeString = localSlotStart.ToString("HH:mm");
                         
@@ -520,16 +518,13 @@ namespace BookingPro.API.Services
         // Convert UTC times to tenant local time for business-hours / schedule validation
         private (DateTime localStart, DateTime localEnd) ConvertToLocalTime(DateTime startTime, DateTime endTime)
         {
-            var tenantInfo = _tenantService.GetCurrentTenant();
-            var timezoneStr = tenantInfo?.TimeZone ?? "-3";
-            if (!int.TryParse(timezoneStr, out int offsetHours))
-                offsetHours = -3; // default AR
+            var tz = TenantTime.For(_tenantService.GetCurrentTenant());
 
             var localStart = startTime.Kind == DateTimeKind.Utc
-                ? startTime.AddHours(offsetHours)
+                ? TenantTime.ToLocal(startTime, tz)
                 : startTime;
             var localEnd = endTime.Kind == DateTimeKind.Utc
-                ? endTime.AddHours(offsetHours)
+                ? TenantTime.ToLocal(endTime, tz)
                 : endTime;
 
             return (localStart, localEnd);
@@ -890,9 +885,7 @@ namespace BookingPro.API.Services
         private async Task<ServiceResult> ValidateEmployeeNotBlocked(Guid employeeId, DateTime startTime, DateTime endTime)
         {
             var ctx = _bookingRepository.GetContext();
-            var tenantInfo = _tenantService.GetCurrentTenant();
-            var tzStr = tenantInfo?.TimeZone ?? "-3";
-            int tzOffset = int.TryParse(tzStr, out var o) ? o : -3;
+            int tzOffset = TenantTime.OffsetHours(TenantTime.For(_tenantService.GetCurrentTenant()), startTime);
 
             var allBlocks = await ctx.Set<EmployeeTimeBlock>()
                 .Where(b => b.EmployeeId == employeeId)

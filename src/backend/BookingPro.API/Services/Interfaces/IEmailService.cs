@@ -3,7 +3,7 @@ namespace BookingPro.API.Services.Interfaces
     public interface IEmailService
     {
         Task SendConfirmationEmailAsync(string toEmail, string confirmUrl);
-        Task SendBookingConfirmationAsync(string toEmail, string customerName, string serviceName, DateTime startTime, int durationMinutes, decimal price, string professionalName, string businessName, string confirmationCode);
+        Task SendBookingConfirmationAsync(string toEmail, string customerName, string serviceName, DateTime startTime, int durationMinutes, decimal price, string professionalName, string businessName, string confirmationCode, BookingPro.API.Models.TenantInfo? tenant = null);
 
         // Subscription / billing lifecycle
         Task SendPaymentSucceededAsync(string toEmail, string recipientName, decimal amount, string currency, Guid? tenantId = null);

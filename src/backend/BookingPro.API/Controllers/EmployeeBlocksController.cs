@@ -27,9 +27,8 @@ namespace BookingPro.API.Controllers
 
         private int GetTzOffset()
         {
-            var tenant = _tenantService.GetCurrentTenant();
-            var tz = tenant?.TimeZone ?? "-3";
-            return int.TryParse(tz, out var oh) ? oh : -3;
+            // Zona del negocio (IANA o el offset viejo "-3"); sin configurar → Argentina.
+            return Utilities.TenantTime.OffsetHours(Utilities.TenantTime.For(_tenantService.GetCurrentTenant()));
         }
 
         /// <summary>

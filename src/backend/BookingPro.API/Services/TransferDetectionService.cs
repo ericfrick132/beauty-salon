@@ -717,7 +717,8 @@ namespace BookingPro.API.Services
 
         private static string? Cap(string? s, int max) => string.IsNullOrEmpty(s) ? s : (s.Length <= max ? s : s[..max]);
         private static string Truncate(string s, int max) => string.IsNullOrEmpty(s) || s.Length <= max ? s : s[..max] + "…";
-        private static string Money(decimal amount) => "$" + amount.ToString("N0", new CultureInfo("es-AR"));
+        // Detección de transferencias existe solo en Argentina (CountryProfile.TransferDetection): pesos y hora AR.
+        private static string Money(decimal amount) => Utilities.MoneyFormat.Format(amount, "ARS");
 
         public static string When(Booking b)
         {
@@ -726,11 +727,7 @@ namespace BookingPro.API.Services
             return $"{culture.TextInfo.ToTitleCase(local.ToString("dddd d/M", culture))} a las {local:HH:mm}";
         }
 
-        private static TimeZoneInfo ResolveTz()
-        {
-            try { return TimeZoneInfo.FindSystemTimeZoneById("America/Argentina/Buenos_Aires"); }
-            catch { return TimeZoneInfo.CreateCustomTimeZone("ART", TimeSpan.FromHours(-3), "ART", "ART"); }
-        }
+        private static TimeZoneInfo ResolveTz() => Utilities.TenantTime.Get(null, Utilities.CountryProfile.DefaultCode);
 
         private sealed class IncomingTransfer
         {

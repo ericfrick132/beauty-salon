@@ -88,8 +88,8 @@ namespace BookingPro.API.Services
                     .Select(u => u.Id).Distinct().ToList();
                 if (recipients.Count == 0) return;
 
-                var local = ToLocal(booking.StartTime, tenant.TimeZone);
-                var when = local.ToString("ddd d/M HH:mm", new System.Globalization.CultureInfo("es-AR"));
+                var local = Utilities.TenantTime.ToLocal(booking.StartTime, Utilities.TenantTime.For(tenant));
+                var when = local.ToString("ddd d/M HH:mm", Utilities.MoneyFormat.CultureFor(tenant));
                 var customer = $"{booking.Customer?.FirstName} {booking.Customer?.LastName}".Trim();
                 var service = booking.Service?.Name ?? "Turno";
                 var title = kind switch { "cancelled" => "Turno cancelado", "paid" => "Seña recibida ✓", _ => "Nuevo turno" };
@@ -274,14 +274,6 @@ namespace BookingPro.API.Services
             if (v.StartsWith("{")) return v;
             try { return Encoding.UTF8.GetString(Convert.FromBase64String(v)); }
             catch { return string.Empty; }
-        }
-
-        private static DateTime ToLocal(DateTime utc, string? tzId)
-        {
-            TimeZoneInfo tz;
-            try { tz = TimeZoneInfo.FindSystemTimeZoneById(string.IsNullOrWhiteSpace(tzId) || tzId == "UTC" ? "America/Argentina/Buenos_Aires" : tzId); }
-            catch { tz = TimeZoneInfo.FindSystemTimeZoneById("America/Argentina/Buenos_Aires"); }
-            return TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), tz);
         }
 
         private static bool SectionFlag(string? settingsJson, string section, string key, bool fallback)

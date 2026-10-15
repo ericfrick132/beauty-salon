@@ -137,7 +137,8 @@ namespace BookingPro.API.Services
                 if (alreadySent) continue;
 
                 // Build message from template
-                var timeLocal = booking.StartTime.ToLocalTime();
+                // StartTime está en UTC: hora del negocio, no la del servidor (que corre en UTC).
+                var timeLocal = Utilities.TenantTime.ToLocal(booking.StartTime, Utilities.TenantTime.For(tenant));
                 var template = settings.ReminderTemplate
                     ?? "Hola {customer_name}! Te recordamos tu turno para {service_name} el {date} a las {time}.";
                 var body = template
