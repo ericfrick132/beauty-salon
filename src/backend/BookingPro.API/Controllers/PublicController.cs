@@ -405,9 +405,12 @@ namespace BookingPro.API.Controllers
                         var tenantRow = await _context.Tenants
                             .AsNoTracking()
                             .Where(t => t.Id == tenantInfo.Id)
-                            .Select(t => new { t.DefaultPaymentProvider })
+                            .Select(t => new { t.DefaultPaymentProvider, t.Country })
                             .FirstOrDefaultAsync();
                         var provider = (tenantRow?.DefaultPaymentProvider ?? "mercadopago").ToLowerInvariant();
+                        // Chytapay (CVU) existe solo en Argentina: fuera de AR siempre Mercado Pago.
+                        if (provider == "chytapay" && !CountryProfile.Get(tenantRow?.Country).Chytapay)
+                            provider = "mercadopago";
 
                         if (provider == "chytapay")
                         {

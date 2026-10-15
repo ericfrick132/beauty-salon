@@ -15,6 +15,7 @@ namespace BookingPro.API.Controllers
     [ApiController]
     [Route("api/invoicing")]
     [Authorize(Roles = "admin,super_admin")]
+    [Utilities.CountryFeature(Utilities.CountryFeature.ArcaInvoicing)] // ARCA es solo Argentina
     public class InvoicingController : ControllerBase
     {
         private readonly ApplicationDbContext _db;

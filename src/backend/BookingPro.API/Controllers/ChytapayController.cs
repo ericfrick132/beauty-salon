@@ -9,6 +9,7 @@ namespace BookingPro.API.Controllers
     [ApiController]
     [Route("api/chytapay")]
     [Authorize]
+    [Utilities.CountryFeature(Utilities.CountryFeature.Chytapay)] // Chytapay (CVU) es solo Argentina
     public class ChytapayController : ControllerBase
     {
         private readonly IChytapayService _chytapayService;

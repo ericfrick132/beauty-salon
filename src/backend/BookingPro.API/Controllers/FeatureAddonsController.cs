@@ -3,6 +3,7 @@ using BookingPro.API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 
 namespace BookingPro.API.Controllers
 {
@@ -49,6 +50,16 @@ namespace BookingPro.API.Controllers
         {
             var tenantId = GetTenantId();
             if (tenantId == Guid.Empty) return Unauthorized();
+
+            // La detección de transferencias (CVU / Mercado Pago Argentina) es solo para negocios de Argentina.
+            if (string.Equals(dto.Code, Models.Constants.FeatureCodes.TransferDetection, StringComparison.OrdinalIgnoreCase))
+            {
+                var db = HttpContext.RequestServices.GetRequiredService<Data.ApplicationDbContext>();
+                var country = await db.Tenants.IgnoreQueryFilters().AsNoTracking()
+                    .Where(t => t.Id == tenantId).Select(t => t.Country).FirstOrDefaultAsync();
+                if (!Utilities.CountryProfile.Get(country).TransferDetection)
+                    return StatusCode(403, new { error = "Esta función no está disponible en el país del negocio." });
+            }
 
             var result = await _featureAddonService.CreatePurchaseAsync(tenantId, dto.Code);
             if (!result.Success || result.Data == null)

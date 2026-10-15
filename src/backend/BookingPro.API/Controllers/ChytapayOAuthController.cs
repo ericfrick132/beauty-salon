@@ -28,6 +28,7 @@ namespace BookingPro.API.Controllers
 
         [HttpPost("initiate")]
         [Authorize]
+        [Utilities.CountryFeature(Utilities.CountryFeature.Chytapay)] // solo Argentina
         public async Task<IActionResult> InitiateOAuth([FromBody] InitiateChytapayOAuthDto dto)
         {
             try

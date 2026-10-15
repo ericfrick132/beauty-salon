@@ -18,6 +18,7 @@ namespace BookingPro.API.Controllers
     [ApiController]
     [Route("api/transfer-detection")]
     [Authorize(Roles = "admin,super_admin")]
+    [Utilities.CountryFeature(Utilities.CountryFeature.TransferDetection)] // solo Argentina
     public class TransferDetectionController : ControllerBase
     {
         private readonly ApplicationDbContext _context;

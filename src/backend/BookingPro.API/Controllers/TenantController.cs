@@ -226,6 +226,9 @@ namespace BookingPro.API.Controllers
                 if (tenant == null)
                     return NotFound(new { message = "Tenant not found" });
 
+                if (provider == "chytapay" && !CountryProfile.For(tenant).Chytapay)
+                    return StatusCode(403, new { message = "Chytapay solo está disponible para negocios de Argentina" });
+
                 tenant.DefaultPaymentProvider = provider;
                 tenant.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
