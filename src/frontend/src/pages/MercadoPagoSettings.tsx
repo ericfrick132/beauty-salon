@@ -343,7 +343,7 @@ const MercadoPagoSettings: React.FC = () => {
           <CardContent>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h6">
-                Estado de Conexión OAuth
+                {usesCredentials || connectionStatus?.connectionMode === 'credentials' ? 'Estado de la conexión' : 'Estado de Conexión OAuth'}
               </Typography>
               <Chip
                 icon={connectionStatus?.isConnected ? <CheckCircle /> : <Warning />}
@@ -601,8 +601,6 @@ const MercadoPagoSettings: React.FC = () => {
                 <li>Configura el porcentaje de seña en cada servicio</li>
                 <li>Las reservas se confirman automáticamente al recibir el pago</li>
                 <li>El dinero se acredita directamente en tu cuenta de MercadoPago</li>
-                <li>Modelo marketplace: una sola integración para todos los tenants</li>
-                <li>Comisión por transacción para la plataforma</li>
               </Typography>
 
               <Divider sx={{ my: 2 }} />
