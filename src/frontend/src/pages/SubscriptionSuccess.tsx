@@ -21,6 +21,7 @@ import {
 } from '@mui/material';
 import { CheckCircle, ErrorOutline } from '@mui/icons-material';
 import api, { tenantApi } from '../services/api';
+import { getWording } from '../utils/wording';
 import { trackAddPaymentInfoFromTenant } from '../utils/funnelTracking';
 
 type VerifyState = 'verifying' | 'approved' | 'pending' | 'failed';
@@ -42,6 +43,9 @@ const SubscriptionSuccess: React.FC = () => {
   const isTrialFlow = searchParams.get('flow') === 'trial' || !!preapprovalId;
   // Fuera de Argentina la suscripción se paga con Stripe (vuelve con ?provider=stripe&session_id=...).
   const providerName = searchParams.get('provider') === 'stripe' ? 'Stripe' : 'Mercado Pago';
+  // Tú para negocios de México y España (el país llega con la config del negocio).
+  const [businessCountry, setBusinessCountry] = useState<string | undefined>(undefined);
+  const w = getWording(businessCountry);
 
   const nextPath = onboardingDone ? '/dashboard' : '/completar-perfil';
 
@@ -53,7 +57,10 @@ const SubscriptionSuccess: React.FC = () => {
   useEffect(() => {
     tenantApi
       .getConfig()
-      .then((cfg: any) => setOnboardingDone(!!cfg?.onboardingCompletedAt))
+      .then((cfg: any) => {
+        setOnboardingDone(!!cfg?.onboardingCompletedAt);
+        setBusinessCountry(cfg?.country || undefined);
+      })
       .catch(() => setOnboardingDone(true));
   }, []);
 
@@ -77,8 +84,8 @@ const SubscriptionSuccess: React.FC = () => {
       setState('failed');
       setMessage(
         isTrialFlow
-          ? 'No pudimos autorizar la tarjeta. Podés reintentar cuando quieras: mientras dure la prueba seguís usando TurnosPro.'
-          : 'El pago no se completó. Podés reintentar desde tu panel.'
+          ? w.t('No pudimos autorizar la tarjeta. Podés reintentar cuando quieras: mientras dure la prueba seguís usando TurnosPro.', 'No pudimos autorizar la tarjeta. Puedes reintentar cuando quieras: mientras dure la prueba sigues usando TurnosPro.')
+          : w.t('El pago no se completó. Podés reintentar desde tu panel.', 'El pago no se completó. Puedes reintentar desde tu panel.')
       );
       return;
     }
@@ -130,7 +137,7 @@ const SubscriptionSuccess: React.FC = () => {
           setState('pending');
           setMessage(
             isTrialFlow
-              ? `${providerName} recibió la autorización. Puede demorar unos minutos en confirmarse; mientras tanto podés seguir armando tu agenda.`
+              ? w.t(`${providerName} recibió la autorización. Puede demorar unos minutos en confirmarse; mientras tanto podés seguir armando tu agenda.`, `${providerName} recibió la autorización. Puede tardar unos minutos en confirmarse; mientras tanto puedes seguir armando tu agenda.`)
               : `${providerName} recibió el pago. La activación puede demorar unos minutos — vas a recibir un aviso cuando se confirme.`
           );
         }

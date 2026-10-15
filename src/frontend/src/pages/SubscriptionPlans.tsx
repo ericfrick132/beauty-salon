@@ -59,6 +59,8 @@ import {
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import api from '../services/api';
+import useTenantMoney from '../hooks/useTenantMoney';
+import { useTenantWording } from '../utils/wording';
 import { isPlanChanged, planChangedMessage } from '../utils/planChange';
 
 interface Plan {
@@ -284,12 +286,20 @@ const FeatureRow: React.FC<{
   </Box>
 );
 
-const includedFeatures = [
+/** Pie de la página de planes: moneda en la que se cobra la suscripción y ciudad, por país del negocio. */
+const PLAN_FOOTER: Record<string, string> = {
+  AR: 'Pesos argentinos · Buenos Aires',
+  UY: 'Dólares · Montevideo',
+  MX: 'Pesos mexicanos · Ciudad de México',
+  ES: 'Euros · Madrid',
+};
+
+const includedFeatures: { icon: React.ReactNode; text: string; stripeText?: string }[] = [
   { icon: <AllInclusive />, text: 'Reservas ilimitadas' },
   { icon: <Storefront />, text: 'Servicios ilimitados' },
   { icon: <Groups />, text: 'Empleados ilimitados' },
   { icon: <People />, text: 'Clientes ilimitados' },
-  { icon: <Payment />, text: 'Pagos online con MercadoPago' },
+  { icon: <Payment />, text: 'Pagos online con MercadoPago', stripeText: 'Pagos online con tarjeta' },
   { icon: <Palette />, text: 'Branding personalizado' },
   { icon: <Sms />, text: 'Notificaciones SMS' },
   { icon: <Email />, text: 'Email automático' },
@@ -449,7 +459,9 @@ const SocialProof: React.FC = () => (
 );
 
 // ────────────────────── 3. IMPACT BULLETS ──────────────────────
-const impactBullets = [
+type ImpactBullet = { icon: React.ReactNode; title: string; copy: string };
+
+const impactBullets: ImpactBullet[] = [
   {
     icon: <NotificationsActive />,
     title: 'Menos ausencias',
@@ -472,7 +484,33 @@ const impactBullets = [
   },
 ];
 
-const ImpactBullets: React.FC = () => (
+/** Las mismas tarjetas en tú con "cita" (México/España); España cobra con tarjeta (Stripe), sin Mercado Pago. */
+const impactBulletsTu = (stripeDeposits: boolean, sena: string): ImpactBullet[] => [
+  {
+    icon: <NotificationsActive />,
+    title: 'Menos ausencias',
+    copy: 'Recordatorios automáticos por WhatsApp, SMS y email para que el cliente no se olvide de su cita.',
+  },
+  {
+    icon: <EventAvailable />,
+    title: 'Más reservas',
+    copy: 'Tu agenda online abierta 24/7. Reservan solos, de noche y los fines de semana, sin que muevas un dedo.',
+  },
+  {
+    icon: <Payment />,
+    title: 'Cobra online',
+    copy: stripeDeposits
+      ? `${sena[0].toUpperCase()}${sena.slice(1)} o pago total con tarjeta al reservar. Aseguras la cita y mejoras tu caja.`
+      : `${sena[0].toUpperCase()}${sena.slice(1)} o pago total con Mercado Pago al reservar. Aseguras la cita y mejoras tu caja.`,
+  },
+  {
+    icon: <TrendingUp />,
+    title: 'Reportes claros',
+    copy: 'Mira ingresos, servicios estrella y rendimiento del equipo. Decisiones con datos, no a ojo.',
+  },
+];
+
+const ImpactBullets: React.FC<{ bullets?: ImpactBullet[] }> = ({ bullets = impactBullets }) => (
   <Box
     sx={{
       display: 'grid',
@@ -481,7 +519,7 @@ const ImpactBullets: React.FC = () => (
       mb: 6,
     }}
   >
-    {impactBullets.map((b, idx) => (
+    {bullets.map((b, idx) => (
       <motion.div
         key={b.title}
         initial={{ opacity: 0, y: 14 }}
@@ -626,6 +664,11 @@ const SubscriptionPlans: React.FC = () => {
   const [showQrModal, setShowQrModal] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [cycle, setCycle] = useState<Cycle>('annual');
+  // Argentina se ve como siempre; fuera de AR cambia la pasarela (Stripe), la moneda y el tono (tú en MX/ES).
+  const { features, country } = useTenantMoney();
+  const w = useTenantWording();
+  const billsWithStripe = features.platformBilling === 'stripe';
+  const isArgentina = country.code === 'AR';
 
   useEffect(() => {
     ensureFontsLoaded();
@@ -703,10 +746,10 @@ const SubscriptionPlans: React.FC = () => {
         setQrCode(response.data.qrCode);
         setShowQrModal(true);
       } else {
-        setError('No se pudo generar el link de pago. Probá de nuevo en un momento.');
+        setError(w.t('No se pudo generar el link de pago. Probá de nuevo en un momento.', 'No se pudo generar el enlace de pago. Inténtalo de nuevo en un momento.'));
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Error procesando el pago. Probá nuevamente.');
+      setError(err.response?.data?.error || w.t('Error procesando el pago. Probá nuevamente.', 'Error procesando el pago. Inténtalo de nuevo.'));
     } finally {
       setSubscribing(null);
     }
@@ -857,9 +900,9 @@ const SubscriptionPlans: React.FC = () => {
                 '& .upright': { fontStyle: 'normal', fontWeight: 500 },
               }}
             >
-              <span className="upright">Llená tu agenda</span>
+              <span className="upright">{w.t('Llená tu agenda', 'Llena tu agenda')}</span>
               <br />
-              y dejá de perder turnos.
+              {w.t('y dejá de perder turnos.', 'y deja de perder citas.')}
             </Typography>
             <Typography
               sx={{
@@ -872,13 +915,17 @@ const SubscriptionPlans: React.FC = () => {
               }}
             >
               {currentStatus?.isTrialPeriod
-                ? `Te quedan ${currentStatus.daysRemaining} días de prueba — activá tu suscripción para que la agenda no se corte.`
-                : 'Activá TurnosPro y convertí cada reserva en caja: menos ausencias, más turnos y cobro online. Sin tarjetas escondidas.'}
+                ? w.t(
+                    `Te quedan ${currentStatus.daysRemaining} días de prueba — activá tu suscripción para que la agenda no se corte.`,
+                    `Te quedan ${currentStatus.daysRemaining} días de prueba — activa tu suscripción para que la agenda no se corte.`)
+                : w.t(
+                    'Activá TurnosPro y convertí cada reserva en caja: menos ausencias, más turnos y cobro online. Sin tarjetas escondidas.',
+                    'Activa TurnosPro y convierte cada reserva en caja: menos ausencias, más citas y cobro online. Sin cargos escondidos.')}
             </Typography>
           </Box>
 
           {/* ───────── 3. IMPACT BULLETS ───────── */}
-          <ImpactBullets />
+          <ImpactBullets bullets={w.usesTu ? impactBulletsTu(features.stripeDeposits, w.sena) : impactBullets} />
 
           {currentStatus?.isActive && (
             <Alert
@@ -937,7 +984,7 @@ const SubscriptionPlans: React.FC = () => {
           )}
 
           {/* ───────── 4. PRICING TIERS ───────── */}
-          <SectionRule label="— Elegí tu plan —" />
+          <SectionRule label={w.t('— Elegí tu plan —', '— Elige tu plan —')} />
 
           <BillingToggle cycle={cycle} onChange={setCycle} />
 
@@ -1143,7 +1190,7 @@ const SubscriptionPlans: React.FC = () => {
                     {/* Features list */}
                     <Box sx={{ flex: 1 }}>
                       {includedFeatures.map((f) => (
-                        <FeatureRow key={f.text} icon={f.icon} text={f.text} />
+                        <FeatureRow key={f.text} icon={f.icon} text={features.stripeDeposits && f.stripeText ? f.stripeText : f.text} />
                       ))}
                       <FeatureRow
                         icon={<WhatsApp />}
@@ -1168,7 +1215,7 @@ const SubscriptionPlans: React.FC = () => {
                           mb: 2,
                         }}
                       >
-                        Después del 100, $50 por mensaje extra
+                        {isArgentina ? 'Después del 100, $50 por mensaje extra' : 'Después del 100, cada mensaje extra se cobra aparte'}
                       </Typography>
                     )}
 
@@ -1182,7 +1229,7 @@ const SubscriptionPlans: React.FC = () => {
                         {isCurrent
                           ? 'Plan actual'
                           : cycle === 'annual'
-                          ? 'Empezá a llenar tu agenda →'
+                          ? w.t('Empezá a llenar tu agenda →', 'Empieza a llenar tu agenda →')
                           : 'Activar mi plan →'}
                       </PillCTA>
                       <Typography
@@ -1196,7 +1243,7 @@ const SubscriptionPlans: React.FC = () => {
                           mt: 1.5,
                         }}
                       >
-                        Pago seguro con MercadoPago
+                        {billsWithStripe ? 'Pago seguro con Stripe' : 'Pago seguro con MercadoPago'}
                       </Typography>
                     </Box>
                   </Box>
@@ -1216,7 +1263,7 @@ const SubscriptionPlans: React.FC = () => {
               }}
             >
               * El precio anual aplica un {savePct}% de descuento sobre la tarifa mensual.
-              La activación y el cobro se gestionan con MercadoPago.
+              {billsWithStripe ? 'La activación y el cobro se gestionan con Stripe.' : 'La activación y el cobro se gestionan con MercadoPago.'}
             </Typography>
           )}
 
@@ -1238,13 +1285,13 @@ const SubscriptionPlans: React.FC = () => {
               },
               {
                 kicker: '02',
-                title: '$50 por mensaje extra',
+                title: isArgentina ? '$50 por mensaje extra' : 'Mensajes extra',
                 copy: 'Pasado el cupo, cada mensaje adicional se factura al cierre del mes. Sin sorpresas.',
               },
               {
                 kicker: '03',
                 title: 'Cobro al cierre',
-                copy: 'Vemos tu consumo, te lo informamos y se suma a la suscripción del mes siguiente.',
+                copy: w.t('Vemos tu consumo, te lo informamos y se suma a la suscripción del mes siguiente.', 'Revisamos tu consumo, te lo informamos y se suma a la suscripción del mes siguiente.'),
               },
             ].map((item) => (
               <Box
@@ -1311,7 +1358,7 @@ const SubscriptionPlans: React.FC = () => {
               textTransform: 'uppercase',
             }}
           >
-            <span>© TurnosPro {new Date().getFullYear()} · Pesos argentinos · Buenos Aires</span>
+            <span>© TurnosPro {new Date().getFullYear()} · {PLAN_FOOTER[country.code] ?? 'Pesos argentinos · Buenos Aires'}</span>
             <Box sx={{ display: 'flex', gap: 2.5, alignItems: 'center' }}>
               <Box
                 component="a"

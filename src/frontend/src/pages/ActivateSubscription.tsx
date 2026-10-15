@@ -29,6 +29,7 @@ import {
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import api, { tenantApi } from '../services/api';
+import { getWording } from '../utils/wording';
 import { isPlanChanged, planChangedMessage } from '../utils/planChange';
 
 interface Plan {
@@ -72,6 +73,9 @@ const ActivateSubscription: React.FC = () => {
   const [planChangedText, setPlanChangedText] = useState('');
   // Fuera de Argentina la suscripción se paga con Stripe (/preapproval/create devuelve el Checkout de Stripe).
   const [billsWithStripe, setBillsWithStripe] = useState(false);
+  // Tú para negocios de México y España; voseo (como siempre) para el resto.
+  const [businessCountry, setBusinessCountry] = useState<string | undefined>(undefined);
+  const w = getWording(businessCountry);
 
   // Adónde seguir después de la tarjeta (o al saltearla): onboarding si falta, si no el panel.
   const nextPath = onboardingDone ? '/dashboard' : '/completar-perfil';
@@ -92,6 +96,7 @@ const ActivateSubscription: React.FC = () => {
         const done = !!cfg?.onboardingCompletedAt;
         setOnboardingDone(done);
         setBillsWithStripe(cfg?.countryFeatures?.platformBilling === 'stripe');
+        setBusinessCountry(cfg?.country || undefined);
 
         // Ya dejó la tarjeta: acá no hay nada que hacer.
         if (preRes.status === 'fulfilled' && preRes.value.data?.hasActivePreapproval) {
@@ -168,11 +173,11 @@ const ActivateSubscription: React.FC = () => {
       }
       const initPoint: string | undefined = res.data?.initPoint;
       if (!res.data?.success || !initPoint) {
-        throw new Error(res.data?.error || 'No pudimos iniciar el pago. Intentá de nuevo.');
+        throw new Error(res.data?.error || w.t('No pudimos iniciar el pago. Intentá de nuevo.', 'No pudimos iniciar el pago. Inténtalo de nuevo.'));
       }
       window.location.href = initPoint;
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || 'No pudimos iniciar el pago. Intentá de nuevo.');
+      setError(err?.response?.data?.error || err?.message || w.t('No pudimos iniciar el pago. Intentá de nuevo.', 'No pudimos iniciar el pago. Inténtalo de nuevo.'));
       setStarting(false);
     }
   };
@@ -188,12 +193,17 @@ const ActivateSubscription: React.FC = () => {
   const title = expired
     ? 'Tu prueba gratis terminó'
     : optional
-      ? 'Activá tu plan'
+      ? w.t('Activá tu plan', 'Activa tu plan')
       : isFreshSignup
-      ? `Activá tu prueba gratis de ${trialDaysLeft} días`
-      : `Activá tu prueba gratis: te quedan ${trialDaysLeft} ${trialDaysLeft === 1 ? 'día' : 'días'}`;
+      ? `${w.t('Activá', 'Activa')} tu prueba gratis de ${trialDaysLeft} días`
+      : `${w.t('Activá', 'Activa')} tu prueba gratis: te quedan ${trialDaysLeft} ${trialDaysLeft === 1 ? 'día' : 'días'}`;
 
-  const subtitle = expired
+  const subtitle = w.usesTu ? (expired
+    ? 'Elige tu plan y págalo con tarjeta para seguir usando TurnosPro. Se cobra hoy y se renueva solo cada mes. Cancelas cuando quieras.'
+    : optional
+      ? `Te ${trialDaysLeft === 1 ? 'queda 1 día' : `quedan ${trialDaysLeft} días`} de prueba gratis. Si dejas la tarjeta ahora no se te cobra nada hasta que termine${firstChargeDate ? ` (el ${firstChargeDate})` : ''} y no se te corta el servicio. Cancelas cuando quieras.`
+      : `Hoy no se te cobra nada${firstChargeDate ? `: el primer cargo es el ${firstChargeDate}` : ''}. Después se renueva solo. Cancelas cuando quieras.`)
+    : expired
     ? billsWithStripe
       ? 'Elegí tu plan y pagalo con tarjeta para seguir usando TurnosPro. Se cobra hoy y se renueva solo cada mes. Cancelás cuando quieras.'
       : 'Elegí tu plan y pagalo con Mercado Pago para seguir usando TurnosPro. Se cobra hoy y se renueva solo cada mes. Cancelás cuando quieras.'
@@ -308,7 +318,7 @@ const ActivateSubscription: React.FC = () => {
           </Box>
         ) : (
           <Alert severity="info" sx={{ mb: 3 }}>
-            Vas a activar el plan mensual. Podés cambiarlo cuando quieras desde tu panel.
+            {w.t('Vas a activar el plan mensual. Podés cambiarlo cuando quieras desde tu panel.', 'Vas a activar el plan mensual. Puedes cambiarlo cuando quieras desde tu panel.')}
           </Alert>
         )}
 
@@ -321,7 +331,7 @@ const ActivateSubscription: React.FC = () => {
                   firstChargeDate
                     ? `Primer cobro el ${firstChargeDate}${selectedPlan ? `: ${fmtPrice(selectedPlan.price, selectedPlan.currency)}` : ''}`
                     : 'Primer cobro recién al terminar la prueba',
-                  'Cancelás cuando quieras desde tu panel',
+                  w.t('Cancelás cuando quieras desde tu panel', 'Cancelas cuando quieras desde tu panel'),
                 ].map((line) => (
                   <Box key={line} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
                     <CheckCircleIcon fontSize="small" color="success" />
@@ -354,7 +364,7 @@ const ActivateSubscription: React.FC = () => {
               <LockOutlinedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
               <Typography variant="caption" color="text.secondary">
                 {billsWithStripe
-                  ? 'Te lleva al pago seguro de Stripe para dejar tu tarjeta. Volvés acá al terminar.'
+                  ? w.t('Te lleva al pago seguro de Stripe para dejar tu tarjeta. Volvés acá al terminar.', 'Te lleva al pago seguro de Stripe para dejar tu tarjeta. Vuelves aquí al terminar.')
                   : 'Te lleva a Mercado Pago para autorizar el débito automático. Volvés acá al terminar.'}
               </Typography>
             </Box>
