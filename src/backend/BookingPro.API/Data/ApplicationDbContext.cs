@@ -193,6 +193,7 @@ namespace BookingPro.API.Data
             modelBuilder.Entity<Tenant>(entity =>
             {
                 entity.HasIndex(t => t.Subdomain).IsUnique();
+                entity.HasIndex(t => t.StripeConnectAccountId);
                 entity.HasIndex(t => t.SchemaName).IsUnique();
                 entity.HasIndex(t => t.CustomDomain).IsUnique();
                 entity.Property(t => t.Country).HasDefaultValue("AR");
@@ -550,6 +551,7 @@ namespace BookingPro.API.Data
             modelBuilder.Entity<PaymentTransaction>(entity =>
             {
                 entity.ToTable("payment_transactions");
+                entity.HasIndex(pt => pt.StripeCheckoutSessionId);
                 entity.HasIndex(pt => pt.BookingId);
                 entity.HasIndex(pt => pt.Status);
                 entity.HasIndex(pt => pt.TenantId);

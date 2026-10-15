@@ -141,6 +141,48 @@ namespace BookingPro.API.Controllers
         }
 
         /// <summary>
+        /// Webhook de Stripe Connect (eventos de las cuentas Express de los negocios: account.updated y los
+        /// Checkout de señas, que son direct charges en la cuenta del negocio). Endpoint en Stripe:
+        /// {BaseUrl}/api/webhooks/stripe/connect con "Listen to events on Connected accounts", secreto en
+        /// Stripe:ConnectWebhookSecret.
+        /// </summary>
+        [HttpPost("stripe/connect")]
+        public async Task<IActionResult> StripeConnectWebhook()
+        {
+            var secret = _configuration["Stripe:ConnectWebhookSecret"];
+            using var reader = new StreamReader(Request.Body);
+            var body = await reader.ReadToEndAsync();
+            if (string.IsNullOrEmpty(secret))
+            {
+                _logger.LogWarning("Stripe Connect webhook recibido pero Stripe:ConnectWebhookSecret no está configurado");
+                return StatusCode(503);
+            }
+
+            Stripe.Event stripeEvent;
+            try
+            {
+                stripeEvent = Stripe.EventUtility.ConstructEvent(body, Request.Headers["Stripe-Signature"], secret, throwOnApiVersionMismatch: false);
+            }
+            catch (Stripe.StripeException ex)
+            {
+                _logger.LogWarning(ex, "Stripe Connect webhook rechazado: firma inválida");
+                return BadRequest();
+            }
+
+            try
+            {
+                var connect = HttpContext.RequestServices.GetRequiredService<IStripeConnectService>();
+                await connect.HandleConnectEventAsync(stripeEvent);
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error procesando el evento de Stripe Connect {EventId} ({Type})", stripeEvent.Id, stripeEvent.Type);
+                return StatusCode(500);
+            }
+        }
+
+        /// <summary>
         /// Chytapay webhook — fires when a payment_request transitions to
         /// PAID / PARTIAL_PAID. The URL is configured once at the Chytapay
         /// integration-admin level (no tenantId in the path), so we identify

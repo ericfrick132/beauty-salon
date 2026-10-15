@@ -45,6 +45,7 @@ import FinancialReports from './pages/FinancialReports';
 import Payroll from './pages/Payroll';
 import ThemeSettings from './pages/ThemeSettings';
 import MercadoPagoSettings from './pages/MercadoPagoSettings';
+import StripeSettings from './pages/StripeSettings';
 import ChytapaySettings from './pages/ChytapaySettings';
 import Settings from './pages/Settings';
 import SubscriptionPlans from './pages/SubscriptionPlans';
@@ -435,6 +436,7 @@ function App() {
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/theme-settings" element={<ThemeSettings />} />
                   <Route path="/mercadopago-settings" element={<MercadoPagoSettings />} />
+                  <Route path="/stripe-settings" element={<StripeSettings />} />
                   <Route path="/chytapay-settings" element={<CountryFeatureGate feature="chytapay"><ChytapaySettings /></CountryFeatureGate>} />
                   <Route path="/subscription" element={<SubscriptionManagement />} />
                   <Route path="/subscription/recurring" element={<RecurringSubscription />} />

@@ -24,6 +24,16 @@ namespace BookingPro.API.Models.Entities
         
         [MaxLength(100)]
         public string? MercadoPagoMerchantOrderId { get; set; }
+
+        /// <summary>null = Mercado Pago; "stripe" = seña con Stripe Connect (España).</summary>
+        [MaxLength(20)]
+        public string? Provider { get; set; }
+
+        [MaxLength(200)]
+        public string? StripeCheckoutSessionId { get; set; }
+
+        [MaxLength(100)]
+        public string? StripePaymentIntentId { get; set; }
         
         // Payment Details
         [Column(TypeName = "decimal(10, 2)")]

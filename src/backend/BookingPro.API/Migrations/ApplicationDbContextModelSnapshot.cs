@@ -2368,6 +2368,10 @@ namespace BookingPro.API.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<string>("Provider")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<string>("RefundReason")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
@@ -2382,6 +2386,14 @@ namespace BookingPro.API.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
+
+                    b.Property<string>("StripeCheckoutSessionId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("StripePaymentIntentId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
@@ -2398,6 +2410,8 @@ namespace BookingPro.API.Migrations
                     b.HasIndex("MercadoPagoPaymentId");
 
                     b.HasIndex("Status");
+
+                    b.HasIndex("StripeCheckoutSessionId");
 
                     b.HasIndex("TenantId");
 
@@ -3905,6 +3919,19 @@ namespace BookingPro.API.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("StripeConnectAccountId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("StripeConnectChargesEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("StripeConnectDetailsSubmitted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("StripeConnectPayoutsEnabled")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("StripeCustomerId")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -3965,6 +3992,8 @@ namespace BookingPro.API.Migrations
 
                     b.HasIndex("SchemaName")
                         .IsUnique();
+
+                    b.HasIndex("StripeConnectAccountId");
 
                     b.HasIndex("Subdomain")
                         .IsUnique();

@@ -81,6 +81,18 @@ namespace BookingPro.API.Models.Entities
         /// <summary>Cliente de Stripe del negocio (suscripción y add-ons fuera de Argentina).</summary>
         [MaxLength(100)]
         public string? StripeCustomerId { get; set; }
+
+        /// <summary>Cuenta Express de Stripe Connect del negocio (señas en España). Null = no conectada.</summary>
+        [MaxLength(100)]
+        public string? StripeConnectAccountId { get; set; }
+
+        /// <summary>charges_enabled de la cuenta Connect (lo actualiza el webhook account.updated).</summary>
+        public bool StripeConnectChargesEnabled { get; set; }
+
+        /// <summary>details_submitted de la cuenta Connect: terminó el onboarding.</summary>
+        public bool StripeConnectDetailsSubmitted { get; set; }
+
+        public bool StripeConnectPayoutsEnabled { get; set; }
         
         public bool IsDemo { get; set; } = false;
         public int? DemoDays { get; set; }

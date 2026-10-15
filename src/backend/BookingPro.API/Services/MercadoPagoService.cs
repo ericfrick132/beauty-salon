@@ -362,45 +362,19 @@ namespace BookingPro.API.Services
                     var newlyApproved = payment.Status == "approved" && !wasApproved;
                     if (payment.Status == "approved")
                     {
-                        approvedBooking = await _context.Bookings
-                            .IgnoreQueryFilters()
-                            .Include(b => b.Customer)
-                            .Include(b => b.Service)
-                            .Include(b => b.Payments)
-                            .FirstOrDefaultAsync(b => b.Id == bookingId && b.TenantId == tenantId);
-                        
-                        if (approvedBooking != null)
-                        {
-                            approvedBooking.Status = "confirmed";
-                            approvedBooking.UpdatedAt = DateTime.UtcNow;
-
-                            // El panel marca un turno como pago por sus Payment "completed" (HasPayment /
-                            // IsPaymentSuccessful, saldo de Detección de transferencias): se registra el cobro
-                            // igual que cuando se aplica una transferencia, una sola vez por pago de MP.
-                            var mpPaymentId = payment.Id?.ToString();
-                            var alreadyRecorded = approvedBooking.Payments.Any(p => p.MercadoPagoPaymentId == mpPaymentId);
-                            if (!alreadyRecorded && !string.IsNullOrEmpty(mpPaymentId))
-                            {
-                                var recorded = new Models.Entities.Payment
-                                {
-                                    TenantId = tenantId,
-                                    BookingId = approvedBooking.Id,
-                                    CustomerId = approvedBooking.CustomerId,
-                                    Amount = payment.TransactionAmount ?? transaction.Amount,
-                                    PaymentMethod = "mercadopago",
-                                    Status = "completed",
-                                    MercadoPagoPaymentId = mpPaymentId,
-                                    MercadoPagoPreferenceId = transaction.MercadoPagoPreferenceId,
-                                    TransactionId = mpPaymentId,
-                                    PayerEmail = payment.Payer?.Email,
-                                    PaymentDate = payment.DateApproved ?? DateTime.UtcNow,
-                                    PaymentType = string.IsNullOrEmpty(transaction.PaymentType) ? "deposit" : transaction.PaymentType,
-                                    Notes = "Cobrado con Mercado Pago (link de pago del turno)",
-                                };
-                                _context.Payments.Add(recorded);
-                                approvedBooking.Payments.Add(recorded);
-                            }
-                        }
+                        // El panel marca un turno como pago por sus Payment "completed" (HasPayment /
+                        // IsPaymentSuccessful, saldo de Detección de transferencias): se registra el cobro
+                        // igual que cuando se aplica una transferencia, una sola vez por pago de MP.
+                        approvedBooking = await DepositConfirmation.ConfirmBookingAsync(_context, tenantId, bookingId,
+                            new DepositConfirmation.PaidDeposit(
+                                Provider: "mercadopago",
+                                ExternalPaymentId: payment.Id?.ToString(),
+                                MercadoPagoPreferenceId: transaction.MercadoPagoPreferenceId,
+                                Amount: payment.TransactionAmount ?? transaction.Amount,
+                                PayerEmail: payment.Payer?.Email,
+                                PaidAt: payment.DateApproved ?? DateTime.UtcNow,
+                                PaymentType: string.IsNullOrEmpty(transaction.PaymentType) ? "deposit" : transaction.PaymentType,
+                                Notes: "Cobrado con Mercado Pago (link de pago del turno)"));
                     }
 
                     await _context.SaveChangesAsync();

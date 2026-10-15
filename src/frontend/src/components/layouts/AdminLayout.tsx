@@ -352,7 +352,10 @@ export const AdminLayout: React.FC = () => {
         ...(countryFeatures.transferDetection
           ? [{ text: 'Transferencias MP', path: '/transfer-detection', icon: <AttachMoney fontSize="small" />, adminOnly: true, badge: 'Nuevo' }]
           : []),
-        { text: 'MercadoPago', path: '/mercadopago-settings', icon: <MercadoPagoIcon fontSize="small" />, adminOnly: true },
+        // España no tiene Mercado Pago: las señas se cobran con Stripe Connect.
+        countryFeatures.mercadoPagoConnect === 'none'
+          ? { text: 'Cobros con Stripe', path: '/stripe-settings', icon: <CreditCard fontSize="small" />, adminOnly: true }
+          : { text: 'MercadoPago', path: '/mercadopago-settings', icon: <MercadoPagoIcon fontSize="small" />, adminOnly: true },
         ...(countryFeatures.chytapay
           ? [{ text: 'Chytapay', path: '/chytapay-settings', icon: <AccountBalance fontSize="small" />, adminOnly: true }]
           : []),

@@ -411,6 +411,40 @@ namespace BookingPro.API.Controllers
                         // Chytapay (CVU) existe solo en Argentina: fuera de AR siempre Mercado Pago.
                         if (provider == "chytapay" && !CountryProfile.Get(tenantRow?.Country).Chytapay)
                             provider = "mercadopago";
+                        // España no tiene Mercado Pago: la seña se cobra con Stripe Connect en la cuenta del negocio.
+                        if (CountryProfile.Get(tenantRow?.Country).StripeDeposits)
+                            provider = "stripe";
+
+                        if (provider == "stripe")
+                        {
+                            var stripeConnect = HttpContext.RequestServices.GetRequiredService<BookingPro.API.Services.IStripeConnectService>();
+                            var stripeResult = await stripeConnect.CreateDepositCheckoutAsync(tenantInfo.Id, booking.Id, depositCalc.Data.Amount, dto.CustomerEmail);
+                            if (!stripeResult.Success || stripeResult.Data == null)
+                            {
+                                _logger.LogWarning("Failed to create Stripe deposit checkout: {Error}", stripeResult.Message);
+                                return BadRequest(new { message = stripeResult.Message ?? "No se pudo iniciar el pago de la seña. Intenta nuevamente o contacta al comercio." });
+                            }
+
+                            return Ok(new
+                            {
+                                success = true,
+                                bookingId = booking.Id,
+                                statusToken,
+                                confirmationCode,
+                                requiresPayment = true,
+                                provider = "stripe",
+                                payment = new
+                                {
+                                    checkoutUrl = stripeResult.Data.Url,
+                                    // Mismo campo que Mercado Pago: la página de reserva redirige a initPoint.
+                                    initPoint = stripeResult.Data.Url,
+                                    sessionId = stripeResult.Data.SessionId,
+                                    amount = stripeResult.Data.Amount,
+                                    currency = stripeResult.Data.Currency
+                                },
+                                message = "Reserva creada. Por favor pagá la seña para confirmar."
+                            });
+                        }
 
                         if (provider == "chytapay")
                         {

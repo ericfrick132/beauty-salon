@@ -195,7 +195,8 @@ const BookingPage: React.FC = () => {
   const [bookingConfirmed, setBookingConfirmed] = useState(false);
   const [confirmationCode, setConfirmationCode] = useState('');
   const [paymentRequired, setPaymentRequired] = useState(false);
-  const [paymentInfo, setPaymentInfo] = useState<{ initPoint?: string; amount?: number } | null>(null);
+  // provider 'stripe' = seña con Stripe (negocios de España); si no, Mercado Pago como siempre.
+  const [paymentInfo, setPaymentInfo] = useState<{ initPoint?: string; amount?: number; provider?: string } | null>(null);
   const [serviceSearchValue, setServiceSearchValue] = useState<Service | null>(null);
   const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
   // Token que da el backend al crear la reserva: solo con él se puede consultar su estado sin sesión.
@@ -433,7 +434,11 @@ const BookingPage: React.FC = () => {
       if (requiresPayment) {
         // Ir al paso de Pago y esperar acción del usuario
         setPaymentRequired(true);
-        setPaymentInfo({ initPoint: response.data.payment?.initPoint || response.data.payment?.sandboxInitPoint, amount: response.data.payment?.amount });
+        setPaymentInfo({
+          initPoint: response.data.payment?.initPoint || response.data.payment?.sandboxInitPoint,
+          amount: response.data.payment?.amount,
+          provider: response.data?.provider,
+        });
         setActiveStep(5);
       } else {
         // Sin pago requerido, ir al paso final
@@ -1153,7 +1158,7 @@ const BookingPage: React.FC = () => {
                           Seña {paymentInfo.amount ? `: ${formatPrice(Number(paymentInfo.amount), businessInfo?.currency, businessInfo?.locale)}` : ''}
                         </Typography>
                         <Button variant="contained" size="large" onClick={() => window.location.assign(paymentInfo.initPoint!)}>
-                          Pagar ahora con MercadoPago
+                          {paymentInfo.provider === 'stripe' ? 'Pagar seña con tarjeta' : 'Pagar ahora con MercadoPago'}
                         </Button>
                         <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
                           Se abrirá la pasarela de pago en esta pestaña
@@ -1376,7 +1381,7 @@ const BookingPage: React.FC = () => {
                       onClick={() => paymentInfo?.initPoint && window.location.assign(paymentInfo.initPoint)}
                       disabled={!paymentInfo?.initPoint}
                     >
-                      Pagar ahora
+                      {paymentInfo?.provider === 'stripe' ? 'Pagar seña' : 'Pagar ahora'}
                     </Button>
                   ) : null
                 ) : activeStep === ((services.find(s => s.id === bookingData.serviceId)?.requiresDeposit) ? 5 : 4) ? null : (
