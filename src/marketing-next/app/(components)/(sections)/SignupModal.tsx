@@ -17,16 +17,24 @@ import CloseIcon from '@mui/icons-material/Close';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import { palette } from '@/app/(lib)/theme';
+import { marketCountryFromLocation, type MarketCountry } from '@/app/(lib)/countries';
 
 // --- Context ---
 interface SignupModalContextValue {
   open: (prefilledSubdomain?: string) => void;
+  /** País de la landing (/uy, /mx, /es). Null = Argentina, o el de ?pais= si viene en la URL. */
+  country: MarketCountry | null;
 }
 
-const SignupModalContext = createContext<SignupModalContextValue>({ open: () => {} });
+const SignupModalContext = createContext<SignupModalContextValue>({ open: () => {}, country: null });
 
 export function useSignupModal() {
   return useContext(SignupModalContext);
+}
+
+/** País de la landing o de ?pais= (null = Argentina). */
+export function useSignupCountry() {
+  return useContext(SignupModalContext).country;
 }
 
 // --- Helpers ---
@@ -332,8 +340,17 @@ export type SignupFormVariant = 'modal' | 'inline';
  */
 export function SignupForm({ variant }: { variant: SignupFormVariant }) {
   const isModal = variant === 'modal';
-  const [state, setState] = useState<FormState>(initialState);
+  const country = useSignupCountry();
+  const [state, setState] = useState<FormState>(() => (country ? { ...initialState, dial: country.dial } : initialState));
   const set = useCallback((patch: Partial<FormState>) => setState((s) => ({ ...s, ...patch })), []);
+  // Copy del paso del email: Argentina (y sin país) igual que siempre; UY voseo, MX/ES tú.
+  const t = country?.copy.signup;
+
+  // El país puede llegar después del primer render (?pais= se lee en el cliente): preselecciona su
+  // código de WhatsApp si la persona todavía no eligió otro.
+  useEffect(() => {
+    if (country) setState((s) => (s.mobile || s.dial !== initialState.dial ? s : { ...s, dial: country.dial }));
+  }, [country]);
 
   const phoneCountry = PHONE_COUNTRIES.find((c) => c.dial === state.dial) ?? PHONE_COUNTRIES[0];
   const phoneDigits = state.mobile.replace(/[^0-9]/g, '');
@@ -386,6 +403,8 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
           email: state.email.trim(),
           businessName: state.businessName.trim(),
           phone: fullPhone,
+          // País de la landing (/uy, /mx, /es o ?pais=): el alta lo usa en vez de deducirlo del teléfono.
+          ...(country ? { country: country.code } : {}),
           // La atribución viaja ya en el start: queda guardada en la transacción y el verify
           // la usa aunque la página del código no la tenga a mano.
           ...getAttribution(),
@@ -393,7 +412,7 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok || !body.success) {
-        throw new Error(body.message || 'No pudimos enviar el código. Intentá de nuevo.');
+        throw new Error(body.message || t?.sendError || 'No pudimos enviar el código. Intentá de nuevo.');
       }
       trackAction(body.isExisting ? 'OTP_SENT_LOGIN' : 'OTP_SENT');
       // Lead solo para cuentas nuevas (un login no es un lead nuevo).
@@ -404,9 +423,10 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
       // El código se ingresa en la app: cerramos el flujo de la landing acá (no cuenta como
       // abandono) y llevamos a /register con el email fijo. busy queda en true: la página se va.
       sendRegFlow('CODE_SENT');
-      window.location.href = body.state
+      const countryParam = country ? '&country=' + country.code : '';
+      window.location.href = (body.state
         ? '/register?s=' + encodeURIComponent(body.state)
-        : '/register?email=' + encodeURIComponent(state.email.trim());
+        : '/register?email=' + encodeURIComponent(state.email.trim())) + countryParam;
     } catch (err: any) {
       trackAction(`OTP_ERROR ${(err as Error).message?.slice(0, 30)}`);
       set({ error: err.message || 'Error inesperado', busy: false });
@@ -443,6 +463,7 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
           businessName: state.businessName.trim(),
           mobile: fullPhone,
           fullName: state.fullName.trim(),
+          ...(country ? { country: country.code } : {}),
           ...getAttribution(),
         }),
       });
@@ -548,10 +569,10 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
       {state.step === 'email' ? (
         <Box component="form" noValidate onSubmit={(e) => { e.preventDefault(); requestOtp(); }}>
           <Typography variant="h5" component="h3" sx={titleSx}>
-            Creá tu cuenta gratis
+            {t ? t.title : 'Creá tu cuenta gratis'}
           </Typography>
           <Typography sx={subtitleSx}>
-            Sin contraseña: te mandamos un código por email y entrás directo. 7 días gratis, sin tarjeta.
+            {t ? t.subtitle : 'Sin contraseña: te mandamos un código por email y entrás directo. 7 días gratis, sin tarjeta.'}
           </Typography>
 
           <Stack spacing={2}>
@@ -603,12 +624,16 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
             startIcon={state.busy ? <CircularProgress size={18} color="inherit" /> : undefined}
             sx={{ ...primaryButtonSx, mt: 2.5 }}
           >
-            {state.busy ? 'Enviando código...' : 'Empezar gratis 7 días'}
+            {state.busy ? (t ? t.sending : 'Enviando código...') : (t ? t.button : 'Empezar gratis 7 días')}
           </Button>
 
           <Typography sx={{ ...finePrintSx, mt: 1.5 }}>
-            Te mandamos un código de 6 dígitos a tu email para confirmar y armás tu agenda: rubro,
-            servicios y horarios. No te pedimos tarjeta.
+            {t ? t.finePrint : (
+              <>
+                Te mandamos un código de 6 dígitos a tu email para confirmar y armás tu agenda: rubro,
+                servicios y horarios. No te pedimos tarjeta.
+              </>
+            )}
           </Typography>
 
           <Button
@@ -616,7 +641,7 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
             onClick={() => { trackAction('SWITCH_PASSWORD'); set({ step: 1, error: '', info: '' }); }}
             sx={{ ...linkButtonSx, mt: 0.5 }}
           >
-            Prefiero crear usuario y contraseña
+            {t ? t.passwordLink : 'Prefiero crear usuario y contraseña'}
           </Button>
 
           <SocialProof mt={1} />
@@ -757,6 +782,7 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
 // --- Modal ---
 function SignupModalInner() {
   const { isOpen, close } = useSignupModalInternal();
+  const country = useSignupCountry();
 
   // El Dialog desmonta el formulario al cerrarse, así que el estado se resetea solo.
   const handleClose = () => {
@@ -794,7 +820,7 @@ function SignupModalInner() {
           fontWeight: 700,
         }}
       >
-        ⚡ 7 DÍAS GRATIS · SIN TARJETA · LISTO EN 2 MIN
+        {country ? country.copy.signup.ribbon : '⚡ 7 DÍAS GRATIS · SIN TARJETA · LISTO EN 2 MIN'}
       </Box>
 
       {/* Close button */}
@@ -829,8 +855,15 @@ function useSignupModalInternal() {
 }
 
 // --- Provider ---
-export function SignupModalProvider({ children }: { children: ReactNode }) {
+export function SignupModalProvider({ children, country = null }: { children: ReactNode; country?: MarketCountry | null }) {
   const [isOpen, setIsOpen] = useState(false);
+  // Sin país fijo (home de Argentina): ?pais=uy|mx|es lo elige. Se lee después de montar para que el
+  // HTML estático sea el mismo que hidrata React.
+  const [urlCountry, setUrlCountry] = useState<MarketCountry | null>(null);
+  useEffect(() => {
+    if (!country) setUrlCountry(marketCountryFromLocation());
+  }, [country]);
+  const effectiveCountry = country ?? urlCountry;
 
   const open = useCallback(() => {
     setIsOpen(true);
@@ -851,7 +884,7 @@ export function SignupModalProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <SignupModalContext.Provider value={{ open }}>
+    <SignupModalContext.Provider value={{ open, country: effectiveCountry }}>
       <InternalContext.Provider value={{ isOpen, close }}>
         {children}
         <SignupModalInner />
