@@ -52,7 +52,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </ThemeRegistry>
         {/* Microsoft Clarity: solo en el dominio principal. Nunca en los subdominios de los
             negocios (panel y /book con datos de clientes); www ya redirige al apex. */}
-        <Script id="clarity" strategy="afterInteractive">
+        {/* id distinto de "clarity": un elemento con id="clarity" queda como window.clarity y el
+            snippet (c[a]=c[a]||function…) ya no crearía la función. */}
+        <Script id="ms-clarity-init" strategy="afterInteractive">
           {`
             if (location.hostname === 'turnos-pro.com') {
               (function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","yy5mznhtru");
