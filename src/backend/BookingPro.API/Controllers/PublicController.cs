@@ -422,7 +422,7 @@ namespace BookingPro.API.Controllers
                             if (!stripeResult.Success || stripeResult.Data == null)
                             {
                                 _logger.LogWarning("Failed to create Stripe deposit checkout: {Error}", stripeResult.Message);
-                                return BadRequest(new { message = stripeResult.Message ?? "No se pudo iniciar el pago de la seña. Intenta nuevamente o contacta al comercio." });
+                                return BadRequest(new { message = stripeResult.Message ?? "No se pudo iniciar el pago. Inténtalo de nuevo o contacta con el comercio." });
                             }
 
                             return Ok(new
@@ -442,7 +442,7 @@ namespace BookingPro.API.Controllers
                                     amount = stripeResult.Data.Amount,
                                     currency = stripeResult.Data.Currency
                                 },
-                                message = "Reserva creada. Por favor pagá la seña para confirmar."
+                                message = "Reserva creada. Paga la señal para confirmarla."
                             });
                         }
 
@@ -522,7 +522,10 @@ namespace BookingPro.API.Controllers
                                 publicKey = paymentResult.Data?.PublicKey,
                                 amount = paymentResult.Data?.Amount
                             },
-                            message = "Reserva creada. Por favor pagá la seña para confirmar."
+                            message = Utilities.Wording.ForCountry(tenantRow?.Country).T(
+                                "Reserva creada. Por favor pagá la seña para confirmar.",
+                                "Reserva creada. Por favor paga el anticipo para confirmarla.",
+                                "Reserva creada. Paga la señal para confirmarla.")
                         });
                     }
 

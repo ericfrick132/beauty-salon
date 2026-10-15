@@ -57,8 +57,7 @@ namespace BookingPro.API.Services
                 var tenant = await _context.Tenants.FirstOrDefaultAsync(t => t.Id == booking.TenantId);
                 // StartTime está en UTC: hora del negocio, no la del servidor (que corre en UTC).
                 var timeLocal = Utilities.TenantTime.ToLocal(booking.StartTime, Utilities.TenantTime.For(tenant));
-                var template = settings.ReminderTemplate
-                    ?? "Hola {customer_name}! Te recordamos tu turno para {service_name} el {date} a las {time}.";
+                var template = Utilities.MessageTemplates.Reminder(settings.ReminderTemplate, Utilities.Wording.For(tenant));
                 string body = template
                     .Replace("{customer_name}", (booking.Customer?.FirstName + " " + (booking.Customer?.LastName ?? "")).Trim())
                     .Replace("{service_name}", booking.Service?.Name ?? "servicio")
@@ -141,9 +140,13 @@ namespace BookingPro.API.Services
                 var tenant = await _context.Tenants.FirstOrDefaultAsync(t => t.Id == booking.TenantId);
                 // StartTime está en UTC: hora del negocio, no la del servidor (que corre en UTC).
                 var timeLocal = Utilities.TenantTime.ToLocal(booking.StartTime, Utilities.TenantTime.For(tenant));
-                var body = $"Hola {booking.Customer?.FirstName}! Tu turno para {booking.Service?.Name ?? "servicio"} " +
-                           $"el {timeLocal:dd/MM/yyyy} a las {timeLocal:HH:mm} con {booking.Employee?.Name ?? "nosotros"} " +
-                           $"fue confirmado. {tenant?.BusinessName ?? ""}";
+                var body = Utilities.Wording.For(tenant).UsesTu
+                    ? $"¡Hola {booking.Customer?.FirstName}! Tu cita para {booking.Service?.Name ?? "servicio"} " +
+                      $"el {timeLocal:dd/MM/yyyy} a las {timeLocal:HH:mm} con {booking.Employee?.Name ?? "nosotros"} " +
+                      $"está confirmada. {tenant?.BusinessName ?? ""}"
+                    : $"Hola {booking.Customer?.FirstName}! Tu turno para {booking.Service?.Name ?? "servicio"} " +
+                      $"el {timeLocal:dd/MM/yyyy} a las {timeLocal:HH:mm} con {booking.Employee?.Name ?? "nosotros"} " +
+                      $"fue confirmado. {tenant?.BusinessName ?? ""}";
 
                 var sendResult = await _connectionService.SendTextAsync(booking.TenantId, toPhone, body);
 

@@ -200,7 +200,14 @@ namespace BookingPro.API.Services
             var endTime = localStart.AddMinutes(durationMinutes);
             var endTimeStr = endTime.ToString("HH:mm");
 
-            var subject = $"Confirmación de turno en {businessName}";
+            // Voseo para Argentina/Uruguay; tú y "cita" para México/España.
+            var w = Utilities.Wording.ForCountry(tenant?.Country);
+            var subject = w.T($"Confirmación de turno en {businessName}", $"Confirmación de cita en {businessName}");
+            var title = w.T("Turno confirmado", "Cita confirmada");
+            var intro = w.T($"Hola <strong>{customerName}</strong>, tu turno fue reservado con éxito.",
+                $"Hola <strong>{customerName}</strong>, tu cita se reservó con éxito.");
+            var footer = w.T($"Si necesitás cancelar o reprogramar, contactá directamente a {businessName}.",
+                $"Si necesitas cancelar o reprogramar, contacta directamente con {businessName}.");
             var body = $@"
 <!DOCTYPE html>
 <html>
@@ -223,9 +230,9 @@ namespace BookingPro.API.Services
         </tr>
         <tr>
           <td style=""padding: 40px 40px 16px;"">
-            <h1 style=""margin: 0 0 8px; font-size: 24px; font-weight: 700; color: #1a1a2e;"">&#9989; Turno confirmado</h1>
+            <h1 style=""margin: 0 0 8px; font-size: 24px; font-weight: 700; color: #1a1a2e;"">&#9989; {title}</h1>
             <p style=""margin: 0 0 28px; font-size: 16px; color: #555; line-height: 1.6;"">
-              Hola <strong>{customerName}</strong>, tu turno fue reservado con éxito.
+              {intro}
             </p>
             <table role=""presentation"" cellpadding=""0"" cellspacing=""0"" width=""100%"" style=""background-color: #f8fafc; border-radius: 12px; overflow: hidden;"">
               <tr>
@@ -269,7 +276,7 @@ namespace BookingPro.API.Services
               </tr>
             </table>
             <p style=""margin: 24px 0 0; font-size: 13px; color: #888; line-height: 1.5;"">
-              Si necesitás cancelar o reprogramar, contactá directamente a {businessName}.
+              {footer}
             </p>
           </td>
         </tr>

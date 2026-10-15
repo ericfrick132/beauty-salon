@@ -305,6 +305,14 @@ namespace BookingPro.API.Controllers
             return Utilities.TenantTime.Get(row?.TimeZone, row?.Country);
         }
 
+        /// <summary>Voseo (AR/UY) o tú con "cita" (MX/ES) para lo que se le responde al cliente.</summary>
+        private async Task<Utilities.Wording> TenantWordingAsync(Guid tenantId)
+        {
+            var country = await _context.Tenants.IgnoreQueryFilters().AsNoTracking()
+                .Where(t => t.Id == tenantId).Select(t => t.Country).FirstOrDefaultAsync();
+            return Utilities.Wording.ForCountry(country);
+        }
+
         private async Task HandleConnectionUpdate(string instanceName, JsonElement json)
         {
             var state = "close";
@@ -620,8 +628,11 @@ namespace BookingPro.API.Controllers
                 await _context.SaveChangesAsync();
 
                 var repromptTime = Utilities.TenantTime.ToLocal(booking.StartTime, await TenantTzAsync(tenantId));
-                var reprompt = $"No te entendí 🙂 Sobre tu turno del {repromptTime:dd/MM} a las {repromptTime:HH:mm}: " +
-                    "respondé solo *1* para confirmarlo ✅ o *2* para cancelarlo ❌";
+                var reprompt = (await TenantWordingAsync(tenantId)).T(
+                    $"No te entendí 🙂 Sobre tu turno del {repromptTime:dd/MM} a las {repromptTime:HH:mm}: " +
+                    "respondé solo *1* para confirmarlo ✅ o *2* para cancelarlo ❌",
+                    $"No te entendí 🙂 Sobre tu cita del {repromptTime:dd/MM} a las {repromptTime:HH:mm}: " +
+                    "responde solo *1* para confirmarla ✅ o *2* para cancelarla ❌");
                 try
                 {
                     var repromptResult = await _whatsAppConnectionService.SendTextAsync(tenantId, senderDigits, reprompt);
@@ -652,6 +663,7 @@ namespace BookingPro.API.Controllers
             var now = DateTime.UtcNow;
             var timeLocal = Utilities.TenantTime.ToLocal(booking.StartTime, await TenantTzAsync(tenantId));
             var firstName = booking.Customer?.FirstName ?? "";
+            var wording = await TenantWordingAsync(tenantId);
             string ack;
 
             if (intent == "confirm")
@@ -673,7 +685,8 @@ namespace BookingPro.API.Controllers
                 }
 
                 request.Status = "confirmed";
-                ack = $"¡Gracias {firstName}! Tu turno del {timeLocal:dd/MM} a las {timeLocal:HH:mm} quedó confirmado. Te esperamos 😊";
+                ack = wording.T($"¡Gracias {firstName}! Tu turno del {timeLocal:dd/MM} a las {timeLocal:HH:mm} quedó confirmado. Te esperamos 😊",
+                    $"¡Gracias {firstName}! Tu cita del {timeLocal:dd/MM} a las {timeLocal:HH:mm} quedó confirmada. Te esperamos 😊");
             }
             else
             {
@@ -696,7 +709,8 @@ namespace BookingPro.API.Controllers
                 }
 
                 request.Status = "cancelled";
-                ack = $"Listo {firstName}, tu turno del {timeLocal:dd/MM} a las {timeLocal:HH:mm} fue cancelado. ¡Podés reservar de nuevo cuando quieras!";
+                ack = wording.T($"Listo {firstName}, tu turno del {timeLocal:dd/MM} a las {timeLocal:HH:mm} fue cancelado. ¡Podés reservar de nuevo cuando quieras!",
+                    $"Listo {firstName}, tu cita del {timeLocal:dd/MM} a las {timeLocal:HH:mm} fue cancelada. ¡Puedes reservar de nuevo cuando quieras!");
             }
 
             request.RespondedAt = now;

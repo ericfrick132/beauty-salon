@@ -93,7 +93,8 @@ namespace BookingPro.API.Services
             messages.Add(new MessageParam { Role = Role.User, Content = text });
 
             var tools = BuildTools();
-            var system = BuildSystemPrompt(tenant.BusinessName ?? "el comercio", TenantTime.NowLocal(TenantTime.For(tenant)));
+            var wording = Wording.For(tenant);
+            var system = BuildSystemPrompt(tenant.BusinessName ?? "el comercio", TenantTime.NowLocal(TenantTime.For(tenant)), wording);
 
             string finalText = "";
             try
@@ -145,7 +146,7 @@ namespace BookingPro.API.Services
             }
 
             if (string.IsNullOrWhiteSpace(finalText))
-                finalText = "Perdoná, no pude procesar eso. ¿Me lo escribís de otra forma?";
+                finalText = wording.T("Perdoná, no pude procesar eso. ¿Me lo escribís de otra forma?", "Perdona, no pude procesar eso. ¿Me lo escribes de otra forma?");
 
             history.Add(new Turn("user", text));
             history.Add(new Turn("assistant", finalText));
@@ -159,10 +160,14 @@ namespace BookingPro.API.Services
 
         private static readonly string[] DiasSemana = { "domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado" };
 
-        private static string BuildSystemPrompt(string businessName, DateTime today)
+        private static string BuildSystemPrompt(string businessName, DateTime today, Wording wording)
         {
             var sb = new StringBuilder();
-            sb.AppendLine($"Sos el asistente de {businessName} por WhatsApp. Ayudás a los clientes a consultar servicios y precios, ver disponibilidad y RESERVAR turnos. Respondé en español rioplatense, breve y claro (es WhatsApp).");
+            // Argentina/Uruguay: voseo rioplatense. México/España: tú y "cita" en vez de "turno".
+            sb.AppendLine(wording.T(
+                $"Sos el asistente de {businessName} por WhatsApp. Ayudás a los clientes a consultar servicios y precios, ver disponibilidad y RESERVAR turnos. Respondé en español rioplatense, breve y claro (es WhatsApp).",
+                $"Sos el asistente de {businessName} por WhatsApp. Ayudás a los clientes a consultar servicios y precios, ver disponibilidad y RESERVAR citas. Respondé en español de México, tuteando al cliente (tú, nunca vos), breve y claro (es WhatsApp). Decí siempre \"cita\" (nunca \"turno\"), \"anticipo\" (nunca \"seña\") y \"celular\".",
+                $"Sos el asistente de {businessName} por WhatsApp. Ayudás a los clientes a consultar servicios y precios, ver disponibilidad y RESERVAR citas. Respondé en español de España, tuteando al cliente (tú, nunca vos), breve y claro (es WhatsApp). Decí siempre \"cita\" (nunca \"turno\"), \"señal\" (nunca \"seña\") y \"móvil\" (nunca \"celular\")."));
             sb.AppendLine($"Hoy es {DiasSemana[(int)today.DayOfWeek]} {today:dd/MM/yyyy}.");
             sb.AppendLine("REGLAS:");
             sb.AppendLine("- Cuando el cliente diga una fecha relativa ('hoy', 'mañana', 'pasado', 'el sábado', 'la semana que viene'), convertila VOS a la fecha exacta (formato YYYY-MM-DD) tomando como referencia la fecha de hoy. NO le pidas que la escriba en números; interpretala vos.");

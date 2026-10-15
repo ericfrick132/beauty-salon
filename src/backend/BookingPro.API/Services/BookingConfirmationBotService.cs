@@ -148,15 +148,15 @@ namespace BookingPro.API.Services
 
                 // StartTime está en UTC: hora del negocio, no la del servidor (que corre en UTC).
                 var timeLocal = Utilities.TenantTime.ToLocal(booking.StartTime, Utilities.TenantTime.For(tenant));
-                var template = settings.ConfirmationTemplate
-                    ?? "Hola {customer_name}! Te escribimos de {business_name} por tu turno de {service_name} el {date} a las {time}.";
+                var wording = Utilities.Wording.For(tenant);
+                var template = Utilities.MessageTemplates.ConfirmationRequest(settings.ConfirmationTemplate, wording);
                 var body = template
                     .Replace("{customer_name}", (booking.Customer?.FirstName + " " + (booking.Customer?.LastName ?? "")).Trim())
                     .Replace("{service_name}", booking.Service?.Name ?? "servicio")
                     .Replace("{date}", timeLocal.ToString("dd/MM/yyyy"))
                     .Replace("{time}", timeLocal.ToString("HH:mm"))
                     .Replace("{business_name}", tenant?.BusinessName ?? "");
-                body += "\n\nRespondé *1* para confirmar tu turno ✅ o *2* para cancelarlo ❌";
+                body += Utilities.MessageTemplates.ConfirmationInstructions(wording);
 
                 await _sendLock.WaitAsync(ct);
                 try

@@ -245,7 +245,10 @@ namespace BookingPro.API.Services
                 var tenant = await LoadTenantAsync(tenantId);
                 if (tenant == null) return ServiceResult<StripeDepositCheckout>.Fail("Negocio no encontrado");
                 if (string.IsNullOrEmpty(tenant.StripeConnectAccountId) || !tenant.StripeConnectChargesEnabled || !IsConfigured)
-                    return ServiceResult<StripeDepositCheckout>.Fail("El negocio todavía no habilitó el cobro de señas online. Contactá al comercio.");
+                    return ServiceResult<StripeDepositCheckout>.Fail(Wording.For(tenant).T(
+                        "El negocio todavía no habilitó el cobro de señas online. Contactá al comercio.",
+                        "El negocio todavía no habilitó el cobro de anticipos en línea. Contacta al comercio.",
+                        "El negocio todavía no ha habilitado el cobro de señales online. Contacta con el comercio."));
 
                 var booking = await _context.Bookings.IgnoreQueryFilters()
                     .Include(b => b.Service)
@@ -254,6 +257,8 @@ namespace BookingPro.API.Services
                 if (booking == null) return ServiceResult<StripeDepositCheckout>.Fail("Reserva no encontrada");
 
                 var currency = CountryProfile.CurrencyFor(tenant);
+                // Lo que ve el cliente en el Checkout: "Señal" en España (Stripe hoy es solo España).
+                var w = Wording.For(tenant);
                 var amountToPay = Math.Min(amount, booking.Service.Price);
                 if (amountToPay < 0.5m) amountToPay = 0.5m; // mínimo de Stripe en EUR
 
@@ -289,7 +294,7 @@ namespace BookingPro.API.Services
                 var paymentIntentData = new StripeSdk.Checkout.SessionPaymentIntentDataOptions
                 {
                     Metadata = metadata,
-                    Description = $"Seña — {booking.Service.Name} ({local:dd/MM/yyyy HH:mm})",
+                    Description = $"{w.SenaTitle} — {booking.Service.Name} ({local:dd/MM/yyyy HH:mm})",
                 };
                 var feePercent = _configuration.GetValue<decimal?>("Stripe:Connect:ApplicationFeePercent") ?? 0m;
                 if (feePercent > 0)
@@ -311,8 +316,8 @@ namespace BookingPro.API.Services
                                 UnitAmount = PlatformPricing.ToStripeAmount(amountToPay),
                                 ProductData = new StripeSdk.Checkout.SessionLineItemPriceDataProductDataOptions
                                 {
-                                    Name = $"Seña — {booking.Service.Name}",
-                                    Description = $"Reserva para {local:dd/MM/yyyy HH:mm}",
+                                    Name = $"{w.SenaTitle} — {booking.Service.Name}",
+                                    Description = $"{w.T("Reserva", "Cita")} para el {local:dd/MM/yyyy HH:mm}",
                                 },
                             },
                         },
@@ -347,7 +352,7 @@ namespace BookingPro.API.Services
             catch (StripeSdk.StripeException ex)
             {
                 _logger.LogError(ex, "Stripe Connect: error creando el Checkout de seña del turno {BookingId}", bookingId);
-                return ServiceResult<StripeDepositCheckout>.Fail("No se pudo iniciar el pago de la seña. Intentá nuevamente o contactá al comercio.");
+                return ServiceResult<StripeDepositCheckout>.Fail("No se pudo iniciar el pago. Inténtalo de nuevo o contacta con el comercio.");
             }
         }
 
