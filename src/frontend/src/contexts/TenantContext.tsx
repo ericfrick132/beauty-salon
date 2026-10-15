@@ -31,6 +31,9 @@ export const TenantProvider: React.FC<{
   );
 };
 
+/** Igual que useTenant pero sin tirar error fuera del provider (páginas públicas, tests). */
+export const useTenantOptional = () => useContext(TenantContext);
+
 export const useTenant = () => {
   const context = useContext(TenantContext);
   if (!context) {

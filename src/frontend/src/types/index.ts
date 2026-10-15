@@ -21,7 +21,21 @@ export interface TenantConfig {
   tenantId: string;
   businessName: string;
   vertical: 'barbershop' | 'beautysalon' | 'aesthetics';
+  /** Zona IANA del negocio (las viejas guardadas como "-3" vuelven ya convertidas). */
   timezone: string;
+  /** País del negocio (AR, UY, MX, ES). Sin país = Argentina. */
+  country?: string;
+  currency?: string;
+  locale?: string;
+  dialCode?: string;
+  documentLabel?: string;
+  phonePlaceholder?: string;
+  /** Features que existen solo en algunos países (ARCA, Chytapay, detección de transferencias = AR). */
+  countryFeatures?: {
+    arcaInvoicing: boolean;
+    chytapay: boolean;
+    transferDetection: boolean;
+  };
   theme: ThemeConfiguration;
   features: {
     onlinePayment: boolean;
