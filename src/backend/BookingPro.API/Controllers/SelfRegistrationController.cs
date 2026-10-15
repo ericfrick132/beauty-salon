@@ -76,6 +76,7 @@ namespace BookingPro.API.Controllers
                 }
 
                 // Convert to CreateTenantDto
+                var signupCountry = Utilities.CountryProfile.Resolve(dto.Country, dto.AdminPhone);
                 var createTenantDto = new CreateTenantDto
                 {
                     VerticalCode = dto.VerticalCode,
@@ -87,9 +88,10 @@ namespace BookingPro.API.Controllers
                     AdminLastName = dto.AdminLastName,
                     AdminPhone = dto.AdminPhone,
                     AdminPassword = dto.AdminPassword,
-                    TimeZone = dto.TimeZone ?? "America/Argentina/Buenos_Aires",
-                    Currency = dto.Currency ?? "ARS",
+                    TimeZone = dto.TimeZone ?? signupCountry.TimeZoneId,
+                    Currency = dto.Currency ?? signupCountry.Currency,
                     Language = dto.Language ?? "es",
+                    Country = signupCountry.Code,
                     IsDemo = true,
                     DemoDays = 7,
                     PlanId = null // Demo doesn't need a specific plan

@@ -140,6 +140,7 @@ namespace BookingPro.API.Services
                     OwnerEmail = dto.AdminEmail,
                     TimeZone = dto.TimeZone ?? "UTC",
                     Currency = dto.Currency ?? "USD",
+                    Country = Utilities.CountryProfile.Get(dto.Country).Code,
                     Language = dto.Language ?? "en",
                     IsDemo = dto.IsDemo,
                     DemoDays = dto.DemoDays,

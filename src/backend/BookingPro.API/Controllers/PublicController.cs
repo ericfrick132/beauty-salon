@@ -266,12 +266,21 @@ namespace BookingPro.API.Controllers
                     });
                 }
 
+                var profile = CountryProfile.For(tenant);
                 return Ok(new
                 {
                     businessName = tenant.BusinessName,
                     address = "",
                     phone = "",
-                    email = ""
+                    email = "",
+                    // País del negocio: moneda/idioma de los precios y teléfono del cliente.
+                    country = profile.Code,
+                    currency = CountryProfile.CurrencyFor(tenant),
+                    locale = profile.Culture,
+                    timezone = TenantTime.ResolveId(tenant.TimeZone, tenant.Country),
+                    dialCode = profile.DialCode,
+                    phonePlaceholder = profile.PhonePlaceholder,
+                    documentLabel = profile.DocumentLabel
                 });
             }
             catch (Exception ex)

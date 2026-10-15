@@ -49,11 +49,17 @@ namespace BookingPro.API.Models.DTOs
         [Compare("AdminPassword", ErrorMessage = "Las contraseñas no coinciden")]
         public string ConfirmPassword { get; set; } = string.Empty;
         
+        /// <summary>País del negocio (AR, UY, MX, ES). Si no viene, se deduce del código del teléfono; si no, Argentina.</summary>
+        [MaxLength(2)]
+        public string? Country { get; set; }
+
+        /// <summary>Zona IANA. Null → la del país.</summary>
         [MaxLength(100)]
-        public string? TimeZone { get; set; } = "America/Argentina/Buenos_Aires";
+        public string? TimeZone { get; set; }
         
+        /// <summary>Null → la moneda del país.</summary>
         [MaxLength(10)]
-        public string? Currency { get; set; } = "ARS";
+        public string? Currency { get; set; }
         
         [MaxLength(10)]
         public string? Language { get; set; } = "es";
@@ -105,6 +111,10 @@ namespace BookingPro.API.Models.DTOs
 
         [MaxLength(50)]
         public string? Mobile { get; set; }
+
+        /// <summary>País del negocio (AR, UY, MX, ES). Null → se deduce del código del celular; si no, Argentina.</summary>
+        [MaxLength(2)]
+        public string? Country { get; set; }
 
         // Plan elegido por el usuario en el signup flow. Si es null, se usa "demo" con 7 días trial.
         public string? PlanCode { get; set; }

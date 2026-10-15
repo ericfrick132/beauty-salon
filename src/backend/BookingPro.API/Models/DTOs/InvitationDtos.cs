@@ -155,6 +155,10 @@ namespace BookingPro.API.Models.DTOs
         
         [MaxLength(10)]
         public string? Language { get; set; } = "en";
+
+        /// <summary>País del negocio (AR, UY, MX, ES). Null → Argentina.</summary>
+        [MaxLength(2)]
+        public string? Country { get; set; }
         
         public bool IsDemo { get; set; } = false;
         public int? DemoDays { get; set; }

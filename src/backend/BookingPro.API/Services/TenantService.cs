@@ -176,8 +176,9 @@ namespace BookingPro.API.Services
                     OwnerEmail = dto.AdminEmail, // Fix: Set the owner email
                     OwnerPhone = dto.AdminPhone, // Fix: Set the owner phone
                     SchemaName = GenerateSchemaName(dto.Subdomain),
-                    TimeZone = dto.TimeZone ?? "America/Argentina/Buenos_Aires",
-                    Currency = dto.Currency ?? "ARS",
+                    TimeZone = dto.TimeZone ?? CountryProfile.Get(dto.Country).TimeZoneId,
+                    Currency = dto.Currency ?? CountryProfile.Get(dto.Country).Currency,
+                    Country = CountryProfile.Get(dto.Country).Code,
                     Language = dto.Language ?? "es",
                     Status = dto.IsDemo ? TenantStatus.Trial.ToString().ToLower() : TenantStatus.Active.ToString().ToLower(),
                     TrialEndsAt = dto.IsDemo ? DateTime.UtcNow.AddDays(dto.DemoDays ?? 7) : null,

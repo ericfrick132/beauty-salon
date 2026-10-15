@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using BookingPro.API.Data;
+using BookingPro.API.Utilities;
 using BookingPro.API.Models.Entities;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Services;
@@ -299,9 +300,10 @@ namespace BookingPro.API.Controllers
                     AdminLastName = "",
                     AdminPhone = dto.Mobile,
                     AdminPassword = "temp", // Will be overridden below
-                    TimeZone = "America/Argentina/Buenos_Aires",
-                    Currency = "ARS",
+                    TimeZone = CountryProfile.Resolve(dto.Country, dto.Mobile).TimeZoneId,
+                    Currency = CountryProfile.Resolve(dto.Country, dto.Mobile).Currency,
                     Language = "es",
+                    Country = CountryProfile.Resolve(dto.Country, dto.Mobile).Code,
                     IsDemo = true,
                     DemoDays = 7,
                     PlanId = null
@@ -322,9 +324,10 @@ namespace BookingPro.API.Controllers
                     OwnerEmail = pending.Email,
                     OwnerPhone = dto.Mobile,
                     SchemaName = $"tenant_{subdomain.Replace("-", "_")}",
-                    TimeZone = "America/Argentina/Buenos_Aires",
-                    Currency = "ARS",
+                    TimeZone = CountryProfile.Resolve(dto.Country, dto.Mobile).TimeZoneId,
+                    Currency = CountryProfile.Resolve(dto.Country, dto.Mobile).Currency,
                     Language = "es",
+                    Country = CountryProfile.Resolve(dto.Country, dto.Mobile).Code,
                     Status = "trial",
                     IsDemo = true,
                     DemoDays = 7,
@@ -482,9 +485,10 @@ namespace BookingPro.API.Controllers
                     OwnerPhone = dto.Mobile,
                     OwnerName = string.IsNullOrWhiteSpace(dto.FullName) ? null : dto.FullName.Trim(),
                     SchemaName = $"tenant_{subdomain.Replace("-", "_")}",
-                    TimeZone = "America/Argentina/Buenos_Aires",
-                    Currency = "ARS",
+                    TimeZone = CountryProfile.Resolve(dto.Country, dto.Mobile).TimeZoneId,
+                    Currency = CountryProfile.Resolve(dto.Country, dto.Mobile).Currency,
                     Language = "es",
+                    Country = CountryProfile.Resolve(dto.Country, dto.Mobile).Code,
                     Status = "trial",
                     IsDemo = true,
                     DemoDays = 7,
@@ -728,9 +732,10 @@ namespace BookingPro.API.Controllers
                     OwnerEmail = emailLower,
                     OwnerName = string.IsNullOrWhiteSpace(contact) ? null : contact,
                     SchemaName = $"tenant_{subdomain.Replace("-", "_")}",
-                    TimeZone = "America/Argentina/Buenos_Aires",
-                    Currency = "ARS",
+                    TimeZone = CountryProfile.Resolve(dto.Country, null).TimeZoneId,
+                    Currency = CountryProfile.Resolve(dto.Country, null).Currency,
                     Language = "es",
+                    Country = CountryProfile.Resolve(dto.Country, null).Code,
                     Status = "trial",
                     IsDemo = true,
                     DemoDays = 7,
@@ -930,7 +935,7 @@ namespace BookingPro.API.Controllers
             // para que el tenant se cree ya con ellos al verificar (y el onboarding no los vuelva a
             // pedir). Un reenvío sin estos campos no pisa lo que ya había.
             var businessName = CleanOptionalBusinessName(dto.BusinessName);
-            var phone = NormalizePhone(dto.Phone);
+            var phone = NormalizePhone(dto.Phone, dto.Country);
             var attributionJson = SerializeAttribution(dto);
 
             // Anti-spam: tope de reenvíos dentro de la ventana activa (no vencida).
@@ -1147,9 +1152,10 @@ namespace BookingPro.API.Controllers
                     OwnerEmail = email,
                     OwnerPhone = signupPhone, // null si el form no lo trajo → el onboarding lo pide
                     SchemaName = $"tenant_{subdomain.Replace("-", "_")}",
-                    TimeZone = "America/Argentina/Buenos_Aires",
-                    Currency = "ARS",
+                    TimeZone = CountryProfile.Resolve(null, signupPhone).TimeZoneId,
+                    Currency = CountryProfile.Resolve(null, signupPhone).Currency,
                     Language = "es",
+                    Country = CountryProfile.Resolve(null, signupPhone).Code,
                     Status = "trial",
                     IsDemo = true,
                     DemoDays = 7,
@@ -1324,26 +1330,12 @@ namespace BookingPro.API.Controllers
 
         /// <summary>
         /// WhatsApp del formulario de alta a formato "+&lt;país&gt;&lt;número&gt;" (solo dígitos tras el +).
-        /// Si viene con prefijo internacional ("+54 11 ..."), se respeta el país; si viene sin "+", se
-        /// asume Argentina. Para Argentina se inserta el 9 de móvil si falta (54 11... → 549 11...),
-        /// que es como WhatsApp identifica el número. Devuelve null si no parece un teléfono.
+        /// Si viene con prefijo internacional ("+598 ...", "+34 ..."), se respeta el país; si viene sin "+",
+        /// se usa el país elegido en el alta (Argentina si no vino). Para Argentina se inserta el 9 de
+        /// móvil si falta (54 11... → 549 11...). Devuelve null si no parece un teléfono.
         /// </summary>
-        private static string? NormalizePhone(string? raw)
-        {
-            if (string.IsNullOrWhiteSpace(raw)) return null;
-            var international = raw.TrimStart().StartsWith("+");
-            var digits = Regex.Replace(raw, "[^0-9]", "");
-            if (!international)
-            {
-                digits = digits.TrimStart('0'); // "011 2345 6789" → "1123456789"
-                if (digits.Length < 8) return null;
-                digits = "54" + digits;
-            }
-            if (digits.StartsWith("54") && !digits.StartsWith("549") && digits.Length >= 12)
-                digits = "549" + digits.Substring(2);
-            if (digits.Length < 9 || digits.Length > 16) return null;
-            return "+" + digits;
-        }
+        private static string? NormalizePhone(string? raw, string? country = null) =>
+            PhoneNumbers.ToE164(raw, country);
 
         /// <summary>Token opaco de transacción: 32 bytes aleatorios en base64url (43 chars, sin padding).</summary>
         private static string GenerateStateToken()
@@ -1485,9 +1477,10 @@ namespace BookingPro.API.Controllers
                     OwnerEmail = email,
                     OwnerPhone = dto.Mobile,
                     SchemaName = $"tenant_{subdomain.Replace("-", "_")}",
-                    TimeZone = "America/Argentina/Buenos_Aires",
-                    Currency = "ARS",
+                    TimeZone = CountryProfile.Resolve(dto.Country, dto.Mobile).TimeZoneId,
+                    Currency = CountryProfile.Resolve(dto.Country, dto.Mobile).Currency,
                     Language = "es",
+                    Country = CountryProfile.Resolve(dto.Country, dto.Mobile).Code,
                     Status = "trial",
                     IsDemo = true,
                     DemoDays = 7,
@@ -1599,6 +1592,9 @@ namespace BookingPro.API.Controllers
 
     public class RegistrationQuickDto : MetaAttributionFieldsDto
     {
+        /// <summary>País del negocio (AR, UY, MX, ES). Null → se deduce del código del teléfono; si no, Argentina.</summary>
+        public string? Country { get; set; }
+
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El email es requerido")]
         [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "Email inválido")]
         public string Email { get; set; } = string.Empty;
@@ -1625,6 +1621,9 @@ namespace BookingPro.API.Controllers
     /// <summary>Payload del bot de WhatsApp para crear una cuenta de tenant automáticamente.</summary>
     public class BotRegisterDto : MetaAttributionFieldsDto
     {
+        /// <summary>País del negocio (AR, UY, MX, ES). Null → se deduce del código del teléfono; si no, Argentina.</summary>
+        public string? Country { get; set; }
+
         // El bot manda como "nombre" lo que el lead responde a "cómo se llama tu negocio?",
         // que a veces es una frase larga (ej. "Te comento estoy por abrir el lugar de estética…").
         // NO rechazamos por largo: CleanBusinessName lo limpia/trunca a ≤60 antes de guardarlo.
@@ -1658,6 +1657,9 @@ namespace BookingPro.API.Controllers
     /// desde /register?s=...), más los datos del negocio y la atribución del anuncio.</summary>
     public class EmailStartDto : MetaAttributionFieldsDto
     {
+        /// <summary>País del negocio (AR, UY, MX, ES). Null → se deduce del código del teléfono; si no, Argentina.</summary>
+        public string? Country { get; set; }
+
         /// <summary>Email de la persona. Obligatorio salvo que venga State.</summary>
         public string? Email { get; set; }
 
@@ -1687,6 +1689,9 @@ namespace BookingPro.API.Controllers
 
     public class RegistrationCompleteDto : MetaAttributionFieldsDto
     {
+        /// <summary>País del negocio (AR, UY, MX, ES). Null → se deduce del código del teléfono; si no, Argentina.</summary>
+        public string? Country { get; set; }
+
         [System.ComponentModel.DataAnnotations.Required]
         public string RememberToken { get; set; } = string.Empty;
 

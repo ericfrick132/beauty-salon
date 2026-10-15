@@ -65,6 +65,19 @@ namespace BookingPro.API.Utilities
                       .FirstOrDefault(p => digits.StartsWith(p.DialCode));
         }
 
+        /// <summary>
+        /// País del alta: el elegido si es soportado; si no, el del código internacional del teléfono
+        /// ("+598 ..."); si no, Argentina.
+        /// </summary>
+        public static CountryProfile Resolve(string? country, string? phone)
+        {
+            if (IsSupported(country)) return Get(country);
+            var raw = phone?.Trim();
+            if (!string.IsNullOrEmpty(raw) && (raw.StartsWith("+") || raw.StartsWith("00")))
+                return FromDialCode(raw) ?? Argentina;
+            return Argentina;
+        }
+
         /// <summary>Perfil del negocio (Tenant.Country; null → Argentina).</summary>
         public static CountryProfile For(Tenant? tenant) => Get(tenant?.Country);
 
