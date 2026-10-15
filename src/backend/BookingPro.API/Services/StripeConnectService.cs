@@ -3,6 +3,7 @@ using BookingPro.API.Data;
 using BookingPro.API.Models.Common;
 using BookingPro.API.Models.Entities;
 using BookingPro.API.Models.Enums;
+using BookingPro.API.Services.Interfaces;
 using BookingPro.API.Utilities;
 using Microsoft.EntityFrameworkCore;
 using StripeSdk = Stripe;
@@ -27,7 +28,9 @@ namespace BookingPro.API.Services
         /// <summary>True si el negocio cobra señas con Stripe (España y cuenta habilitada para cobrar).</summary>
         Task<bool> CanChargeDepositsAsync(Guid tenantId);
 
-        Task<ServiceResult<StripeDepositCheckout>> CreateDepositCheckoutAsync(Guid tenantId, Guid bookingId, decimal amount, string? customerEmail);
+        /// <param name="origin">Marca de origen en MetadataJson ("whatsapp_bot" para que el webhook le avise al cliente por WhatsApp).</param>
+        Task<ServiceResult<StripeDepositCheckout>> CreateDepositCheckoutAsync(Guid tenantId, Guid bookingId, decimal amount, string? customerEmail,
+            string? origin = null, string paymentType = "deposit");
 
         /// <summary>Webhook de Connect (eventos de las cuentas conectadas: account.updated y los Checkout de señas).</summary>
         Task HandleConnectEventAsync(StripeSdk.Event stripeEvent);
@@ -60,12 +63,15 @@ namespace BookingPro.API.Services
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;
         private readonly ILogger<StripeConnectService> _logger;
+        private readonly IWhatsAppConnectionService _whatsApp;
 
-        public StripeConnectService(ApplicationDbContext context, IConfiguration configuration, ILogger<StripeConnectService> logger)
+        public StripeConnectService(ApplicationDbContext context, IConfiguration configuration, ILogger<StripeConnectService> logger,
+            IWhatsAppConnectionService whatsApp)
         {
             _context = context;
             _configuration = configuration;
             _logger = logger;
+            _whatsApp = whatsApp;
         }
 
         public bool IsConfigured => !string.IsNullOrWhiteSpace(_configuration["Stripe:SecretKey"]);
@@ -221,7 +227,8 @@ namespace BookingPro.API.Services
 
         // ───────────────────────── Seña ─────────────────────────
 
-        public async Task<ServiceResult<StripeDepositCheckout>> CreateDepositCheckoutAsync(Guid tenantId, Guid bookingId, decimal amount, string? customerEmail)
+        public async Task<ServiceResult<StripeDepositCheckout>> CreateDepositCheckoutAsync(Guid tenantId, Guid bookingId, decimal amount, string? customerEmail,
+            string? origin = null, string paymentType = "deposit")
         {
             try
             {
@@ -252,14 +259,14 @@ namespace BookingPro.API.Services
                     Amount = amountToPay,
                     Currency = currency,
                     Status = PaymentTransactionStatus.Pending,
-                    PaymentType = "deposit",
+                    PaymentType = paymentType,
                     Description = $"Pago por {booking.Service.Name}",
                     MetadataJson = JsonSerializer.Serialize(new
                     {
                         ServiceName = booking.Service.Name,
                         BookingDate = booking.StartTime,
                         CustomerName = $"{booking.Customer?.FirstName} {booking.Customer?.LastName}".Trim(),
-                        Origin = "web",
+                        Origin = string.IsNullOrEmpty(origin) ? "web" : origin,
                     }),
                 };
 
@@ -422,9 +429,7 @@ namespace BookingPro.API.Services
             tx.ProcessorResponseCode = session.PaymentStatus;
             tx.UpdatedAt = DateTime.UtcNow;
 
-            if (paid)
-            {
-                await DepositConfirmation.ConfirmBookingAsync(_context, tx.TenantId, tx.BookingId,
+            var deposit = !paid ? null :
                     new DepositConfirmation.PaidDeposit(
                         Provider: Provider,
                         ExternalPaymentId: session.PaymentIntentId ?? session.Id,
@@ -433,13 +438,23 @@ namespace BookingPro.API.Services
                         PayerEmail: session.CustomerDetails?.Email ?? session.CustomerEmail,
                         PaidAt: DateTime.UtcNow,
                         PaymentType: string.IsNullOrEmpty(tx.PaymentType) ? "deposit" : tx.PaymentType,
-                        Notes: "Cobrado con Stripe (seña de la reserva online)"));
+                        Notes: "Cobrado con Stripe (seña de la reserva online)");
+
+            Booking? confirmed = null;
+            if (paid)
+            {
+                confirmed = await DepositConfirmation.ConfirmBookingAsync(_context, tx.TenantId, tx.BookingId, deposit!);
             }
 
             await _context.SaveChangesAsync();
 
             if (paid && !wasApproved)
+            {
                 PushDispatch.BookingEvent(tx.TenantId, tx.BookingId, "paid");
+                // Link que mandó el asistente de WhatsApp: se le avisa al cliente por ahí, igual que con Mercado Pago.
+                if (confirmed != null && DepositConfirmation.IsFromWhatsAppBot(tx))
+                    await DepositConfirmation.NotifyDepositReceivedAsync(_context, _whatsApp, _logger, tx.TenantId, confirmed, deposit!.Amount);
+            }
         }
     }
 }

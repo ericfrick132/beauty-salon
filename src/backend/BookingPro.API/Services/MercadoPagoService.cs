@@ -7,6 +7,7 @@ using BookingPro.API.Models.Entities;
 using BookingPro.API.Models.Enums;
 using BookingPro.API.Models.Common;
 using BookingPro.API.Services.Interfaces;
+using BookingPro.API.Utilities;
 using Microsoft.EntityFrameworkCore;
 using MercadoPago.Client.Preference;
 using MercadoPago.Config;
@@ -24,6 +25,7 @@ namespace BookingPro.API.Services
         private readonly ITenantProvider _tenantProvider;
         private readonly IMercadoPagoOAuthService _oauthService;
         private readonly IWhatsAppConnectionService _whatsApp;
+        private readonly IStripeConnectService _stripeConnect;
 
         public MercadoPagoService(
             ApplicationDbContext context,
@@ -31,7 +33,8 @@ namespace BookingPro.API.Services
             IConfiguration configuration,
             ITenantProvider tenantProvider,
             IMercadoPagoOAuthService oauthService,
-            IWhatsAppConnectionService whatsApp)
+            IWhatsAppConnectionService whatsApp,
+            IStripeConnectService stripeConnect)
         {
             _context = context;
             _logger = logger;
@@ -39,6 +42,7 @@ namespace BookingPro.API.Services
             _tenantProvider = tenantProvider;
             _oauthService = oauthService;
             _whatsApp = whatsApp;
+            _stripeConnect = stripeConnect;
         }
 
         public async Task<ServiceResult<CreatePaymentResponseDto>> CreatePaymentPreferenceAsync(CreatePaymentDto dto)
@@ -71,6 +75,24 @@ namespace BookingPro.API.Services
                 if (booking == null)
                 {
                     return ServiceResult<CreatePaymentResponseDto>.Fail("Reserva no encontrada");
+                }
+
+                // España no tiene Mercado Pago: el link de la seña es un Checkout de Stripe en la cuenta
+                // conectada del negocio (mismo camino que la reserva pública y mismo webhook de confirmación).
+                if (await UsesStripeDepositsAsync(tenantId))
+                {
+                    var stripeAmount = dto.PaymentType == "deposit" && dto.Amount > 0 ? dto.Amount : booking.Service.Price;
+                    var checkout = await _stripeConnect.CreateDepositCheckoutAsync(tenantId, booking.Id, stripeAmount,
+                        dto.CustomerEmail, dto.Origin, string.IsNullOrEmpty(dto.PaymentType) ? "deposit" : dto.PaymentType);
+                    if (!checkout.Success || checkout.Data == null)
+                        return ServiceResult<CreatePaymentResponseDto>.Fail(checkout.Message ?? "No se pudo crear el link de pago");
+                    return ServiceResult<CreatePaymentResponseDto>.Ok(new CreatePaymentResponseDto
+                    {
+                        PreferenceId = checkout.Data.SessionId,
+                        InitPoint = checkout.Data.Url,
+                        TransactionId = checkout.Data.TransactionId,
+                        Amount = checkout.Data.Amount,
+                    });
                 }
 
                 // Obtener el access token OAuth del tenant
@@ -385,35 +407,14 @@ namespace BookingPro.API.Services
 
                     // Aviso al cliente por WhatsApp (best-effort: nunca rompe el webhook). Solo si el link de
                     // pago lo generó el asistente de WhatsApp; la reserva pública y el panel no lo reciben.
-                    if (newlyApproved && approvedBooking != null && IsFromWhatsAppBot(transaction))
-                        await NotifyDepositReceivedAsync(tenantId, approvedBooking, payment.TransactionAmount ?? transaction.Amount);
+                    if (newlyApproved && approvedBooking != null && DepositConfirmation.IsFromWhatsAppBot(transaction))
+                        await DepositConfirmation.NotifyDepositReceivedAsync(_context, _whatsApp, _logger, tenantId, approvedBooking, payment.TransactionAmount ?? transaction.Amount);
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing payment notification for payment {PaymentId}", paymentId);
                 throw;
-            }
-        }
-
-        /// <summary>
-        /// True si la transacción la creó el asistente de WhatsApp (Origin = "whatsapp_bot" en MetadataJson,
-        /// que solo se setea desde código: CreatePaymentDto.Origin no se bindea desde HTTP).
-        /// </summary>
-        private static bool IsFromWhatsAppBot(PaymentTransaction transaction)
-        {
-            if (string.IsNullOrWhiteSpace(transaction.MetadataJson)) return false;
-            try
-            {
-                using var doc = JsonDocument.Parse(transaction.MetadataJson);
-                return doc.RootElement.ValueKind == JsonValueKind.Object
-                    && doc.RootElement.TryGetProperty("Origin", out var origin)
-                    && origin.ValueKind == JsonValueKind.String
-                    && origin.GetString() == CreatePaymentDto.WhatsAppBotOrigin;
-            }
-            catch (JsonException)
-            {
-                return false;
             }
         }
 
@@ -435,39 +436,12 @@ namespace BookingPro.API.Services
             return dataObj?.GetType().GetProperty("id")?.GetValue(dataObj, null)?.ToString();
         }
 
-        /// <summary>
-        /// Le avisa al cliente por el WhatsApp del negocio (Evolution) que su seña se acreditó. Solo si el
-        /// turno tiene un teléfono real (los turnos del asistente guardan el número de WhatsApp) y el
-        /// negocio tiene WhatsApp conectado. La vista previa del panel ("preview-panel") no tiene dígitos,
-        /// así que nunca manda nada. Cualquier error se loguea y se ignora.
-        /// </summary>
-        private async Task NotifyDepositReceivedAsync(Guid tenantId, Booking booking, decimal amount)
+        /// <summary>True si el negocio cobra las señas con Stripe Connect (España) en vez de Mercado Pago.</summary>
+        private async Task<bool> UsesStripeDepositsAsync(Guid tenantId)
         {
-            try
-            {
-                var phone = new string((booking.Customer?.Phone ?? "").Where(char.IsDigit).ToArray());
-                if (phone.Length < 8) return;
-
-                var connection = await _whatsApp.GetConnectionByTenantIdAsync(tenantId);
-                if (connection == null || connection.Status != "open") return;
-
-                var tenant = await _context.Tenants.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(t => t.Id == tenantId);
-                // Hora y moneda del negocio (zona IANA o el offset viejo "-3"; sin configurar → Argentina).
-                var local = Utilities.TenantTime.ToLocal(booking.StartTime, Utilities.TenantTime.For(tenant));
-                var es = Utilities.MoneyFormat.CultureFor(tenant);
-                var day = local.ToString("dddd dd/MM", es);
-                day = string.IsNullOrEmpty(day) ? day : char.ToUpper(day[0]) + day[1..];
-                var money = Utilities.MoneyFormat.Format(amount, tenant);
-
-                var msg = $"¡Recibimos tu seña de {money} ✅! Tu turno del {day} a las {local:HH:mm} quedó confirmado. ¡Te esperamos!";
-                var send = await _whatsApp.SendTextAsync(tenantId, phone, msg);
-                if (!send.Success)
-                    _logger.LogWarning("Seña acreditada: no se pudo avisar por WhatsApp al turno {BookingId}: {Error}", booking.Id, send.Message);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Seña acreditada: no se pudo avisar por WhatsApp al turno {BookingId}", booking.Id);
-            }
+            var country = await _context.Tenants.IgnoreQueryFilters().AsNoTracking()
+                .Where(t => t.Id == tenantId).Select(t => t.Country).FirstOrDefaultAsync();
+            return CountryProfile.Get(country).StripeDeposits;
         }
 
         private decimal CalculateAmountToPay(decimal servicePrice, string paymentType, decimal? depositPercentage, decimal? minimumDeposit)
@@ -898,6 +872,23 @@ namespace BookingPro.API.Services
                 if (!Guid.TryParse(tenantId, out var tenantGuid))
                 {
                     return ServiceResult<PaymentLinkResponseDto>.Fail("Invalid tenant ID");
+                }
+
+                // Negocios con señas por Stripe Connect (España): Checkout en la cuenta del negocio.
+                if (await UsesStripeDepositsAsync(tenantGuid))
+                {
+                    if (dto.BookingId == Guid.Empty)
+                        return ServiceResult<PaymentLinkResponseDto>.Fail("El enlace de pago con Stripe tiene que ser de una cita");
+                    var checkout = await _stripeConnect.CreateDepositCheckoutAsync(tenantGuid, dto.BookingId, dto.Amount, dto.CustomerEmail);
+                    if (!checkout.Success || checkout.Data == null)
+                        return ServiceResult<PaymentLinkResponseDto>.Fail(checkout.Message ?? "Failed to create payment link");
+                    return ServiceResult<PaymentLinkResponseDto>.Ok(new PaymentLinkResponseDto
+                    {
+                        PaymentLink = checkout.Data.Url,
+                        PreferenceId = checkout.Data.SessionId,
+                        // El Checkout de la seña vence a los 30 minutos (StripeConnectService).
+                        ExpiresAt = DateTime.UtcNow.AddMinutes(30),
+                    });
                 }
                 
                 var config = await _context.MercadoPagoConfigurations

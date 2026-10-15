@@ -47,6 +47,7 @@ namespace BookingPro.API.Services
         private readonly ITenantService _tenantService;
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IMercadoPagoService _mercadoPago;
+        private readonly IStripeConnectService _stripeConnect;
         private readonly ILogger<WhatsAppMenuBotService> _logger;
 
         public WhatsAppMenuBotService(
@@ -57,6 +58,7 @@ namespace BookingPro.API.Services
             ITenantService tenantService,
             IHttpContextAccessor httpContextAccessor,
             IMercadoPagoService mercadoPago,
+            IStripeConnectService stripeConnect,
             ILogger<WhatsAppMenuBotService> logger)
         {
             _context = context;
@@ -66,6 +68,7 @@ namespace BookingPro.API.Services
             _tenantService = tenantService;
             _httpContextAccessor = httpContextAccessor;
             _mercadoPago = mercadoPago;
+            _stripeConnect = stripeConnect;
             _logger = logger;
         }
 
@@ -227,7 +230,7 @@ namespace BookingPro.API.Services
                 Intent.MyBookings => await RenderMyBookingsAsync(tenant, s, ct),
                 Intent.Cancel => await StartCancelAsync(tenant, settings, s, d, ct),
                 Intent.Info => await RenderInfoAsync(tenant, settings, ct),
-                Intent.Thanks => "¡De nada! 🙌 Cuando necesites algo, escribí *menu*.",
+                Intent.Thanks => W(tenant).T("¡De nada! 🙌 Cuando necesites algo, escribí *menu*.", "¡De nada! 🙌 Cuando necesites algo, escribe *menu*."),
                 _ => RenderMenu(tenant, s, greet: true),
             };
         }
@@ -238,7 +241,8 @@ namespace BookingPro.API.Services
         {
             var services = (await _public.GetServicesAsync()).Where(x => x.IsActive).OrderBy(x => x.Name).Take(MaxOptions).ToList();
             if (services.Count == 0)
-                return "😕 Todavía no hay servicios cargados para reservar. Escribí *5* para hablar con el negocio.";
+                return W(tenant).T("😕 Todavía no hay servicios cargados para reservar. Escribí *5* para hablar con el negocio.",
+                    "😕 Todavía no hay servicios cargados para reservar. Escribe *5* para hablar con el negocio.");
 
             d.ServiceOptions = services.Select(x => x.Id).ToList();
             if (services.Count == 1)
@@ -248,7 +252,7 @@ namespace BookingPro.API.Services
             }
 
             s.Step = StepService;
-            var sb = new StringBuilder("💇 ¿Qué servicio querés?\n");
+            var sb = new StringBuilder(W(tenant).T("💇 ¿Qué servicio querés?\n", "💇 ¿Qué servicio quieres?\n"));
             for (var i = 0; i < services.Count; i++)
                 sb.AppendLine($"{i + 1}) {services[i].Name} · {Money(tenant, services[i].Price)} · {services[i].DurationMinutes} min");
             sb.AppendLine("0) Volver al menú");
@@ -263,7 +267,7 @@ namespace BookingPro.API.Services
             {
                 var services = await ServicesByIdsAsync(d.ServiceOptions, ct);
                 var byName = services.FirstOrDefault(x => Normalize(x.Name).Contains(Normalize(p.Raw)) && Normalize(p.Raw).Length >= 3);
-                if (byName == null) return "No entendí 🙈 Respondé con el número del servicio, o *0* para volver.";
+                if (byName == null) return W(tenant).T("No entendí 🙈 Respondé con el número del servicio, o *0* para volver.", "No entendí 🙈 Responde con el número del servicio, o *0* para volver.");
                 picked = byName.Id;
             }
             d.ServiceId = picked;
@@ -277,7 +281,8 @@ namespace BookingPro.API.Services
                 .OrderBy(e => e.Name).Take(MaxOptions).ToList();
 
             if (pros.Count == 0)
-                return "😕 No hay nadie disponible para ese servicio ahora mismo. Escribí *5* para hablar con el negocio.";
+                return W(tenant).T("😕 No hay nadie disponible para ese servicio ahora mismo. Escribí *5* para hablar con el negocio.",
+                    "😕 No hay nadie disponible para ese servicio ahora mismo. Escribe *5* para hablar con el negocio.");
 
             d.ProOptions = pros.Select(x => x.Id).ToList();
             if (pros.Count == 1)
@@ -289,7 +294,7 @@ namespace BookingPro.API.Services
             s.Step = StepPro;
             var sb = new StringBuilder("🙋 ¿Con quién te gustaría atenderte?\n");
             for (var i = 0; i < pros.Count; i++) sb.AppendLine($"{i + 1}) {pros[i].Name}");
-            sb.AppendLine($"{pros.Count + 1}) Me da igual, el primero que haya");
+            sb.AppendLine($"{pros.Count + 1}) " + W(tenant).T("Me da igual, el primero que haya", "Me da igual, el primero que esté libre", "Me da igual, el primero que haya"));
             sb.AppendLine("0) Volver al menú");
             return sb.ToString().TrimEnd();
         }
@@ -304,7 +309,7 @@ namespace BookingPro.API.Services
             {
                 var pros = await EmployeesByIdsAsync(d.ProOptions, ct);
                 var byName = pros.FirstOrDefault(x => Normalize(x.Name).Contains(Normalize(p.Raw)) && Normalize(p.Raw).Length >= 3);
-                if (byName == null) return "No entendí 🙈 Respondé con el número del profesional, o *0* para volver.";
+                if (byName == null) return W(tenant).T("No entendí 🙈 Respondé con el número del profesional, o *0* para volver.", "No entendí 🙈 Responde con el número del profesional, o *0* para volver.");
                 picked = byName.Id;
             }
             d.EmployeeId = picked;
@@ -324,7 +329,7 @@ namespace BookingPro.API.Services
                 sb.AppendLine($"{i + 1}) {label} ({day:dd/MM})");
             }
             sb.AppendLine("0) Volver al menú");
-            sb.AppendLine("_Podés escribir el día: «jueves», «12/09», «pasado mañana»._");
+            sb.AppendLine(W(tenant).T("_Podés escribir el día: «jueves», «12/09», «pasado mañana»._", "_Puedes escribir el día: «jueves», «12/09», «pasado mañana»._"));
             return Task.FromResult(sb.ToString().TrimEnd());
         }
 
@@ -338,9 +343,10 @@ namespace BookingPro.API.Services
             if (p.Option is >= 1 and <= 9 && p.Option.Value <= days) date = today.AddDays(p.Option.Value - 1);
             else if (p.Date.HasValue) date = p.Date.Value;
 
-            if (date == null) return "No entendí la fecha 🙈 Respondé con el número del día, o escribí «jueves» o «12/09».";
-            if (date.Value < today) return "Esa fecha ya pasó 😅 Elegí un día de la lista.";
-            if (date.Value > today.AddDays(days)) return $"Por ahora tomamos turnos hasta {days} días adelante. Elegí un día de la lista.";
+            var w = W(tenant);
+            if (date == null) return w.T("No entendí la fecha 🙈 Respondé con el número del día, o escribí «jueves» o «12/09».", "No entendí la fecha 🙈 Responde con el número del día, o escribe «jueves» o «12/09».");
+            if (date.Value < today) return w.T("Esa fecha ya pasó 😅 Elegí un día de la lista.", "Esa fecha ya pasó 😅 Elige un día de la lista.");
+            if (date.Value > today.AddDays(days)) return w.T($"Por ahora tomamos turnos hasta {days} días adelante. Elegí un día de la lista.", $"Por ahora damos citas hasta {days} días adelante. Elige un día de la lista.");
 
             d.Date = date.Value.ToString("yyyy-MM-dd");
             return await GoToTimesAsync(tenant, settings, s, d);
@@ -366,7 +372,7 @@ namespace BookingPro.API.Services
                 if ((i + 1) % 3 == 0) sb.AppendLine();
             }
             sb.AppendLine();
-            sb.AppendLine("Respondé con el número o escribí la hora («a las 16», «16:30»).");
+            sb.AppendLine(W(tenant).T("Respondé con el número o escribí la hora («a las 16», «16:30»).", "Responde con el número o escribe la hora («a las 16», «16:30»)."));
             sb.AppendLine("0) Elegir otro día");
             return sb.ToString().TrimEnd();
         }
@@ -382,7 +388,7 @@ namespace BookingPro.API.Services
             if (chosen == null)
             {
                 if (p.Time != null) return $"😕 A las {p.Time} no hay lugar ese día.\n\n" + await GoToTimesAsync(tenant, settings, s, d);
-                return "No entendí el horario 🙈 Respondé con el número o escribí la hora (ej: 16:30).";
+                return W(tenant).T("No entendí el horario 🙈 Respondé con el número o escribí la hora (ej: 16:30).", "No entendí el horario 🙈 Responde con el número o escribe la hora (ej: 16:30).");
             }
 
             d.Time = chosen;
@@ -397,13 +403,13 @@ namespace BookingPro.API.Services
             }
 
             s.Step = StepName;
-            return "🙋 ¿A nombre de quién reservo el turno?";
+            return W(tenant).T("🙋 ¿A nombre de quién reservo el turno?", "🙋 ¿A nombre de quién reservo la cita?");
         }
 
         private async Task<string> OnNameAsync(Tenant tenant, MenuBotSettings settings, MenuBotSession s, SessionData d, string text, CancellationToken ct)
         {
             var name = (text ?? "").Trim();
-            if (name.Length < 2 || name.Length > 80) return "Decime un nombre para la reserva 🙏 (ej: María Pérez)";
+            if (name.Length < 2 || name.Length > 80) return W(tenant).T("Decime un nombre para la reserva 🙏 (ej: María Pérez)", "Dime un nombre para la reserva 🙏 (ej: María Pérez)");
             d.Name = name;
             s.Step = StepConfirm;
             return await RenderConfirmAsync(tenant, s, d, ct);
@@ -417,7 +423,8 @@ namespace BookingPro.API.Services
                 : null;
             var date = DateTime.ParseExact(d.Date!, "yyyy-MM-dd", CultureInfo.InvariantCulture);
 
-            var sb = new StringBuilder("📋 Confirmá tu turno:\n");
+            var w = W(tenant);
+            var sb = new StringBuilder(w.T("📋 Confirmá tu turno:\n", "📋 Confirma tu cita:\n"));
             sb.AppendLine($"• {Capitalize(date.ToString("dddd dd/MM", Es))} a las {d.Time}");
             sb.AppendLine($"• {service?.Name ?? "Servicio"}{(service != null ? $" ({service.DurationMinutes} min)" : "")}");
             if (pro != null) sb.AppendLine($"• Con {pro.Name}");
@@ -425,17 +432,20 @@ namespace BookingPro.API.Services
             var deposit = DepositFor(service);
             if (deposit.HasValue && service != null)
             {
-                // Con Mercado Pago conectado la seña se cobra con link al confirmar, con la misma política
-                // que la reserva pública (puede no corresponder, p.ej. cliente habitual); si no, queda como
-                // antes: se arregla con el negocio.
-                if (await CanChargeDepositWithMercadoPagoAsync(tenant, ct))
+                // Con Mercado Pago (o Stripe en España) conectado la seña se cobra con link al confirmar, con la
+                // misma política que la reserva pública (puede no corresponder, p.ej. cliente habitual); si no,
+                // queda como antes: se arregla con el negocio.
+                if (await CanChargeDepositOnlineAsync(tenant, ct))
                 {
                     var startUtc = date.Add(TimeSpan.Parse(d.Time!)).AddHours(-OffsetHours(tenant));
                     var customer = await FindCustomerAsync(s.Phone, ct);
                     var mpDeposit = await DepositByPolicyAsync(service.Id, customer?.Id, startUtc);
-                    if (mpDeposit.HasValue) sb.AppendLine($"• Seña: {Money(tenant, mpDeposit.Value)} (al confirmar te paso el link de Mercado Pago)");
+                    if (mpDeposit.HasValue) sb.AppendLine(w.T(
+                        $"• Seña: {Money(tenant, mpDeposit.Value)} (al confirmar te paso el link de Mercado Pago)",
+                        $"• Anticipo: {Money(tenant, mpDeposit.Value)} (al confirmar te paso el link de Mercado Pago)",
+                        $"• Señal: {Money(tenant, mpDeposit.Value)} (al confirmar te paso el enlace para pagar con tarjeta)"));
                 }
-                else sb.AppendLine($"• Seña: {Money(tenant, deposit.Value)} (se coordina con el negocio)");
+                else sb.AppendLine($"• {w.SenaTitle}: {Money(tenant, deposit.Value)} (se coordina con el negocio)");
             }
             sb.AppendLine($"• A nombre de: {d.Name}");
             sb.AppendLine();
@@ -446,8 +456,9 @@ namespace BookingPro.API.Services
 
         private async Task<string> OnConfirmAsync(Tenant tenant, MenuBotSettings settings, MenuBotSession s, SessionData d, Parsed p, CancellationToken ct)
         {
+            var w = W(tenant);
             if (p.Option == 2 || p.YesNo == false) { Reset(s); return "👍 Listo, no reservé nada.\n\n" + RenderMenu(tenant, s, greet: false); }
-            if (p.Option != 1 && p.YesNo != true) return "Respondé *1* para confirmar o *2* para cancelar.";
+            if (p.Option != 1 && p.YesNo != true) return w.T("Respondé *1* para confirmar o *2* para cancelar.", "Responde *1* para confirmar o *2* para cancelar.");
 
             var service = await _context.Services.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == d.ServiceId, ct);
             if (service == null) { Reset(s); return "😕 Ese servicio ya no está disponible.\n\n" + RenderMenu(tenant, s, greet: false); }
@@ -456,7 +467,7 @@ namespace BookingPro.API.Services
             if (employeeId == null)
             {
                 d.Time = null;
-                return "😕 Ese horario se ocupó recién.\n\n" + await GoToTimesAsync(tenant, settings, s, d);
+                return W(tenant).T("😕 Ese horario se ocupó recién.\n\n", "😕 Ese horario se acaba de ocupar.\n\n") + await GoToTimesAsync(tenant, settings, s, d);
             }
 
             var date = DateTime.ParseExact(d.Date!, "yyyy-MM-dd", CultureInfo.InvariantCulture);
@@ -468,7 +479,9 @@ namespace BookingPro.API.Services
                 d.Time = null;
                 var retry = await GoToTimesAsync(tenant, settings, s, d);
                 return (settings.MinBookingAdvanceMinutes > 0
-                    ? $"😕 Los turnos se reservan con al menos {HumanMinutes(settings.MinBookingAdvanceMinutes)} de anticipación.\n\n"
+                    ? w.T($"😕 Los turnos se reservan con al menos {HumanMinutes(settings.MinBookingAdvanceMinutes)} de anticipación.\n\n",
+                          $"😕 Las citas se reservan con al menos {HumanMinutes(settings.MinBookingAdvanceMinutes)} de anticipación.\n\n",
+                          $"😕 Las citas se reservan con al menos {HumanMinutes(settings.MinBookingAdvanceMinutes)} de antelación.\n\n")
                     : "😕 Ese horario ya pasó.\n\n") + retry;
             }
 
@@ -493,43 +506,49 @@ namespace BookingPro.API.Services
                 var pro = await _context.Employees.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == employeeId, ct);
                 var whenText = $"{Capitalize(date.ToString("dddd dd/MM", Es))} a las {d.Time}";
 
-                // Seña con el Mercado Pago del negocio: mismo camino que la reserva pública
-                // (CalculateDepositAsync + CreatePaymentPreferenceAsync). Si no hay MP o falla, sigue como antes.
+                // Seña con el Mercado Pago del negocio (o Stripe Connect en España): mismo camino que la reserva
+                // pública (CalculateDepositAsync + CreatePaymentPreferenceAsync, que deriva a Stripe). Si no hay
+                // cobro online o falla, sigue como antes.
                 var depositLink = await TryCreateDepositLinkAsync(tenant, booking, service, knownCustomer?.Id ?? booking.CustomerId, d.Name!, ct);
                 if (depositLink != null)
                 {
                     var pay = new StringBuilder();
-                    pay.AppendLine($"📅 Reservamos tu turno: {service.Name}{(pro != null ? $" con {pro.Name}" : "")}, {whenText}.");
-                    pay.AppendLine($"Para confirmarlo, aboná la seña de {Money(tenant, depositLink.Value.Amount)} acá 👇");
+                    var withPro = pro != null ? $" con {pro.Name}" : "";
+                    var depositMoney = Money(tenant, depositLink.Value.Amount);
+                    pay.AppendLine(w.T($"📅 Reservamos tu turno: {service.Name}{withPro}, {whenText}.", $"📅 Reservamos tu cita: {service.Name}{withPro}, {whenText}."));
+                    pay.AppendLine(w.T(
+                        $"Para confirmarlo, aboná la seña de {depositMoney} acá 👇",
+                        $"Para confirmarla, paga el anticipo de {depositMoney} aquí 👇",
+                        $"Para confirmarla, paga la señal de {depositMoney} aquí 👇"));
                     pay.AppendLine(depositLink.Value.Link);
-                    pay.AppendLine("Apenas se acredite te aviso por acá ✅");
+                    pay.AppendLine(w.T("Apenas se acredite te aviso por acá ✅", "En cuanto se acredite te aviso por aquí ✅"));
                     pay.AppendLine();
-                    pay.AppendLine($"Podés cancelarlo por acá hasta {settings.CancellationCutoffHours} hs antes (escribí *cancelar*).");
-                    pay.Append("Escribí *menu* para volver al inicio.");
+                    pay.AppendLine(CancelHint(w, settings.CancellationCutoffHours));
+                    pay.Append(w.T("Escribí *menu* para volver al inicio.", "Escribe *menu* para volver al inicio."));
                     return pay.ToString();
                 }
 
-                var sb = new StringBuilder("✅ ¡Turno confirmado!\n");
+                var sb = new StringBuilder(w.T("✅ ¡Turno confirmado!\n", "✅ ¡Cita confirmada!\n"));
                 sb.AppendLine($"• {whenText}");
                 sb.AppendLine($"• {service.Name}{(pro != null ? $" con {pro.Name}" : "")}");
                 if (service.Price > 0) sb.AppendLine($"• Precio: {Money(tenant, service.Price)}");
                 var deposit = DepositFor(service);
-                if (deposit.HasValue) sb.AppendLine($"• Seña: {Money(tenant, deposit.Value)} (se coordina con el negocio)");
+                if (deposit.HasValue) sb.AppendLine($"• {w.SenaTitle}: {Money(tenant, deposit.Value)} (se coordina con el negocio)");
                 sb.AppendLine();
-                sb.AppendLine($"Podés cancelarlo por acá hasta {settings.CancellationCutoffHours} hs antes (escribí *cancelar*).");
-                sb.Append("Escribí *menu* para volver al inicio.");
+                sb.AppendLine(CancelHint(w, settings.CancellationCutoffHours));
+                sb.Append(w.T("Escribí *menu* para volver al inicio.", "Escribe *menu* para volver al inicio."));
                 return sb.ToString();
             }
             catch (InvalidOperationException)
             {
                 d.Time = null;
-                return "😕 Ese horario se ocupó recién. Elegí otro:\n\n" + await GoToTimesAsync(tenant, settings, s, d);
+                return w.T("😕 Ese horario se ocupó recién. Elegí otro:\n\n", "😕 Ese horario se acaba de ocupar. Elige otro:\n\n") + await GoToTimesAsync(tenant, settings, s, d);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Bot por menú: error creando el turno del tenant {TenantId}", tenant.Id);
                 Reset(s);
-                return "😕 No pude cerrar el turno. Escribí *5* y te atiende alguien del negocio.";
+                return w.T("😕 No pude cerrar el turno. Escribí *5* y te atiende alguien del negocio.", "😕 No pude cerrar la cita. Escribe *5* y te atiende alguien del negocio.");
             }
         }
 
@@ -537,22 +556,26 @@ namespace BookingPro.API.Services
 
         private async Task<string> RenderMyBookingsAsync(Tenant tenant, MenuBotSession s, CancellationToken ct)
         {
+            var w = W(tenant);
             var bookings = await UpcomingBookingsAsync(tenant, s.Phone, ct);
             if (bookings.Count == 0)
-                return "📭 No encontré turnos próximos con este número.\n\nEscribí *1* para reservar uno o *menu* para volver.";
+                return w.T("📭 No encontré turnos próximos con este número.\n\nEscribí *1* para reservar uno o *menu* para volver.",
+                    "📭 No encontré citas próximas con este número.\n\nEscribe *1* para reservar una o *menu* para volver.");
 
-            var sb = new StringBuilder("📌 Tus próximos turnos:\n");
+            var sb = new StringBuilder(w.T("📌 Tus próximos turnos:\n", "📌 Tus próximas citas:\n"));
             foreach (var b in bookings) sb.AppendLine($"• {Describe(tenant, b)}");
             sb.AppendLine();
-            sb.Append("Escribí *cancelar* para cancelar uno o *menu* para volver.");
+            sb.Append(w.T("Escribí *cancelar* para cancelar uno o *menu* para volver.", "Escribe *cancelar* para cancelar una o *menu* para volver."));
             return sb.ToString();
         }
 
         private async Task<string> StartCancelAsync(Tenant tenant, MenuBotSettings settings, MenuBotSession s, SessionData d, CancellationToken ct)
         {
+            var w = W(tenant);
             var bookings = await UpcomingBookingsAsync(tenant, s.Phone, ct);
             if (bookings.Count == 0)
-                return "📭 No encontré turnos próximos con este número.\n\nEscribí *menu* para volver.";
+                return w.T("📭 No encontré turnos próximos con este número.\n\nEscribí *menu* para volver.",
+                    "📭 No encontré citas próximas con este número.\n\nEscribe *menu* para volver.");
 
             var limit = DateTime.UtcNow.AddHours(settings.CancellationCutoffHours);
             var cancellable = bookings.Where(b => b.StartTime >= limit).ToList();
@@ -560,22 +583,26 @@ namespace BookingPro.API.Services
 
             if (cancellable.Count == 0)
             {
-                var sb0 = new StringBuilder($"⛔ Tus turnos próximos están a menos de {settings.CancellationCutoffHours} hs, así que no se pueden cancelar por acá.\n");
+                var sb0 = new StringBuilder(w.T(
+                    $"⛔ Tus turnos próximos están a menos de {settings.CancellationCutoffHours} hs, así que no se pueden cancelar por acá.\n",
+                    $"⛔ Tus próximas citas están a menos de {settings.CancellationCutoffHours} h, así que no se pueden cancelar por aquí.\n"));
                 foreach (var b in locked) sb0.AppendLine($"• {Describe(tenant, b)}");
                 sb0.AppendLine();
-                sb0.Append("Escribí *5* para hablar con el negocio.");
+                sb0.Append(w.T("Escribí *5* para hablar con el negocio.", "Escribe *5* para hablar con el negocio."));
                 return sb0.ToString();
             }
 
             s.Step = StepCancelPick;
             d.BookingOptions = cancellable.Select(b => b.Id).ToList();
-            var sb = new StringBuilder("❌ ¿Cuál querés cancelar?\n");
+            var sb = new StringBuilder(w.T("❌ ¿Cuál querés cancelar?\n", "❌ ¿Cuál quieres cancelar?\n"));
             for (var i = 0; i < cancellable.Count; i++) sb.AppendLine($"{i + 1}) {Describe(tenant, cancellable[i])}");
             sb.AppendLine("0) Volver al menú");
             if (locked.Count > 0)
             {
                 sb.AppendLine();
-                sb.AppendLine($"_No se pueden cancelar por acá (menos de {settings.CancellationCutoffHours} hs de anticipación):_");
+                sb.AppendLine(w.T($"_No se pueden cancelar por acá (menos de {settings.CancellationCutoffHours} hs de anticipación):_",
+                    $"_No se pueden cancelar por aquí (menos de {settings.CancellationCutoffHours} h de anticipación):_",
+                    $"_No se pueden cancelar por aquí (menos de {settings.CancellationCutoffHours} h de antelación):_"));
                 foreach (var b in locked) sb.AppendLine($"• {Describe(tenant, b)}");
             }
             return sb.ToString().TrimEnd();
@@ -585,29 +612,33 @@ namespace BookingPro.API.Services
         {
             if (p.Option == 0) { Reset(s); return RenderMenu(tenant, s, greet: false); }
             var picked = PickById(d.BookingOptions, p.Option);
-            if (picked == null) return "No entendí 🙈 Respondé con el número del turno, o *0* para volver.";
+            var w = W(tenant);
+            if (picked == null) return w.T("No entendí 🙈 Respondé con el número del turno, o *0* para volver.", "No entendí 🙈 Responde con el número de la cita, o *0* para volver.");
 
             var booking = await BookingByIdAsync(picked.Value, ct);
-            if (booking == null) { Reset(s); return "😕 No encontré ese turno.\n\n" + RenderMenu(tenant, s, greet: false); }
+            if (booking == null) { Reset(s); return w.T("😕 No encontré ese turno.\n\n", "😕 No encontré esa cita.\n\n") + RenderMenu(tenant, s, greet: false); }
 
             d.BookingId = picked;
             s.Step = StepCancelConfirm;
-            return $"¿Seguro que querés cancelar el turno del {Describe(tenant, booking)}?\n\n1) Sí, cancelar\n2) No, dejarlo";
+            return w.T($"¿Seguro que querés cancelar el turno del {Describe(tenant, booking)}?\n\n1) Sí, cancelar\n2) No, dejarlo",
+                $"¿Seguro que quieres cancelar la cita del {Describe(tenant, booking)}?\n\n1) Sí, cancelar\n2) No, dejarla");
         }
 
         private async Task<string> OnCancelConfirmAsync(Tenant tenant, MenuBotSettings settings, MenuBotSession s, SessionData d, Parsed p, CancellationToken ct)
         {
+            var w = W(tenant);
             if (p.Option == 2 || p.YesNo == false) { Reset(s); return "👍 Listo, no cancelé nada.\n\n" + RenderMenu(tenant, s, greet: false); }
-            if (p.Option != 1 && p.YesNo != true) return "Respondé *1* para cancelar el turno o *2* para dejarlo.";
+            if (p.Option != 1 && p.YesNo != true) return w.T("Respondé *1* para cancelar el turno o *2* para dejarlo.", "Responde *1* para cancelar la cita o *2* para dejarla.");
 
             var booking = d.BookingId.HasValue ? await BookingByIdAsync(d.BookingId.Value, ct) : null;
-            if (booking == null) { Reset(s); return "😕 No encontré ese turno.\n\n" + RenderMenu(tenant, s, greet: false); }
+            if (booking == null) { Reset(s); return w.T("😕 No encontré ese turno.\n\n", "😕 No encontré esa cita.\n\n") + RenderMenu(tenant, s, greet: false); }
 
             // Se revalida la anticipación: entre que lo eligió y confirmó pudo cruzarse el límite.
             if (booking.StartTime < DateTime.UtcNow.AddHours(settings.CancellationCutoffHours))
             {
                 Reset(s);
-                return $"⛔ Ese turno ya está a menos de {settings.CancellationCutoffHours} hs. Escribí *5* para hablar con el negocio.";
+                return w.T($"⛔ Ese turno ya está a menos de {settings.CancellationCutoffHours} hs. Escribí *5* para hablar con el negocio.",
+                    $"⛔ Esa cita ya está a menos de {settings.CancellationCutoffHours} h. Escribe *5* para hablar con el negocio.");
             }
 
             var previous = booking.Status;
@@ -629,7 +660,8 @@ namespace BookingPro.API.Services
             Reset(s);
             await _context.SaveChangesAsync(ct);
             PushDispatch.BookingEvent(tenant.Id, booking.Id, "cancelled");
-            return $"✅ Listo, cancelé tu turno del {label}.\n\nEscribí *menu* para volver al inicio.";
+            return w.T($"✅ Listo, cancelé tu turno del {label}.\n\nEscribí *menu* para volver al inicio.",
+                $"✅ Listo, cancelé tu cita del {label}.\n\nEscribe *menu* para volver al inicio.");
         }
 
         // ---------- Info / humano / menú ----------
@@ -651,7 +683,7 @@ namespace BookingPro.API.Services
                 sb.AppendLine(settings.InfoText);
             }
             sb.AppendLine();
-            sb.Append("Escribí *1* para reservar o *menu* para volver.");
+            sb.Append(W(tenant).T("Escribí *1* para reservar o *menu* para volver.", "Escribe *1* para reservar o *menu* para volver."));
             return sb.ToString();
         }
 
@@ -660,7 +692,10 @@ namespace BookingPro.API.Services
             Reset(s);
             s.Step = StepPaused;
             s.PausedUntil = DateTime.UtcNow.AddHours(HumanPauseHours);
-            return $"🙋 Dale, le aviso a {tenant.BusinessName} y te responden por acá.\n\n_Dejo de contestar automáticamente por un rato. Si querés volver al asistente, escribí *menu*._";
+            return W(tenant).T(
+                $"🙋 Dale, le aviso a {tenant.BusinessName} y te responden por acá.\n\n_Dejo de contestar automáticamente por un rato. Si querés volver al asistente, escribí *menu*._",
+                $"🙋 Claro, le aviso a {tenant.BusinessName} y te responden por aquí.\n\n_Dejo de contestar automáticamente por un rato. Si quieres volver al asistente, escribe *menu*._",
+                $"🙋 Vale, le aviso a {tenant.BusinessName} y te responden por aquí.\n\n_Dejo de contestar automáticamente por un rato. Si quieres volver al asistente, escribe *menu*._");
         }
 
         private static string RenderMenu(Tenant tenant, MenuBotSession s, bool greet)
@@ -669,6 +704,16 @@ namespace BookingPro.API.Services
             var hello = greet
                 ? $"¡Hola{(string.IsNullOrEmpty(name) ? "" : $" {name}")}! 👋 Soy el asistente de *{tenant.BusinessName}*.\n"
                 : "";
+            var w = W(tenant);
+            if (w.UsesTu)
+                return hello +
+                    "¿Qué quieres hacer? Responde con el número o escríbelo:\n\n" +
+                    "1️⃣ Reservar una cita\n" +
+                    "2️⃣ Ver mis citas\n" +
+                    "3️⃣ Cancelar una cita\n" +
+                    "4️⃣ Servicios y precios\n" +
+                    "5️⃣ Hablar con el negocio\n\n" +
+                    "_También puedes escribir directamente, por ejemplo: «quiero una cita». Escribe *menu* para volver aquí._";
             return hello +
                 "¿Qué querés hacer? Respondé con el número o escribilo:\n\n" +
                 "1️⃣ Reservar un turno\n" +
@@ -773,8 +818,11 @@ namespace BookingPro.API.Services
         /// ¿Se puede cobrar la seña con link? Igual que la reserva pública: proveedor por defecto Mercado Pago
         /// (con Chytapay el cobro va por otro lado) y cuenta conectada por OAuth o credenciales manuales.
         /// </summary>
-        private async Task<bool> CanChargeDepositWithMercadoPagoAsync(Tenant tenant, CancellationToken ct)
+        private async Task<bool> CanChargeDepositOnlineAsync(Tenant tenant, CancellationToken ct)
         {
+            // España: la seña va con Stripe Connect (CreatePaymentPreferenceAsync arma el Checkout en su cuenta).
+            if (CountryProfile.For(tenant).StripeDeposits) return await _stripeConnect.CanChargeDepositsAsync(tenant.Id);
+
             var provider = (tenant.DefaultPaymentProvider ?? "mercadopago").ToLowerInvariant();
             if (provider != "mercadopago") return false;
             if (await _context.MercadoPagoOAuthConfigurations.IgnoreQueryFilters()
@@ -802,7 +850,7 @@ namespace BookingPro.API.Services
             if (!service.RequiresDeposit) return null;
             try
             {
-                if (!await CanChargeDepositWithMercadoPagoAsync(tenant, ct)) return null;
+                if (!await CanChargeDepositOnlineAsync(tenant, ct)) return null;
                 var amount = await DepositByPolicyAsync(service.Id, customerId, booking.StartTime);
                 if (!amount.HasValue) return null;
 
@@ -849,7 +897,7 @@ namespace BookingPro.API.Services
         private string Describe(Tenant tenant, Booking b)
         {
             var local = TenantTime.ToLocal(b.StartTime, TenantTime.For(tenant));
-            var what = b.Service?.Name ?? "Turno";
+            var what = b.Service?.Name ?? (W(tenant).UsesTu ? "Cita" : "Turno");
             var who = b.Employee != null ? $" con {b.Employee.Name}" : "";
             return $"{Capitalize(local.ToString("ddd dd/MM", Es))} {local:HH:mm} · {what}{who}";
         }
@@ -894,9 +942,9 @@ namespace BookingPro.API.Services
 
             p.Date = ParseDate(n, offsetHours);
 
-            if (Contains(n, "reservar", "reserva", "turno", "quiero un turno", "sacar turno", "agendar", "cita")) p.Intent = Intent.Book;
+            if (Contains(n, "reservar", "reserva", "turno", "quiero un turno", "sacar turno", "agendar", "cita", "pedir hora")) p.Intent = Intent.Book;
             if (Contains(n, "cancelar", "anular", "dar de baja")) p.Intent = Intent.Cancel;
-            if (Contains(n, "mis turnos", "mi turno", "que turno tengo", "tengo turno")) p.Intent = Intent.MyBookings;
+            if (Contains(n, "mis turnos", "mi turno", "que turno tengo", "tengo turno", "mis citas", "mi cita", "que cita tengo", "tengo cita")) p.Intent = Intent.MyBookings;
             if (Contains(n, "precio", "precios", "cuanto sale", "cuanto cuesta", "servicios", "horarios")) p.Intent = Intent.Info;
             if (Contains(n, "hablar", "humano", "persona", "atencion", "consulta", "pagar", "pago", "transferencia")) p.Intent = Intent.Human;
             if (Contains(n, "gracias", "muchas gracias", "genial")) p.Intent = Intent.Thanks;
@@ -964,6 +1012,13 @@ namespace BookingPro.API.Services
         private static string Digits(string? s) => new((s ?? "").Where(char.IsDigit).ToArray());
 
         private static string Money(Tenant tenant, decimal amount) => MoneyFormat.Format(amount, tenant);
+
+        /// <summary>Voseo para Argentina y Uruguay, tú y "cita" para México y España.</summary>
+        private static Wording W(Tenant tenant) => Wording.For(tenant);
+
+        private static string CancelHint(Wording w, int hours) => w.T(
+            $"Podés cancelarlo por acá hasta {hours} hs antes (escribí *cancelar*).",
+            $"Puedes cancelarla por aquí hasta {hours} h antes (escribe *cancelar*).");
 
         private static string HumanMinutes(int minutes) =>
             minutes % 60 == 0 ? (minutes / 60 == 1 ? "1 hora" : $"{minutes / 60} horas") : $"{minutes} minutos";
