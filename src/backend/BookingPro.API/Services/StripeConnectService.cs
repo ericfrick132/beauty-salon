@@ -281,7 +281,8 @@ namespace BookingPro.API.Services
                 var options = new StripeSdk.Checkout.SessionCreateOptions
                 {
                     Mode = "payment",
-                    PaymentMethodTypes = new List<string> { "card" },
+                    // endive: payment_method_types no existe más en Checkout; esto filtra los elegibles de la cuenta.
+                    AllowedPaymentMethodTypes = new List<string> { "card" },
                     LineItems = new List<StripeSdk.Checkout.SessionLineItemOptions>
                     {
                         new()

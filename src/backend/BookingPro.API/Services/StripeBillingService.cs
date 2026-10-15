@@ -297,7 +297,7 @@ namespace BookingPro.API.Services
                     {
                         new() { Price = priceId, Quantity = 1 },
                     },
-                    PaymentMethodTypes = PaymentMethodTypesFor(currency),
+                    AllowedPaymentMethodTypes = PaymentMethodTypesFor(currency),
                     SubscriptionData = new StripeSdk.Checkout.SessionSubscriptionDataOptions
                     {
                         Metadata = metadata,
@@ -372,10 +372,35 @@ namespace BookingPro.API.Services
                 PlanName = plan.Name,
                 Amount = planPrice.Amount,
                 Currency = planPrice.Currency,
-                NextPaymentDate = sub.TrialEnd ?? sub.CurrentPeriodEnd,
+                NextPaymentDate = sub.TrialEnd ?? CurrentPeriodEnd(sub),
             });
         }
 
+        /// <summary>
+        /// Desde la API 2025-03-31.basil current_period_end ya no está en la suscripción sino en cada ítem
+        /// (con billing_mode flexible, default desde clover, cada ítem puede tener su período). Hay un solo
+        /// ítem (el plan); si hubiera más, el fin del período es el del último en vencer.
+        /// </summary>
+        private static DateTime? CurrentPeriodEnd(StripeSdk.Subscription sub)
+        {
+            var ends = sub.Items?.Data?.Select(i => i.CurrentPeriodEnd).Where(d => d > DateTime.MinValue).ToList();
+            return ends is { Count: > 0 } ? ends.Max() : null;
+        }
+
+        /// <summary>
+        /// Desde basil la factura no tiene subscription: viene en parent.subscription_details (o, en las
+        /// líneas, en parent.subscription_item_details.subscription).
+        /// </summary>
+        private static string? InvoiceSubscriptionId(StripeSdk.Invoice invoice) =>
+            invoice.Parent?.SubscriptionDetails?.SubscriptionId
+            ?? invoice.Lines?.Data?.Select(l => l.Parent?.SubscriptionItemDetails?.Subscription)
+                .FirstOrDefault(id => !string.IsNullOrEmpty(id));
+
+        /// <summary>
+        /// Con la API 2026-09-30.endive Checkout ya no acepta payment_method_types: allowed_payment_method_types
+        /// filtra los medios que Stripe calcula elegibles (los habilitados en la configuración de medios de pago
+        /// del Dashboard), así que sepa_debit tiene que estar activo ahí para que aparezca en EUR.
+        /// </summary>
         private static List<string> PaymentMethodTypesFor(string currency) =>
             string.Equals(currency, "EUR", StringComparison.OrdinalIgnoreCase)
                 ? new List<string> { "card", "sepa_debit" }
@@ -485,7 +510,7 @@ namespace BookingPro.API.Services
                             },
                         },
                     },
-                    PaymentMethodTypes = PaymentMethodTypesFor(currency),
+                    AllowedPaymentMethodTypes = PaymentMethodTypesFor(currency),
                     PaymentIntentData = new StripeSdk.Checkout.SessionPaymentIntentDataOptions { Metadata = metadata },
                     Metadata = metadata,
                     SuccessUrl = $"{tenantBaseUrl}/{returnPath}?payment=success",
@@ -679,8 +704,10 @@ namespace BookingPro.API.Services
                 }
                 case "invoice.paid":
                 {
-                    if (stripeEvent.Data.Object is not StripeSdk.Invoice invoice || string.IsNullOrEmpty(invoice.SubscriptionId)) return;
-                    var sub = await new StripeSdk.SubscriptionService(Client()).GetAsync(invoice.SubscriptionId);
+                    if (stripeEvent.Data.Object is not StripeSdk.Invoice invoice) return;
+                    var subscriptionId = InvoiceSubscriptionId(invoice);
+                    if (string.IsNullOrEmpty(subscriptionId)) return;
+                    var sub = await new StripeSdk.SubscriptionService(Client()).GetAsync(subscriptionId);
                     if (!IsOurs(sub.Metadata)) return;
                     var row = await SyncSubscriptionAsync(sub, null);
                     if (row != null) await RecordInvoicePaymentAsync(row, invoice);
@@ -690,7 +717,7 @@ namespace BookingPro.API.Services
                 {
                     if (stripeEvent.Data.Object is StripeSdk.Invoice invoice)
                         _logger.LogWarning("Stripe: falló el cobro de la factura {InvoiceId} (suscripción {SubscriptionId}); Stripe reintenta y avisa por customer.subscription.updated",
-                            invoice.Id, invoice.SubscriptionId);
+                            invoice.Id, InvoiceSubscriptionId(invoice));
                     break;
                 }
                 default:
@@ -704,7 +731,7 @@ namespace BookingPro.API.Services
 
         /// <summary>
         /// Si el evento es de un objeto de TurnosPro (metadata app=turnospro). Las facturas no llevan la metadata
-        /// propia: se mira la de su suscripción (subscription_details, las líneas o, si no, la suscripción en Stripe).
+        /// propia: se mira la de su suscripción (parent.subscription_details.metadata, las líneas o, si no, la suscripción en Stripe).
         /// </summary>
         private async Task<bool> IsTurnosProEventAsync(StripeSdk.Event stripeEvent)
         {
@@ -716,10 +743,11 @@ namespace BookingPro.API.Services
                     return IsTurnosPro(sub.Metadata);
                 case StripeSdk.Invoice invoice:
                 {
-                    if (IsTurnosPro(invoice.SubscriptionDetails?.Metadata)) return true;
+                    if (IsTurnosPro(invoice.Parent?.SubscriptionDetails?.Metadata)) return true;
                     if (invoice.Lines?.Data?.Any(l => IsTurnosPro(l.Metadata)) == true) return true;
-                    if (string.IsNullOrEmpty(invoice.SubscriptionId)) return false;
-                    var sub = await new StripeSdk.SubscriptionService(Client()).GetAsync(invoice.SubscriptionId);
+                    var subscriptionId = InvoiceSubscriptionId(invoice);
+                    if (string.IsNullOrEmpty(subscriptionId)) return false;
+                    var sub = await new StripeSdk.SubscriptionService(Client()).GetAsync(subscriptionId);
                     return IsTurnosPro(sub.Metadata);
                 }
                 default:
@@ -766,7 +794,7 @@ namespace BookingPro.API.Services
             row.Currency = (item?.Price?.Currency ?? row.Currency).ToUpperInvariant();
             if (item?.Price?.UnitAmount != null) row.Amount = PlatformPricing.FromStripeAmount(item.Price.UnitAmount);
             row.TrialEnd = sub.TrialEnd;
-            row.CurrentPeriodEnd = sub.CurrentPeriodEnd;
+            row.CurrentPeriodEnd = CurrentPeriodEnd(sub) ?? row.CurrentPeriodEnd;
             row.CancelAtPeriodEnd = sub.CancelAtPeriodEnd;
             row.CanceledAt = sub.CanceledAt;
             row.UpdatedAt = DateTime.UtcNow;

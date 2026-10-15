@@ -118,11 +118,13 @@ namespace BookingPro.API.Controllers
             Stripe.Event stripeEvent;
             try
             {
-                stripeEvent = Stripe.EventUtility.ConstructEvent(body, Request.Headers["Stripe-Signature"], secret, throwOnApiVersionMismatch: false);
+                // Versión estricta: los endpoints se crean con la api_version del SDK (Stripe.net 53 = 2026-09-30.endive);
+                // un evento con otra forma se rechaza en vez de leerse mal.
+                stripeEvent = Stripe.EventUtility.ConstructEvent(body, Request.Headers["Stripe-Signature"], secret);
             }
             catch (Stripe.StripeException ex)
             {
-                _logger.LogWarning(ex, "Stripe webhook rechazado: firma inválida");
+                _logger.LogWarning(ex, "Stripe webhook rechazado (firma inválida o api_version distinta de {ApiVersion}): {Message}", Stripe.StripeConfiguration.ApiVersion, ex.Message);
                 return BadRequest();
             }
 
@@ -161,11 +163,13 @@ namespace BookingPro.API.Controllers
             Stripe.Event stripeEvent;
             try
             {
-                stripeEvent = Stripe.EventUtility.ConstructEvent(body, Request.Headers["Stripe-Signature"], secret, throwOnApiVersionMismatch: false);
+                // Versión estricta: los endpoints se crean con la api_version del SDK (Stripe.net 53 = 2026-09-30.endive);
+                // un evento con otra forma se rechaza en vez de leerse mal.
+                stripeEvent = Stripe.EventUtility.ConstructEvent(body, Request.Headers["Stripe-Signature"], secret);
             }
             catch (Stripe.StripeException ex)
             {
-                _logger.LogWarning(ex, "Stripe Connect webhook rechazado: firma inválida");
+                _logger.LogWarning(ex, "Stripe Connect webhook rechazado (firma inválida o api_version distinta de {ApiVersion}): {Message}", Stripe.StripeConfiguration.ApiVersion, ex.Message);
                 return BadRequest();
             }
 
