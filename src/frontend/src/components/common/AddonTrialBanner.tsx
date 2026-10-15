@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Alert, AlertTitle, Box, Button } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { featureAddonsApi, FeatureAddonStatus } from '../../services/api';
+import { formatMoney } from '../../utils/intl';
+import { useTenantMoney } from '../../hooks/useTenantMoney';
 
 const DAY = 24 * 60 * 60 * 1000;
 /** Cuántos días después de vencida la prueba se sigue mostrando el aviso (si no lo cierran). */
@@ -9,7 +11,8 @@ const SHOW_ENDED_DAYS = 30;
 /** Pantalla de cada add-on, para el botón "Ver". */
 const ADDON_PATH: Record<string, string> = { transfer_detection: '/transfer-detection' };
 
-const money = (n: number) => `$${Math.round(n).toLocaleString('es-AR')}`;
+// Precio del add-on: lo cobra la plataforma, en pesos (no es la moneda del negocio).
+const money = (n: number) => formatMoney(Math.round(n), { currency: 'ARS' });
 const dismissKey = (a: FeatureAddonStatus) => `addon-trial-ended-${a.code}-${a.paidUntil}`;
 
 /**
@@ -19,15 +22,17 @@ const dismissKey = (a: FeatureAddonStatus) => `addon-trial-ended-${a.code}-${a.p
  */
 const AddonTrialBanner: React.FC = () => {
   const navigate = useNavigate();
+  const { features } = useTenantMoney();
   const [trials, setTrials] = useState<FeatureAddonStatus[]>([]);
   const [buying, setBuying] = useState<string | null>(null);
   const [, force] = useState(0);
 
   useEffect(() => {
     featureAddonsApi.list()
-      .then((list) => setTrials(list.filter((a) => a.isTrial && a.paidUntil)))
+      // La detección de transferencias es solo de Argentina.
+      .then((list) => setTrials(list.filter((a) => a.isTrial && a.paidUntil && (a.code !== 'transfer_detection' || features.transferDetection))))
       .catch(() => setTrials([]));
-  }, []);
+  }, [features.transferDetection]);
 
   const activate = async (code: string) => {
     setBuying(code);

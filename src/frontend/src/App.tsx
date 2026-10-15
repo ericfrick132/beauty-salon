@@ -73,6 +73,7 @@ import ActivateSubscription from './pages/ActivateSubscription';
 import { AdminLayout } from './components/layouts/AdminLayout';
 import SubscriptionVerification from './components/SubscriptionVerification';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
+import CountryFeatureGate from './components/common/CountryFeatureGate';
 
 /**
  * Clarity/GA4 se cargan en index.html solo si la página arranca en una ruta pública del apex.
@@ -282,7 +283,7 @@ function App() {
         businessName: detectedVertical === 'beautysalon' ? 'Salón de Belleza' : 
                      detectedVertical === 'aesthetics' ? 'Centro de Estética' : 'Turnos Pro',
         vertical: detectedVertical,
-        timezone: '-3',
+        timezone: 'America/Argentina/Buenos_Aires',
         theme: defaultTheme,
         features: {
           onlinePayment: true,
@@ -430,11 +431,11 @@ function App() {
                   <Route path="/pos" element={<SalesPOS />} />
                   <Route path="/products" element={<Products />} />
                   <Route path="/sales-history" element={<SalesHistory />} />
-                  <Route path="/invoicing" element={<InvoicingPage />} />
+                  <Route path="/invoicing" element={<CountryFeatureGate feature="arcaInvoicing"><InvoicingPage /></CountryFeatureGate>} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/theme-settings" element={<ThemeSettings />} />
                   <Route path="/mercadopago-settings" element={<MercadoPagoSettings />} />
-                  <Route path="/chytapay-settings" element={<ChytapaySettings />} />
+                  <Route path="/chytapay-settings" element={<CountryFeatureGate feature="chytapay"><ChytapaySettings /></CountryFeatureGate>} />
                   <Route path="/subscription" element={<SubscriptionManagement />} />
                   <Route path="/subscription/recurring" element={<RecurringSubscription />} />
                   <Route path="/platform-subscription" element={<Navigate to="/subscription" replace />} />
@@ -445,7 +446,7 @@ function App() {
                   <Route path="/messaging/history" element={<MessageHistory />} />
                   <Route path="/whatsapp" element={<WhatsAppSettings />} />
                   <Route path="/confirmation-bot" element={<ConfirmationBot />} />
-                  <Route path="/transfer-detection" element={<TransferDetection />} />
+                  <Route path="/transfer-detection" element={<CountryFeatureGate feature="transferDetection"><TransferDetection /></CountryFeatureGate>} />
                   <Route path="/whatsapp-bot" element={<WhatsAppBot />} />
                   <Route path="/agente-ia" element={<AiAgent />} />
                 </Route>

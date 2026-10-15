@@ -89,6 +89,7 @@ import MercadoPagoIcon from '../icons/MercadoPagoIcon';
 import { isAdminLike } from '../../utils/permissions';
 import ChangePasswordDialog from '../auth/ChangePasswordDialog';
 import api from '../../services/api';
+import { useTenantMoney } from '../../hooks/useTenantMoney';
 
 const drawerWidth = 280;
 const mobileDrawerWidth = 260;
@@ -301,6 +302,8 @@ export const AdminLayout: React.FC = () => {
   const isLightTheme = themeConfig.isLightBackground;
 
   const canSeeAdmin = isAdminLike(user?.role);
+  // Facturación ARCA, detección de transferencias y Chytapay existen solo en Argentina.
+  const { features: countryFeatures } = useTenantMoney();
 
   // IA agrupada con colapsables por tema
   const allMenuItems: MenuItemType[] = [
@@ -328,7 +331,9 @@ export const AdminLayout: React.FC = () => {
       children: [
         { text: 'Punto de venta', path: '/pos', icon: <Storefront fontSize="small" /> },
         { text: 'Historial de ventas', path: '/sales-history', icon: <ReceiptLong fontSize="small" /> },
-        { text: 'Facturación', path: '/invoicing', icon: <ReceiptLong fontSize="small" />, adminOnly: true, badge: 'Nuevo' },
+        ...(countryFeatures.arcaInvoicing
+          ? [{ text: 'Facturación', path: '/invoicing', icon: <ReceiptLong fontSize="small" />, adminOnly: true, badge: 'Nuevo' }]
+          : []),
         { text: 'Productos', path: '/products', icon: <Inventory2Outlined fontSize="small" /> },
         { text: 'Pagos', path: '/payments', icon: <Payment fontSize="small" />, adminOnly: true },
       ],
@@ -344,9 +349,13 @@ export const AdminLayout: React.FC = () => {
         { text: 'Mensajería', path: '/messaging', icon: <WhatsApp fontSize="small" /> },
         { text: 'Asistente de WhatsApp', path: '/whatsapp-bot', icon: <WhatsApp fontSize="small" />, adminOnly: true, badge: 'Nuevo' },
         { text: 'Bot de Confirmación', path: '/confirmation-bot', icon: <SmartToy fontSize="small" />, adminOnly: true },
-        { text: 'Transferencias MP', path: '/transfer-detection', icon: <AttachMoney fontSize="small" />, adminOnly: true, badge: 'Nuevo' },
+        ...(countryFeatures.transferDetection
+          ? [{ text: 'Transferencias MP', path: '/transfer-detection', icon: <AttachMoney fontSize="small" />, adminOnly: true, badge: 'Nuevo' }]
+          : []),
         { text: 'MercadoPago', path: '/mercadopago-settings', icon: <MercadoPagoIcon fontSize="small" />, adminOnly: true },
-        { text: 'Chytapay', path: '/chytapay-settings', icon: <AccountBalance fontSize="small" />, adminOnly: true },
+        ...(countryFeatures.chytapay
+          ? [{ text: 'Chytapay', path: '/chytapay-settings', icon: <AccountBalance fontSize="small" />, adminOnly: true }]
+          : []),
       ],
     },
   ];
