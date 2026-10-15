@@ -21,7 +21,13 @@ export const TenantProvider: React.FC<{
 
   const getTerm = (key: string): string => {
     if (!config) return key;
-    return config.terminology[key as keyof typeof config.terminology] || key;
+    const term = config.terminology[key as keyof typeof config.terminology] || key;
+    // México y España dicen "cita" donde Argentina y Uruguay dicen "turno".
+    const country = (config.country || '').toUpperCase();
+    if ((country === 'MX' || country === 'ES') && /^turno$/i.test(term)) {
+      return term[0] === 'T' ? 'Cita' : 'cita';
+    }
+    return term;
   };
 
   return (

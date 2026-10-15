@@ -3,14 +3,16 @@ import { Box, Container, Typography, Button, Paper, Link as MuiLink } from '@mui
 import { CalendarMonth, Login as LoginIcon } from '@mui/icons-material';
 import { Link as RouterLink } from 'react-router-dom';
 import { useTenant } from '../../contexts/TenantContext';
+import { useTenantWording } from '../../utils/wording';
 
 const TenantLanding: React.FC = () => {
   const { config, getTerm } = useTenant();
+  const w = useTenantWording();
 
   const businessName = config?.businessName || 'Turnos Pro';
   const bookingTerm = (() => {
     const term = getTerm('booking');
-    return term && term !== 'booking' ? term : 'turno';
+    return term && term !== 'booking' ? term : w.turno;
   })();
 
   return (
@@ -38,7 +40,7 @@ const TenantLanding: React.FC = () => {
             {businessName}
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-            Reservá tu {bookingTerm.toLowerCase()} en línea, fácil y rápido.
+            {w.t('Reservá', 'Reserva')} tu {bookingTerm.toLowerCase()} en línea, fácil y rápido.
           </Typography>
 
           <Button

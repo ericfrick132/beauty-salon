@@ -50,6 +50,7 @@ import { es } from 'date-fns/locale';
 import { format, addDays, isSameDay, isAfter, isBefore, startOfDay } from 'date-fns';
 import api from '../../services/api';
 import { formatMoney, getCountry } from '../../utils/intl';
+import { getWording } from '../../utils/wording';
 
 // Steps are computed dynamically depending on whether the service requires a deposit
 const baseSteps = ['Servicio', 'Profesional', 'Fecha y Hora', 'Tus Datos'] as const;
@@ -160,6 +161,8 @@ const BookingPage: React.FC = () => {
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [businessInfo, setBusinessInfo] = useState<any>(null);
+  // Voseo para Argentina/Uruguay; tú y "cita"/"anticipo"/"señal" para México y España.
+  const w = getWording(businessInfo?.country);
   
   // Get next full hour rounded up
   const getInitialTime = () => {
@@ -511,7 +514,7 @@ const BookingPage: React.FC = () => {
           <Fade in timeout={500}>
             <Grid container spacing={3}>
               <Grid item xs={12}>
-                <StepHeading title="Elegí el servicio" hint="Buscalo por nombre o elegilo de la lista." />
+                <StepHeading title={w.t('Elegí el servicio', 'Elige el servicio')} hint={w.t('Buscalo por nombre o elegilo de la lista.', 'Búscalo por nombre o elígelo de la lista.')} />
               </Grid>
               
               {/* Autocomplete search */}
@@ -714,7 +717,7 @@ const BookingPage: React.FC = () => {
           <Fade in timeout={500}>
             <Grid container spacing={3}>
               <Grid item xs={12}>
-                <StepHeading title="¿Con quién?" hint="Elegí el profesional que te va a atender." />
+                <StepHeading title="¿Con quién?" hint={w.t('Elegí el profesional que te va a atender.', 'Elige el profesional que te va a atender.')} />
               </Grid>
               {professionals.map((professional) => (
                 <Grid item xs={12} sm={6} md={4} key={professional.id}>
@@ -791,7 +794,7 @@ const BookingPage: React.FC = () => {
           <Fade in timeout={500}>
             <Grid container spacing={3}>
               <Grid item xs={12}>
-                <StepHeading title="Fecha y hora" hint="Elegí el día y después el horario que te quede cómodo." />
+                <StepHeading title="Fecha y hora" hint={w.t('Elegí el día y después el horario que te quede cómodo.', 'Elige el día y después el horario que mejor te venga.')} />
               </Grid>
               <Grid item xs={12} md={6}>
                 <Paper sx={{ p: 2 }}>
@@ -859,7 +862,7 @@ const BookingPage: React.FC = () => {
         return (
           <Fade in timeout={500}>
             <Box>
-              <StepHeading title="Tus datos" hint="Los usamos para confirmarte el turno y avisarte si algo cambia." />
+              <StepHeading title="Tus datos" hint={w.t('Los usamos para confirmarte el turno y avisarte si algo cambia.', 'Los usamos para confirmarte la cita y avisarte si algo cambia.')} />
               {/* El Grid va dentro de un Box centrado: un margin en el container pisa el margen negativo del spacing y corre los campos a la derecha */}
               <Box sx={{ maxWidth: 600, mx: 'auto' }}>
               <Grid container spacing={2}>
@@ -948,7 +951,7 @@ const BookingPage: React.FC = () => {
                         mb: 1.5,
                       }}
                     >
-                      Turno confirmado
+                      {w.t('Turno confirmado', 'Cita confirmada')}
                     </Typography>
                     <Typography
                       component="h2"
@@ -999,13 +1002,13 @@ const BookingPage: React.FC = () => {
                     </Typography>
 
                     <Button variant="outlined" size="large" sx={{ mt: 3 }} onClick={() => window.location.reload()}>
-                      Reservar otro turno
+                      {w.t('Reservar otro turno', 'Reservar otra cita')}
                     </Button>
                   </Box>
                 </Container>
               ) : (
                 <>
-                  <StepHeading title="Revisá el turno" hint="Confirmá que esté todo bien antes de continuar al pago." />
+                  <StepHeading title={w.t('Revisá el turno', 'Revisa tu cita')} hint={w.t('Confirmá que esté todo bien antes de continuar al pago.', 'Confirma que esté todo bien antes de continuar al pago.')} />
                   <Paper sx={{ p: 3, maxWidth: 600, margin: '0 auto', bgcolor: 'background.default' }}>
                     <Grid container spacing={2}>
                       <Grid item xs={12}>
@@ -1064,7 +1067,9 @@ const BookingPage: React.FC = () => {
                           </Typography>
                         </Box>
                         <Typography variant="h6" color="primary" sx={{ ml: 4 }}>
-                          ${selectedService?.price}
+                          {businessInfo?.currency && businessInfo.currency !== 'ARS'
+                            ? formatPrice(selectedService?.price, businessInfo.currency, businessInfo.locale)
+                            : `$${selectedService?.price}`}
                         </Typography>
                       </Grid>
                       
@@ -1143,7 +1148,7 @@ const BookingPage: React.FC = () => {
             <Box>
               {!bookingConfirmed ? (
                 <>
-                  <StepHeading title="Pago de la seña" hint="Generá el pago y completalo para dejar el turno confirmado." />
+                  <StepHeading title={w.pick('Pago de la seña', 'Pago del anticipo', 'Pago de la señal')} hint={w.t('Generá el pago y completalo para dejar el turno confirmado.', 'Genera el pago y complétalo para dejar tu cita confirmada.')} />
                   <Paper sx={{ p: 3, textAlign: 'center' }}>
                     {errors.submit && (
                       <Alert severity="error" sx={{ mb: 2 }}>{errors.submit}</Alert>
@@ -1155,20 +1160,20 @@ const BookingPage: React.FC = () => {
                     ) : paymentRequired && paymentInfo?.initPoint ? (
                       <>
                         <Typography variant="h6" sx={{ mb: 1 }}>
-                          Seña {paymentInfo.amount ? `: ${formatPrice(Number(paymentInfo.amount), businessInfo?.currency, businessInfo?.locale)}` : ''}
+                          {w.Sena} {paymentInfo.amount ? `: ${formatPrice(Number(paymentInfo.amount), businessInfo?.currency, businessInfo?.locale)}` : ''}
                         </Typography>
                         <Button variant="contained" size="large" onClick={() => window.location.assign(paymentInfo.initPoint!)}>
-                          {paymentInfo.provider === 'stripe' ? 'Pagar seña con tarjeta' : 'Pagar ahora con MercadoPago'}
+                          {paymentInfo.provider === 'stripe' ? `Pagar ${w.sena} con tarjeta` : 'Pagar ahora con MercadoPago'}
                         </Button>
                         <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
                           Se abrirá la pasarela de pago en esta pestaña
                         </Typography>
                         <Alert severity="info" sx={{ mt: 2 }}>
-                          Luego de pagar, volveremos a esta pantalla y confirmaremos tu reserva automáticamente.
+                          {w.t('Luego de pagar, volveremos a esta pantalla y confirmaremos tu reserva automáticamente.', 'Después de pagar, volveremos a esta pantalla y confirmaremos tu reserva automáticamente.')}
                         </Alert>
                       </>
                     ) : (
-                      <Alert severity="success">No se requiere pago. Podés finalizar.</Alert>
+                      <Alert severity="success">{w.t('No se requiere pago. Podés finalizar.', 'No se requiere pago. Puedes finalizar.')}</Alert>
                     )}
                   </Paper>
                 </>
@@ -1193,7 +1198,7 @@ const BookingPage: React.FC = () => {
                         mb: 1.5,
                       }}
                     >
-                      Turno confirmado
+                      {w.t('Turno confirmado', 'Cita confirmada')}
                     </Typography>
                     <Typography
                       component="h2"
@@ -1244,7 +1249,7 @@ const BookingPage: React.FC = () => {
                     </Typography>
 
                     <Button variant="outlined" size="large" sx={{ mt: 3 }} onClick={() => window.location.reload()}>
-                      Reservar otro turno
+                      {w.t('Reservar otro turno', 'Reservar otra cita')}
                     </Button>
                   </Box>
                 </Container>
@@ -1277,7 +1282,7 @@ const BookingPage: React.FC = () => {
               fontVariationSettings: '"opsz" 120, "SOFT" 30',
             }}
           >
-            {businessInfo?.businessName || 'Reservá tu turno'}
+            {businessInfo?.businessName || w.t('Reservá tu turno', 'Reserva tu cita')}
           </Typography>
         </Box>
 
@@ -1381,7 +1386,7 @@ const BookingPage: React.FC = () => {
                       onClick={() => paymentInfo?.initPoint && window.location.assign(paymentInfo.initPoint)}
                       disabled={!paymentInfo?.initPoint}
                     >
-                      {paymentInfo?.provider === 'stripe' ? 'Pagar seña' : 'Pagar ahora'}
+                      {paymentInfo?.provider === 'stripe' ? `Pagar ${w.sena}` : 'Pagar ahora'}
                     </Button>
                   ) : null
                 ) : activeStep === ((services.find(s => s.id === bookingData.serviceId)?.requiresDeposit) ? 5 : 4) ? null : (
