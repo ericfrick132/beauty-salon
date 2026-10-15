@@ -144,10 +144,14 @@ namespace BookingPro.API.Services
                         paymentConfig?.MinimumDepositAmount);
                 }
 
-                // Enforce MP minimum amount (>= 1 ARS) to avoid disabled checkout
-                if (amountToPay < 1)
+                // Moneda del cobro: la de la cuenta de MP conectada (ARS en Argentina, UYU, MXN...).
+                var chargeCurrency = await ResolveChargeCurrencyAsync(tenantId);
+
+                // Enforce MP minimum amount (en la moneda del cobro) to avoid disabled checkout
+                var minimumAmount = MinimumChargeAmount(chargeCurrency);
+                if (amountToPay < minimumAmount)
                 {
-                    amountToPay = 1;
+                    amountToPay = minimumAmount;
                 }
 
                 // Crear preferencia de pago
@@ -161,7 +165,7 @@ namespace BookingPro.API.Services
                             Title = $"{booking.Service.Name}",
                             Description = $"Reserva para {booking.StartTime:dd/MM/yyyy HH:mm}",
                             Quantity = 1,
-                            CurrencyId = "ARS", // Default currency; TODO: derive from tenant/MP config
+                            CurrencyId = chargeCurrency,
                             UnitPrice = amountToPay
                         }
                     },
@@ -200,7 +204,7 @@ namespace BookingPro.API.Services
                     CustomerId = booking.CustomerId,
                     MercadoPagoPreferenceId = preference.Id,
                     Amount = amountToPay,
-                    Currency = "ARS",
+                    Currency = chargeCurrency,
                     Status = PaymentTransactionStatus.Pending,
                     PaymentType = dto.PaymentType,
                     Description = $"Pago por {booking.Service.Name}",
@@ -879,6 +883,30 @@ namespace BookingPro.API.Services
             }
         }
 
+        /// <summary>
+        /// Moneda en la que cobra el negocio por Mercado Pago: la de su cuenta MP conectada (currency_id que
+        /// guardó el OAuth); si no la tenemos, la del negocio (ARS en Argentina).
+        /// </summary>
+        private async Task<string> ResolveChargeCurrencyAsync(Guid tenantId)
+        {
+            var mpCurrency = await _context.Set<MercadoPagoOAuthConfiguration>()
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(c => c.TenantId == tenantId && c.IsActive)
+                .Select(c => c.CurrencyId)
+                .FirstOrDefaultAsync();
+            if (!string.IsNullOrWhiteSpace(mpCurrency)) return mpCurrency.Trim().ToUpperInvariant();
+
+            var tenant = await _context.Tenants.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(t => t.Id == tenantId);
+            return Utilities.CountryProfile.CurrencyFor(tenant);
+        }
+
+        /// <summary>
+        /// Monto mínimo del checkout de MP, en la moneda del cobro. Hoy 1 unidad en todas (ARS, UYU, MXN);
+        /// si algún sitio de MP exige otro mínimo, va acá.
+        /// </summary>
+        private static decimal MinimumChargeAmount(string currency) => 1m;
+
         public async Task<ServiceResult<PaymentLinkResponseDto>> CreatePaymentLinkAsync(string tenantId, CreatePaymentLinkDto dto)
         {
             try
@@ -909,7 +937,7 @@ namespace BookingPro.API.Services
                             title = dto.Title,
                             description = dto.Description,
                             quantity = 1,
-                            currency_id = "ARS",
+                            currency_id = await ResolveChargeCurrencyAsync(tenantGuid),
                             unit_price = dto.Amount
                         }
                     },
@@ -1140,7 +1168,7 @@ namespace BookingPro.API.Services
                             Title = title,
                             Description = description,
                             Quantity = 1,
-                            CurrencyId = "ARS",
+                            CurrencyId = await ResolveChargeCurrencyAsync(tenantId),
                             UnitPrice = amount
                         }
                     },
