@@ -7,7 +7,7 @@
  *    (/completar-perfil) o al panel.
  *  - pago/suscripción clásica: se confirma contra /subscription/status como antes.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -21,6 +21,7 @@ import {
 } from '@mui/material';
 import { CheckCircle, ErrorOutline } from '@mui/icons-material';
 import api, { tenantApi } from '../services/api';
+import { trackStartTrialFromTenant } from '../utils/funnelTracking';
 
 type VerifyState = 'verifying' | 'approved' | 'pending' | 'failed';
 
@@ -42,6 +43,10 @@ const SubscriptionSuccess: React.FC = () => {
 
   const nextPath = onboardingDone ? '/dashboard' : '/completar-perfil';
 
+  // StartTrial (embudo Clarity/GA4): una sola vez, cuando MP confirma la tarjeta de la prueba.
+  // El ref evita el doble disparo entre el poll inicial y el del intervalo.
+  const startTrialSent = useRef(false);
+
   useEffect(() => {
     tenantApi
       .getConfig()
@@ -50,6 +55,20 @@ const SubscriptionSuccess: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // Una vez por negocio: la marca en localStorage evita repetirlo si recarga la página.
+    const reportStartTrial = () => {
+      if (startTrialSent.current) return;
+      startTrialSent.current = true;
+      try {
+        const key = `tp_start_trial_${window.location.hostname}`;
+        if (localStorage.getItem(key)) return;
+        localStorage.setItem(key, '1');
+      } catch {
+        /* sin storage: lo mandamos igual */
+      }
+      trackStartTrialFromTenant();
+    };
+
     const mpStatus = (collectionStatus || paymentStatus || '').toLowerCase();
     if (mpStatus === 'rejected' || mpStatus === 'failure' || mpStatus === 'cancelled') {
       setState('failed');
@@ -66,6 +85,7 @@ const SubscriptionSuccess: React.FC = () => {
         if (isTrialFlow) {
           const res = await api.get('/preapproval/status');
           if (res.data?.hasActivePreapproval) {
+            reportStartTrial();
             const firstCharge = fmtDate(res.data?.nextPaymentDate);
             setState('approved');
             setMessage(

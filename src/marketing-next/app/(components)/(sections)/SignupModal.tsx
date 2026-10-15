@@ -94,8 +94,22 @@ function getAttribution(): Record<string, string | undefined> {
   }
 }
 
+// Embudo de alta en Microsoft Clarity + GA4 (send_to: solo la propiedad GA4, no Google Ads).
+const GA4_ID = 'G-X6HH01MKRW';
+const FUNNEL_EVENTS = new Set(['Lead', 'CompleteRegistration', 'StartTrial']);
+
+function trackFunnel(eventType: string) {
+  if (typeof window === 'undefined' || !FUNNEL_EVENTS.has(eventType)) return;
+  try {
+    const w = window as any;
+    w.clarity?.('event', eventType);
+    w.gtag?.('event', eventType, { send_to: GA4_ID });
+  } catch {}
+}
+
 function sendTrackingEvent(eventType: string, extra: Record<string, any> = {}) {
   if (typeof window === 'undefined') return;
+  trackFunnel(eventType);
   try {
     const params = new URLSearchParams(window.location.search);
     const sid = sessionStorage.getItem('_track_sid') || '';

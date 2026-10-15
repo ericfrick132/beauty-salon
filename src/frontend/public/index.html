@@ -18,6 +18,32 @@
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,SOFT,wght@0,9..144,0..100,300..700;1,9..144,0..100,300..700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <title>Turnos Pro</title>
+    <script>
+      // Microsoft Clarity + GA4: SOLO en el dominio principal y en rutas públicas (login y los
+      // pasos del registro). Nunca en los subdominios de los negocios ni en el panel (datos de
+      // clientes). Si después la SPA navega a una ruta privada, AnalyticsRouteGuard (App.tsx) los
+      // corta. La lista de rutas tiene que coincidir con isPublicAnalyticsPath (utils/funnelTracking.ts).
+      (function () {
+        var p = location.pathname;
+        var isPublic = p === '/' || p === '/login' || p === '/register' || p.indexOf('/register/') === 0;
+        if (location.hostname !== 'turnos-pro.com' || !isPublic) return;
+
+        (function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","yy5mznhtru");
+
+        // GA4: la URL va sin el token de la transacción (?s=), el de confirmación (?token=) ni el email.
+        var q = new URLSearchParams(location.search);
+        ['s', 'token', 'email', 'impersonationToken'].forEach(function (k) { q.delete(k); });
+        var qs = q.toString();
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = function () { dataLayer.push(arguments); };
+        gtag('js', new Date());
+        gtag('config', 'G-X6HH01MKRW', { page_location: location.origin + p + (qs ? '?' + qs : '') });
+        var g = document.createElement('script');
+        g.async = true;
+        g.src = 'https://www.googletagmanager.com/gtag/js?id=G-X6HH01MKRW';
+        document.head.appendChild(g);
+      })();
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

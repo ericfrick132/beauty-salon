@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { stopAnalyticsIfPrivate } from './utils/funnelTracking';
 import { Provider } from 'react-redux';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -72,6 +73,18 @@ import ActivateSubscription from './pages/ActivateSubscription';
 import { AdminLayout } from './components/layouts/AdminLayout';
 import SubscriptionVerification from './components/SubscriptionVerification';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
+
+/**
+ * Clarity/GA4 se cargan en index.html solo si la página arranca en una ruta pública del apex.
+ * Si después la SPA navega a una ruta privada (panel, onboarding), cortamos los dos.
+ */
+function AnalyticsRouteGuard() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    stopAnalyticsIfPrivate(pathname);
+  }, [pathname]);
+  return null;
+}
 
 function App() {
   const [tenantConfig, setTenantConfig] = useState<TenantConfig | null>(null);
@@ -343,6 +356,7 @@ function App() {
           <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
             <CssBaseline />
             <Router>
+              <AnalyticsRouteGuard />
               <SubscriptionProvider>
               <SubscriptionVerification />
               <Routes>

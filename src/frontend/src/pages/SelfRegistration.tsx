@@ -36,6 +36,7 @@ import { registrationApi } from '../services/api';
 import GoogleSignInButton from '../components/auth/GoogleSignInButton';
 import AuthShell, { authPalette, authFonts } from '../components/auth/AuthShell';
 import { slugify } from '../utils/slug';
+import { trackFunnel } from '../utils/funnelTracking';
 
 type FlowStep = 'signup' | 'email-sent' | 'business' | 'success';
 
@@ -457,6 +458,7 @@ const SelfRegistration: React.FC = () => {
         confirmPassword: password,
       });
       if (response.success) {
+        trackFunnel('Lead');
         if (response.devConfirmUrl) setDevConfirmUrl(response.devConfirmUrl);
         setCurrentStep('email-sent');
       } else {
@@ -559,6 +561,7 @@ const SelfRegistration: React.FC = () => {
           });
 
       if (response.success) {
+        trackFunnel('CompleteRegistration');
         setRedirectUrl(response.redirectUrl);
         setCurrentStep('success');
       } else {

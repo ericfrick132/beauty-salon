@@ -25,6 +25,7 @@ import api, { registrationApi } from '../services/api';
 import AuthShell, { authPalette, authFonts } from '../components/auth/AuthShell';
 import { underlineFieldSx, PillCTA, InlineLink } from '../components/auth/authFormKit';
 import { slugify } from '../utils/slug';
+import { trackFunnelIfApplicable } from '../utils/funnelTracking';
 
 const PHONE_COUNTRIES = [
   { dial: '+54', label: 'Argentina (+54)', placeholder: '11 2345 6789' },
@@ -70,8 +71,12 @@ function getAttribution(): Record<string, string | undefined> {
   }
 }
 
-/** Mismo evento de tracking que dispara la landing (misma sesión: sessionStorage compartido). */
+/**
+ * Mismo evento de tracking que dispara la landing (misma sesión: sessionStorage compartido).
+ * Los pasos del embudo (Lead, CompleteRegistration) van además a Clarity y GA4.
+ */
 function sendTrackingEvent(eventType: string, extra: Record<string, unknown> = {}) {
+  trackFunnelIfApplicable(eventType);
   try {
     const ss = window.sessionStorage;
     api
