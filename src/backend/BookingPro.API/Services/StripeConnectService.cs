@@ -135,7 +135,17 @@ namespace BookingPro.API.Services
                 {
                     var account = await new StripeSdk.AccountService(client).CreateAsync(new StripeSdk.AccountCreateOptions
                     {
-                        Type = "express",
+                        // Sin Type: con Type="express" la plataforma queda responsable por los saldos negativos y
+                        // Stripe rechaza la cuenta (el perfil de la plataforma dice que las pérdidas las cubre Stripe).
+                        // controller = comisiones a cargo del negocio, pérdidas de Stripe, dashboard Express y
+                        // requisitos que pide Stripe en su onboarding alojado.
+                        Controller = new StripeSdk.AccountControllerOptions
+                        {
+                            Fees = new StripeSdk.AccountControllerFeesOptions { Payer = "account" },
+                            Losses = new StripeSdk.AccountControllerLossesOptions { Payments = "stripe" },
+                            StripeDashboard = new StripeSdk.AccountControllerStripeDashboardOptions { Type = "express" },
+                            RequirementCollection = "stripe",
+                        },
                         Country = profile.Code,
                         Email = tenant.OwnerEmail,
                         DefaultCurrency = profile.Currency.ToLowerInvariant(),
