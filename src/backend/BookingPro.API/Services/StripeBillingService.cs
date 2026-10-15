@@ -63,6 +63,24 @@ namespace BookingPro.API.Services
         public const string KindDeposit = "deposit";
         public const string StripePaymentMethod = "stripe";
 
+        /// <summary>
+        /// La cuenta de Stripe (EFCloud) es compartida con GymHero y PlayCrew y los webhooks son de toda la cuenta:
+        /// todo objeto que crea TurnosPro lleva app=turnospro y los webhooks ignoran (200) lo que no lo tenga.
+        /// </summary>
+        public const string MetaApp = "app";
+        public const string AppName = "turnospro";
+
+        /// <summary>Metadata con app=turnospro más las claves propias del objeto.</summary>
+        public static Dictionary<string, string> AppMetadata(params (string Key, string Value)[] entries)
+        {
+            var metadata = new Dictionary<string, string> { [MetaApp] = AppName };
+            foreach (var (key, value) in entries) metadata[key] = value;
+            return metadata;
+        }
+
+        public static bool IsTurnosPro(IDictionary<string, string>? metadata) =>
+            metadata != null && metadata.TryGetValue(MetaApp, out var app) && app == AppName;
+
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;
         private readonly ILogger<StripeBillingService> _logger;
@@ -201,7 +219,7 @@ namespace BookingPro.API.Services
                     {
                         Id = productId,
                         Name = $"TurnosPro - {plan.Name}",
-                        Metadata = new Dictionary<string, string> { ["plan_id"] = plan.Id.ToString(), ["plan_code"] = plan.Code },
+                        Metadata = AppMetadata(("plan_id", plan.Id.ToString()), ("plan_code", plan.Code)),
                     });
                 }
 
@@ -213,7 +231,7 @@ namespace BookingPro.API.Services
                     Recurring = new StripeSdk.PriceRecurringOptions { Interval = "month" },
                     LookupKey = lookupKey,
                     TransferLookupKey = true,
-                    Metadata = new Dictionary<string, string> { ["plan_id"] = plan.Id.ToString(), ["plan_code"] = plan.Code },
+                    Metadata = AppMetadata(("plan_id", plan.Id.ToString()), ("plan_code", plan.Code)),
                 });
                 _logger.LogInformation("Stripe: Price {PriceId} creado para {LookupKey} ({Amount} {Currency})", match.Id, lookupKey, price.Amount, price.Currency);
             }
@@ -260,12 +278,10 @@ namespace BookingPro.API.Services
                 var customerId = await EnsureCustomerAsync(tenant);
                 var trialDays = await GetTrialDaysLeftAsync(tenant);
 
-                var metadata = new Dictionary<string, string>
-                {
-                    [MetaKind] = KindSubscription,
-                    ["tenant_id"] = tenantId.ToString(),
-                    ["plan_id"] = plan.Id.ToString(),
-                };
+                var metadata = AppMetadata(
+                    (MetaKind, KindSubscription),
+                    ("tenant_id", tenantId.ToString()),
+                    ("plan_id", plan.Id.ToString()));
 
                 var path = !string.IsNullOrWhiteSpace(returnPath) && returnPath.StartsWith('/') && !returnPath.StartsWith("//")
                     ? returnPath
@@ -342,12 +358,10 @@ namespace BookingPro.API.Services
                 Items = new List<StripeSdk.SubscriptionItemOptions> { new() { Id = item.Id, Price = priceId } },
                 // Como en Mercado Pago: el nuevo monto corre desde el próximo cobro, sin prorrateo.
                 ProrationBehavior = "none",
-                Metadata = new Dictionary<string, string>
-                {
-                    [MetaKind] = KindSubscription,
-                    ["tenant_id"] = current.TenantId.ToString(),
-                    ["plan_id"] = plan.Id.ToString(),
-                },
+                Metadata = AppMetadata(
+                    (MetaKind, KindSubscription),
+                    ("tenant_id", current.TenantId.ToString()),
+                    ("plan_id", plan.Id.ToString())),
             });
 
             await SyncSubscriptionAsync(sub, null);
@@ -375,12 +389,10 @@ namespace BookingPro.API.Services
             {
                 Email = tenant.OwnerEmail,
                 Name = tenant.BusinessName,
-                Metadata = new Dictionary<string, string>
-                {
-                    ["tenant_id"] = tenant.Id.ToString(),
-                    ["subdomain"] = tenant.Subdomain ?? string.Empty,
-                    ["country"] = tenant.Country ?? "AR",
-                },
+                Metadata = AppMetadata(
+                    ("tenant_id", tenant.Id.ToString()),
+                    ("subdomain", tenant.Subdomain ?? string.Empty),
+                    ("country", tenant.Country ?? "AR")),
             });
             tenant.StripeCustomerId = customer.Id;
             tenant.UpdatedAt = DateTime.UtcNow;
@@ -445,13 +457,11 @@ namespace BookingPro.API.Services
                 };
                 _context.FeatureAddonPurchases.Add(purchase);
 
-                var metadata = new Dictionary<string, string>
-                {
-                    [MetaKind] = KindAddon,
-                    ["tenant_id"] = tenantId.ToString(),
-                    ["addon_code"] = addon.Code,
-                    ["purchase_id"] = purchase.Id.ToString(),
-                };
+                var metadata = AppMetadata(
+                    (MetaKind, KindAddon),
+                    ("tenant_id", tenantId.ToString()),
+                    ("addon_code", addon.Code),
+                    ("purchase_id", purchase.Id.ToString()));
 
                 var session = await new StripeSdk.Checkout.SessionService(Client()).CreateAsync(new StripeSdk.Checkout.SessionCreateOptions
                 {
@@ -603,8 +613,28 @@ namespace BookingPro.API.Services
             }
         }
 
+        private static readonly HashSet<string> PlatformEventTypes = new(StringComparer.Ordinal)
+        {
+            "checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.expired",
+            "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted",
+            "invoice.paid", "invoice.payment_failed",
+        };
+
         public async Task HandlePlatformEventAsync(StripeSdk.Event stripeEvent)
         {
+            if (!PlatformEventTypes.Contains(stripeEvent.Type))
+            {
+                _logger.LogDebug("Stripe: evento {Type} ignorado", stripeEvent.Type);
+                return;
+            }
+
+            // Cuenta compartida con GymHero y PlayCrew: lo que no es de TurnosPro se ignora con 200.
+            if (!await IsTurnosProEventAsync(stripeEvent))
+            {
+                _logger.LogInformation("Stripe: evento {EventId} ({Type}) de otra app de la cuenta, ignorado", stripeEvent.Id, stripeEvent.Type);
+                return;
+            }
+
             switch (stripeEvent.Type)
             {
                 case "checkout.session.completed":
@@ -670,7 +700,32 @@ namespace BookingPro.API.Services
         }
 
         private static bool IsOurs(IDictionary<string, string>? metadata) =>
-            metadata != null && metadata.TryGetValue(MetaKind, out var kind) && kind == KindSubscription;
+            IsTurnosPro(metadata) && metadata!.TryGetValue(MetaKind, out var kind) && kind == KindSubscription;
+
+        /// <summary>
+        /// Si el evento es de un objeto de TurnosPro (metadata app=turnospro). Las facturas no llevan la metadata
+        /// propia: se mira la de su suscripción (subscription_details, las líneas o, si no, la suscripción en Stripe).
+        /// </summary>
+        private async Task<bool> IsTurnosProEventAsync(StripeSdk.Event stripeEvent)
+        {
+            switch (stripeEvent.Data.Object)
+            {
+                case StripeSdk.Checkout.Session session:
+                    return IsTurnosPro(session.Metadata);
+                case StripeSdk.Subscription sub:
+                    return IsTurnosPro(sub.Metadata);
+                case StripeSdk.Invoice invoice:
+                {
+                    if (IsTurnosPro(invoice.SubscriptionDetails?.Metadata)) return true;
+                    if (invoice.Lines?.Data?.Any(l => IsTurnosPro(l.Metadata)) == true) return true;
+                    if (string.IsNullOrEmpty(invoice.SubscriptionId)) return false;
+                    var sub = await new StripeSdk.SubscriptionService(Client()).GetAsync(invoice.SubscriptionId);
+                    return IsTurnosPro(sub.Metadata);
+                }
+                default:
+                    return false;
+            }
+        }
 
         /// <summary>
         /// Lleva el estado de la suscripción de Stripe a la fila local y, como la preapproval de MP, al Tenant y

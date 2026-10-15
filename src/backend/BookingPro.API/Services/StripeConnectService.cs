@@ -143,11 +143,9 @@ namespace BookingPro.API.Services
                             CardPayments = new StripeSdk.AccountCapabilitiesCardPaymentsOptions { Requested = true },
                             Transfers = new StripeSdk.AccountCapabilitiesTransfersOptions { Requested = true },
                         },
-                        Metadata = new Dictionary<string, string>
-                        {
-                            ["tenant_id"] = tenant.Id.ToString(),
-                            ["subdomain"] = tenant.Subdomain ?? string.Empty,
-                        },
+                        Metadata = StripeBillingService.AppMetadata(
+                            ("tenant_id", tenant.Id.ToString()),
+                            ("subdomain", tenant.Subdomain ?? string.Empty)),
                     });
                     tenant.StripeConnectAccountId = account.Id;
                     ApplyAccount(tenant, account);
@@ -265,13 +263,11 @@ namespace BookingPro.API.Services
                     }),
                 };
 
-                var metadata = new Dictionary<string, string>
-                {
-                    [StripeBillingService.MetaKind] = StripeBillingService.KindDeposit,
-                    ["tenant_id"] = tenantId.ToString(),
-                    ["booking_id"] = booking.Id.ToString(),
-                    ["transaction_id"] = transaction.Id.ToString(),
-                };
+                var metadata = StripeBillingService.AppMetadata(
+                    (StripeBillingService.MetaKind, StripeBillingService.KindDeposit),
+                    ("tenant_id", tenantId.ToString()),
+                    ("booking_id", booking.Id.ToString()),
+                    ("transaction_id", transaction.Id.ToString()));
 
                 var paymentIntentData = new StripeSdk.Checkout.SessionPaymentIntentDataOptions
                 {
@@ -343,9 +339,14 @@ namespace BookingPro.API.Services
             {
                 case "account.updated":
                 {
-                    if (stripeEvent.Data.Object is not StripeSdk.Account account) return;
+                    if (stripeEvent.Data.Object is not StripeSdk.Account account || string.IsNullOrEmpty(account.Id)) return;
+                    // Solo cuentas conectadas de negocios de TurnosPro (GymHero y PlayCrew comparten la plataforma).
                     var tenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.StripeConnectAccountId == account.Id);
-                    if (tenant == null) return;
+                    if (tenant == null)
+                    {
+                        _logger.LogInformation("Stripe Connect: evento {EventId} de la cuenta {AccountId}, que no es de TurnosPro, ignorado", stripeEvent.Id, account.Id);
+                        return;
+                    }
                     ApplyAccount(tenant, account);
                     await _context.SaveChangesAsync();
                     _logger.LogInformation("Stripe Connect: cuenta {AccountId} de tenant {TenantId} charges_enabled={Charges}",
@@ -356,7 +357,8 @@ namespace BookingPro.API.Services
                 case "checkout.session.async_payment_succeeded":
                 {
                     if (stripeEvent.Data.Object is not StripeSdk.Checkout.Session session) return;
-                    if (session.Metadata == null || !session.Metadata.TryGetValue(StripeBillingService.MetaKind, out var kind) || kind != StripeBillingService.KindDeposit) return;
+                    if (!IsTurnosProSession(stripeEvent, session)) return;
+                    if (!session.Metadata.TryGetValue(StripeBillingService.MetaKind, out var kind) || kind != StripeBillingService.KindDeposit) return;
                     await ConfirmDepositAsync(session, stripeEvent.Account);
                     break;
                 }
@@ -364,6 +366,7 @@ namespace BookingPro.API.Services
                 case "checkout.session.async_payment_failed":
                 {
                     if (stripeEvent.Data.Object is not StripeSdk.Checkout.Session session) return;
+                    if (!IsTurnosProSession(stripeEvent, session)) return;
                     var tx = await _context.Set<PaymentTransaction>().IgnoreQueryFilters()
                         .FirstOrDefaultAsync(t => t.StripeCheckoutSessionId == session.Id);
                     if (tx != null && tx.Status == PaymentTransactionStatus.Pending)
@@ -375,7 +378,18 @@ namespace BookingPro.API.Services
                     }
                     break;
                 }
+                default:
+                    _logger.LogDebug("Stripe Connect: evento {Type} ignorado", stripeEvent.Type);
+                    break;
             }
+        }
+
+        private bool IsTurnosProSession(StripeSdk.Event stripeEvent, StripeSdk.Checkout.Session session)
+        {
+            if (StripeBillingService.IsTurnosPro(session.Metadata)) return true;
+            _logger.LogInformation("Stripe Connect: evento {EventId} ({Type}) de la cuenta {AccountId} de otra app, ignorado",
+                stripeEvent.Id, stripeEvent.Type, stripeEvent.Account);
+            return false;
         }
 
         /// <summary>Mismo camino que el webhook de seña de Mercado Pago: transacción aprobada, turno confirmado, cobro registrado y aviso.</summary>
