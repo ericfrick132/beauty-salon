@@ -100,6 +100,47 @@ namespace BookingPro.API.Controllers
         }
 
         /// <summary>
+        /// Webhook de Stripe de la cuenta de la plataforma (suscripción y add-ons fuera de Argentina).
+        /// Endpoint en Stripe: {BaseUrl}/api/webhooks/stripe, secreto en Stripe:WebhookSecret.
+        /// </summary>
+        [HttpPost("stripe")]
+        public async Task<IActionResult> StripeWebhook()
+        {
+            var secret = _configuration["Stripe:WebhookSecret"];
+            using var reader = new StreamReader(Request.Body);
+            var body = await reader.ReadToEndAsync();
+            if (string.IsNullOrEmpty(secret))
+            {
+                _logger.LogWarning("Stripe webhook recibido pero Stripe:WebhookSecret no está configurado");
+                return StatusCode(503);
+            }
+
+            Stripe.Event stripeEvent;
+            try
+            {
+                stripeEvent = Stripe.EventUtility.ConstructEvent(body, Request.Headers["Stripe-Signature"], secret, throwOnApiVersionMismatch: false);
+            }
+            catch (Stripe.StripeException ex)
+            {
+                _logger.LogWarning(ex, "Stripe webhook rechazado: firma inválida");
+                return BadRequest();
+            }
+
+            try
+            {
+                var billing = HttpContext.RequestServices.GetRequiredService<IStripeBillingService>();
+                await billing.HandlePlatformEventAsync(stripeEvent);
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                // 500: Stripe reintenta (con backoff) y los handlers son idempotentes.
+                _logger.LogError(ex, "Error procesando el evento de Stripe {EventId} ({Type})", stripeEvent.Id, stripeEvent.Type);
+                return StatusCode(500);
+            }
+        }
+
+        /// <summary>
         /// Chytapay webhook — fires when a payment_request transitions to
         /// PAID / PARTIAL_PAID. The URL is configured once at the Chytapay
         /// integration-admin level (no tenantId in the path), so we identify

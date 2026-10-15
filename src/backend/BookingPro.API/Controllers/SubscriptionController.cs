@@ -42,7 +42,7 @@ namespace BookingPro.API.Controllers
 
         [HttpGet("plans")]
         [AllowAnonymous]
-        public async Task<IActionResult> GetPlans()
+        public async Task<IActionResult> GetPlans([FromQuery] string? country = null)
         {
             try
             {
@@ -50,6 +50,24 @@ namespace BookingPro.API.Controllers
                 
                 if (result.Success)
                 {
+                    // Fuera de Argentina los planes se cobran con Stripe en la moneda del país (UY en USD, MX en
+                    // MXN, ES en EUR): mismo listado con el precio de subscription_plan_prices. Sin país (o AR) = ARS.
+                    var profile = await ResolvePlansCountryAsync(country);
+                    if (profile.BillsWithStripe && result.Data != null)
+                    {
+                        var currency = profile.PlatformCurrency;
+                        var prices = await _context.SubscriptionPlanPrices.AsNoTracking()
+                            .Where(p => p.Currency == currency)
+                            .Select(p => new { p.SubscriptionPlan.Code, p.Amount })
+                            .ToListAsync();
+                        foreach (var plan in result.Data)
+                        {
+                            var local = prices.FirstOrDefault(p => p.Code == plan.Code);
+                            if (local == null) continue;
+                            plan.Price = local.Amount;
+                            plan.Currency = currency;
+                        }
+                    }
                     return Ok(result.Data);
                 }
                 
@@ -60,6 +78,19 @@ namespace BookingPro.API.Controllers
                 _logger.LogError(ex, "Error getting subscription plans");
                 return StatusCode(500, new { error = "Error al obtener planes" });
             }
+        }
+
+        /// <summary>País para los precios: el del negocio logueado; si no, ?country= (marketing); si no, Argentina.</summary>
+        private async Task<BookingPro.API.Utilities.CountryProfile> ResolvePlansCountryAsync(string? country)
+        {
+            var claim = User.FindFirst("tenant_id")?.Value ?? User.FindFirst("tenantId")?.Value;
+            if (Guid.TryParse(claim, out var tenantId))
+            {
+                var tenantCountry = await _context.Tenants.IgnoreQueryFilters().AsNoTracking()
+                    .Where(t => t.Id == tenantId).Select(t => t.Country).FirstOrDefaultAsync();
+                return BookingPro.API.Utilities.CountryProfile.Get(tenantCountry);
+            }
+            return BookingPro.API.Utilities.CountryProfile.Get(country);
         }
 
         [HttpPost("subscribe")]
@@ -75,6 +106,13 @@ namespace BookingPro.API.Controllers
                     return BadRequest(new { error = "Invalid tenant ID" });
                 }
                 
+                // Fuera de Argentina la plataforma cobra con Stripe (Checkout; la respuesta trae paymentUrl).
+                if (await StripeBillingController.BillsWithStripeAsync(_context, tenantGuid))
+                {
+                    var stripeBilling = HttpContext.RequestServices.GetRequiredService<IStripeBillingService>();
+                    return await StripeBillingController.CheckoutResponseAsync(this, stripeBilling, _context, tenantGuid, dto.PlanCode, "/subscription/success");
+                }
+
                 var result = await _subscriptionService.CreateSubscriptionAsync(tenantGuid, dto.PlanCode);
 
                 // Ya tenía débito automático: se cambió el plan de su preapproval, no hay link de pago.
@@ -260,6 +298,18 @@ namespace BookingPro.API.Controllers
                     return BadRequest(new { error = "Invalid tenant ID" });
                 }
                 
+                if (await StripeBillingController.BillsWithStripeAsync(_context, tenantGuid))
+                {
+                    var stripeBilling = HttpContext.RequestServices.GetRequiredService<IStripeBillingService>();
+                    if (await stripeBilling.GetChargingSubscriptionAsync(tenantGuid) != null)
+                    {
+                        var cancelled = await stripeBilling.CancelSubscriptionAsync(tenantGuid);
+                        return cancelled.Success
+                            ? Ok(new { message = "Suscripción cancelada exitosamente" })
+                            : BadRequest(new { error = cancelled.Message });
+                    }
+                }
+
                 var result = await _subscriptionService.CancelSubscriptionAsync(tenantGuid);
                 
                 if (result.Success)

@@ -85,7 +85,10 @@ export default function SuperAdminPayments({ embedded = false }: { embedded?: bo
   }, []);
 
   const openConnect = async (p: Provider) => {
-    if (p.code === 'stripe') { setBanner({ tone: 'error', text: 'Stripe Connect próximamente.' }); return; }
+    if (p.code === 'stripe') {
+      setBanner({ tone: 'success', text: 'Stripe se configura en el servidor (Stripe__SecretKey, Stripe__WebhookSecret y Stripe__ConnectWebhookSecret). Cobra la suscripción de Uruguay (USD), México (MXN) y España (EUR) y las señas de España con Stripe Connect.' });
+      return;
+    }
     setGenerating(p.code);
     try { const r = await api.get(`/super-admin/payments/${p.code}/connect-url`); setDialog({ provider: p, data: r.data }); }
     catch (e: any) { setBanner({ tone: 'error', text: e.response?.data?.error || 'Error' }); }

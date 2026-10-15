@@ -40,6 +40,8 @@ const SubscriptionSuccess: React.FC = () => {
   const preapprovalId = searchParams.get('preapproval_id');
   const externalReference = searchParams.get('external_reference');
   const isTrialFlow = searchParams.get('flow') === 'trial' || !!preapprovalId;
+  // Fuera de Argentina la suscripción se paga con Stripe (vuelve con ?provider=stripe&session_id=...).
+  const providerName = searchParams.get('provider') === 'stripe' ? 'Stripe' : 'Mercado Pago';
 
   const nextPath = onboardingDone ? '/dashboard' : '/completar-perfil';
 
@@ -128,8 +130,8 @@ const SubscriptionSuccess: React.FC = () => {
           setState('pending');
           setMessage(
             isTrialFlow
-              ? 'Mercado Pago recibió la autorización. Puede demorar unos minutos en confirmarse; mientras tanto podés seguir armando tu agenda.'
-              : 'Mercado Pago recibió el pago. La activación puede demorar unos minutos — vas a recibir un aviso cuando se confirme.'
+              ? `${providerName} recibió la autorización. Puede demorar unos minutos en confirmarse; mientras tanto podés seguir armando tu agenda.`
+              : `${providerName} recibió el pago. La activación puede demorar unos minutos — vas a recibir un aviso cuando se confirme.`
           );
         }
       }
@@ -138,7 +140,7 @@ const SubscriptionSuccess: React.FC = () => {
       if (done) clearInterval(interval);
     });
     return () => clearInterval(interval);
-  }, [collectionStatus, paymentStatus, isTrialFlow]);
+  }, [collectionStatus, paymentStatus, isTrialFlow, providerName]);
 
   const renderIcon = () => {
     if (state === 'approved') return <CheckCircle sx={{ fontSize: 72, color: 'success.main' }} />;

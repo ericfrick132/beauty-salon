@@ -159,6 +159,7 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IEndUserService, B
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IEmailAutomationService, BookingPro.API.Services.EmailAutomationService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ISuperAdminService, BookingPro.API.Services.SuperAdminService>();
 builder.Services.AddScoped<BookingPro.API.Services.IPreapprovalService, BookingPro.API.Services.PreapprovalService>();
+builder.Services.AddScoped<BookingPro.API.Services.IStripeBillingService, BookingPro.API.Services.StripeBillingService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IEmailService, BookingPro.API.Services.EmailService>();
 // Meta Conversions API (server-side pixel mirror) — singleton, no per-request state.
 builder.Services.AddSingleton<BookingPro.API.Services.IMetaCapiService, BookingPro.API.Services.MetaCapiService>();
@@ -342,6 +343,17 @@ using (var scope = app.Services.CreateScope())
     catch (Exception ex)
     {
         Console.WriteLine($"Warning: Error seeding feature addons: {ex.Message}");
+    }
+
+    try
+    {
+        // Precios en USD/MXN/EUR (Stripe, fuera de Argentina) de los planes y add-ons que no los tengan.
+        var stripeBilling = scope.ServiceProvider.GetRequiredService<BookingPro.API.Services.IStripeBillingService>();
+        await stripeBilling.EnsureCurrencyPricesAsync();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Warning: Error seeding currency prices: {ex.Message}");
     }
 }
 

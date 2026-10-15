@@ -163,7 +163,13 @@ namespace BookingPro.API.Controllers
                         p.UpdatedAt,
                         // Contar suscripciones activas
                         ActiveSubscriptions = _context.Subscriptions
-                            .Count(s => s.PlanType == p.Code && s.Status == "active")
+                            .Count(s => s.PlanType == p.Code && s.Status == "active"),
+                        // Precios fuera de Argentina (Stripe): USD (Uruguay), MXN (México), EUR (España).
+                        Prices = _context.SubscriptionPlanPrices
+                            .Where(pp => pp.SubscriptionPlanId == p.Id)
+                            .OrderBy(pp => pp.Currency)
+                            .Select(pp => new { pp.Currency, pp.Amount, pp.StripePriceId })
+                            .ToList()
                     })
                     .ToListAsync();
 
@@ -222,6 +228,7 @@ namespace BookingPro.API.Controllers
 
                 _context.SubscriptionPlans.Add(plan);
                 await _context.SaveChangesAsync();
+                await UpsertCurrencyPricesAsync(plan, dto.Prices);
 
                 return Ok(new { id = plan.Id, message = "Plan creado exitosamente" });
             }
@@ -285,6 +292,7 @@ namespace BookingPro.API.Controllers
                 plan.UpdatedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
+                await UpsertCurrencyPricesAsync(plan, dto.Prices);
 
                 return Ok(new { message = "Plan actualizado exitosamente" });
             }
@@ -293,6 +301,40 @@ namespace BookingPro.API.Controllers
                 _logger.LogError(ex, "Error updating subscription plan {Code}", code);
                 return StatusCode(500, new { error = "Error al actualizar el plan" });
             }
+        }
+
+        /// <summary>
+        /// Guarda los precios en USD/MXN/EUR que mandó el super admin (null = no tocar). Si cambia el monto se
+        /// borra el Price de Stripe guardado y el próximo Checkout crea uno nuevo con la misma lookup_key.
+        /// Las monedas sin precio se completan convirtiendo el precio en ARS.
+        /// </summary>
+        private async Task UpsertCurrencyPricesAsync(SubscriptionPlan plan, List<PlanCurrencyPriceDto>? prices)
+        {
+            if (prices != null)
+            {
+                var existing = await _context.SubscriptionPlanPrices.Where(p => p.SubscriptionPlanId == plan.Id).ToListAsync();
+                foreach (var dto in prices)
+                {
+                    var currency = (dto.Currency ?? string.Empty).Trim().ToUpperInvariant();
+                    if (!BookingPro.API.Utilities.PlatformPricing.StripeCurrencies.Contains(currency) || dto.Amount <= 0) continue;
+                    var row = existing.FirstOrDefault(p => p.Currency == currency);
+                    if (row == null)
+                    {
+                        _context.SubscriptionPlanPrices.Add(new SubscriptionPlanPrice { SubscriptionPlanId = plan.Id, Currency = currency, Amount = dto.Amount });
+                    }
+                    else if (row.Amount != dto.Amount)
+                    {
+                        row.Amount = dto.Amount;
+                        row.StripePriceId = null;
+                        row.StripePriceAmount = null;
+                        row.UpdatedAt = DateTime.UtcNow;
+                    }
+                }
+                await _context.SaveChangesAsync();
+            }
+
+            var stripeBilling = HttpContext.RequestServices.GetRequiredService<BookingPro.API.Services.IStripeBillingService>();
+            await stripeBilling.EnsureCurrencyPricesAsync();
         }
 
         // DELETE: api/subscription-plans/{code}
@@ -418,6 +460,9 @@ namespace BookingPro.API.Controllers
 
     public class CreateSubscriptionPlanDto
     {
+        /// <summary>Precios fuera de Argentina (Stripe). Null = no se tocan.</summary>
+        public List<PlanCurrencyPriceDto>? Prices { get; set; }
+
         public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
@@ -444,5 +489,12 @@ namespace BookingPro.API.Controllers
 
     public class UpdateSubscriptionPlanDto : CreateSubscriptionPlanDto
     {
+    }
+
+    /// <summary>Precio del plan en una moneda de Stripe (USD, MXN, EUR).</summary>
+    public class PlanCurrencyPriceDto
+    {
+        public string Currency { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
     }
 }

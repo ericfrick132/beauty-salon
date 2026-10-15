@@ -75,6 +75,14 @@ namespace BookingPro.API.Models.Entities
         [MaxLength(200)]
         public string? ExternalReference { get; set; } // ADDON-{tenantId}-{code}-{timestamp}
 
+        /// <summary>Moneda del cobro: null = ARS por Mercado Pago; USD/MXN/EUR = Stripe (PreferenceId guarda el id del Checkout).</summary>
+        [MaxLength(10)]
+        public string? Currency { get; set; }
+
+        /// <summary>null = Mercado Pago; "stripe" = Stripe Checkout.</summary>
+        [MaxLength(20)]
+        public string? Provider { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? PaidAt { get; set; }

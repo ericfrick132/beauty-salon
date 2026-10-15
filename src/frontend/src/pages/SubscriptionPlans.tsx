@@ -712,10 +712,12 @@ const SubscriptionPlans: React.FC = () => {
     }
   };
 
+  // Fuera de Argentina /subscription/plans ya viene en la moneda de Stripe del país (USD, MXN, EUR).
+  const plansCurrency = plans[0]?.currency || 'ARS';
   const formatPrice = (price: number) =>
     new Intl.NumberFormat('es-AR', {
       style: 'currency',
-      currency: 'ARS',
+      currency: plansCurrency,
       minimumFractionDigits: 0,
     }).format(Math.round(price));
 

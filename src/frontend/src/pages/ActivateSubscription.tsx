@@ -54,7 +54,7 @@ const fmtDate = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' }) : null;
 
 const fmtPrice = (amount: number, currency: string) =>
-  new Intl.NumberFormat('es-AR', { style: 'currency', currency: currency || 'ARS', maximumFractionDigits: 0 }).format(amount);
+  new Intl.NumberFormat('es-AR', { style: 'currency', currency: currency || 'ARS', maximumFractionDigits: currency && currency !== 'ARS' ? 2 : 0 }).format(amount);
 
 const ActivateSubscription: React.FC = () => {
   const navigate = useNavigate();
@@ -70,6 +70,8 @@ const ActivateSubscription: React.FC = () => {
   const [error, setError] = useState('');
   // Ya tenía el débito autorizado y eligió otro plan: el backend cambió el monto en vez de mandarlo a MP.
   const [planChangedText, setPlanChangedText] = useState('');
+  // Fuera de Argentina la suscripción se paga con Stripe (/preapproval/create devuelve el Checkout de Stripe).
+  const [billsWithStripe, setBillsWithStripe] = useState(false);
 
   // Adónde seguir después de la tarjeta (o al saltearla): onboarding si falta, si no el panel.
   const nextPath = onboardingDone ? '/dashboard' : '/completar-perfil';
@@ -89,6 +91,7 @@ const ActivateSubscription: React.FC = () => {
         const cfg = cfgRes.status === 'fulfilled' ? (cfgRes.value as any) : null;
         const done = !!cfg?.onboardingCompletedAt;
         setOnboardingDone(done);
+        setBillsWithStripe(cfg?.countryFeatures?.platformBilling === 'stripe');
 
         // Ya dejó la tarjeta: acá no hay nada que hacer.
         if (preRes.status === 'fulfilled' && preRes.value.data?.hasActivePreapproval) {
@@ -191,7 +194,9 @@ const ActivateSubscription: React.FC = () => {
       : `Activá tu prueba gratis: te quedan ${trialDaysLeft} ${trialDaysLeft === 1 ? 'día' : 'días'}`;
 
   const subtitle = expired
-    ? 'Elegí tu plan y pagalo con Mercado Pago para seguir usando TurnosPro. Se cobra hoy y se renueva solo cada mes. Cancelás cuando quieras.'
+    ? billsWithStripe
+      ? 'Elegí tu plan y pagalo con tarjeta para seguir usando TurnosPro. Se cobra hoy y se renueva solo cada mes. Cancelás cuando quieras.'
+      : 'Elegí tu plan y pagalo con Mercado Pago para seguir usando TurnosPro. Se cobra hoy y se renueva solo cada mes. Cancelás cuando quieras.'
     : optional
       ? `Te ${trialDaysLeft === 1 ? 'queda 1 día' : `quedan ${trialDaysLeft} días`} de prueba gratis. Si dejás la tarjeta ahora no se te cobra nada hasta que termine${firstChargeDate ? ` (el ${firstChargeDate})` : ''} y no se te corta el servicio. Cancelás cuando quieras.`
       : `Hoy no se te cobra nada${firstChargeDate ? `: el primer débito es el ${firstChargeDate}` : ''}. Después se renueva solo. Cancelás cuando quieras.`;
@@ -348,7 +353,9 @@ const ActivateSubscription: React.FC = () => {
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.75, mt: 1.5 }}>
               <LockOutlinedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
               <Typography variant="caption" color="text.secondary">
-                Te lleva a Mercado Pago para autorizar el débito automático. Volvés acá al terminar.
+                {billsWithStripe
+                  ? 'Te lleva al pago seguro de Stripe para dejar tu tarjeta. Volvés acá al terminar.'
+                  : 'Te lleva a Mercado Pago para autorizar el débito automático. Volvés acá al terminar.'}
               </Typography>
             </Box>
 

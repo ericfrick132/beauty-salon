@@ -51,6 +51,16 @@ namespace BookingPro.API.Controllers
                     return BadRequest(new { error = "No tenant context" });
                 }
 
+                // Fuera de Argentina la plataforma cobra con Stripe: mismo pedido, Checkout de Stripe.
+                if (await StripeBillingController.BillsWithStripeAsync(_context, tenantId))
+                {
+                    var stripeBilling = HttpContext.RequestServices.GetRequiredService<IStripeBillingService>();
+                    var planCode = dto.PlanCode;
+                    if (string.IsNullOrWhiteSpace(planCode) && dto.SubscriptionPlanId != Guid.Empty)
+                        planCode = await _context.SubscriptionPlans.Where(p => p.Id == dto.SubscriptionPlanId).Select(p => p.Code).FirstOrDefaultAsync();
+                    return await StripeBillingController.CheckoutResponseAsync(this, stripeBilling, _context, tenantId, planCode, dto.ReturnPath);
+                }
+
                 // /empezar manda el código del plan (o nada: plan mensual "pro" por defecto);
                 // la pantalla vieja de suscripción recurrente sigue mandando el id.
                 var planId = dto.SubscriptionPlanId;
@@ -167,6 +177,36 @@ namespace BookingPro.API.Controllers
 
                 if (preapproval == null)
                 {
+                    // Negocios fuera de Argentina: la "tarjeta" es la suscripción de Stripe. Mismo contrato para
+                    // el gate del panel (useCardGate) y el polling de la vuelta del checkout.
+                    if (await StripeBillingController.BillsWithStripeAsync(_context, tenantId))
+                    {
+                        var stripeBilling = HttpContext.RequestServices.GetRequiredService<IStripeBillingService>();
+                        var stripeKey = $"stripe-status-reconcile:{tenantId}";
+                        var reconcile = !cache.TryGetValue(stripeKey, out _);
+                        if (reconcile) cache.Set(stripeKey, true, TimeSpan.FromSeconds(10));
+                        var stripeSub = await stripeBilling.GetChargingSubscriptionAsync(tenantId, reconcile);
+                        if (stripeSub != null)
+                        {
+                            var planName = await _context.SubscriptionPlans.Where(p => p.Id == stripeSub.SubscriptionPlanId).Select(p => p.Name).FirstOrDefaultAsync();
+                            return Ok(new
+                            {
+                                hasActivePreapproval = true,
+                                provider = "stripe",
+                                preapprovalId = stripeSub.Id,
+                                status = stripeSub.Status,
+                                planId = stripeSub.SubscriptionPlanId,
+                                planName,
+                                amount = stripeSub.Amount,
+                                currency = stripeSub.Currency,
+                                authorizedAt = stripeSub.CreatedAt,
+                                nextPaymentDate = stripeSub.TrialEnd > DateTime.UtcNow ? stripeSub.TrialEnd : stripeSub.CurrentPeriodEnd,
+                                lastPaymentDate = stripeSub.LastPaymentAt,
+                                cancelAtPeriodEnd = stripeSub.CancelAtPeriodEnd
+                            });
+                        }
+                    }
+
                     return Ok(new
                     {
                         hasActivePreapproval = false,
@@ -264,6 +304,14 @@ namespace BookingPro.API.Controllers
                 }
 
                 var preapproval = await _preapprovalService.GetActivePreapprovalForTenantAsync(tenantId);
+                if (preapproval == null && await StripeBillingController.BillsWithStripeAsync(_context, tenantId))
+                {
+                    var stripeBilling = HttpContext.RequestServices.GetRequiredService<IStripeBillingService>();
+                    var cancelled = await stripeBilling.CancelSubscriptionAsync(tenantId);
+                    return cancelled.Success
+                        ? Ok(new { success = true, message = "Subscription cancelled. Access will continue until the current period ends." })
+                        : BadRequest(new { error = cancelled.Message });
+                }
                 if (preapproval == null)
                 {
                     return BadRequest(new { error = "No active preapproval to cancel" });

@@ -67,6 +67,9 @@ namespace BookingPro.API.Data
 
         // Preapproval entities (MercadoPago recurring subscriptions)
         public DbSet<TenantPreapproval> TenantPreapprovals { get; set; }
+        public DbSet<SubscriptionPlanPrice> SubscriptionPlanPrices { get; set; }
+        public DbSet<FeatureAddonPrice> FeatureAddonPrices { get; set; }
+        public DbSet<TenantStripeSubscription> TenantStripeSubscriptions { get; set; }
         public DbSet<PreapprovalPayment> PreapprovalPayments { get; set; }
         
         // End User entities (B2C)
@@ -278,6 +281,33 @@ namespace BookingPro.API.Data
                     .WithMany()
                     .HasForeignKey(p => p.TenantId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // === Stripe (suscripción a la plataforma fuera de Argentina) ===
+            modelBuilder.Entity<SubscriptionPlanPrice>(entity =>
+            {
+                entity.HasIndex(p => new { p.SubscriptionPlanId, p.Currency }).IsUnique();
+                entity.Property(p => p.Amount).HasPrecision(18, 2);
+                entity.Property(p => p.StripePriceAmount).HasPrecision(18, 2);
+                entity.HasOne(p => p.SubscriptionPlan)
+                    .WithMany()
+                    .HasForeignKey(p => p.SubscriptionPlanId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<FeatureAddonPrice>(entity =>
+            {
+                entity.HasIndex(p => new { p.AddonCode, p.Currency }).IsUnique();
+                entity.Property(p => p.Amount).HasPrecision(18, 2);
+            });
+
+            modelBuilder.Entity<TenantStripeSubscription>(entity =>
+            {
+                entity.HasIndex(p => p.TenantId);
+                entity.HasIndex(p => p.StripeSubscriptionId).IsUnique();
+                entity.HasIndex(p => p.StripeCheckoutSessionId);
+                entity.HasIndex(p => p.Status);
+                entity.Property(p => p.Amount).HasPrecision(18, 2);
             });
 
             // === Preapproval Entities Configuration (MercadoPago recurring) ===

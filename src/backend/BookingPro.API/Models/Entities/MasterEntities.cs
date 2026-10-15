@@ -77,6 +77,10 @@ namespace BookingPro.API.Models.Entities
         /// <summary>País del negocio (ISO-2: AR, UY, MX, ES). Define moneda, zona horaria, teléfonos y features por país.</summary>
         [Required, MaxLength(2)]
         public string Country { get; set; } = "AR";
+
+        /// <summary>Cliente de Stripe del negocio (suscripción y add-ons fuera de Argentina).</summary>
+        [MaxLength(100)]
+        public string? StripeCustomerId { get; set; }
         
         public bool IsDemo { get; set; } = false;
         public int? DemoDays { get; set; }

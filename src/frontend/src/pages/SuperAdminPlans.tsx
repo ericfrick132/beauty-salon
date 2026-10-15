@@ -74,7 +74,16 @@ interface SubscriptionPlan {
   createdAt: string;
   updatedAt: string;
   activeSubscriptions: number;
+  /** Precios fuera de Argentina (Stripe): USD Uruguay, MXN México, EUR España. */
+  prices?: { currency: string; amount: number; stripePriceId?: string | null }[];
 }
+
+/** Monedas en las que Stripe cobra la suscripción fuera de Argentina. */
+const STRIPE_CURRENCIES = [
+  { code: 'USD', label: 'USD (Uruguay)' },
+  { code: 'MXN', label: 'MXN (México)' },
+  { code: 'EUR', label: 'EUR (España)' },
+] as const;
 
 interface PlanFormData {
   code: string;
@@ -99,6 +108,8 @@ interface PlanFormData {
   isActive: boolean;
   isPopular: boolean;
   displayOrder: number;
+  /** Monto por moneda de Stripe; vacío = se completa convirtiendo el precio en ARS. */
+  prices: Record<string, number | ''>;
 }
 
 const initialFormData: PlanFormData = {
@@ -124,6 +135,7 @@ const initialFormData: PlanFormData = {
   isActive: true,
   isPopular: false,
   displayOrder: 0,
+  prices: { USD: '', MXN: '', EUR: '' },
 };
 
 interface SuperAdminPlansProps {
@@ -204,6 +216,9 @@ const SuperAdminPlans: React.FC<SuperAdminPlansProps> = ({ embedded = false }) =
       isActive: plan.isActive,
       isPopular: plan.isPopular,
       displayOrder: plan.displayOrder,
+      prices: Object.fromEntries(
+        STRIPE_CURRENCIES.map(({ code }) => [code, plan.prices?.find((p) => p.currency === code)?.amount ?? '']),
+      ),
     });
     setOpenDialog(true);
   };
@@ -220,12 +235,19 @@ const SuperAdminPlans: React.FC<SuperAdminPlansProps> = ({ embedded = false }) =
       setError('');
       const token = localStorage.getItem('superAdminToken');
       const headers = { Authorization: `Bearer ${token}` };
+      const { prices, ...planFields } = formData;
+      const payload = {
+        ...planFields,
+        prices: STRIPE_CURRENCIES
+          .filter(({ code }) => typeof prices[code] === 'number' && (prices[code] as number) > 0)
+          .map(({ code }) => ({ currency: code, amount: prices[code] as number })),
+      };
 
       if (editingPlan) {
-        await api.put(`/subscription-plans/${editingPlan.code}`, formData, { headers });
+        await api.put(`/subscription-plans/${editingPlan.code}`, payload, { headers });
         setSuccess('Plan actualizado exitosamente');
       } else {
-        await api.post('/subscription-plans', formData, { headers });
+        await api.post('/subscription-plans', payload, { headers });
         setSuccess('Plan creado exitosamente');
       }
 
@@ -425,6 +447,11 @@ const SuperAdminPlans: React.FC<SuperAdminPlansProps> = ({ embedded = false }) =
                           <Typography variant="caption" color="text.secondary">
                             /mes
                           </Typography>
+                          {plan.prices && plan.prices.length > 0 && (
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              {plan.prices.map((p) => formatPrice(p.amount, p.currency)).join(' · ')}
+                            </Typography>
+                          )}
                         </TableCell>
                         <TableCell align="center">
                           <Tooltip title={`Reservas: ${formatLimit(plan.maxBookingsPerMonth)}, Servicios: ${formatLimit(plan.maxServices)}, Staff: ${formatLimit(plan.maxStaff)}`}>
@@ -570,6 +597,28 @@ const SuperAdminPlans: React.FC<SuperAdminPlansProps> = ({ embedded = false }) =
                 onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
               />
             </Grid>
+            <Grid item xs={12}>
+              <Typography variant="caption" color="text.secondary">
+                Fuera de Argentina se cobra con Stripe en estas monedas. Vacío = se completa convirtiendo el precio
+                en ARS (ARS 1300 = USD 1). Cambiar un monto crea un precio nuevo en Stripe para las próximas altas.
+              </Typography>
+            </Grid>
+            {STRIPE_CURRENCIES.map(({ code, label }) => (
+              <Grid item xs={12} sm={4} key={code}>
+                <TextField
+                  fullWidth
+                  label={`Precio ${label}`}
+                  type="number"
+                  value={formData.prices[code] ?? ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      prices: { ...formData.prices, [code]: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 },
+                    })
+                  }
+                />
+              </Grid>
+            ))}
 
             {/* Límites */}
             <Grid item xs={12}>

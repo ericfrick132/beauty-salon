@@ -42,6 +42,23 @@ namespace BookingPro.API.Controllers
 
             var result = await _featureAddonService.GetTenantAddonsAsync(tenantId);
             if (!result.Success) return BadRequest(new { error = result.Message });
+
+            // Fuera de Argentina el add-on se paga con Stripe en la moneda del país.
+            var db = HttpContext.RequestServices.GetRequiredService<Data.ApplicationDbContext>();
+            if (result.Data != null && await StripeBillingController.BillsWithStripeAsync(db, tenantId))
+            {
+                var country = await db.Tenants.IgnoreQueryFilters().AsNoTracking()
+                    .Where(t => t.Id == tenantId).Select(t => t.Country).FirstOrDefaultAsync();
+                var currency = Utilities.CountryProfile.Get(country).PlatformCurrency;
+                var prices = await db.FeatureAddonPrices.AsNoTracking().Where(p => p.Currency == currency).ToListAsync();
+                foreach (var addon in result.Data)
+                {
+                    var local = prices.FirstOrDefault(p => p.AddonCode == addon.Code);
+                    if (local == null) continue;
+                    addon.MonthlyPrice = local.Amount;
+                    addon.Currency = currency;
+                }
+            }
             return Ok(result.Data);
         }
 
@@ -59,6 +76,17 @@ namespace BookingPro.API.Controllers
                     .Where(t => t.Id == tenantId).Select(t => t.Country).FirstOrDefaultAsync();
                 if (!Utilities.CountryProfile.Get(country).TransferDetection)
                     return StatusCode(403, new { error = "Esta función no está disponible en el país del negocio." });
+            }
+
+            var appDb = HttpContext.RequestServices.GetRequiredService<Data.ApplicationDbContext>();
+            if (await StripeBillingController.BillsWithStripeAsync(appDb, tenantId))
+            {
+                var baseUrl = await StripeBillingController.TenantBaseUrlAsync(HttpContext, appDb, tenantId);
+                if (baseUrl == null) return BadRequest(new { error = "Tenant not found" });
+                var billing = HttpContext.RequestServices.GetRequiredService<Services.IStripeBillingService>();
+                var stripeResult = await billing.CreateAddonCheckoutAsync(tenantId, dto.Code, baseUrl);
+                if (!stripeResult.Success || stripeResult.Data == null) return BadRequest(new { error = stripeResult.Message });
+                return Ok(stripeResult.Data);
             }
 
             var result = await _featureAddonService.CreatePurchaseAsync(tenantId, dto.Code);

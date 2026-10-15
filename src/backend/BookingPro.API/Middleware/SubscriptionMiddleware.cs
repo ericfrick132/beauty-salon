@@ -104,6 +104,9 @@ namespace BookingPro.API.Middleware
                         .AnyAsync(sb => sb.TenantId == tenantId && sb.Status == "active" && !sb.IsTrialPeriod);
                     var hasCard = await db.TenantPreapprovals
                         .AnyAsync(pa => pa.TenantId == tenantId && pa.Status == "authorized");
+                    // Fuera de Argentina la tarjeta queda en Stripe (suscripción en trialing/active).
+                    if (!hasCard && !BookingPro.API.Utilities.CountryProfile.Get(trialTenant!.Country).IsArgentina)
+                        hasCard = await HasStripeCardAsync(context, db, tenantId);
                     if (!hasPaidSubscription && !hasCard)
                         hasCard = await TryReconcileCardAsync(context, tenantId);
                     if (!hasPaidSubscription && !hasCard)
@@ -225,6 +228,32 @@ namespace BookingPro.API.Middleware
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "No se pudo conciliar la tarjeta del tenant {TenantId} con Mercado Pago", tenantId);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Suscripción de Stripe viva (negocios fuera de Argentina). Si no hay, concilia el Checkout pendiente
+        /// contra Stripe una vez cada 30 s por tenant (el webhook puede no haber llegado todavía).
+        /// </summary>
+        private async Task<bool> HasStripeCardAsync(HttpContext context, ApplicationDbContext db, Guid tenantId)
+        {
+            var charging = BookingPro.API.Models.Entities.TenantStripeSubscriptionStatuses.Charging;
+            if (await db.TenantStripeSubscriptions.AnyAsync(s => s.TenantId == tenantId && charging.Contains(s.Status)))
+                return true;
+
+            var cache = context.RequestServices.GetRequiredService<IMemoryCache>();
+            var key = $"stripe-card-reconcile:{tenantId}";
+            if (cache.TryGetValue(key, out _)) return false;
+            cache.Set(key, true, TimeSpan.FromSeconds(30));
+            try
+            {
+                var billing = context.RequestServices.GetRequiredService<IStripeBillingService>();
+                return await billing.GetChargingSubscriptionAsync(tenantId, reconcile: true) != null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No se pudo conciliar la suscripción de Stripe del tenant {TenantId}", tenantId);
                 return false;
             }
         }
