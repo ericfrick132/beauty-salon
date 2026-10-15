@@ -63,8 +63,13 @@ function BrandMark() {
   );
 }
 
-export default function Header() {
+/**
+ * homePath: landing a la que apuntan Inicio y las anclas (#precios, #faq...). '/' es Argentina; las
+ * landings por país (/uy, /mx, /es) pasan la suya para que "Precios" no lleve a los precios en ARS.
+ */
+export default function Header({ homePath = '/' }: { homePath?: string } = {}) {
   const { open } = useSignupModal();
+  const links = homePath === '/' ? navLinks : navLinks.map((l) => (l.href.startsWith('/#') ? { ...l, href: homePath + l.href.slice(1) } : l));
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
@@ -73,7 +78,7 @@ export default function Header() {
         <Container maxWidth="lg" disableGutters>
           <Toolbar sx={{ gap: 2, py: 1.2, px: { xs: 2, md: 3 } }}>
             <Link
-              href="/"
+              href={homePath}
               aria-label="Ir a inicio"
               style={{
                 display: 'inline-flex',
@@ -110,7 +115,7 @@ export default function Header() {
                 mr: 2,
               }}
             >
-              {navLinks.map((item) => (
+              {links.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -198,7 +203,7 @@ export default function Header() {
           </IconButton>
         </Box>
         <List sx={{ pt: 1 }}>
-          {navLinks.map((item) => (
+          {links.map((item) => (
             <ListItem key={item.href} disablePadding>
               <ListItemButton
                 component="a"

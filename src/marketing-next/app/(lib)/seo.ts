@@ -16,3 +16,21 @@ export function pageAlternates(path: string): NonNullable<Metadata['alternates']
     languages: { [brand.lang]: path },
   };
 }
+
+/**
+ * Canonical auto-referencial + hreflang de la home por país: '/' es Argentina y x-default,
+ * '/uy', '/mx' y '/es' las versiones de Uruguay, México y España. Las cuatro URLs llevan el mismo
+ * juego de alternates (Google pide que sean recíprocos).
+ */
+export function countryAlternates(path: '/' | '/uy' | '/mx' | '/es'): NonNullable<Metadata['alternates']> {
+  return {
+    canonical: path,
+    languages: {
+      'es-AR': '/',
+      'es-UY': '/uy',
+      'es-MX': '/mx',
+      'es-ES': '/es',
+      'x-default': '/',
+    },
+  };
+}

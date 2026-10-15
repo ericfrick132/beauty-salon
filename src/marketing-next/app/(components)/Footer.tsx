@@ -48,7 +48,15 @@ function FootMark() {
   );
 }
 
-export default function Footer() {
+interface FooterProps {
+  /** Bajada bajo el logo (las landings por país la pasan con su vocabulario: cita/anticipo/señal). */
+  tagline?: string;
+  findUsLabel?: string;
+  /** Links a las versiones por país (solo en las landings de UY/MX/ES). */
+  countryLinks?: { path: string; name: string }[];
+}
+
+export default function Footer({ tagline, findUsLabel, countryLinks }: FooterProps = {}) {
   return (
     <Box
       component="footer"
@@ -78,9 +86,22 @@ export default function Footer() {
               </Box>
             </Box>
             <Box sx={{ color: 'rgba(244,239,230,0.6)', maxWidth: 320, lineHeight: 1.65, fontSize: '0.95rem' }}>
-              Reservas online, cobros con seña y recordatorios por WhatsApp.
-              Construido para profesionales independientes y pequeños negocios.
+              {tagline ?? (
+                <>
+                  Reservas online, cobros con seña y recordatorios por WhatsApp.
+                  Construido para profesionales independientes y pequeños negocios.
+                </>
+              )}
             </Box>
+            {countryLinks && countryLinks.length > 0 && (
+              <Box component="nav" aria-label="Países" sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 1.5, fontSize: '0.85rem' }}>
+                {countryLinks.map((c) => (
+                  <MuiLink key={c.path} component={Link} href={c.path} underline="hover" sx={{ color: 'rgba(244,239,230,0.75)' }}>
+                    {c.name}
+                  </MuiLink>
+                ))}
+              </Box>
+            )}
 
             <Box sx={{ mt: 3 }}>
               <Box
@@ -93,7 +114,7 @@ export default function Footer() {
                   mb: 1.4,
                 }}
               >
-                Encontranos en:
+                {findUsLabel ?? 'Encontranos en:'}
               </Box>
               <Box
                 component="a"
@@ -187,7 +208,8 @@ export default function Footer() {
               Recursos
             </Box>
             <Box component="nav" aria-label="Recursos" sx={{ display: 'flex', flexDirection: 'column', gap: 1.2 }}>
-              {verticalLinks.map((v) => (
+              {/* Las landings por país no enlazan las guías de Argentina (turnos, seña con Mercado Pago). */}
+              {!countryLinks && verticalLinks.map((v) => (
                 <MuiLink
                   key={v.path}
                   component={Link}
@@ -198,7 +220,7 @@ export default function Footer() {
                   Turnos para {v.label.toLowerCase()}
                 </MuiLink>
               ))}
-              {featureLinks.map((f) => (
+              {!countryLinks && featureLinks.map((f) => (
                 <MuiLink
                   key={f.path}
                   component={Link}
@@ -209,7 +231,7 @@ export default function Footer() {
                   {f.label}
                 </MuiLink>
               ))}
-              {blogLinks.map((b) => (
+              {!countryLinks && blogLinks.map((b) => (
                 <MuiLink
                   key={b.path}
                   href={b.path}

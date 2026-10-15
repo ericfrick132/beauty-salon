@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { brand } from '@/app/(lib)/brand';
-import { pageAlternates } from '@/app/(lib)/seo';
+import { countryAlternates } from '@/app/(lib)/seo';
 import { organizationSchema, softwareAppSchema, faqSchema } from '@/app/(lib)/schema';
 import { faqs } from '@/app/(lib)/content';
 import LandingClient from '@/app/(components)/(sections)/LandingClient';
@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   title: 'TurnosPro | Agenda con IA, señas con MercadoPago y WhatsApp',
   description:
     '80% menos cancelaciones: agente de IA que confirma turnos por WhatsApp, señas con MercadoPago y recordatorios automáticos.',
-  alternates: pageAlternates('/'),
+  alternates: countryAlternates('/'),
   openGraph: {
     title: 'TurnosPro | Agenda con IA, señas con MercadoPago y WhatsApp',
     description:
