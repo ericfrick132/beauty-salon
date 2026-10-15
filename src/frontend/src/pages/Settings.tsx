@@ -68,6 +68,7 @@ import { motion } from 'framer-motion';
 import api, { authApi, serviceCategoryApi } from '../services/api';
 import { useTenant } from '../contexts/TenantContext';
 import TextField from '../components/common/TextField';
+import { COUNTRIES, CURRENCIES, TIMEZONES, getCountry, toIanaTimezone } from '../utils/intl';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -91,30 +92,6 @@ function TabPanel({ children, value, index }: TabPanelProps) {
     </div>
   );
 }
-
-const TIMEZONES = [
-  { value: '-3', label: 'Argentina (UTC-3)' },
-  { value: '-3', label: 'Brasil (UTC-3)' },
-  { value: '-4', label: 'Chile (UTC-4)' },
-  { value: '-5', label: 'Perú/Colombia (UTC-5)' },
-  { value: '-4', label: 'Venezuela (UTC-4)' },
-  { value: '-3', label: 'Uruguay (UTC-3)' },
-  { value: '-3', label: 'Paraguay (UTC-3)' },
-  { value: '-4', label: 'Bolivia (UTC-4)' },
-  { value: '-5', label: 'Ecuador (UTC-5)' },
-  { value: '+1', label: 'España (UTC+1)' },
-  { value: '0', label: 'Reino Unido (UTC+0)' },
-];
-
-const CURRENCIES = [
-  { value: 'ARS', label: 'Peso Argentino (ARS)', symbol: '$' },
-  { value: 'USD', label: 'Dólar Americano (USD)', symbol: '$' },
-  { value: 'EUR', label: 'Euro (EUR)', symbol: '€' },
-  { value: 'BRL', label: 'Real Brasileño (BRL)', symbol: 'R$' },
-  { value: 'CLP', label: 'Peso Chileno (CLP)', symbol: '$' },
-  { value: 'COP', label: 'Peso Colombiano (COP)', symbol: '$' },
-  { value: 'PEN', label: 'Sol Peruano (PEN)', symbol: 'S/' },
-];
 
 const LANGUAGES = [
   { value: 'es', label: 'Español' },
@@ -157,7 +134,8 @@ const Settings: React.FC = () => {
     phone: '',
     email: '',
     website: '',
-    timezone: '-3',
+    country: 'AR',
+    timezone: 'America/Argentina/Buenos_Aires',
     currency: 'ARS',
     language: 'es',
     taxId: '',
@@ -294,7 +272,10 @@ const Settings: React.FC = () => {
           phone: tenantResponse.data.phone || '',
           email: tenantResponse.data.email || '',
           website: tenantResponse.data.website || '',
-          timezone: tenantResponse.data.timezone || '-3',
+          country: getCountry(tenantResponse.data.country).code,
+          timezone: toIanaTimezone(tenantResponse.data.timezone, tenantResponse.data.country),
+          currency: tenantResponse.data.currency || getCountry(tenantResponse.data.country).currency,
+          language: tenantResponse.data.language || 'es',
           taxId: tenantResponse.data.taxId || '',
         }));
       }
@@ -763,7 +744,33 @@ const Settings: React.FC = () => {
                 />
               </Grid>
 
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={3}>
+                <FormControl fullWidth>
+                  <InputLabel>País</InputLabel>
+                  <Select
+                    value={generalSettings.country}
+                    onChange={(e) => {
+                      // Al cambiar de país se proponen su zona horaria y su moneda (se pueden cambiar después).
+                      const c = getCountry(e.target.value);
+                      setGeneralSettings(prev => ({
+                        ...prev,
+                        country: c.code,
+                        timezone: c.timezone,
+                        currency: c.currency,
+                      }));
+                    }}
+                    label="País"
+                  >
+                    {COUNTRIES.map((c) => (
+                      <MenuItem key={c.code} value={c.code}>
+                        {c.flag} {c.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12} md={3}>
                 <FormControl fullWidth>
                   <InputLabel>Zona Horaria</InputLabel>
                   <Select
@@ -774,8 +781,11 @@ const Settings: React.FC = () => {
                     }))}
                     label="Zona Horaria"
                   >
-                    {TIMEZONES.map((timezone) => (
-                      <MenuItem key={`${timezone.value}-${timezone.label}`} value={timezone.value}>
+                    {(TIMEZONES.some((t) => t.value === generalSettings.timezone)
+                      ? TIMEZONES
+                      : [...TIMEZONES, { value: generalSettings.timezone, label: generalSettings.timezone }]
+                    ).map((timezone) => (
+                      <MenuItem key={timezone.value} value={timezone.value}>
                         {timezone.label}
                       </MenuItem>
                     ))}
@@ -783,10 +793,12 @@ const Settings: React.FC = () => {
                 </FormControl>
               </Grid>
 
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={3}>
                 <FormControl fullWidth>
                   <InputLabel>Moneda</InputLabel>
                   <Select
+                    // En Argentina se cobra siempre en pesos.
+                    disabled={generalSettings.country === 'AR'}
                     value={generalSettings.currency}
                     onChange={(e) => setGeneralSettings(prev => ({
                       ...prev,
@@ -803,7 +815,7 @@ const Settings: React.FC = () => {
                 </FormControl>
               </Grid>
 
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={3}>
                 <FormControl fullWidth>
                   <InputLabel>Idioma</InputLabel>
                   <Select

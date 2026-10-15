@@ -38,23 +38,8 @@ import api from '../services/api';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { ThemeConfiguration } from '../types';
 import TextField from '../components/common/TextField';
+import { TIMEZONES, toIanaTimezone } from '../utils/intl';
 
-const TIMEZONES = [
-  { value: '-3', label: 'Argentina (UTC-3)' },
-  { value: '-3', label: 'Brasil (UTC-3)' },
-  { value: '-4', label: 'Chile (UTC-4)' },
-  { value: '-5', label: 'Perú/Colombia (UTC-5)' },
-  { value: '-4', label: 'Venezuela (UTC-4)' },
-  { value: '-3', label: 'Uruguay (UTC-3)' },
-  { value: '-3', label: 'Paraguay (UTC-3)' },
-  { value: '-4', label: 'Bolivia (UTC-4)' },
-  { value: '-5', label: 'Ecuador (UTC-5)' },
-  { value: '+1', label: 'España (UTC+1)' },
-  { value: '0', label: 'Reino Unido (UTC+0)' },
-  { value: '-5', label: 'Estados Unidos Este (UTC-5)' },
-  { value: '-8', label: 'Estados Unidos Oeste (UTC-8)' },
-  { value: '0', label: 'UTC' },
-];
 
 const ThemeSettings: React.FC = () => {
   const [themeConfig, setThemeConfig] = useState<ThemeConfiguration>({
@@ -76,8 +61,8 @@ const ThemeSettings: React.FC = () => {
     autoContrastText: true,
   });
 
-  const [timezone, setTimezone] = useState<string>('-3');
-  const [originalTimezone, setOriginalTimezone] = useState<string>('-3');
+  const [timezone, setTimezone] = useState<string>('America/Argentina/Buenos_Aires');
+  const [originalTimezone, setOriginalTimezone] = useState<string>('America/Argentina/Buenos_Aires');
 
   const [originalTheme, setOriginalTheme] = useState<ThemeConfiguration | null>(null);
   const [loading, setLoading] = useState(true);
@@ -104,7 +89,7 @@ const ThemeSettings: React.FC = () => {
       // Load tenant configuration for timezone
       const tenantResponse = await api.get('/tenant/config');
       const tenantConfig = tenantResponse.data;
-      const loadedTimezone = tenantConfig.timezone || '-3';
+      const loadedTimezone = toIanaTimezone(tenantConfig.timezone, tenantConfig.country);
       setTimezone(loadedTimezone);
       setOriginalTimezone(loadedTimezone);
     } catch (error) {
