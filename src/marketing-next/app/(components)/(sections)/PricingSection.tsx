@@ -2,9 +2,11 @@
 import { Box, Container, Typography, Button, Stack } from '@mui/material';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import AnimatedSection from './AnimatedSection';
+import { useEffect, useState } from 'react';
 import { useSignupModal } from './SignupModal';
 import { pricingContent } from '@/app/(lib)/content';
 import { palette } from '@/app/(lib)/theme';
+import { estimateFromArs, fetchCountryPlanPrices, priceParts } from '@/app/(lib)/countries';
 
 function formatPrice(value: number): string {
   return new Intl.NumberFormat('es-AR', {
@@ -13,8 +15,27 @@ function formatPrice(value: number): string {
   }).format(value);
 }
 
+/**
+ * Precios de la home. Sin país (Argentina) salen los de content.ts en ARS, como siempre. En las landings
+ * por país (/uy, /mx, /es) o con ?pais=uy|mx|es, los precios son los de la suscripción en la moneda del
+ * país (/api/subscription-plans?country=XX) y el copy es el del país (tú en MX/ES, anticipo/señal).
+ */
 export default function PricingSection() {
-  const { open } = useSignupModal();
+  const { open, country } = useSignupModal();
+  const copy = country?.copy.pricing;
+  // Mientras llega la API (o si falla) se muestra el equivalente del precio en ARS, como el backend.
+  const [countryPrices, setCountryPrices] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!country) return;
+    let cancelled = false;
+    setCountryPrices({});
+    fetchCountryPlanPrices(country)
+      .then((prices) => { if (!cancelled) setCountryPrices(prices); })
+      .catch(() => { /* queda la estimación */ });
+    return () => { cancelled = true; };
+  }, [country]);
+  const headline = copy?.headline ?? pricingContent.headline;
+  const features = copy?.features ?? pricingContent.features;
   const selectPlan = (code: string) => {
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('_selected_plan', code);
@@ -71,11 +92,11 @@ export default function PricingSection() {
               mx: 'auto',
             }}
           >
-            {pricingContent.headline.split('se adapta')[0]}
+            {headline.split('se adapta')[0]}
             <Box component="span" sx={{ fontStyle: 'italic', color: palette.coral, fontWeight: 600 }}>
               se adapta
             </Box>
-            {pricingContent.headline.split('se adapta')[1]}
+            {headline.split('se adapta')[1]}
           </Typography>
         </AnimatedSection>
 
@@ -91,7 +112,7 @@ export default function PricingSection() {
               lineHeight: 1.6,
             }}
           >
-            {pricingContent.subheadline}
+            {copy?.subheadline ?? pricingContent.subheadline}
           </Typography>
         </AnimatedSection>
 
@@ -109,6 +130,9 @@ export default function PricingSection() {
         >
           {pricingContent.plans.map((plan) => {
             const highlighted = plan.highlighted;
+            const local = country
+              ? priceParts(countryPrices[plan.code] ?? estimateFromArs(plan.price, country.currency), country.currency)
+              : null;
             return (
               <AnimatedSection key={plan.code}>
                 <Box
@@ -211,7 +235,7 @@ export default function PricingSection() {
                           mr: 0.3,
                         }}
                       >
-                        $
+                        {local ? local.prefix : '$'}
                       </Box>
                       <Box
                         component="span"
@@ -224,7 +248,7 @@ export default function PricingSection() {
                           color: highlighted ? palette.paper : palette.ink,
                         }}
                       >
-                        {formatPrice(plan.price)}
+                        {local ? local.amount : formatPrice(plan.price)}
                       </Box>
                       <Box
                         component="span"
@@ -236,7 +260,7 @@ export default function PricingSection() {
                           ml: 0.5,
                         }}
                       >
-                        / mes
+                        {local ? `${local.suffix ? `${local.suffix} ` : ''}${copy?.perMonth ?? '/ mes'}` : '/ mes'}
                       </Box>
                     </Box>
                     <Typography
@@ -246,7 +270,7 @@ export default function PricingSection() {
                         color: highlighted ? 'rgba(244,239,230,0.65)' : palette.inkSoft,
                       }}
                     >
-                      {plan.trialDays} días de prueba gratis
+                      {copy ? copy.trial(plan.trialDays) : <>{plan.trialDays} días de prueba gratis</>}
                     </Typography>
                   </Box>
 
@@ -271,7 +295,7 @@ export default function PricingSection() {
                       },
                     }}
                   >
-                    {plan.cta}
+                    {copy?.cta ?? plan.cta}
                     <Box component="span" sx={{ ml: 1 }} aria-hidden>
                       →
                     </Box>
@@ -279,7 +303,7 @@ export default function PricingSection() {
 
                   {/* Features */}
                   <Stack spacing={1.2} sx={{ mt: 'auto' }}>
-                    {pricingContent.features.map((f) => (
+                    {features.map((f) => (
                       <Box
                         key={f}
                         sx={{
@@ -321,7 +345,7 @@ export default function PricingSection() {
               color: palette.inkSoft,
             }}
           >
-            {pricingContent.microcopy}
+            {copy?.microcopy ?? pricingContent.microcopy}
           </Typography>
         </AnimatedSection>
       </Container>
