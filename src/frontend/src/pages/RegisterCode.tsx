@@ -26,7 +26,8 @@ import AuthShell, { authPalette, authFonts } from '../components/auth/AuthShell'
 import { underlineFieldSx, PillCTA, InlineLink } from '../components/auth/authFormKit';
 import { slugify } from '../utils/slug';
 import { trackFunnel, trackFunnelIfApplicable } from '../utils/funnelTracking';
-import { countryFromPhone } from '../utils/intl';
+import { countryFromPhone, getCountry } from '../utils/intl';
+import { getWording } from '../utils/wording';
 
 const PHONE_COUNTRIES = [
   { dial: '+54', label: 'Argentina (+54)', placeholder: '11 2345 6789' },
@@ -155,13 +156,18 @@ const RegisterCode: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const stateParam = (searchParams.get('s') || '').trim();
   const emailParam = (searchParams.get('email') || '').trim();
+  // País que eligió en la landing (/uy, /mx, /es o ?pais=): preselecciona el código del teléfono y el tono.
+  const [countryParam] = useState(() => {
+    const raw = (searchParams.get('country') || searchParams.get('pais') || '').trim().toUpperCase();
+    return raw && getCountry(raw).code === raw ? raw : '';
+  });
 
   const [step, setStep] = useState<Step>(stateParam || emailValid(emailParam) ? 'code' : 'form');
   // Token opaco de la transacción (email/start lo devuelve; el mail y la landing lo traen en ?s=).
   const [stateToken, setStateToken] = useState(stateParam);
   const [businessName, setBusinessName] = useState('');
   const [email, setEmail] = useState(emailParam);
-  const [dial, setDial] = useState(PHONE_COUNTRIES[0].dial);
+  const [dial, setDial] = useState(() => (countryParam ? `+${getCountry(countryParam).dialCode}` : PHONE_COUNTRIES[0].dial));
   const [mobile, setMobile] = useState('');
   const [code, setCode] = useState('');
   // null = llegamos con ?email= y todavía no sabemos si la cuenta existe.
@@ -192,16 +198,16 @@ const RegisterCode: React.FC = () => {
           setEmail(body.email);
           setIsExisting(!!body.isExisting);
           if (body.businessName) setBusinessName(body.businessName);
-          if (body.expired) setInfo('El código venció. Pedí uno nuevo con "Reenviar código".');
+          if (body.expired) setInfo(w.t('El código venció. Pedí uno nuevo con "Reenviar código".', 'El código venció. Pide uno nuevo con "Reenviar código".'));
         } else {
-          setError('Este link ya no es válido. Pedí un código nuevo.');
+          setError(w.t('Este link ya no es válido. Pedí un código nuevo.', 'Este enlace ya no es válido. Pide un código nuevo.'));
           setStateToken('');
           setStep('form');
           setSearchParams({}, { replace: true });
         }
       } catch {
         if (cancelled) return;
-        setError('Este link ya no es válido. Pedí un código nuevo.');
+        setError(w.t('Este link ya no es válido. Pedí un código nuevo.', 'Este enlace ya no es válido. Pide un código nuevo.'));
         setStateToken('');
         setStep('form');
         setSearchParams({}, { replace: true });
@@ -217,6 +223,10 @@ const RegisterCode: React.FC = () => {
   const phoneDigits = mobile.replace(/[^0-9]/g, '');
   const fullPhone = phoneDigits ? `${dial} ${mobile.trim()}` : '';
   const country = PHONE_COUNTRIES.find((c) => c.dial === dial) ?? PHONE_COUNTRIES[0];
+  // Tú para México/España (por la landing o el código del teléfono); voseo para el resto, como siempre.
+  const businessCountry = countryFromPhone(`${dial} 1`)?.code || countryParam || undefined;
+  const w = getWording(businessCountry);
+  const billsWithStripe = getCountry(businessCountry).platformBilling === 'stripe';
   const slug = useMemo(() => slugify(businessName) || 'tunegocio', [businessName]);
 
   const formValid = businessName.trim().length >= 2 && emailValid(email.trim()) && phoneDigits.length >= 8;
@@ -237,11 +247,11 @@ const RegisterCode: React.FC = () => {
               businessName: businessName.trim() || undefined,
               phone: fullPhone || undefined,
               // País del negocio por el código del teléfono (AR/UY/MX/ES); el resto queda en Argentina.
-              country: countryFromPhone(fullPhone)?.code,
+              country: countryFromPhone(fullPhone)?.code || countryParam || undefined,
               ...getAttribution(),
             },
       );
-      if (!body?.success) throw new Error(body?.message || 'No pudimos enviar el código. Intentá de nuevo.');
+      if (!body?.success) throw new Error(body?.message || w.t('No pudimos enviar el código. Intentá de nuevo.', 'No pudimos enviar el código. Inténtalo de nuevo.'));
       setIsExisting(!!body.isExisting);
       if (body.email) setEmail(body.email);
       // Lead solo cuando el formulario se completó acá y la cuenta es nueva: si vinimos desde
@@ -252,11 +262,12 @@ const RegisterCode: React.FC = () => {
       setInfo(body.devCode ? `Código (dev): ${body.devCode}` : opts.resend ? 'Te reenviamos el código.' : '');
       const nextState: string = body.state || stateToken;
       setStateToken(nextState);
-      setSearchParams(nextState ? { s: nextState } : { email: email.trim() }, { replace: true });
+      const keepCountry: Record<string, string> = countryParam ? { country: countryParam } : {};
+      setSearchParams(nextState ? { s: nextState, ...keepCountry } : { email: email.trim(), ...keepCountry }, { replace: true });
       setCode('');
       setStep('code');
     } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || 'No pudimos enviar el código. Intentá de nuevo.');
+      setError(err?.response?.data?.message || err?.message || w.t('No pudimos enviar el código. Intentá de nuevo.', 'No pudimos enviar el código. Inténtalo de nuevo.'));
     } finally {
       setLoading(false);
     }
@@ -283,7 +294,7 @@ const RegisterCode: React.FC = () => {
         window.location.href = body.redirectUrl;
         return; // dejamos loading en true: la página se está yendo
       }
-      setError('Cuenta creada pero no pudimos redirigirte. Iniciá sesión.');
+      setError(w.t('Cuenta creada pero no pudimos redirigirte. Iniciá sesión.', 'Cuenta creada pero no pudimos redirigirte. Inicia sesión.'));
       setLoading(false);
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || 'Código incorrecto.');
@@ -330,15 +341,15 @@ const RegisterCode: React.FC = () => {
     return (
       <AuthShell>
         <Box component={motion.div} {...item(0.2)} key="code-head" sx={{ mb: 3.5 }}>
-          <Typography sx={kickerSx}>Confirmá tu email</Typography>
+          <Typography sx={kickerSx}>{w.t('Confirmá tu email', 'Confirma tu email')}</Typography>
           <Typography component="h1" sx={titleSx}>
-            {isExisting ? '¡Hola de nuevo!' : 'Ingresá el código'}
+            {isExisting ? '¡Hola de nuevo!' : w.t('Ingresá el código', 'Introduce el código')}
           </Typography>
           <Typography sx={subtitleSx}>
             {isExisting
-              ? 'Ya tenés una cuenta con este email. Te mandamos un código para entrar. '
-              : 'Te mandamos un código de 6 dígitos por email. '}
-            Si no lo ves, revisá spam o promociones.
+              ? w.t('Ya tenés una cuenta con este email. Te mandamos un código para entrar. ', 'Ya tienes una cuenta con este email. Te enviamos un código para entrar. ')
+              : w.t('Te mandamos un código de 6 dígitos por email. ', 'Te enviamos un código de 6 dígitos por email. ')}
+            {w.t('Si no lo ves, revisá spam o promociones.', 'Si no lo ves, revisa spam o promociones.')}
           </Typography>
         </Box>
 
@@ -428,10 +439,10 @@ const RegisterCode: React.FC = () => {
           <Box component={motion.div} {...item(0.54)} sx={{ mt: 3 }}>
             <Typography sx={finePrintSx}>
               {isExisting
-                ? 'Con el código entrás directo a tu panel.'
+                ? w.t('Con el código entrás directo a tu panel.', 'Con el código entras directo a tu panel.')
                 : requireCard
-                  ? 'Con el código entrás directo: activás los 7 días gratis dejando tu tarjeta en Mercado Pago (hoy no se cobra nada) y armás tu agenda.'
-                  : 'Con el código entrás directo a tu prueba de 7 días gratis, sin tarjeta, y armás tu agenda.'}
+                  ? w.t(billsWithStripe ? 'Con el código entrás directo: activás los 7 días gratis dejando tu tarjeta (hoy no se cobra nada) y armás tu agenda.' : 'Con el código entrás directo: activás los 7 días gratis dejando tu tarjeta en Mercado Pago (hoy no se cobra nada) y armás tu agenda.', 'Con el código entras directo: activas los 7 días gratis dejando tu tarjeta (hoy no se cobra nada) y armas tu agenda.')
+                  : w.t('Con el código entrás directo a tu prueba de 7 días gratis, sin tarjeta, y armás tu agenda.', 'Con el código entras directo a tu prueba de 7 días gratis, sin tarjeta, y armas tu agenda.')}
             </Typography>
           </Box>
         </Box>
@@ -444,12 +455,12 @@ const RegisterCode: React.FC = () => {
       <Box component={motion.div} {...item(0.2)} key="form-head" sx={{ mb: 3.5 }}>
         <Typography sx={kickerSx}>Crear cuenta · 7 días gratis</Typography>
         <Typography component="h1" sx={titleSx}>
-          Empezá gratis con tu propia agenda
+          {w.t('Empezá gratis con tu propia agenda', 'Empieza gratis con tu propia agenda')}
         </Typography>
         <Typography sx={subtitleSx}>
           {requireCard
-            ? 'Sin contraseña: te mandamos un código por email. Después activás 7 días gratis con tu tarjeta en Mercado Pago y el primer cobro es recién al terminar la prueba.'
-            : 'Sin contraseña: te mandamos un código por email y entrás directo. 7 días gratis, sin tarjeta.'}
+            ? w.t(billsWithStripe ? 'Sin contraseña: te mandamos un código por email. Después activás 7 días gratis con tu tarjeta y el primer cobro es recién al terminar la prueba.' : 'Sin contraseña: te mandamos un código por email. Después activás 7 días gratis con tu tarjeta en Mercado Pago y el primer cobro es recién al terminar la prueba.', 'Sin contraseña: te enviamos un código por email. Después activas 7 días gratis con tu tarjeta y el primer cobro llega al terminar la prueba.')
+            : w.t('Sin contraseña: te mandamos un código por email y entrás directo. 7 días gratis, sin tarjeta.', 'Sin contraseña: te enviamos un código por email y entras directo. 7 días gratis, sin tarjeta.')}
         </Typography>
       </Box>
 
@@ -562,14 +573,14 @@ const RegisterCode: React.FC = () => {
         <Box component={motion.div} {...item(0.5)} sx={{ mt: 2 }}>
           <Typography sx={finePrintSx}>
             {requireCard
-              ? 'Te mandamos un código de 6 dígitos a tu email para confirmar. Después activás la prueba con tu tarjeta (hoy no se cobra nada) y armás tu agenda: rubro, servicios y horarios.'
-              : 'Te mandamos un código de 6 dígitos a tu email para confirmar y armás tu agenda: rubro, servicios y horarios. No te pedimos tarjeta.'}
+              ? w.t('Te mandamos un código de 6 dígitos a tu email para confirmar. Después activás la prueba con tu tarjeta (hoy no se cobra nada) y armás tu agenda: rubro, servicios y horarios.', 'Te enviamos un código de 6 dígitos a tu email para confirmar. Después activas la prueba con tu tarjeta (hoy no se cobra nada) y armas tu agenda: rubro, servicios y horarios.')
+              : w.t('Te mandamos un código de 6 dígitos a tu email para confirmar y armás tu agenda: rubro, servicios y horarios. No te pedimos tarjeta.', 'Te enviamos un código de 6 dígitos a tu email para confirmar y armas tu agenda: rubro, servicios y horarios. No te pedimos tarjeta.')}
           </Typography>
         </Box>
 
         <Box component={motion.div} {...item(0.56)} sx={{ textAlign: 'center', mt: 3 }}>
           <Typography sx={{ fontFamily: authFonts.body, fontSize: 14, color: authPalette.inkSoft }}>
-            ¿Ya tenés cuenta? <InlineLink href="/login">Iniciá sesión →</InlineLink>
+            {w.t('¿Ya tenés cuenta?', '¿Ya tienes cuenta?')} <InlineLink href="/login">{w.t('Iniciá sesión →', 'Inicia sesión →')}</InlineLink>
           </Typography>
         </Box>
       </Box>
