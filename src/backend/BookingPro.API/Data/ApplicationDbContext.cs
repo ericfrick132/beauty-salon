@@ -192,6 +192,7 @@ namespace BookingPro.API.Data
                 entity.HasIndex(t => t.Subdomain).IsUnique();
                 entity.HasIndex(t => t.SchemaName).IsUnique();
                 entity.HasIndex(t => t.CustomDomain).IsUnique();
+                entity.Property(t => t.Country).HasDefaultValue("AR");
 
                 entity.HasOne(t => t.Vertical)
                     .WithMany(v => v.Tenants)

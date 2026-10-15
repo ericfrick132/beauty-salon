@@ -73,6 +73,10 @@ namespace BookingPro.API.Models.Entities
         
         [MaxLength(10)]
         public string? Language { get; set; } = "en";
+
+        /// <summary>País del negocio (ISO-2: AR, UY, MX, ES). Define moneda, zona horaria, teléfonos y features por país.</summary>
+        [Required, MaxLength(2)]
+        public string Country { get; set; } = "AR";
         
         public bool IsDemo { get; set; } = false;
         public int? DemoDays { get; set; }

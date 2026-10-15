@@ -8,7 +8,10 @@ namespace BookingPro.API.Models
         public string VerticalCode { get; set; } = string.Empty;
         public string SchemaName { get; set; } = string.Empty;
         public string Domain { get; set; } = string.Empty;
-        public string TimeZone { get; set; } = "-3";
+        /// <summary>Zona IANA efectiva (ver TenantTime.ResolveId).</summary>
+        public string TimeZone { get; set; } = "America/Argentina/Buenos_Aires";
+        public string Country { get; set; } = "AR";
+        public string Currency { get; set; } = "ARS";
         public TenantTheme Theme { get; set; } = new();
         public Dictionary<string, bool> Features { get; set; } = new();
         public Dictionary<string, string> Terminology { get; set; } = new();

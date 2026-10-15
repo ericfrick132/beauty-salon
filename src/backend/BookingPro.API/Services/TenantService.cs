@@ -4,6 +4,7 @@ using BookingPro.API.Models.Enums;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Models.Common;
 using BookingPro.API.Models.Entities;
+using BookingPro.API.Utilities;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 using System.Text;
@@ -103,7 +104,9 @@ namespace BookingPro.API.Services
                 VerticalCode = tenant.Vertical?.Code ?? string.Empty,
                 SchemaName = tenant.SchemaName,
                 Domain = domain,
-                TimeZone = tenant.TimeZone ?? "-3",
+                TimeZone = TenantTime.ResolveId(tenant.TimeZone, tenant.Country),
+                Country = CountryProfile.For(tenant).Code,
+                Currency = CountryProfile.CurrencyFor(tenant),
                 Theme = tenant.Vertical != null
                     ? System.Text.Json.JsonSerializer.Deserialize<TenantTheme>(tenant.Vertical.DefaultTheme) ?? new TenantTheme()
                     : new TenantTheme(),
@@ -133,7 +136,7 @@ namespace BookingPro.API.Services
                 await _context.SaveChangesAsync();
                 
                 // Update current tenant info
-                _currentTenant.TimeZone = timezone;
+                _currentTenant.TimeZone = TenantTime.ResolveId(timezone, tenant.Country);
                 
                 return true;
             }
