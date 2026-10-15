@@ -1215,7 +1215,7 @@ const SelfRegistration: React.FC = () => {
             fullWidth
             variant="filled"
             label="Celular"
-            placeholder="+54 9 11 ..."
+            placeholder="+54 9 11 ... (con código de país: +598, +52, +34)"
             value={mobile}
             onChange={(e) => setMobile(e.target.value)}
             required

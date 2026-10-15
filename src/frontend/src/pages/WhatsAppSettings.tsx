@@ -31,6 +31,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { whatsappApi } from '../services/api';
+import { useTenantMoney } from '../hooks/useTenantMoney';
 
 interface WhatsAppStatus {
   status: string;
@@ -41,6 +42,7 @@ interface WhatsAppStatus {
 }
 
 const WhatsAppSettings: React.FC = () => {
+  const { country: tenantCountry } = useTenantMoney();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
@@ -327,7 +329,7 @@ const WhatsAppSettings: React.FC = () => {
                     <TextField
                       fullWidth
                       label="Teléfono (con código de país)"
-                      placeholder="5491123456789"
+                      placeholder={tenantCountry.code === 'AR' ? '5491123456789' : `${tenantCountry.dialCode}${tenantCountry.phonePlaceholder.replace(/\s/g, '')}`}
                       value={testPhone}
                       onChange={(e) => setTestPhone(e.target.value)}
                       size="small"

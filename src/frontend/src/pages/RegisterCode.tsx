@@ -26,6 +26,7 @@ import AuthShell, { authPalette, authFonts } from '../components/auth/AuthShell'
 import { underlineFieldSx, PillCTA, InlineLink } from '../components/auth/authFormKit';
 import { slugify } from '../utils/slug';
 import { trackFunnel, trackFunnelIfApplicable } from '../utils/funnelTracking';
+import { countryFromPhone } from '../utils/intl';
 
 const PHONE_COUNTRIES = [
   { dial: '+54', label: 'Argentina (+54)', placeholder: '11 2345 6789' },
@@ -33,6 +34,7 @@ const PHONE_COUNTRIES = [
   { dial: '+56', label: 'Chile (+56)', placeholder: '9 1234 5678' },
   { dial: '+55', label: 'Brasil (+55)', placeholder: '11 91234 5678' },
   { dial: '+52', label: 'México (+52)', placeholder: '55 1234 5678' },
+  { dial: '+34', label: 'España (+34)', placeholder: '612 34 56 78' },
   { dial: '+1', label: 'Estados Unidos (+1)', placeholder: '305 123 4567' },
 ];
 
@@ -234,6 +236,8 @@ const RegisterCode: React.FC = () => {
               email: email.trim(),
               businessName: businessName.trim() || undefined,
               phone: fullPhone || undefined,
+              // País del negocio por el código del teléfono (AR/UY/MX/ES); el resto queda en Argentina.
+              country: countryFromPhone(fullPhone)?.code,
               ...getAttribution(),
             },
       );

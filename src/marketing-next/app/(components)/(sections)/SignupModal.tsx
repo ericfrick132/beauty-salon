@@ -151,6 +151,7 @@ export const PHONE_COUNTRIES = [
   { dial: '+56', label: 'Chile (+56)', placeholder: '9 1234 5678' },
   { dial: '+55', label: 'Brasil (+55)', placeholder: '11 91234 5678' },
   { dial: '+52', label: 'México (+52)', placeholder: '55 1234 5678' },
+  { dial: '+34', label: 'España (+34)', placeholder: '612 34 56 78' },
   { dial: '+1', label: 'Estados Unidos (+1)', placeholder: '305 123 4567' },
 ];
 

@@ -49,6 +49,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { es } from 'date-fns/locale';
 import { format, addDays, isSameDay, isAfter, isBefore, startOfDay } from 'date-fns';
 import api from '../../services/api';
+import { formatMoney, getCountry } from '../../utils/intl';
 
 // Steps are computed dynamically depending on whether the service requires a deposit
 const baseSteps = ['Servicio', 'Profesional', 'Fecha y Hora', 'Tus Datos'] as const;
@@ -73,15 +74,26 @@ const ui = {
   mono: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
 };
 
-const money = new Intl.NumberFormat('es-AR', {
-  style: 'currency',
-  currency: 'ARS',
-  maximumFractionDigits: 0,
-});
+/**
+ * Los precios llegan como number; sin formato se leen "75000" en vez de "$75.000".
+ * Moneda y locale del negocio (tenant-info); sin datos = ARS/es-AR, como siempre.
+ */
+const formatPrice = (value?: number | null, currency?: string | null, locale?: string | null) =>
+  formatMoney(value, { currency: currency || 'ARS', locale: locale || 'es-AR', variant: 'intl' });
 
-/** Los precios llegan como number; sin formato se leen "75000" en vez de "$75.000". */
-const formatPrice = (value?: number | null) =>
-  typeof value === 'number' && !Number.isNaN(value) ? money.format(value) : '';
+/**
+ * Teléfono del cliente: si el negocio no es de Argentina y el número viene sin "+", se le antepone
+ * el código del país del negocio. En Argentina se guarda tal cual lo escribió el cliente (como siempre;
+ * el backend completa el +54 al mandar el WhatsApp).
+ */
+const withDialCode = (phone: string, country?: string | null) => {
+  const raw = phone.trim();
+  const profile = getCountry(country);
+  if (!raw || profile.code === 'AR' || raw.startsWith('+') || raw.startsWith('00')) return raw;
+  const digits = raw.replace(/\D/g, '').replace(/^0+/, '');
+  if (digits.startsWith(profile.dialCode) && digits.length > profile.dialCode.length + 7) return `+${digits}`;
+  return `+${profile.dialCode}${digits}`;
+};
 
 /**
  * Algunas descripciones vienen con markdown escapado desde el panel y se
@@ -404,7 +416,7 @@ const BookingPage: React.FC = () => {
         endTime: endTime.toISOString(),
         customerName: bookingData.customerName,
         customerEmail: bookingData.customerEmail,
-        customerPhone: bookingData.customerPhone,
+        customerPhone: withDialCode(bookingData.customerPhone, businessInfo?.country),
         notes: bookingData.notes,
       });
 
@@ -679,7 +691,7 @@ const BookingPage: React.FC = () => {
                             {service.durationMinutes} min
                           </Typography>
                           <Typography sx={{ fontFamily: ui.mono, fontSize: '1rem', fontWeight: 600, color: ui.ink }}>
-                            {formatPrice(service.price)}
+                            {formatPrice(service.price, businessInfo?.currency, businessInfo?.locale)}
                           </Typography>
                         </Box>
                       </CardContent>
@@ -875,6 +887,11 @@ const BookingPage: React.FC = () => {
                   <TextField
                     fullWidth
                     label="Teléfono"
+                    type="tel"
+                    placeholder={getCountry(businessInfo?.country).phonePlaceholder}
+                    InputProps={businessInfo?.country && getCountry(businessInfo.country).code !== 'AR' ? {
+                      startAdornment: <InputAdornment position="start">+{getCountry(businessInfo.country).dialCode}</InputAdornment>,
+                    } : undefined}
                     value={bookingData.customerPhone}
                     onChange={(e) => handleContactChange('customerPhone', e.target.value)}
                     onBlur={() => handleContactBlur('customerPhone')}
@@ -1133,7 +1150,7 @@ const BookingPage: React.FC = () => {
                     ) : paymentRequired && paymentInfo?.initPoint ? (
                       <>
                         <Typography variant="h6" sx={{ mb: 1 }}>
-                          Seña {paymentInfo.amount ? `: $${paymentInfo.amount}` : ''}
+                          Seña {paymentInfo.amount ? `: ${formatPrice(Number(paymentInfo.amount), businessInfo?.currency, businessInfo?.locale)}` : ''}
                         </Typography>
                         <Button variant="contained" size="large" onClick={() => window.location.assign(paymentInfo.initPoint!)}>
                           Pagar ahora con MercadoPago

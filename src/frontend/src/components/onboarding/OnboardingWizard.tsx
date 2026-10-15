@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 import CheckIcon from '@mui/icons-material/Check';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import { useTenantMoney } from '../../hooks/useTenantMoney';
 
 /* ==================================================================== */
 /*  Types                                                                */
@@ -1010,6 +1011,8 @@ const StepPersonal: React.FC<StepProps> = ({
   goNext,
   goBack,
 }) => {
+  // Placeholder del teléfono con el código del país del negocio (+54 en Argentina).
+  const { country: tenantCountry } = useTenantMoney();
   const { palette, typography, copy } = config;
   const phonePrefilled = Boolean(config.prefill?.phone && config.prefill.phone.trim().length > 0);
   // El login web es opcional: quien se registró con el código por email o con Google puede
@@ -1067,7 +1070,7 @@ const StepPersonal: React.FC<StepProps> = ({
               onChange={(e) =>
                 setFormData({ ...formData, ownerPhone: e.target.value })
               }
-              placeholder="+54 11 XXXX-XXXX"
+              placeholder={tenantCountry.code === 'AR' ? '+54 11 XXXX-XXXX' : `+${tenantCountry.dialCode} ${tenantCountry.phonePlaceholder}`}
             />
           </Box>
         )}
