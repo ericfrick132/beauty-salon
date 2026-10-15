@@ -120,7 +120,7 @@ namespace BookingPro.API.Controllers
             {
                 // Versión estricta: los endpoints se crean con la api_version del SDK (Stripe.net 53 = 2026-09-30.endive);
                 // un evento con otra forma se rechaza en vez de leerse mal.
-                stripeEvent = Stripe.EventUtility.ConstructEvent(body, Request.Headers["Stripe-Signature"], secret);
+                stripeEvent = Stripe.EventUtility.ConstructEvent(body, Request.Headers["Stripe-Signature"].ToString(), secret);
             }
             catch (Stripe.StripeException ex)
             {
@@ -165,7 +165,7 @@ namespace BookingPro.API.Controllers
             {
                 // Versión estricta: los endpoints se crean con la api_version del SDK (Stripe.net 53 = 2026-09-30.endive);
                 // un evento con otra forma se rechaza en vez de leerse mal.
-                stripeEvent = Stripe.EventUtility.ConstructEvent(body, Request.Headers["Stripe-Signature"], secret);
+                stripeEvent = Stripe.EventUtility.ConstructEvent(body, Request.Headers["Stripe-Signature"].ToString(), secret);
             }
             catch (Stripe.StripeException ex)
             {
