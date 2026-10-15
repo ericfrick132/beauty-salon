@@ -37,6 +37,14 @@ import {
 
 /** Decide where to go after login — onboarding if incomplete, else dashboard. */
 async function resolvePostLoginRoute(): Promise<string> {
+  // Venía de los planes sin sesión (link de fin de prueba): volver ahí.
+  try {
+    const back = sessionStorage.getItem('postLoginRedirect');
+    sessionStorage.removeItem('postLoginRedirect');
+    if (back && back.startsWith('/') && !back.startsWith('//')) return back;
+  } catch {
+    /* sin storage: sigue el flujo normal */
+  }
   try {
     const config = await tenantApi.getConfig();
     if (!config?.onboardingCompletedAt) return '/completar-perfil';

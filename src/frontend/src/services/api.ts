@@ -74,6 +74,10 @@ api.interceptors.response.use(
       } else if (currentPath !== '/login' && !currentPath.includes('/super-admin')) {
         // Regular token expired — redirect to tenant login
         localStorage.removeItem('authToken');
+        // Llegó sin sesión a los planes (link del mail/WhatsApp de fin de prueba): volver ahí después del login.
+        if (currentPath.startsWith('/subscription/plans')) {
+          try { sessionStorage.setItem('postLoginRedirect', currentPath + window.location.search); } catch { /* sin storage */ }
+        }
         window.location.href = '/login';
       }
     }
