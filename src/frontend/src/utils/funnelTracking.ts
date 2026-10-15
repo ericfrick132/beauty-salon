@@ -1,5 +1,6 @@
 /**
- * Embudo de alta en Microsoft Clarity + GA4 (Lead → CompleteRegistration → StartTrial).
+ * Embudo de alta en Microsoft Clarity + GA4 (Lead → CompleteRegistration + StartTrial al crear la
+ * cuenta, que ya arranca con la prueba activa → AddPaymentInfo cuando deja la tarjeta).
  *
  * Clarity y GA4 se cargan desde public/index.html SOLO en el dominio principal y en rutas
  * públicas (ver isPublicAnalyticsPath, que tiene que coincidir con la lista del index.html).
@@ -9,9 +10,9 @@
 
 export const GA4_ID = 'G-X6HH01MKRW';
 
-export type FunnelEvent = 'Lead' | 'CompleteRegistration' | 'StartTrial';
+export type FunnelEvent = 'Lead' | 'CompleteRegistration' | 'StartTrial' | 'AddPaymentInfo';
 
-const FUNNEL_EVENTS: ReadonlySet<string> = new Set<FunnelEvent>(['Lead', 'CompleteRegistration', 'StartTrial']);
+const FUNNEL_EVENTS: ReadonlySet<string> = new Set<FunnelEvent>(['Lead', 'CompleteRegistration', 'StartTrial', 'AddPaymentInfo']);
 
 type AnalyticsWindow = Window & {
   clarity?: (...args: unknown[]) => void;
@@ -60,13 +61,13 @@ export function stopAnalyticsIfPrivate(pathname: string): void {
 }
 
 /**
- * StartTrial desde el subdominio del negocio: la prueba queda activa recién cuando Mercado Pago
- * autoriza la tarjeta (/subscription/success?flow=trial). Ahí no se carga Clarity ni GA4 como
- * página; solo mandamos este evento suelto a GA4 (send_page_view: false, sin URL de la página
+ * AddPaymentInfo desde el subdominio del negocio: cuando Mercado Pago autoriza la tarjeta
+ * (/subscription/success?flow=trial). Ahí no se carga Clarity ni GA4 como página; solo mandamos
+ * este evento suelto a GA4 (send_page_view: false, sin URL de la página
  * más allá del path de éxito) para cerrar el embudo. La cookie _ga es de .turnos-pro.com, así que
  * el evento se une al mismo usuario que hizo el alta en el apex.
  */
-export function trackStartTrialFromTenant(): void {
+export function trackAddPaymentInfoFromTenant(): void {
   const win = w();
   if (!win) return;
   try {
@@ -82,14 +83,14 @@ export function trackStartTrialFromTenant(): void {
       win.gtag('config', GA4_ID, {
         send_page_view: false,
         page_location: `${win.location.origin}/subscription/success`,
-        page_title: 'Prueba activa',
+        page_title: 'Tarjeta registrada',
       });
       const s = document.createElement('script');
       s.async = true;
       s.src = `https://www.googletagmanager.com/gtag/js?id=${GA4_ID}`;
       document.head.appendChild(s);
     }
-    trackFunnel('StartTrial');
+    trackFunnel('AddPaymentInfo');
   } catch {
     /* noop */
   }

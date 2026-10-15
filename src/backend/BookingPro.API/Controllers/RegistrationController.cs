@@ -11,6 +11,8 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Security.Cryptography;
 
+using BookingPro.API.Utilities;
+
 namespace BookingPro.API.Controllers
 {
     [ApiController]
@@ -568,9 +570,7 @@ namespace BookingPro.API.Controllers
                 var tenantUrl = isLocal
                     ? $"http://{subdomain}.localhost:3001"
                     : $"https://{subdomain}.turnos-pro.com";
-                // Cuenta nueva: la prueba gratis arranca dejando la tarjeta en Mercado Pago (free_trial),
-                // así que el primer destino es /empezar; de ahí sigue al onboarding.
-                var redirectUrl = $"{tenantUrl}/empezar?nuevo=1&impersonationToken={token}";
+                var redirectUrl = NewAccountRedirectUrl(tenantUrl, token);
 
                 // Fire-and-forget welcome email. Reuses SendConfirmationEmailAsync but points
                 // to the auto-login dashboard URL instead of a gating confirmation page.
@@ -1213,9 +1213,7 @@ namespace BookingPro.API.Controllers
                 var tenantUrl = isLocal
                     ? $"http://{subdomain}.localhost:3001"
                     : $"https://{subdomain}.turnos-pro.com";
-                // Cuenta nueva: primero /empezar (tarjeta día 0 con free_trial de MP), después el
-                // onboarding (/completar-perfil) y recién ahí el panel.
-                var redirectUrl = $"{tenantUrl}/empezar?nuevo=1&impersonationToken={token}";
+                var redirectUrl = NewAccountRedirectUrl(tenantUrl, token);
 
                 _logger.LogInformation("Email code registration completed for {Email}, tenant {TenantId}, subdomain {Subdomain}, businessName {BusinessName}, phone {HasPhone}",
                     email, tenant.Id, subdomain, tenant.BusinessName, signupPhone != null);
@@ -1237,6 +1235,24 @@ namespace BookingPro.API.Controllers
                 return StatusCode(500, new { success = false, message = "Error interno. Por favor intentá nuevamente." });
             }
         }
+
+        /// <summary>
+        /// Primer destino de una cuenta nueva. Con Trial:RequireCard=false (default) va directo al
+        /// onboarding (/completar-perfil, que después sigue al panel) con la prueba ya activa; con true,
+        /// primero /empezar a dejar la tarjeta en Mercado Pago (free_trial) y de ahí al onboarding.
+        /// </summary>
+        private string NewAccountRedirectUrl(string tenantUrl, string token) =>
+            TrialSettings.RequireCard(_config)
+                ? $"{tenantUrl}/empezar?nuevo=1&impersonationToken={token}"
+                : $"{tenantUrl}/completar-perfil?nuevo=1&impersonationToken={token}";
+
+        /// <summary>
+        /// Config pública de la prueba para los textos del alta (SPA del dominio principal): si pide
+        /// tarjeta y cuántos días dura. Sin datos del negocio, se puede llamar sin sesión.
+        /// </summary>
+        [HttpGet("trial-config")]
+        public IActionResult GetTrialConfig() =>
+            Ok(new { requireCard = TrialSettings.RequireCard(_config), trialDays = 7 });
 
         /// <summary>
         /// Check subdomain availability.

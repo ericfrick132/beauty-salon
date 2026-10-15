@@ -15,6 +15,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using QRCoder;
 
+using BookingPro.API.Utilities;
+
 namespace BookingPro.API.Services
 {
     public class SubscriptionService : ISubscriptionService
@@ -530,6 +532,8 @@ namespace BookingPro.API.Services
 
                 var tenant = await _context.Tenants.FindAsync(tenantId);
                 
+                var requireCard = TrialSettings.RequireCard(_configuration);
+
                 if (subscription == null || tenant == null)
                 {
                     return ServiceResult<SubscriptionStatusDto>.Ok(new SubscriptionStatusDto
@@ -538,9 +542,13 @@ namespace BookingPro.API.Services
                         PlanType = "none",
                         PlanName = "Sin plan",
                         DaysRemaining = 0,
-                        IsTrialPeriod = false
+                        IsTrialPeriod = false,
+                        RequireCard = requireCard
                     });
                 }
+
+                var hasCard = await _context.TenantPreapprovals
+                    .AnyAsync(pa => pa.TenantId == tenantId && pa.Status == "authorized");
 
                 var plan = await _context.SubscriptionPlans
                     .FirstOrDefaultAsync(p => p.Code == subscription.PlanType);
@@ -608,6 +616,9 @@ namespace BookingPro.API.Services
                     CreatedAt = subscription.CreatedAt,
                     ExpiresAt = expirationDate,
                     DaysRemaining = daysRemaining,
+                    RequireCard = requireCard,
+                    TenantInTrial = string.Equals(tenant.Status, "trial", StringComparison.OrdinalIgnoreCase),
+                    HasCard = hasCard,
                     AppleSubscriptionActive = subscription.PaidViaApple
                         && subscription.Status != "cancelled"
                         && subscription.AppleExpiresAt.HasValue

@@ -7,7 +7,9 @@ using BookingPro.API.Data;
 using BookingPro.API.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using BookingPro.API.Utilities;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace BookingPro.API.Middleware
@@ -73,7 +75,10 @@ namespace BookingPro.API.Middleware
                     return;
                 }
 
-                // La prueba está DETRÁS de la tarjeta: mientras el tenant esté en período de
+                // Con Trial:RequireCard=false (default) la prueba corre sin tarjeta y este bloque no
+                // aplica: al vencer, el corte lo hace el chequeo de suscripción de más abajo (402
+                // SUBSCRIPTION_REQUIRED), que no depende de que haya tarjeta.
+                // Con true, la prueba está DETRÁS de la tarjeta: mientras el tenant esté en período de
                 // prueba y no tenga un preapproval autorizado en Mercado Pago, el panel y el
                 // onboarding quedan bloqueados. No afecta a las reservas públicas, que llegan
                 // sin autenticar y salen por el early-return de más arriba.
@@ -82,7 +87,9 @@ namespace BookingPro.API.Middleware
                 // cliente que PAGÓ también la tiene en el futuro. Exigimos que el tenant esté
                 // explícitamente en "trial" y que no tenga una suscripción activa; si no, a un
                 // cliente al día le pedíamos la tarjeta como si se le hubiera vencido la prueba.
-                var trialTenant = await db.Tenants.FindAsync(tenantId);
+                var requireCard = TrialSettings.RequireCard(
+                    context.RequestServices.GetRequiredService<IConfiguration>());
+                var trialTenant = requireCard ? await db.Tenants.FindAsync(tenantId) : null;
                 // Solo para cuentas creadas desde que rige la regla: a quien se registró antes se
                 // le prometió una prueba sin tarjeta y sacársela a mitad de camino lo deja afuera
                 // de un sistema que ya estaba usando.

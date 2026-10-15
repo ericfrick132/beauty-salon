@@ -116,7 +116,7 @@ export const verticals: VerticalContent[] = [
           'Sumás el agente de IA cuando quieras dejar de confirmar turnos a mano.',
         ],
         after: [
-          'Tenés soporte prioritario en la puesta en marcha y después. No hay permanencia: dejás tu tarjeta en Mercado Pago y el primer cobro es recién al terminar los 7 días gratis.',
+          'Tenés soporte prioritario en la puesta en marcha y después. No hay permanencia y arrancás con 7 días gratis, sin tarjeta.',
         ],
       },
     ],
@@ -143,7 +143,7 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿Cuánto cuesta un sistema de turnos para peluquerías?',
-        a: 'TurnosPro cuesta ARS 50.000 por mes en el plan mensual y baja hasta ARS 37.500 por mes en el plan de 12 meses. Todos los planes arrancan con 7 días gratis (dejás tu tarjeta en Mercado Pago y el primer cobro es al terminar la prueba) y no tienen permanencia.',
+        a: 'TurnosPro cuesta ARS 50.000 por mes en el plan mensual y baja hasta ARS 37.500 por mes en el plan de 12 meses. Todos los planes arrancan con 7 días gratis, sin tarjeta, y no tienen permanencia.',
       },
     ],
     datePublished: '2026-09-03',
@@ -212,7 +212,7 @@ export const verticals: VerticalContent[] = [
       {
         h2: 'Cómo arranca una barbería con TurnosPro',
         bullets: [
-          'Creás tu cuenta con tu email y activás 7 días gratis dejando tu tarjeta en Mercado Pago: hoy no se cobra nada.',
+          'Creás tu cuenta con tu email y entrás directo a 7 días gratis, sin tarjeta.',
           'Cargás barberos, horarios y servicios con precios y duración.',
           'Conectás tu cuenta de MercadoPago para señas o cobros completos.',
           'Ponés el link de tu sitio en Instagram, WhatsApp y Google.',
@@ -242,7 +242,7 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿Cuánto cuesta y hay permanencia?',
-        a: 'Desde ARS 37.500 por mes en el plan de 12 meses hasta ARS 50.000 por mes en el plan mensual. Todos arrancan con 7 días gratis (el primer cobro es al terminar la prueba) y no hay permanencia: cancelás cuando quieras.',
+        a: 'Desde ARS 37.500 por mes en el plan de 12 meses hasta ARS 50.000 por mes en el plan mensual. Todos arrancan con 7 días gratis, sin tarjeta, y no hay permanencia: cancelás cuando quieras.',
       },
     ],
     datePublished: '2026-09-03',
@@ -306,7 +306,7 @@ export const verticals: VerticalContent[] = [
       {
         h2: 'Cómo arranca un centro de estética con TurnosPro',
         bullets: [
-          'Creás tu cuenta con tu email y activás 7 días gratis dejando tu tarjeta en Mercado Pago: hoy no se cobra nada.',
+          'Creás tu cuenta con tu email y entrás directo a 7 días gratis, sin tarjeta.',
           'Cargás profesionales, horarios y el catálogo de tratamientos con duración y precio.',
           'Definís qué tratamientos exigen seña y conectás tu cuenta de MercadoPago.',
           'Activás recordatorios por WhatsApp y, si querés, el agente de IA.',
@@ -336,7 +336,7 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿Cuánto cuesta TurnosPro para un centro de estética?',
-        a: 'Desde ARS 37.500 por mes (plan de 12 meses) hasta ARS 50.000 por mes (plan mensual). Todos los planes arrancan con 7 días gratis (primer cobro al terminar la prueba), incluyen reservas ilimitadas y no tienen permanencia.',
+        a: 'Desde ARS 37.500 por mes (plan de 12 meses) hasta ARS 50.000 por mes (plan mensual). Todos los planes arrancan con 7 días gratis sin tarjeta, incluyen reservas ilimitadas y no tienen permanencia.',
       },
     ],
     datePublished: '2026-09-03',
@@ -404,7 +404,7 @@ export const verticals: VerticalContent[] = [
       {
         h2: 'Cómo arranca un consultorio con TurnosPro',
         bullets: [
-          'Creás tu cuenta con tu email y activás 7 días gratis dejando tu tarjeta en Mercado Pago: hoy no se cobra nada.',
+          'Creás tu cuenta con tu email y entrás directo a 7 días gratis, sin tarjeta.',
           'Cargás profesionales, horarios y prestaciones con su duración.',
           'Definís turnos recurrentes para los pacientes que ya tenés.',
           'Activás recordatorios y confirmación por WhatsApp, y el agente de IA si querés.',
@@ -434,7 +434,7 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿Cuánto cuesta un sistema de turnos para consultorios?',
-        a: 'TurnosPro cuesta ARS 50.000 por mes en el plan mensual, y baja a ARS 45.000, ARS 40.000 y ARS 37.500 por mes en los planes de 3, 6 y 12 meses. Todos con 7 días gratis (primer cobro al terminar la prueba) y sin permanencia.',
+        a: 'TurnosPro cuesta ARS 50.000 por mes en el plan mensual, y baja a ARS 45.000, ARS 40.000 y ARS 37.500 por mes en los planes de 3, 6 y 12 meses. Todos con 7 días gratis, sin tarjeta y sin permanencia.',
       },
     ],
     datePublished: '2026-09-03',
@@ -491,7 +491,7 @@ export const verticals: VerticalContent[] = [
       {
         h2: 'Cómo empezar',
         bullets: [
-          'Creás tu cuenta y activás 7 días gratis dejando tu tarjeta en Mercado Pago: hoy no se cobra nada.',
+          'Creás tu cuenta y entrás directo a 7 días gratis, sin tarjeta.',
           'Cargás servicios, precios, profesionales y horarios.',
           'Compartís tu link de reservas en redes y en tu perfil de Google.',
           'Activás las señas con tu cuenta de MercadoPago y el agente de IA de confirmación.',
@@ -524,7 +524,7 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿Cuánto cuesta el sistema de reservas online?',
-        a: 'TurnosPro cuesta ARS 50.000 por mes en el plan mensual, y baja a ARS 45.000, ARS 40.000 y ARS 37.500 por mes en los planes de 3, 6 y 12 meses. Todos con 7 días gratis (primer cobro al terminar la prueba), reservas ilimitadas, profesionales y sucursales incluidos y sin permanencia.',
+        a: 'TurnosPro cuesta ARS 50.000 por mes en el plan mensual, y baja a ARS 45.000, ARS 40.000 y ARS 37.500 por mes en los planes de 3, 6 y 12 meses. Todos con 7 días gratis sin tarjeta, reservas ilimitadas, profesionales y sucursales incluidos y sin permanencia.',
       },
       {
         q: '¿Sirve para varios profesionales o varias sucursales?',
@@ -591,7 +591,7 @@ export const verticals: VerticalContent[] = [
           'Elegís a quién se la pedís: a todos los clientes, solo a los clientes nuevos o solo cuando el turno se reserva con cierta cantidad de días de anticipación.',
         ],
         after: [
-          'Podés cambiar la configuración de cada servicio cuando quieras. Todo esto viene en el mismo plan, con 7 días de prueba gratis: dejás tu tarjeta en Mercado Pago y el primer cobro es recién al terminar la prueba.',
+          'Podés cambiar la configuración de cada servicio cuando quieras. Todo esto viene en el mismo plan, con 7 días de prueba gratis y sin tarjeta.',
         ],
       },
     ],

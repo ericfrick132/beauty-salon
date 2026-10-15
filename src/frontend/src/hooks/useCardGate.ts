@@ -1,7 +1,11 @@
 /**
- * Gate de la tarjeta: durante la prueba, el panel y el onboarding están detrás de dejar la
- * tarjeta en Mercado Pago. Mientras el preapproval no esté autorizado, cualquier pantalla
- * privada rebota a /empezar.
+ * Gate de la tarjeta. Depende de Trial:RequireCard del backend (llega como `requireCard` en
+ * /subscription/status):
+ *  - false (default): la prueba corre sin tarjeta. Mientras esté vigente no se rebota a nadie;
+ *    cuando vence sin tarjeta ni pago, se manda a /empezar a elegir plan y pagar.
+ *  - true: durante la prueba, el panel y el onboarding están detrás de dejar la tarjeta en
+ *    Mercado Pago. Mientras el preapproval no esté autorizado, cualquier pantalla privada
+ *    rebota a /empezar.
  *
  * Se usa en AdminLayout (todo el panel) y en CompletarPerfil (el onboarding vive fuera del
  * layout, así que sin esto se podía llegar escribiendo la URL). Las páginas públicas del
@@ -35,6 +39,10 @@ export function useCardGate() {
         const status = (await api.get('/subscription/status')).data;
         // Fuera de la prueba manda la suscripción real: de eso se ocupa SubscriptionVerification.
         if (cancelled || !status?.isTrialPeriod) return;
+        // Prueba sin tarjeta y todavía vigente: entra. Ojo: `=== false` a propósito, un backend
+        // viejo sin el campo sigue con la regla de la tarjeta obligatoria.
+        if (status.requireCard === false && status.isActive) return;
+        if (status.hasCard) return;
         const pre = (await api.get('/preapproval/status')).data;
         if (cancelled || pre?.hasActivePreapproval) return;
         navigate('/empezar', { replace: true });

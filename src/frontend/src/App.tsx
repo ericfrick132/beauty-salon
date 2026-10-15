@@ -407,7 +407,8 @@ function App() {
                 {/* Onboarding wizard: full-screen, NO admin layout.
                     Authenticated but shown before the user sees the dashboard. */}
                 <Route path="/completar-perfil" element={<CompletarPerfil />} />
-                {/* Día 0 post-registro: tarjeta en Mercado Pago con free_trial. Full-screen, sin layout. */}
+                {/* Tarjeta en Mercado Pago (free_trial durante la prueba): opcional con Trial:RequireCard=false,
+                    paso obligatorio del alta con true y destino al vencer la prueba. Full-screen, sin layout. */}
                 <Route path="/empezar" element={<ActivateSubscription />} />
 
                 {/* Rutas Admin con Layout */}

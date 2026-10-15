@@ -25,7 +25,7 @@ import api, { registrationApi } from '../services/api';
 import AuthShell, { authPalette, authFonts } from '../components/auth/AuthShell';
 import { underlineFieldSx, PillCTA, InlineLink } from '../components/auth/authFormKit';
 import { slugify } from '../utils/slug';
-import { trackFunnelIfApplicable } from '../utils/funnelTracking';
+import { trackFunnel, trackFunnelIfApplicable } from '../utils/funnelTracking';
 
 const PHONE_COUNTRIES = [
   { dial: '+54', label: 'Argentina (+54)', placeholder: '11 2345 6789' },
@@ -167,6 +167,16 @@ const RegisterCode: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  // Trial:RequireCard del backend. Arranca en false (el default): si la consulta falla, los textos
+  // dicen "sin tarjeta", que es la regla vigente.
+  const [requireCard, setRequireCard] = useState(false);
+
+  useEffect(() => {
+    registrationApi
+      .trialConfig()
+      .then((cfg) => setRequireCard(!!cfg?.requireCard))
+      .catch(() => {});
+  }, []);
 
   // Con ?s= resolvemos la transacción: email para mostrar y si la cuenta ya existía.
   useEffect(() => {
@@ -259,7 +269,12 @@ const RegisterCode: React.FC = () => {
         ...getAttribution(),
       });
       if (!body?.success) throw new Error(body?.message || 'Código incorrecto.');
-      if (!body.isExisting) sendTrackingEvent('CompleteRegistration', { email: email.trim() });
+      if (!body.isExisting) {
+        sendTrackingEvent('CompleteRegistration', { email: email.trim() });
+        // La cuenta nace con la prueba activa (sin tarjeta): StartTrial sale al crearla, solo a
+        // Clarity/GA4 (el backend ya manda StartTrial a Meta por CAPI).
+        trackFunnel('StartTrial');
+      }
       if (body.redirectUrl) {
         window.location.href = body.redirectUrl;
         return; // dejamos loading en true: la página se está yendo
@@ -410,7 +425,9 @@ const RegisterCode: React.FC = () => {
             <Typography sx={finePrintSx}>
               {isExisting
                 ? 'Con el código entrás directo a tu panel.'
-                : 'Con el código entrás directo: activás los 7 días gratis dejando tu tarjeta en Mercado Pago (hoy no se cobra nada) y armás tu agenda.'}
+                : requireCard
+                  ? 'Con el código entrás directo: activás los 7 días gratis dejando tu tarjeta en Mercado Pago (hoy no se cobra nada) y armás tu agenda.'
+                  : 'Con el código entrás directo a tu prueba de 7 días gratis, sin tarjeta, y armás tu agenda.'}
             </Typography>
           </Box>
         </Box>
@@ -426,7 +443,9 @@ const RegisterCode: React.FC = () => {
           Empezá gratis con tu propia agenda
         </Typography>
         <Typography sx={subtitleSx}>
-          Sin contraseña: te mandamos un código por email. Después activás 7 días gratis con tu tarjeta en Mercado Pago y el primer cobro es recién al terminar la prueba.
+          {requireCard
+            ? 'Sin contraseña: te mandamos un código por email. Después activás 7 días gratis con tu tarjeta en Mercado Pago y el primer cobro es recién al terminar la prueba.'
+            : 'Sin contraseña: te mandamos un código por email y entrás directo. 7 días gratis, sin tarjeta.'}
         </Typography>
       </Box>
 
@@ -538,8 +557,9 @@ const RegisterCode: React.FC = () => {
 
         <Box component={motion.div} {...item(0.5)} sx={{ mt: 2 }}>
           <Typography sx={finePrintSx}>
-            Te mandamos un código de 6 dígitos a tu email para confirmar. Después activás la prueba con tu
-            tarjeta (hoy no se cobra nada) y armás tu agenda: rubro, servicios y horarios.
+            {requireCard
+              ? 'Te mandamos un código de 6 dígitos a tu email para confirmar. Después activás la prueba con tu tarjeta (hoy no se cobra nada) y armás tu agenda: rubro, servicios y horarios.'
+              : 'Te mandamos un código de 6 dígitos a tu email para confirmar y armás tu agenda: rubro, servicios y horarios. No te pedimos tarjeta.'}
           </Typography>
         </Box>
 

@@ -83,6 +83,7 @@ import {
 } from '../../utils/themeUtils';
 import ImpersonationBanner from '../common/ImpersonationBanner';
 import AddonTrialBanner from '../common/AddonTrialBanner';
+import TrialBanner from '../common/TrialBanner';
 import { useCardGate } from '../../hooks/useCardGate';
 import MercadoPagoIcon from '../icons/MercadoPagoIcon';
 import { isAdminLike } from '../../utils/permissions';
@@ -241,8 +242,8 @@ export const AdminLayout: React.FC = () => {
   const { config, getTerm } = useTenant();
   const user = useAppSelector(state => state.auth.user);
 
-  // La tarjeta va antes que todo: durante la prueba, sin preapproval autorizado el panel
-  // entero rebota a /empezar.
+  // Gate de la tarjeta (Trial:RequireCard): con true, durante la prueba sin preapproval autorizado
+  // el panel entero rebota a /empezar; con false, solo cuando la prueba venció sin tarjeta ni pago.
   useCardGate();
 
   // If the tenant hasn't completed the post-register onboarding wizard, force-
@@ -752,9 +753,9 @@ export const AdminLayout: React.FC = () => {
         <Toolbar />
         <Box sx={{ p: 2, pt: 1 }}>
           <ImpersonationBanner />
+          <TrialBanner />
           <AddonTrialBanner />
         </Box>
-        {/* Prueba sin tarjeta autorizada: pedirla ahora, MP debita recién al terminar (free_trial). */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

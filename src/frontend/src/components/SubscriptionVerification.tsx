@@ -227,8 +227,10 @@ const SubscriptionVerification: React.FC = () => {
     setShowBlockingModal(false);
   };
 
-  // Don't render anything if not blocking
-  if (!showBlockingModal) {
+  // Don't render anything if not blocking. Tampoco en las pantallas exentas: al vencer la prueba
+  // sin tarjeta, useCardGate manda a /empezar (elegir plan y pagar) y el modal, si ya se había
+  // abierto en el panel o lo abre un chequeo que termina tarde, no puede tapar la pantalla de pago.
+  if (!showBlockingModal || exemptPaths.some((path) => location.pathname.startsWith(path))) {
     return null;
   }
 

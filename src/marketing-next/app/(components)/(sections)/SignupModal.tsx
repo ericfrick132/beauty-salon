@@ -95,6 +95,8 @@ function getAttribution(): Record<string, string | undefined> {
 }
 
 // Embudo de alta en Microsoft Clarity + GA4 (send_to: solo la propiedad GA4, no Google Ads).
+// StartTrial sale al crear la cuenta (la prueba arranca sin tarjeta); AddPaymentInfo lo manda el
+// panel del negocio cuando deja la tarjeta en Mercado Pago.
 const GA4_ID = 'G-X6HH01MKRW';
 const FUNNEL_EVENTS = new Set(['Lead', 'CompleteRegistration', 'StartTrial']);
 
@@ -454,6 +456,8 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
       sendRegFlow('COMPLETED');
       fbqTrack('CompleteRegistration');
       sendTrackingEvent('CompleteRegistration', { name: state.businessName, email: state.email, phone: fullPhone });
+      // La cuenta nace con la prueba activa (sin tarjeta): StartTrial a Clarity/GA4 al crearla.
+      trackFunnel('StartTrial');
       // StartTrial: el backend lo manda por CAPI con event_id "tenant-{tenantId}-StartTrial"
       // (MetaTrialTracker); mismo eventID acá para que Meta deduplique browser + server.
       if (body.tenantId && typeof window !== 'undefined' && (window as any).fbq) {
@@ -546,7 +550,7 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
             Creá tu cuenta gratis
           </Typography>
           <Typography sx={subtitleSx}>
-            Sin contraseña: te mandamos un código por email. Después activás 7 días gratis con tu tarjeta en Mercado Pago y el primer cobro es recién al terminar la prueba.
+            Sin contraseña: te mandamos un código por email y entrás directo. 7 días gratis, sin tarjeta.
           </Typography>
 
           <Stack spacing={2}>
@@ -602,8 +606,8 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
           </Button>
 
           <Typography sx={{ ...finePrintSx, mt: 1.5 }}>
-            Te mandamos un código de 6 dígitos a tu email para confirmar. Después activás la prueba con
-            tu tarjeta (hoy no se cobra nada) y armás tu agenda: rubro, servicios y horarios.
+            Te mandamos un código de 6 dígitos a tu email para confirmar y armás tu agenda: rubro,
+            servicios y horarios. No te pedimos tarjeta.
           </Typography>
 
           <Button
@@ -622,7 +626,7 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
             Activá tu negocio en 2 minutos
           </Typography>
           <Typography sx={{ ...subtitleSx, mb: 3 }}>
-            Gratis 7 días · Primer cobro al día 8 · Listo al instante
+            Gratis 7 días · Sin tarjeta · Listo al instante
           </Typography>
 
           <TextField
@@ -789,7 +793,7 @@ function SignupModalInner() {
           fontWeight: 700,
         }}
       >
-        ⚡ 7 DÍAS GRATIS · PRIMER COBRO AL DÍA 8 · LISTO EN 2 MIN
+        ⚡ 7 DÍAS GRATIS · SIN TARJETA · LISTO EN 2 MIN
       </Box>
 
       {/* Close button */}

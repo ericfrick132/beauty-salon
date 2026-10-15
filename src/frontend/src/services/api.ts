@@ -294,6 +294,10 @@ export const registrationApi = {
   emailStart: (data: { email?: string; state?: string; businessName?: string; phone?: string; [attribution: string]: string | undefined }) =>
     api.post('/registration/email/start', data).then(res => res.data),
 
+  // Trial:RequireCard del backend: si la prueba pide tarjeta (textos del alta). Sin sesión.
+  trialConfig: (): Promise<{ requireCard: boolean; trialDays: number }> =>
+    api.get('/registration/trial-config').then(res => res.data),
+
   emailState: (state: string) =>
     api.get(`/registration/email/state/${encodeURIComponent(state)}`).then(res => res.data),
 

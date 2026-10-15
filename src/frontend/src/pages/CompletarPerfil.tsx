@@ -71,8 +71,9 @@ const PLACEHOLDER_BUSINESS_NAME = 'Mi negocio';
 
 const CompletarPerfil: React.FC = () => {
   const navigate = useNavigate();
-  // El onboarding también está detrás de la tarjeta: esta pantalla vive fuera de AdminLayout,
-  // así que sin esto se llegaba escribiendo la URL.
+  // El onboarding también pasa por el gate de la tarjeta (solo bloquea con Trial:RequireCard=true o
+  // con la prueba vencida): esta pantalla vive fuera de AdminLayout, así que sin esto se llegaba
+  // escribiendo la URL.
   useCardGate();
   const [tenantPhone, setTenantPhone] = useState<string | undefined>(undefined);
   const [tenantEmail, setTenantEmail] = useState<string | undefined>(undefined);

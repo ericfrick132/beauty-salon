@@ -1,11 +1,14 @@
 /**
- * /empezar — paso día 0 después del alta: la prueba gratis arranca dejando la tarjeta en
- * Mercado Pago (preapproval con free_trial). MP no cobra hasta que termina la prueba y después
- * renueva solo cada mes.
+ * /empezar — dejar la tarjeta en Mercado Pago (preapproval con free_trial mientras dure la
+ * prueba: MP no cobra hasta que termina y después renueva solo cada mes; con la prueba vencida
+ * cobra en el momento).
  *
- * Se entra con ?nuevo=1 desde el registro (título de bienvenida) o rebotando desde cualquier
- * pantalla privada mientras no haya tarjeta. La tarjeta es OBLIGATORIA: no hay forma de
- * postergarla, la prueba entera está detrás de dejarla (ver useCardGate).
+ * Depende de Trial:RequireCard (`requireCard` en /subscription/status):
+ *  - false (default): durante la prueba es OPCIONAL. Se llega desde el aviso de días de prueba
+ *    del panel y se puede volver con "Seguir con la prueba gratis". Al vencer sin tarjeta ni
+ *    pago, useCardGate manda acá a elegir plan y pagar.
+ *  - true: se entra con ?nuevo=1 desde el registro o rebotando desde cualquier pantalla privada
+ *    mientras no haya tarjeta, y no se puede postergar (ver useCardGate).
  *
  * Flujo: elegir plan → POST /preapproval/create { planCode, returnPath } → init_point de MP →
  * vuelve a /subscription/success?flow=trial → onboarding (o panel si ya lo completó).
@@ -44,6 +47,7 @@ interface SubscriptionStatus {
   daysRemaining: number;
   trialEndsAt?: string | null;
   planType?: string;
+  requireCard?: boolean;
 }
 
 const fmtDate = (iso?: string | null) =>
@@ -136,6 +140,8 @@ const ActivateSubscription: React.FC = () => {
   }, [status]);
   const firstChargeDate = fmtDate(status?.trialEndsAt);
   const expired = trialDaysLeft <= 0;
+  // Prueba sin tarjeta obligatoria y todavía vigente: dejar la tarjeta es opcional.
+  const optional = status?.requireCard === false && !expired;
   const selectedPlan = plans.find((p) => p.code === selected);
 
   const start = async () => {
@@ -178,13 +184,17 @@ const ActivateSubscription: React.FC = () => {
 
   const title = expired
     ? 'Tu prueba gratis terminó'
-    : isFreshSignup
+    : optional
+      ? 'Activá tu plan'
+      : isFreshSignup
       ? `Activá tu prueba gratis de ${trialDaysLeft} días`
       : `Activá tu prueba gratis: te quedan ${trialDaysLeft} ${trialDaysLeft === 1 ? 'día' : 'días'}`;
 
   const subtitle = expired
-    ? 'Dejá tu tarjeta en Mercado Pago para seguir usando TurnosPro. Se cobra el plan que elijas y se renueva solo cada mes. Cancelás cuando quieras.'
-    : `Hoy no se te cobra nada${firstChargeDate ? `: el primer débito es el ${firstChargeDate}` : ''}. Después se renueva solo. Cancelás cuando quieras.`;
+    ? 'Elegí tu plan y pagalo con Mercado Pago para seguir usando TurnosPro. Se cobra hoy y se renueva solo cada mes. Cancelás cuando quieras.'
+    : optional
+      ? `Te ${trialDaysLeft === 1 ? 'queda 1 día' : `quedan ${trialDaysLeft} días`} de prueba gratis. Si dejás la tarjeta ahora no se te cobra nada hasta que termine${firstChargeDate ? ` (el ${firstChargeDate})` : ''} y no se te corta el servicio. Cancelás cuando quieras.`
+      : `Hoy no se te cobra nada${firstChargeDate ? `: el primer débito es el ${firstChargeDate}` : ''}. Después se renueva solo. Cancelás cuando quieras.`;
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', py: { xs: 4, md: 8 } }}>
@@ -194,7 +204,7 @@ const ActivateSubscription: React.FC = () => {
             variant="overline"
             sx={{ letterSpacing: '0.16em', color: 'primary.main', fontWeight: 600 }}
           >
-            {isFreshSignup ? 'Bienvenido a TurnosPro' : 'Prueba gratis'}
+            {isFreshSignup && !optional ? 'Bienvenido a TurnosPro' : 'Prueba gratis'}
           </Typography>
           <Typography variant="h4" component="h1" sx={{ fontWeight: 700, mt: 1, mb: 1.5 }}>
             {title}
@@ -328,6 +338,8 @@ const ActivateSubscription: React.FC = () => {
                 <CircularProgress size={22} color="inherit" />
               ) : expired ? (
                 'Activar mi suscripción'
+              ) : optional ? (
+                'Dejar mi tarjeta'
               ) : (
                 `Empezar gratis · ${trialDaysLeft} ${trialDaysLeft === 1 ? 'día' : 'días'}`
               )}
@@ -339,6 +351,17 @@ const ActivateSubscription: React.FC = () => {
                 Te lleva a Mercado Pago para autorizar el débito automático. Volvés acá al terminar.
               </Typography>
             </Box>
+
+            {optional && (
+              <Button
+                fullWidth
+                variant="text"
+                onClick={() => navigate(nextPath, { replace: true })}
+                sx={{ mt: 1.5 }}
+              >
+                Seguir con la prueba gratis
+              </Button>
+            )}
 
           </CardContent>
         </Card>

@@ -46,6 +46,18 @@ namespace BookingPro.API.Models.DTOs
         public string? QrCodeData { get; set; }
         public DateTime CreatedAt { get; set; }
         public PlanFeaturesDto? Features { get; set; }
+
+        /// <summary>
+        /// Trial:RequireCard. Con false la prueba corre sin tarjeta: el panel no rebota a /empezar
+        /// mientras la prueba esté vigente (la tarjeta / el pago son opcionales hasta que vence).
+        /// </summary>
+        public bool RequireCard { get; set; }
+
+        /// <summary>El tenant está en prueba (Status "trial"): todavía no pagó ni se le activó un plan.</summary>
+        public bool TenantInTrial { get; set; }
+
+        /// <summary>Tiene un débito automático (preapproval) autorizado en Mercado Pago.</summary>
+        public bool HasCard { get; set; }
     }
 
     public class PlanFeaturesDto

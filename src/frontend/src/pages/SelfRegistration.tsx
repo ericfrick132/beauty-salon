@@ -562,6 +562,8 @@ const SelfRegistration: React.FC = () => {
 
       if (response.success) {
         trackFunnel('CompleteRegistration');
+        // La cuenta nace con la prueba activa (sin tarjeta): StartTrial sale acá, no al dejar la tarjeta.
+        trackFunnel('StartTrial');
         setRedirectUrl(response.redirectUrl);
         setCurrentStep('success');
       } else {

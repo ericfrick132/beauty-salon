@@ -3,7 +3,7 @@
  *
  * Dos orígenes:
  *  - ?flow=trial (o preapproval_id en la query): el dueño autorizó el débito automático desde
- *    /empezar. Confirmamos contra /preapproval/status y seguimos al onboarding si falta
+ *    /empezar (AddPaymentInfo en GA4). Confirmamos contra /preapproval/status y seguimos al onboarding si falta
  *    (/completar-perfil) o al panel.
  *  - pago/suscripción clásica: se confirma contra /subscription/status como antes.
  */
@@ -21,7 +21,7 @@ import {
 } from '@mui/material';
 import { CheckCircle, ErrorOutline } from '@mui/icons-material';
 import api, { tenantApi } from '../services/api';
-import { trackStartTrialFromTenant } from '../utils/funnelTracking';
+import { trackAddPaymentInfoFromTenant } from '../utils/funnelTracking';
 
 type VerifyState = 'verifying' | 'approved' | 'pending' | 'failed';
 
@@ -43,9 +43,10 @@ const SubscriptionSuccess: React.FC = () => {
 
   const nextPath = onboardingDone ? '/dashboard' : '/completar-perfil';
 
-  // StartTrial (embudo Clarity/GA4): una sola vez, cuando MP confirma la tarjeta de la prueba.
-  // El ref evita el doble disparo entre el poll inicial y el del intervalo.
-  const startTrialSent = useRef(false);
+  // AddPaymentInfo (embudo GA4): una sola vez, cuando MP confirma la tarjeta. StartTrial ya salió
+  // al crear la cuenta (la prueba arranca sin tarjeta). El ref evita el doble disparo entre el poll
+  // inicial y el del intervalo.
+  const paymentInfoSent = useRef(false);
 
   useEffect(() => {
     tenantApi
@@ -56,17 +57,17 @@ const SubscriptionSuccess: React.FC = () => {
 
   useEffect(() => {
     // Una vez por negocio: la marca en localStorage evita repetirlo si recarga la página.
-    const reportStartTrial = () => {
-      if (startTrialSent.current) return;
-      startTrialSent.current = true;
+    const reportAddPaymentInfo = () => {
+      if (paymentInfoSent.current) return;
+      paymentInfoSent.current = true;
       try {
-        const key = `tp_start_trial_${window.location.hostname}`;
+        const key = `tp_add_payment_info_${window.location.hostname}`;
         if (localStorage.getItem(key)) return;
         localStorage.setItem(key, '1');
       } catch {
         /* sin storage: lo mandamos igual */
       }
-      trackStartTrialFromTenant();
+      trackAddPaymentInfoFromTenant();
     };
 
     const mpStatus = (collectionStatus || paymentStatus || '').toLowerCase();
@@ -85,13 +86,19 @@ const SubscriptionSuccess: React.FC = () => {
         if (isTrialFlow) {
           const res = await api.get('/preapproval/status');
           if (res.data?.hasActivePreapproval) {
-            reportStartTrial();
+            reportAddPaymentInfo();
+            const next = res.data?.nextPaymentDate ? new Date(res.data.nextPaymentDate) : null;
+            // Con la prueba vencida MP cobra en el momento (sin free_trial): el próximo débito queda
+            // a horas, no al terminar la prueba.
+            const chargedToday = !!next && next.getTime() - Date.now() < 86_400_000;
             const firstCharge = fmtDate(res.data?.nextPaymentDate);
             setState('approved');
             setMessage(
-              firstCharge
-                ? `¡Tu prueba está activa! Hoy no se cobró nada: el primer débito es el ${firstCharge}.`
-                : '¡Tu prueba está activa! Hoy no se cobró nada: el primer débito es al terminar la prueba.'
+              chargedToday
+                ? '¡Tu suscripción está activa! El débito se hace hoy y después se renueva solo cada mes.'
+                : firstCharge
+                  ? `¡Listo! Tu tarjeta quedó registrada. Hoy no se cobró nada: el primer débito es el ${firstCharge}.`
+                  : '¡Listo! Tu tarjeta quedó registrada. Hoy no se cobró nada: el primer débito es al terminar la prueba.'
             );
             return true;
           }
@@ -140,7 +147,7 @@ const SubscriptionSuccess: React.FC = () => {
   };
 
   const renderTitle = () => {
-    if (state === 'approved') return isTrialFlow ? '¡Prueba activada!' : '¡Pago confirmado!';
+    if (state === 'approved') return isTrialFlow ? '¡Plan activado!' : '¡Pago confirmado!';
     if (state === 'failed') return isTrialFlow ? 'No se autorizó la tarjeta' : 'El pago no se completó';
     if (state === 'pending') return isTrialFlow ? 'Autorización recibida' : 'Pago recibido — activación pendiente';
     return isTrialFlow ? 'Confirmando tu tarjeta...' : 'Confirmando tu pago...';
