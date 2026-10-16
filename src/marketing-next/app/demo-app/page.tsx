@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Box, Button, Container, Stack, Typography } from '@mui/material';
+import { Box, Button, Container, Skeleton, Stack, Typography } from '@mui/material';
 import Header from '@/app/(components)/Header';
 import { SignupModalProvider, useSignupModal } from '@/app/(components)/(sections)/SignupModal';
 import { palette } from '@/app/(lib)/theme';
@@ -26,7 +26,8 @@ function DemoAppContent() {
   const [caption, setCaption] = useState('');
   const [run, setRun] = useState(0);
   const [isPhone, setIsPhone] = useState(false);
-  const [introDone, setIntroDone] = useState(false);
+  // El skeleton de la página de reservas se ve un instante mínimo: así no parpadea si carga muy rápido.
+  const [ready, setReady] = useState(false);
   const phoneRef = useRef<HTMLDivElement>(null);
 
   // Horarios y fechas dependen de hoy: la app se monta recién en el cliente.
@@ -38,7 +39,7 @@ function DemoAppContent() {
     mq.addEventListener('change', sync);
     setToday(new Date());
     trackDemoView('demo-app');
-    const t = window.setTimeout(() => setIntroDone(true), 2300);
+    const t = window.setTimeout(() => setReady(true), 700);
     return () => { mq.removeEventListener('change', sync); window.clearTimeout(t); };
   }, []);
 
@@ -64,7 +65,7 @@ function DemoAppContent() {
       key={run}
       today={today}
       fullscreen={isPhone}
-      autoplay={auto && (isPhone ? introDone : inView)}
+      autoplay={auto && (isPhone ? ready : inView)}
       onCaption={setCaption}
       onTakeover={() => setAuto(false)}
     />
@@ -72,7 +73,7 @@ function DemoAppContent() {
 
   return (
     <>
-    <PhoneFullscreen app={isPhone ? app : null} auto={auto} caption={caption} introDone={introDone} onReplay={replay} onSignup={() => open()} />
+    <PhoneFullscreen app={isPhone && ready ? app : null} auto={auto} caption={caption} onReplay={replay} onSignup={() => open()} />
     <Box component="main" sx={{ py: { xs: 5, md: 8 } }}>
       <Container maxWidth="lg">
         <Box sx={{ display: 'grid', gap: { xs: 5, md: 6 }, gridTemplateColumns: { xs: '1fr', md: '1.1fr 0.9fr' }, alignItems: 'center' }}>
@@ -121,7 +122,7 @@ function DemoAppContent() {
             >
               <Box aria-hidden sx={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', width: 96, height: 26, borderRadius: 999, bgcolor: '#000', zIndex: 30 }} />
               <Box sx={{ position: 'relative', height: '100%', borderRadius: { xs: '32px', sm: '36px' }, overflow: 'hidden', bgcolor: palette.paper }}>
-                {today && !isPhone ? app : <Box sx={{ display: 'grid', placeItems: 'center', height: '100%', color: palette.inkMute }}>Cargando…</Box>}
+                {today && !isPhone && ready ? <AppFadeIn>{app}</AppFadeIn> : <BookingSkeleton notch />}
               </Box>
             </Box>
             {auto ? (
@@ -158,11 +159,10 @@ const PHONE_MQ = '(max-width: 599.95px)';
 
 // Vista para celulares reales: la demo ocupa toda la pantalla, como si el visitante abriera el link del negocio.
 // Se muestra por CSS desde el primer pintado (el HTML estático ya la trae), así no aparece el layout de desktop.
-function PhoneFullscreen({ app, auto, caption, introDone, onReplay, onSignup }: {
+function PhoneFullscreen({ app, auto, caption, onReplay, onSignup }: {
   app: React.ReactNode;
   auto: boolean;
   caption: string;
-  introDone: boolean;
   onReplay: () => void;
   onSignup: () => void;
 }) {
@@ -177,7 +177,7 @@ function PhoneFullscreen({ app, auto, caption, introDone, onReplay, onSignup }: 
       <Box
         sx={{
           display: 'flex', alignItems: 'center', gap: 1, px: 2, pt: 'max(10px, env(safe-area-inset-top))', pb: 1.25, color: palette.paper,
-          animation: 'tpDown 600ms 1.9s cubic-bezier(.2,.9,.3,1) both', '@keyframes tpDown': { from: { opacity: 0, transform: 'translateY(-100%)' } },
+          animation: 'tpDown 450ms cubic-bezier(.2,.9,.3,1) both', '@keyframes tpDown': { from: { opacity: 0, transform: 'translateY(-100%)' } },
         }}
       >
         <Link href="/" aria-label="Volver al inicio" style={{ display: 'flex', alignItems: 'center', gap: 8, color: palette.paper, textDecoration: 'none' }}>
@@ -197,17 +197,16 @@ function PhoneFullscreen({ app, auto, caption, introDone, onReplay, onSignup }: 
       <Box
         sx={{
           position: 'relative', flex: 1, minHeight: 0, mx: 0.75, borderRadius: '22px', overflow: 'hidden', bgcolor: palette.paper,
-          animation: 'tpRise 700ms 1.8s cubic-bezier(.2,.9,.3,1) both', '@keyframes tpRise': { from: { opacity: 0, transform: 'translateY(40px) scale(0.96)' } },
         }}
       >
-        {app}
+        {app ? <AppFadeIn>{app}</AppFadeIn> : <BookingSkeleton />}
       </Box>
 
       {/* Barra de estado: qué está pasando, o el botón para volver a verla */}
       <Box
         sx={{
           display: 'flex', alignItems: 'center', gap: 1.25, px: 2, pt: 1.25, pb: 'max(12px, env(safe-area-inset-bottom))', color: palette.paper, minHeight: 64,
-          animation: 'tpUp 600ms 2s cubic-bezier(.2,.9,.3,1) both', '@keyframes tpUp': { from: { opacity: 0, transform: 'translateY(100%)' } },
+          animation: 'tpUp 450ms 100ms cubic-bezier(.2,.9,.3,1) both', '@keyframes tpUp': { from: { opacity: 0, transform: 'translateY(100%)' } },
         }}
       >
         {auto ? (
@@ -235,30 +234,46 @@ function PhoneFullscreen({ app, auto, caption, introDone, onReplay, onSignup }: 
         )}
       </Box>
 
-      {/* Intro */}
-      {!introDone && (
-        <Box
-          aria-hidden
-          sx={{
-            position: 'absolute', inset: 0, zIndex: 5, display: 'flex', flexDirection: 'column', justifyContent: 'center', px: 3.5, bgcolor: palette.paper, pointerEvents: 'none',
-            animation: 'tpIntroOut 500ms 1.8s ease both', '@keyframes tpIntroOut': { to: { opacity: 0, transform: 'scale(1.04)' } },
-          }}
-        >
-          <Box sx={{ fontFamily: 'var(--font-mono), monospace', fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: palette.inkSoft, mb: 2, animation: 'tpFade 500ms 100ms ease both', '@keyframes tpFade': { from: { opacity: 0, transform: 'translateY(10px)' } } }}>
-            Demo en vivo · lo que ve tu cliente
+    </Box>
+  );
+}
+
+function AppFadeIn({ children }: { children: React.ReactNode }) {
+  return (
+    <Box sx={{ height: '100%', animation: 'tpAppIn 420ms ease both', '@keyframes tpAppIn': { from: { opacity: 0, transform: 'translateY(6px)' } } }}>
+      {children}
+    </Box>
+  );
+}
+
+// Esqueleto de la página de reservas (mismo layout que BookingApp: nombre, stepper y servicios) mientras carga.
+function BookingSkeleton({ notch = false }: { notch?: boolean }) {
+  const bone = { bgcolor: 'rgba(23,20,16,0.07)', '&::after': { background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent)' } };
+  return (
+    <Box aria-busy aria-label="Cargando la página de reservas" sx={{ height: '100%', px: notch ? 1.75 : 2, pt: notch ? 6.5 : 2.5, bgcolor: palette.paper }}>
+      <Skeleton variant="rounded" animation="wave" sx={{ ...bone, width: '72%', height: 36, mx: 'auto', mb: 2, borderRadius: 2 }} />
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1.25, mb: 1.5, border: '1px solid rgba(23,20,16,0.10)', borderRadius: 2 }}>
+        {Array.from({ length: 5 }, (_, i) => (
+          <Box key={i} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.6 }}>
+            <Skeleton variant="circular" animation="wave" width={20} height={20} sx={bone} />
+            <Skeleton variant="rounded" animation="wave" width={34} height={7} sx={bone} />
           </Box>
-          <Box sx={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: '2.9rem', lineHeight: 0.98, letterSpacing: '-0.035em', color: palette.ink, fontVariationSettings: '"opsz" 144, "SOFT" 50' }}>
-            <Box component="span" sx={{ display: 'block', animation: 'tpFade 600ms 250ms ease both' }}>Así reservan</Box>
-            <Box component="span" sx={{ display: 'block', color: palette.coral, fontStyle: 'italic', animation: 'tpFade 600ms 500ms ease both' }}>tus clientes.</Box>
+        ))}
+      </Box>
+      <Box sx={{ p: 1.75, bgcolor: palette.paperSoft, border: '1px solid rgba(23,20,16,0.10)', borderRadius: 2 }}>
+        <Skeleton variant="rounded" animation="wave" sx={{ ...bone, width: '55%', height: 22, mb: 1.5 }} />
+        <Skeleton variant="rounded" animation="wave" sx={{ ...bone, height: 38, mb: 1.75, borderRadius: 1.5 }} />
+        <Skeleton variant="rounded" animation="wave" sx={{ ...bone, width: '42%', height: 12, mb: 1.25 }} />
+        {Array.from({ length: 4 }, (_, i) => (
+          <Box key={i} sx={{ p: 1.5, mb: 1, bgcolor: '#fff', border: '1px solid rgba(23,20,16,0.10)', borderRadius: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.9 }}>
+              <Skeleton variant="rounded" animation="wave" sx={{ ...bone, width: `${58 - i * 6}%`, height: 15 }} />
+              {i < 2 && <Skeleton variant="rounded" animation="wave" sx={{ ...bone, width: 64, height: 20, borderRadius: 999 }} />}
+            </Box>
+            <Skeleton variant="rounded" animation="wave" sx={{ ...bone, width: '36%', height: 10 }} />
           </Box>
-          <Box sx={{ mt: 2.5, color: palette.inkSoft, fontSize: '1.05rem', maxWidth: 300, animation: 'tpFade 600ms 800ms ease both' }}>
-            Servicio, horario, seña con MercadoPago y confirmación por WhatsApp. Mirala completarse sola.
-          </Box>
-          <Box sx={{ mt: 3, height: 3, width: 120, borderRadius: 2, bgcolor: palette.paperDeep, overflow: 'hidden' }}>
-            <Box sx={{ height: '100%', bgcolor: palette.coral, transformOrigin: 'left', animation: 'tpBar 1.7s 100ms linear both', '@keyframes tpBar': { from: { transform: 'scaleX(0)' } } }} />
-          </Box>
-        </Box>
-      )}
+        ))}
+      </Box>
     </Box>
   );
 }
