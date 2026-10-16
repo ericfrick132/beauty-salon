@@ -137,7 +137,7 @@ const StepHeading: React.FC<{ title: string; hint?: string }> = ({ title, hint }
       component="h2"
       sx={{
         fontFamily: ui.display,
-        fontSize: { xs: '1.6rem', md: '2rem' },
+        fontSize: { xs: '1.4rem', md: '1.75rem' },
         fontWeight: 500,
         lineHeight: 1.1,
         letterSpacing: '-0.02em',
@@ -148,7 +148,7 @@ const StepHeading: React.FC<{ title: string; hint?: string }> = ({ title, hint }
       {title}
     </Typography>
     {hint && (
-      <Typography sx={{ fontSize: '0.9rem', color: ui.inkSoft, mb: 3 }}>{hint}</Typography>
+      <Typography sx={{ fontSize: '0.9rem', color: ui.inkSoft, mb: { xs: 1.5, md: 2 } }}>{hint}</Typography>
     )}
   </>
 );
@@ -760,7 +760,7 @@ const BookingPage: React.FC = () => {
                       }}
                     />
                   )}
-                  sx={{ mb: 3 }}
+                  sx={{ mb: { xs: 1.5, md: 2 } }}
                 />
               </Grid>
 
@@ -1542,51 +1542,72 @@ const BookingPage: React.FC = () => {
   applyLook(look);
 
   return (
-    <Box sx={{ position: 'relative', minHeight: '100vh', bgcolor: ui.paper, py: { xs: 3, md: 6 }, transition: 'background-color 400ms ease' }}>
+    <Box sx={{ position: 'relative', minHeight: '100vh', bgcolor: ui.paper, py: { xs: 1.5, md: 3 }, transition: 'background-color 400ms ease' }}>
       <LookBackdrop look={look} />
       <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
-        {/* Foto del rubro del negocio (barbería, spa…) arriba del nombre */}
-        {look && (
+        {look ? (
+          /* Con rubro: el nombre va sobre la foto en una banda baja, así el paso 1 entra sin scrollear. */
           <Box
-            role="img"
-            aria-label={look.alts?.bg ?? ''}
             sx={{
-              height: { xs: 150, sm: 200, md: 260 },
-              mb: { xs: 3, md: 4 },
+              position: 'relative',
+              height: { xs: 110, sm: 130, md: 150 },
+              mb: { xs: 2, md: 3 },
               borderRadius: 3,
               overflow: 'hidden',
-              backgroundImage: `linear-gradient(180deg, transparent 45%, ${look.palette.paper}cc 100%), url(${look.images.bg})`,
+              display: 'flex',
+              alignItems: 'flex-end',
+              px: { xs: 2, md: 3.5 },
+              pb: { xs: 1.5, md: 2.25 },
+              backgroundImage: `linear-gradient(180deg, ${look.palette.ink}1a 0%, ${look.palette.ink}cc 100%), url(${look.images.bg})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
               animation: 'tpHeroIn 600ms ease both',
-              '@keyframes tpHeroIn': { from: { opacity: 0, transform: 'scale(1.02)' } },
-            }}
-          />
-        )}
-        {/* Header: el nombre del negocio es lo primero y lo más grande de la página */}
-        <Box sx={{ mb: { xs: 3, md: 5 }, textAlign: 'center' }}>
-          <Typography
-            component="h1"
-            sx={{
-              fontFamily: ui.display,
-              fontWeight: 500,
-              color: ui.ink,
-              fontSize: { xs: '2.5rem', sm: '3.25rem', md: '4rem' },
-              lineHeight: 0.98,
-              letterSpacing: '-0.035em',
-              fontVariationSettings: '"opsz" 120, "SOFT" 30',
+              '@keyframes tpHeroIn': { from: { opacity: 0, transform: 'scale(1.01)' } },
             }}
           >
-            {businessInfo?.businessName || w.t('Reservá tu turno', 'Reserva tu cita')}
-          </Typography>
-        </Box>
+            <Box component="span" role="img" aria-label={look.alts?.bg ?? ''} sx={{ position: 'absolute', inset: 0 }} />
+            <Typography
+              component="h1"
+              sx={{
+                position: 'relative',
+                fontFamily: ui.display,
+                fontWeight: 500,
+                color: '#FFFFFF',
+                fontSize: { xs: '1.9rem', sm: '2.4rem', md: '2.9rem' },
+                lineHeight: 1,
+                letterSpacing: '-0.02em',
+                textShadow: '0 2px 18px rgba(0,0,0,0.35)',
+              }}
+            >
+              {businessInfo?.businessName || w.t('Reservá tu turno', 'Reserva tu cita')}
+            </Typography>
+          </Box>
+        ) : (
+          /* Header: el nombre del negocio es lo primero y lo más grande de la página */
+          <Box sx={{ mb: { xs: 2, md: 3 }, textAlign: 'center' }}>
+            <Typography
+              component="h1"
+              sx={{
+                fontFamily: ui.display,
+                fontWeight: 500,
+                color: ui.ink,
+                fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' },
+                lineHeight: 0.98,
+                letterSpacing: '-0.035em',
+                fontVariationSettings: '"opsz" 120, "SOFT" 30',
+              }}
+            >
+              {businessInfo?.businessName || w.t('Reservá tu turno', 'Reserva tu cita')}
+            </Typography>
+          </Box>
+        )}
 
         {/* Stepper */}
         <Paper
           elevation={0}
           sx={{
-            p: { xs: 2, md: 2.5 },
-            mb: 3,
+            p: { xs: 1.25, md: 1.75 },
+            mb: { xs: 2, md: 2.5 },
             bgcolor: 'transparent',
             border: `1px solid ${ui.rule}`,
             borderRadius: 2,
@@ -1628,7 +1649,7 @@ const BookingPage: React.FC = () => {
         <Paper
           elevation={0}
           sx={{
-            p: { xs: 2.5, md: 4 },
+            p: { xs: 2, md: 3 },
             minHeight: 400,
             bgcolor: ui.surface,
             border: `1px solid ${ui.rule}`,
