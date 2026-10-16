@@ -143,7 +143,7 @@ namespace BookingPro.API.Services
                         {
                             Fees = new StripeSdk.AccountControllerFeesOptions { Payer = "account" },
                             Losses = new StripeSdk.AccountControllerLossesOptions { Payments = "stripe" },
-                            StripeDashboard = new StripeSdk.AccountControllerStripeDashboardOptions { Type = "express" },
+                            StripeDashboard = new StripeSdk.AccountControllerStripeDashboardOptions { Type = "full" },
                             RequirementCollection = "stripe",
                         },
                         Country = profile.Code,
@@ -190,16 +190,10 @@ namespace BookingPro.API.Services
             var tenant = await LoadTenantAsync(tenantId);
             if (tenant == null || string.IsNullOrEmpty(tenant.StripeConnectAccountId))
                 return ServiceResult<string>.Fail("Stripe no está conectado");
-            try
-            {
-                var login = await new StripeSdk.AccountLoginLinkService(Client()).CreateAsync(tenant.StripeConnectAccountId);
-                return ServiceResult<string>.Ok(login.Url);
-            }
-            catch (StripeSdk.StripeException ex)
-            {
-                _logger.LogWarning(ex, "Stripe Connect: no se pudo crear el login link de {AccountId}", tenant.StripeConnectAccountId);
-                return ServiceResult<string>.Fail("Terminá primero la configuración de tu cuenta de Stripe.");
-            }
+            // Las cuentas usan el dashboard completo de Stripe (Stripe asume las pérdidas): el negocio entra
+            // con su propio usuario en dashboard.stripe.com; los login links solo existen para Express.
+            await Task.CompletedTask;
+            return ServiceResult<string>.Ok("https://dashboard.stripe.com/");
         }
 
         public async Task<ServiceResult<bool>> DisconnectAsync(Guid tenantId)
