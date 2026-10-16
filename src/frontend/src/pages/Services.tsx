@@ -47,6 +47,7 @@ import { useTenant } from '../contexts/TenantContext';
 import api, { serviceCategoryApi } from '../services/api';
 import TextField from '../components/common/TextField';
 import { useTenantMoney } from '../hooks/useTenantMoney';
+import { useTenantWording } from '../utils/wording';
 
 interface Service {
   id: string;
@@ -76,6 +77,8 @@ interface ServiceCategory {
 const Services: React.FC = () => {
   // Montos en la moneda del negocio; en ARS se ven igual que antes.
   const { formatKeepingArs } = useTenantMoney();
+  // "Seña" en AR/UY, "Anticipo" en México, "Señal" en España.
+  const w = useTenantWording();
   const navigate = useNavigate();
   const { config } = useTenant();
   
@@ -454,11 +457,11 @@ const Services: React.FC = () => {
                               variant={service.requiresDeposit ? 'filled' : 'outlined'}
                               label={service.requiresDeposit
                                 ? (service.depositFixedAmount
-                                  ? `Seña ${formatKeepingArs(service.depositFixedAmount, `$${service.depositFixedAmount}`, { maximumFractionDigits: 2 })}`
+                                  ? `${w.Sena} ${formatKeepingArs(service.depositFixedAmount, `$${service.depositFixedAmount}`, { maximumFractionDigits: 2 })}`
                                   : (service.depositPercentage
-                                    ? `Seña ${service.depositPercentage}%`
-                                    : 'Requiere seña'))
-                                : 'Sin seña'}
+                                    ? `${w.Sena} ${service.depositPercentage}%`
+                                    : `Requiere ${w.sena}`))
+                                : `Sin ${w.sena}`}
                             />
                           )}
                           {!service.isActive && (
@@ -625,7 +628,7 @@ const Services: React.FC = () => {
               <Grid item xs={12}>
                 <Divider sx={{ my: 2 }} />
                 <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-                  Configuración de Seña
+                  Configuración de {w.Sena}
                 </Typography>
               </Grid>
 
@@ -637,7 +640,7 @@ const Services: React.FC = () => {
                       onChange={(e) => setFormData({ ...formData, requiresDeposit: e.target.checked })}
                     />
                   }
-                  label="Requiere seña para reservar"
+                  label={`Requiere ${w.sena} para reservar`}
                 />
               </Grid>
 
@@ -645,7 +648,7 @@ const Services: React.FC = () => {
                 <>
                   <Grid item xs={12}>
                     <FormControl component="fieldset">
-                      <Typography variant="body2" sx={{ mb: 1 }}>Tipo de seña:</Typography>
+                      <Typography variant="body2" sx={{ mb: 1 }}>Tipo de {w.sena}:</Typography>
                       <RadioGroup
                         row
                         value={formData.depositType}
@@ -661,7 +664,7 @@ const Services: React.FC = () => {
                     <Grid item xs={12} sm={6}>
                       <TextField
                         fullWidth
-                        label="Porcentaje de seña"
+                        label={`Porcentaje de ${w.sena}`}
                         type="number"
                         value={formData.depositPercentage}
                         onChange={(e) => setFormData({ ...formData, depositPercentage: e.target.value })}
@@ -675,25 +678,25 @@ const Services: React.FC = () => {
                     <Grid item xs={12} sm={6}>
                       <TextField
                         fullWidth
-                        label="Monto fijo de seña"
+                        label={`Monto fijo de ${w.sena}`}
                         type="number"
                         value={formData.depositFixedAmount}
                         onChange={(e) => setFormData({ ...formData, depositFixedAmount: e.target.value })}
                         InputProps={{
                           startAdornment: <InputAdornment position="start">$</InputAdornment>,
                         }}
-                        helperText="Monto fijo a cobrar como seña"
+                        helperText={`Monto fijo a cobrar como ${w.sena}`}
                       />
                     </Grid>
                   )}
 
                   <Grid item xs={12} sm={6}>
                     <FormControl fullWidth>
-                      <InputLabel>Política de seña</InputLabel>
+                      <InputLabel>Política de {w.sena}</InputLabel>
                       <Select
                         value={formData.depositPolicy}
                         onChange={(e) => setFormData({ ...formData, depositPolicy: e.target.value })}
-                        label="Política de seña"
+                        label={`Política de ${w.sena}`}
                       >
                         <MenuItem value="AllCustomers">Todos los clientes</MenuItem>
                         <MenuItem value="NewCustomersOnly">Solo clientes nuevos</MenuItem>
@@ -710,7 +713,7 @@ const Services: React.FC = () => {
                         type="number"
                         value={formData.depositAdvanceDays}
                         onChange={(e) => setFormData({ ...formData, depositAdvanceDays: e.target.value })}
-                        helperText="Días de anticipación para requerir seña"
+                        helperText={`Días de anticipación para requerir ${w.sena}`}
                       />
                     </Grid>
                   )}

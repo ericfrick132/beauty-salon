@@ -38,6 +38,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTenant } from '../contexts/TenantContext';
+import { useTenantWording } from '../utils/wording';
 import api from '../services/api';
 import { useAppSelector } from '../store';
 import { isEmployee } from '../utils/permissions';
@@ -58,6 +59,7 @@ interface Customer {
 const Customers: React.FC = () => {
   const navigate = useNavigate();
   const { getTerm } = useTenant();
+  const w = useTenantWording();
   const currentUser = useAppSelector(state => state.auth.user);
   const hidePhone = isEmployee(currentUser?.role);
 
@@ -183,7 +185,7 @@ const Customers: React.FC = () => {
       setFeedback({ type: 'success', message: 'Cliente eliminado correctamente' });
     } catch (error: any) {
       console.error('Error deleting customer:', error);
-      const message = error?.response?.data?.message || 'No se pudo eliminar el cliente. Revise si tiene turnos futuros.';
+      const message = error?.response?.data?.message || w.t('No se pudo eliminar el cliente. Revise si tiene turnos futuros.', 'No se pudo eliminar el cliente. Revisa si tiene citas futuras.');
       setFeedback({ type: 'error', message });
     }
   };

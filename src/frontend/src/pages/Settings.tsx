@@ -67,6 +67,7 @@ import {
 import { motion } from 'framer-motion';
 import api, { authApi, serviceCategoryApi } from '../services/api';
 import { useTenant } from '../contexts/TenantContext';
+import { useTenantWording } from '../utils/wording';
 import TextField from '../components/common/TextField';
 import { COUNTRIES, CURRENCIES, TIMEZONES, getCountry, toIanaTimezone } from '../utils/intl';
 
@@ -119,6 +120,7 @@ interface ServiceCategory {
 
 const Settings: React.FC = () => {
   const { config, getTerm } = useTenant();
+  const w = useTenantWording();
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
@@ -1146,9 +1148,9 @@ const Settings: React.FC = () => {
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
-                  label="Tiempo mínimo entre turnos (minutos)"
+                  label={`Tiempo mínimo entre ${w.turnos} (minutos)`}
                   type="number"
-                  helperText="Margen de tiempo libre entre un turno y el siguiente"
+                  helperText={w.t('Margen de tiempo libre entre un turno y el siguiente', 'Margen de tiempo libre entre una cita y la siguiente')}
                   inputProps={{ min: 0 }}
                   value={servicesSettings.minimumGapMinutes}
                   onChange={(e) => setServicesSettings(prev => ({

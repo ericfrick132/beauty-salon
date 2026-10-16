@@ -79,10 +79,14 @@ import TemplateSelectionModal from '../components/TemplateSelectionModal';
 import api, { templatesApi, featureAddonsApi, messagingApi, FeatureAddonStatus } from '../services/api';
 import { formatMoney } from '../utils/intl';
 import { useTenantMoney } from '../hooks/useTenantMoney';
+import { useTenantWording } from '../utils/wording';
 
 const Dashboard: React.FC = () => {
   // Montos en la moneda del negocio; en ARS se ven igual que antes.
-  const { formatKeepingArs } = useTenantMoney();
+  const { formatKeepingArs, features } = useTenantMoney();
+  // Tú y "citas" para México/España; España cobra las señas con Stripe en vez de Mercado Pago.
+  const w = useTenantWording();
+  const depositsWithStripe = features.stripeDeposits;
   const { config, getTerm } = useTenant();
   const navigate = useNavigate();
   const { subscription } = useSubscription();
@@ -149,6 +153,11 @@ const Dashboard: React.FC = () => {
     if (!canSeeAdmin) return;
     const loadMpStatus = async () => {
       try {
+        if (depositsWithStripe) {
+          const res = await api.get('/stripe/connect/status', { params: { refresh: false } });
+          setMpActive(!!res.data?.chargesEnabled);
+          return;
+        }
         const res = await api.get('/mercadopago/configuration');
         setMpActive(!!res.data?.isActive);
       } catch {
@@ -156,7 +165,7 @@ const Dashboard: React.FC = () => {
       }
     };
     loadMpStatus();
-  }, [canSeeAdmin]);
+  }, [canSeeAdmin, depositsWithStripe]);
 
   // Check if tenant has vertical assigned (show template picker if not)
   useEffect(() => {
@@ -428,14 +437,23 @@ const Dashboard: React.FC = () => {
             severity="warning"
             icon={<Warning />}
             action={
-              <Button color="inherit" size="small" onClick={() => navigate('/mercadopago-settings')}>
+              <Button color="inherit" size="small" onClick={() => navigate(depositsWithStripe ? '/stripe-settings' : '/mercadopago-settings')}>
                 Conectar
               </Button>
             }
             sx={{ mb: 3 }}
           >
-            Tenés servicios con <strong>seña</strong> configurada, pero MercadoPago no está conectado.
-            Conectá tu cuenta para poder cobrar las señas — hasta entonces esos turnos se confirman sin cobro.
+            {w.usesTu ? (
+              <>
+                Tienes servicios que piden <strong>{w.sena}</strong>, pero {depositsWithStripe ? 'Stripe' : 'Mercado Pago'} no está conectado.
+                Conecta tu cuenta para poder cobrarlos — hasta entonces esas citas se confirman sin cobro.
+              </>
+            ) : (
+              <>
+                Tenés servicios con <strong>seña</strong> configurada, pero MercadoPago no está conectado.
+                Conectá tu cuenta para poder cobrar las señas — hasta entonces esos turnos se confirman sin cobro.
+              </>
+            )}
           </Alert>
         )}
 
@@ -459,7 +477,7 @@ const Dashboard: React.FC = () => {
                 cargados ({employeesWithoutSchedule.map((e: any) => e.name).join(', ')}).
               </>
             )}{' '}
-            Mientras tanto se ofrecen turnos en todo el horario del negocio, cualquier día que esté abierto.
+            {w.t('Mientras tanto se ofrecen turnos en todo el horario del negocio, cualquier día que esté abierto.', 'Mientras tanto se ofrecen citas en todo el horario del negocio, cualquier día que esté abierto.')}
           </Alert>
         )}
 
@@ -555,7 +573,7 @@ const Dashboard: React.FC = () => {
                         <Chip label="NUEVO" size="small" sx={{ bgcolor: '#ffd54f', color: '#5d4000', fontWeight: 700, height: 20 }} />
                       </Box>
                       <Typography variant="body2" sx={{ opacity: 0.95, mt: 0.5 }}>
-                        Tus clientes reservan, consultan y cancelan turnos solos por WhatsApp, 24/7, desde tu número.
+                        {w.t('Tus clientes reservan, consultan y cancelan turnos solos por WhatsApp, 24/7, desde tu número.', 'Tus clientes reservan, consultan y cancelan citas solos por WhatsApp, 24/7, desde tu número.')}
                         {menuBotAddon.monthlyPrice > 0 && ` Desde ${formatMoney(Math.round(menuBotAddon.monthlyPrice), { currency: 'ARS' })}/mes.`}
                       </Typography>
                     </Box>
@@ -607,12 +625,12 @@ const Dashboard: React.FC = () => {
                       <Box sx={{ flex: 1, minWidth: 240 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                           <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                            Nuevo: Bot de Confirmación de Turnos
+                            {w.t('Nuevo: Bot de Confirmación de Turnos', 'Nuevo: Bot de Confirmación de Citas')}
                           </Typography>
                           <Chip label="NUEVO" size="small" sx={{ bgcolor: '#ffd54f', color: '#5d4000', fontWeight: 700, height: 20 }} />
                         </Box>
                         <Typography variant="body2" sx={{ opacity: 0.95, mt: 0.5 }}>
-                          Confirmá tus turnos automáticamente por WhatsApp y recuperá los horarios de los que no vienen.
+                          {w.t('Confirmá tus turnos automáticamente por WhatsApp y recuperá los horarios de los que no vienen.', 'Confirma tus citas automáticamente por WhatsApp y recupera los horarios de quienes no vienen.')}
                           {confirmationBotAddon.monthlyPrice > 0 &&
                             ` Desde ${formatMoney(Math.round(confirmationBotAddon.monthlyPrice), { currency: 'ARS' })}/mes.`}
                         </Typography>
