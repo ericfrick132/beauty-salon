@@ -1,4 +1,27 @@
 import { brand } from '@/app/(lib)/brand';
+import { pricingContent } from '@/app/(lib)/content';
+
+/** Un Offer por plan (Gratuito, Plus, Advance, Pro), precio mensual. */
+export function planOffers(
+  currency: string,
+  priceOf: (ars: number) => number = (ars) => ars,
+  taglineOf: (code: string) => string | undefined = () => undefined,
+) {
+  return pricingContent.plans.map((p) => ({
+    '@type': 'Offer',
+    name: `Plan ${p.name}`,
+    description: taglineOf(p.code) ?? p.tagline,
+    price: String(p.price === 0 ? 0 : priceOf(p.price)),
+    priceCurrency: currency,
+    priceSpecification: {
+      '@type': 'UnitPriceSpecification',
+      price: String(p.price === 0 ? 0 : priceOf(p.price)),
+      priceCurrency: currency,
+      unitCode: 'MON',
+      referenceQuantity: { '@type': 'QuantitativeValue', value: 1, unitCode: 'MON' },
+    },
+  }));
+}
 
 export function organizationSchema() {
   return {
@@ -27,9 +50,10 @@ export function softwareAppSchema() {
     name: brand.brand_name,
     applicationCategory: 'BusinessApplication',
     operatingSystem: 'Web',
-    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    offers: planOffers('ARS'),
     url: `${brand.brand_domain}${brand.marketing_path}`,
     featureList: [
+      'Plan gratuito para siempre, sin tarjeta',
       'Reservas con seña',
       'MercadoPago integrado',
       'Recordatorios automáticos por WhatsApp',
@@ -37,7 +61,7 @@ export function softwareAppSchema() {
       'Reportes en vivo',
       'Reducción de ausencias',
     ],
-  } as const;
+  };
 }
 
 export function faqSchema(faqs: { q: string; a: string }[]) {

@@ -562,7 +562,7 @@ const SelfRegistration: React.FC = () => {
 
       if (response.success) {
         trackFunnel('CompleteRegistration');
-        // La cuenta nace con la prueba activa (sin tarjeta): StartTrial sale acá, no al dejar la tarjeta.
+        // La cuenta nace en el plan Gratuito. El evento se sigue llamando StartTrial: las campañas optimizan sobre él.
         trackFunnel('StartTrial');
         setRedirectUrl(response.redirectUrl);
         setCurrentStep('success');
@@ -627,7 +627,7 @@ const SelfRegistration: React.FC = () => {
   const renderSignup = () => (
     <>
       <EditorialHeader
-        kicker={subdomainFromUrl ? 'Tu URL te espera · 7 días gratis' : 'Crónica · 7 días gratis'}
+        kicker={subdomainFromUrl ? 'Tu URL te espera · Gratis para siempre' : 'Crónica · Gratis para siempre'}
         title={
           subdomainFromUrl ? (
             <>

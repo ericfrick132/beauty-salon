@@ -80,8 +80,8 @@ export default function VerticalLanding({ v }: { v: VerticalContent }) {
         title={isFeature ? 'Precios de TurnosPro' : `Precios de TurnosPro para ${label}`}
         intro={
           isFeature
-            ? v.featureCopy?.pricingIntro ?? 'Las señas con Mercado Pago no son un extra: vienen en el mismo plan, junto con las reservas ilimitadas, los recordatorios por WhatsApp y la agenda por profesional. Cuanto más largo el compromiso, más barato el mes.'
-            : `Mismo plan para ${label} que para cualquier otro rubro: reservas ilimitadas, señas con MercadoPago, recordatorios por WhatsApp y agenda por profesional. Cuanto más largo el compromiso, más barato el mes.`
+            ? v.featureCopy?.pricingIntro ?? 'Las señas con Mercado Pago vienen desde el plan Gratuito, sin tarjeta y para siempre. Cuando necesitás más reservas, recordatorios o WhatsApp, te pasás de plan desde el panel.'
+            : `Los mismos planes para ${label} que para cualquier otro rubro. Empezás gratis, con 100 reservas por mes y cobros con MercadoPago, y te pasás a Plus, Advance o Pro cuando necesitás recordatorios, WhatsApp o agendas ilimitadas.`
         }
       />
 

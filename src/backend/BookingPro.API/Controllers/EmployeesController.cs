@@ -5,6 +5,7 @@ using BookingPro.API.Data;
 using BookingPro.API.Models.Entities;
 using BookingPro.API.Models.DTOs;
 using BookingPro.API.Services;
+using BookingPro.API.Utilities;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -19,13 +20,16 @@ namespace BookingPro.API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly ITenantService _tenantService;
+        private readonly IPlanEntitlementService _plans;
 
         public EmployeesController(
             ApplicationDbContext context,
-            ITenantService tenantService)
+            ITenantService tenantService,
+            IPlanEntitlementService plans)
         {
             _context = context;
             _tenantService = tenantService;
+            _plans = plans;
         }
 
         public class DayScheduleDto
@@ -152,6 +156,12 @@ namespace BookingPro.API.Controllers
         {
             try
             {
+                if (dto.IsActive ?? true)
+                {
+                    var check = await _plans.CanCreateEmployeeAsync(_tenantService.GetCurrentTenantIdFromContext());
+                    if (!check.Allowed) return PlanLimitResult.From(check);
+                }
+
                 var serviceCommission = dto.ServiceCommissionPercentage ?? dto.CommissionPercentage ?? 0m;
                 var productCommission = dto.ProductCommissionPercentage 
                     ?? dto.CommissionPercentage 
@@ -201,6 +211,13 @@ namespace BookingPro.API.Controllers
                 }
 
                 var wasActive = employee.IsActive;
+
+                // Reactivar una agenda cuenta como sumarla: si no, el tope se saltea apagando y prendiendo.
+                if (!wasActive && dto.IsActive == true)
+                {
+                    var check = await _plans.CanCreateEmployeeAsync(employee.TenantId);
+                    if (!check.Allowed) return PlanLimitResult.From(check);
+                }
 
                 if (dto.Name != null) employee.Name = dto.Name;
                 if (dto.Email != null) employee.Email = dto.Email;

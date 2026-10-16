@@ -9,7 +9,7 @@ const dim = 'rgba(244,239,230,0.68)';
 
 /**
  * Sección #registro al final de la landing: a la izquierda vende (qué va a pasar, paso a paso,
- * y qué pasa cuando termina la prueba), a la derecha convierte con el mismo formulario del modal.
+ * y cómo se pasa de plan), a la derecha convierte con el mismo formulario del modal.
  * En mobile el formulario va justo debajo del titular y los pasos quedan abajo.
  */
 export default function SignupSection() {

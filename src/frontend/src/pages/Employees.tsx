@@ -53,7 +53,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTenant } from '../contexts/TenantContext';
-import api from '../services/api';
+import api, { isPlanLimitError } from '../services/api';
 import { format } from 'date-fns';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -334,6 +334,8 @@ const Employees: React.FC = () => {
       fetchData();
       handleCloseDialog();
     } catch (error: any) {
+      // Tope de agendas del plan: ya lo muestra PlanLimitDialog.
+      if (isPlanLimitError(error)) return;
       console.error('Error saving employee:', error);
       if (error.response?.data?.errors) {
         setErrors(error.response.data.errors);

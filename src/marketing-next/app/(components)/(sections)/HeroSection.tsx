@@ -307,7 +307,7 @@ export default function HeroSection() {
                 }}
               >
                 <Box component="span" sx={{ color: palette.forest, fontWeight: 600 }}>
-                  ● 7 días gratis
+                  ● Gratis para siempre
                 </Box>
                 <Box component="span" sx={{ opacity: 0.4 }}>·</Box>
                 <Box component="span">sin tarjeta</Box>

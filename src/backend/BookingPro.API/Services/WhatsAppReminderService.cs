@@ -49,6 +49,7 @@ namespace BookingPro.API.Services
             using var scope = _serviceProvider.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var connectionService = scope.ServiceProvider.GetRequiredService<IWhatsAppConnectionService>();
+            var plans = scope.ServiceProvider.GetRequiredService<IPlanEntitlementService>();
 
             // Get all tenants with WhatsApp reminders enabled
             var enabledSettings = await context.TenantMessagingSettings
@@ -64,7 +65,7 @@ namespace BookingPro.API.Services
 
                 try
                 {
-                    await ProcessTenantReminders(context, connectionService, settings, ct);
+                    await ProcessTenantReminders(context, connectionService, plans, settings, ct);
                 }
                 catch (Exception ex)
                 {
@@ -76,9 +77,13 @@ namespace BookingPro.API.Services
         private async Task ProcessTenantReminders(
             ApplicationDbContext context,
             IWhatsAppConnectionService connectionService,
+            IPlanEntitlementService plans,
             TenantMessagingSettings settings,
             CancellationToken ct)
         {
+            // Recordatorios automáticos: Plus en adelante.
+            if (!await plans.AllowsRemindersAsync(settings.TenantId)) return;
+
             // Verify WhatsApp connection is open
             var connection = await connectionService.GetConnectionByTenantIdAsync(settings.TenantId);
             if (connection == null || connection.Status != "open")
@@ -86,11 +91,13 @@ namespace BookingPro.API.Services
                 return;
             }
 
-            // Check wallet balance
+            // Primero los mensajes que incluye el plan este mes; después los packs comprados.
             var wallet = await context.TenantMessageWallets
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(w => w.TenantId == settings.TenantId, ct);
-            if (wallet == null || wallet.Balance <= 0)
+            var included = await plans.GetIncludedWhatsAppRemainingAsync(settings.TenantId);
+            bool CanSend() => included > 0 || (wallet != null && wallet.Balance > 0);
+            if (!CanSend())
             {
                 return;
             }
@@ -123,7 +130,7 @@ namespace BookingPro.API.Services
 
             foreach (var booking in bookings)
             {
-                if (ct.IsCancellationRequested || wallet.Balance <= 0) break;
+                if (ct.IsCancellationRequested || !CanSend()) break;
 
                 var phone = booking.Customer?.Phone;
                 if (string.IsNullOrWhiteSpace(phone)) continue;
@@ -173,9 +180,13 @@ namespace BookingPro.API.Services
                     if (sendResult.Success)
                     {
                         booking.ReminderSent = true;
-                        wallet.Balance -= 1;
-                        wallet.TotalSent += 1;
-                        wallet.UpdatedAt = DateTime.UtcNow;
+                        if (included > 0) { if (included != int.MaxValue) included--; }
+                        else wallet!.Balance -= 1;
+                        if (wallet != null)
+                        {
+                            wallet.TotalSent += 1;
+                            wallet.UpdatedAt = DateTime.UtcNow;
+                        }
                         _logger.LogInformation("Sent reminder for booking {BookingId} to {Phone}",
                             booking.Id, phone);
                     }

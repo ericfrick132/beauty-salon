@@ -1,42 +1,32 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import api from '../services/api';
+import api, { PlanFeatures } from '../services/api';
 
-interface PlanFeatures {
-  maxBookingsPerMonth: number;
-  maxServices: number;
-  maxStaff: number;
-  maxCustomers: number;
-  allowOnlinePayments: boolean;
-  allowCustomBranding: boolean;
-  allowSmsNotifications: boolean;
-  allowEmailMarketing: boolean;
-  allowReports: boolean;
-  allowMultiLocation: boolean;
-  allowWhatsApp: boolean;
-  whatsAppMonthlyLimit: number;
-  whatsAppExtraMessageCost: number;
-}
-
+/**
+ * GET /subscription/status. Freemium: `isActive` siempre es true (puede usar el sistema); `isPaid` dice si
+ * tiene un plan pago. Sin pagar, `planType` es "free" y `features` son las del plan Gratuito.
+ */
 interface SubscriptionStatus {
   isActive: boolean;
+  isPaid: boolean;
   planType: string;
   planName: string;
   expiresAt?: string;
   monthlyAmount: number;
-  daysRemaining: number;
-  isTrialPeriod: boolean;
-  trialEndsAt?: string;
   createdAt: string;
   features: PlanFeatures | null;
 }
+
+type NumericLimit = { [K in keyof PlanFeatures]: PlanFeatures[K] extends number ? K : never }[keyof PlanFeatures];
 
 interface SubscriptionContextType {
   subscription: SubscriptionStatus | null;
   loading: boolean;
   error: string | null;
   hasFeature: (feature: keyof PlanFeatures) => boolean;
-  getLimit: (limit: 'maxBookingsPerMonth' | 'maxServices' | 'maxStaff' | 'maxCustomers') => number;
-  isUnlimited: (limit: 'maxBookingsPerMonth' | 'maxServices' | 'maxStaff' | 'maxCustomers' | 'whatsAppMonthlyLimit') => boolean;
+  /** true si el plan es Gratuito (o todavía no cargó el estado). */
+  isFree: boolean;
+  getLimit: (limit: NumericLimit) => number;
+  isUnlimited: (limit: NumericLimit) => boolean;
   refresh: () => Promise<void>;
 }
 
@@ -51,7 +41,7 @@ export const SubscriptionProvider: React.FC<{ children: ReactNode }> = ({ childr
     try {
       setLoading(true);
       setError(null);
-      const response = await api.get('/subscription/status');
+      const response = await api.get('/subscription/status', { params: { includePaymentLink: false } });
       setSubscription(response.data);
     } catch (err: any) {
       console.error('Error fetching subscription:', err);
@@ -76,18 +66,19 @@ export const SubscriptionProvider: React.FC<{ children: ReactNode }> = ({ childr
   const hasFeature = useCallback((feature: keyof PlanFeatures): boolean => {
     if (!subscription?.features) return false;
     const value = subscription.features[feature];
-    // Para features booleanas, devuelve el valor directo
+    // Booleanas: el valor directo. Números (límites): incluido si no es 0 (-1 = ilimitado). Funciona igual
+    // con el plan Gratuito: el backend manda sus features reales.
     if (typeof value === 'boolean') return value;
-    // Para limites numericos, devuelve true si es diferente de 0
-    return value !== 0;
+    if (typeof value === 'number') return value !== 0;
+    return false;
   }, [subscription]);
 
-  const getLimit = useCallback((limit: 'maxBookingsPerMonth' | 'maxServices' | 'maxStaff' | 'maxCustomers'): number => {
+  const getLimit = useCallback((limit: NumericLimit): number => {
     if (!subscription?.features) return 0;
     return subscription.features[limit];
   }, [subscription]);
 
-  const isUnlimited = useCallback((limit: 'maxBookingsPerMonth' | 'maxServices' | 'maxStaff' | 'maxCustomers' | 'whatsAppMonthlyLimit'): boolean => {
+  const isUnlimited = useCallback((limit: NumericLimit): boolean => {
     if (!subscription?.features) return false;
     return subscription.features[limit] === -1;
   }, [subscription]);
@@ -98,6 +89,7 @@ export const SubscriptionProvider: React.FC<{ children: ReactNode }> = ({ childr
       loading,
       error,
       hasFeature,
+      isFree: !subscription?.isPaid,
       getLimit,
       isUnlimited,
       refresh: fetchSubscription

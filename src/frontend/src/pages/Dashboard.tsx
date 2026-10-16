@@ -46,7 +46,8 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useTenant } from '../contexts/TenantContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
-import { PlanSummary } from '../components/common/PlanFeatureBadge';
+import PlanUsageCard from '../components/subscription/PlanUsageCard';
+import NewFeaturesCard from '../components/subscription/NewFeaturesCard';
 import { useAppDispatch, useAppSelector } from '../store';
 import { fetchBookings, fetchEmployees, fetchServices } from '../store/slices/bookingSlice';
 import { isAdminLike } from '../utils/permissions';
@@ -214,13 +215,6 @@ const Dashboard: React.FC = () => {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
         },
       });
-      if (response.status === 402) {
-        try {
-          const evt = new CustomEvent('subscription-required');
-          window.dispatchEvent(evt);
-        } catch {}
-        return;
-      }
       if (response.ok) {
         const data = await response.json();
         setFinancialStats(data);
@@ -240,13 +234,6 @@ const Dashboard: React.FC = () => {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
         },
       });
-      if (response.status === 402) {
-        try {
-          const evt = new CustomEvent('subscription-required');
-          window.dispatchEvent(evt);
-        } catch {}
-        return;
-      }
       if (response.ok) {
         const data = await response.json();
         setUnpaidBookings(data);
@@ -503,6 +490,10 @@ const Dashboard: React.FC = () => {
             </Typography>
           </Box>
         </motion.div>
+
+        {/* Plan y uso de los límites (freemium) */}
+        {canSeeAdmin && <PlanUsageCard />}
+        {canSeeAdmin && <NewFeaturesCard />}
 
         {/* Customer Booking Link - prominent */}
         <Grid container spacing={3} sx={{ mb: 3 }}>

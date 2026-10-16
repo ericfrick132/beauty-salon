@@ -24,6 +24,7 @@ namespace BookingPro.API.Services
         private readonly ITenantService _tenantService;
         private readonly ILogger<BookingService> _logger;
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly IPlanEntitlementService _plans;
 
         private record BusinessHoursConfig(TimeSpan Opening, TimeSpan Closing, HashSet<int> ClosedDays);
         private const int DefaultMinimumGapMinutes = 15;
@@ -37,8 +38,10 @@ namespace BookingPro.API.Services
             IRepository<Customer> customerRepository,
             ITenantService tenantService,
             ILogger<BookingService> logger,
-            IHttpContextAccessor httpContextAccessor)
+            IHttpContextAccessor httpContextAccessor,
+            IPlanEntitlementService plans)
         {
+            _plans = plans;
             _bookingRepository = bookingRepository;
             _serviceRepository = serviceRepository;
             _employeeRepository = employeeRepository;
@@ -103,7 +106,8 @@ namespace BookingPro.API.Services
                         HasPayment = _bookingRepository.GetContext().Set<Payment>()
                             .Any(p => p.BookingId == b.Id),
                         IsPaymentSuccessful = _bookingRepository.GetContext().Set<Payment>()
-                            .Any(p => p.BookingId == b.Id && p.Status == "completed")
+                            .Any(p => p.BookingId == b.Id && p.Status == "completed"),
+                        SeriesId = b.SeriesId
                     })
                     .ToListAsync();
 
@@ -145,7 +149,8 @@ namespace BookingPro.API.Services
                         Price = b.Price ?? 0,
                         Notes = b.Notes,
                         HasPayment = false, // By definition, unpaid bookings don't have successful payments
-                        IsPaymentSuccessful = false
+                        IsPaymentSuccessful = false,
+                        SeriesId = b.SeriesId
                     })
                     .OrderBy(b => b.StartTime)
                     .ToListAsync();
@@ -205,7 +210,13 @@ namespace BookingPro.API.Services
                     CreatedAt = booking.CreatedAt,
                     UpdatedAt = booking.UpdatedAt,
                     CancelledAt = booking.CancelledAt,
-                    CancellationReason = booking.CancellationReason
+                    CancellationReason = booking.CancellationReason,
+                    SeriesId = booking.SeriesId,
+                    SeriesIntervalWeeks = booking.SeriesId == null ? null : await _bookingRepository.GetContext().Set<BookingSeries>()
+                        .Where(x => x.Id == booking.SeriesId).Select(x => (int?)x.IntervalWeeks).FirstOrDefaultAsync(),
+                    CouponCode = booking.CouponCode,
+                    DiscountAmount = booking.DiscountAmount,
+                    CustomFields = BookingExtrasService.ParseAnswers(booking.CustomFieldsJson)
                 };
 
                 if (IsEmployeeRole())
@@ -239,6 +250,14 @@ namespace BookingPro.API.Services
                 var customer = await _customerRepository.GetByIdAsync(dto.CustomerId);
                 if (customer == null)
                     return ServiceResult<Booking>.Fail("Customer not found");
+
+                var planCheck = await _plans.CanCreateBookingAsync(service.TenantId);
+                if (!planCheck.Allowed)
+                {
+                    var limited = ServiceResult<Booking>.Fail(planCheck.Message ?? "Llegaste al tope de reservas de tu plan");
+                    limited.Reason = BookingFailureReasons.PlanLimit;
+                    return limited;
+                }
 
                 // Validaciones críticas de negocio
                 var validationResult = await ValidateBookingBusinessRules(dto.EmployeeId, dto.StartTime, dto.EndTime, service, null);

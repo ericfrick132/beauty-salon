@@ -13,6 +13,8 @@ interface Props {
 
 const fmt = new Intl.NumberFormat('es-AR');
 
+// Precios finales en pesos argentinos; Gratuito no vence ni pide tarjeta.
+
 /** Resumen de precios (misma fuente que la home: pricingContent) con link a /#precios. */
 export default function PricingSnippet({ title, intro, number = '03' }: Props) {
   return (
@@ -54,15 +56,13 @@ export default function PricingSnippet({ title, intro, number = '03' }: Props) {
                     mb: 1,
                   }}
                 >
-                  {plan.commitment}
+                  {plan.name}
                 </Box>
                 <Box sx={{ fontFamily: 'var(--font-fraunces), serif', fontWeight: 600, fontSize: { xs: '1.3rem', md: '1.55rem' }, letterSpacing: '-0.02em', lineHeight: 1 }}>
-                  ARS {fmt.format(plan.price)}
+                  {plan.price === 0 ? 'Gratis' : `$${fmt.format(plan.price)}`}
                 </Box>
-                <Box sx={{ fontSize: '0.8rem', opacity: 0.75, mt: 0.5 }}>por mes</Box>
-                <Box sx={{ fontSize: '0.8rem', mt: 1.5, opacity: 0.85 }}>
-                  {plan.trialDays} días gratis{plan.discount ? ` · ${plan.discount}` : ''}
-                </Box>
+                <Box sx={{ fontSize: '0.8rem', opacity: 0.75, mt: 0.5 }}>{plan.price === 0 ? 'para siempre' : 'por mes'}</Box>
+                <Box sx={{ fontSize: '0.8rem', mt: 1.5, opacity: 0.85, lineHeight: 1.4 }}>{plan.features[0]}</Box>
               </Box>
             </Grid>
           ))}
@@ -82,14 +82,15 @@ export default function PricingSnippet({ title, intro, number = '03' }: Props) {
         </Typography>
 
         <Typography sx={{ mt: 2, color: palette.inkSoft, fontSize: '1rem' }}>
-          Todos los planes incluyen {pricingContent.features.slice(0, 3).join(', ').toLowerCase()} y agenda multi-profesional.{' '}
+          El plan Gratuito incluye 100 reservas por mes, hasta 3 agendas, cobros con MercadoPago y transferencia y panel
+          de métricas, con 5% de comisión por cobro online. Te pasás de plan cuando lo necesitás.{' '}
           <Link href="/#precios" style={{ color: palette.forest, fontWeight: 500 }}>
             Ver el detalle completo de precios
           </Link>
           .
         </Typography>
 
-        <TrialCta label="Empezar prueba gratis" />
+        <TrialCta label="Empezar gratis" />
       </Container>
     </Box>
   );

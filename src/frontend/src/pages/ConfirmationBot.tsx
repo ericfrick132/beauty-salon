@@ -28,6 +28,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { featureAddonsApi, messagingApi, whatsappApi, FeatureAddonStatus } from '../services/api';
 import TextField from '../components/common/TextField';
 import { formatMoney } from '../utils/intl';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import { firstPlanWith, formatPlanPrice, PLAN_PLUS, usePlans } from '../utils/plans';
 
 const CONFIRMATION_BOT_CODE = 'confirmation_bot';
 
@@ -110,6 +112,13 @@ const ConfirmationBot: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [addon, setAddon] = useState<FeatureAddonStatus | null>(null);
+  // Freemium: el bot viene incluido desde Plus (source "plan"); sin vencimiento ni compra.
+  const { subscription } = useSubscription();
+  const { plans } = usePlans();
+  const includedInPlan = addon?.source === 'plan';
+  const planWithBot = firstPlanWith(plans, (f) => f.allowReminders);
+  const planWithBotCode = planWithBot?.code ?? PLAN_PLUS;
+  const planWithBotName = planWithBot?.name ?? 'Plus';
   const [purchasing, setPurchasing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -208,7 +217,7 @@ const ConfirmationBot: React.FC = () => {
       setSaved('Configuración guardada');
     } catch (e: any) {
       if (e?.response?.status === 402) {
-        setError('El bot requiere el add-on activo. Activalo con MercadoPago.');
+        setError(`El bot viene incluido desde el plan ${planWithBotName}. Pasate de plan para usarlo.`);
       } else {
         setError('Error guardando la configuración.');
       }
@@ -264,7 +273,8 @@ const ConfirmationBot: React.FC = () => {
             </Typography>
             <Chip label="NUEVO" size="small" sx={{ bgcolor: '#ffd54f', color: '#5d4000', fontWeight: 700 }} />
             {addon?.active && (
-              <Chip icon={<CheckCircle sx={{ '&&': { color: '#0b3d2e' } }} />} label="Activo" size="small"
+              <Chip icon={<CheckCircle sx={{ '&&': { color: '#0b3d2e' } }} />}
+                label={includedInPlan ? `Incluido en tu plan ${subscription?.planName ?? ''}`.trim() : 'Activo'} size="small"
                 sx={{ bgcolor: '#d9fdd3', color: '#0b3d2e', fontWeight: 700 }} />
             )}
           </Box>
@@ -273,7 +283,7 @@ const ConfirmationBot: React.FC = () => {
             cliente por WhatsApp, confirma a los que vienen y libera al instante el horario de los que no
             &mdash; para que esa hora se la lleve otro. Todo automático y desde tu propio número.
           </Typography>
-          {addon?.active && addon.paidUntil && (
+          {addon?.active && !includedInPlan && addon.paidUntil && (
             <Typography variant="body2" sx={{ mt: 1.5, opacity: 0.9 }}>
               Vigente hasta el {new Date(addon.paidUntil).toLocaleDateString('es-AR')}
             </Typography>
@@ -343,22 +353,36 @@ const ConfirmationBot: React.FC = () => {
                 >
                   <Box>
                     <Typography variant="h5" fontWeight={800} color="success.main">
-                      {priceLabel}
+                      Incluido en {planWithBotName}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      Con recuperar un solo turno por mes ya se paga. Se activa al acreditarse el pago. Sin permanencia.
+                      {planWithBot ? `Desde ${formatPlanPrice(planWithBot)}/mes, junto con recordatorios y mensajes de WhatsApp incluidos.` : 'Viene con los planes pagos.'}
+                      {' '}Con recuperar un solo turno por mes ya se paga.
                     </Typography>
                   </Box>
-                  <Button
-                    variant="contained"
-                    color="success"
-                    size="large"
-                    startIcon={purchasing ? <CircularProgress size={18} color="inherit" /> : <WhatsApp />}
-                    onClick={handlePurchase}
-                    disabled={purchasing || !addon}
-                  >
-                    Activar con MercadoPago
-                  </Button>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: { xs: 'stretch', sm: 'flex-end' }, gap: 1 }}>
+                    <Button
+                      variant="contained"
+                      color="success"
+                      size="large"
+                      startIcon={<WhatsApp />}
+                      onClick={() => navigate(`/subscription/plans?highlight=${planWithBotCode}`)}
+                    >
+                      Pasarme a {planWithBotName}
+                    </Button>
+                    {addon && addon.monthlyPrice > 0 && (
+                      <Button
+                        size="small"
+                        color="inherit"
+                        onClick={handlePurchase}
+                        disabled={purchasing}
+                        startIcon={purchasing ? <CircularProgress size={14} color="inherit" /> : undefined}
+                        sx={{ textTransform: 'none', color: 'text.secondary' }}
+                      >
+                        O activá solo el bot por {priceLabel}
+                      </Button>
+                    )}
+                  </Box>
                 </Box>
                 {addon?.hasPendingPurchase && (
                   <Alert severity="info" sx={{ mt: 2 }}>
@@ -514,16 +538,29 @@ const ConfirmationBot: React.FC = () => {
                 <Card variant="outlined">
                   <CardContent>
                     <Typography variant="subtitle2" fontWeight={700} gutterBottom>
-                      Renovación
+                      {includedInPlan ? 'Tu plan' : 'Renovación'}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                      {addon?.paidUntil
-                        ? `Tu bot está pago hasta el ${new Date(addon.paidUntil).toLocaleDateString('es-AR')}. Podés extenderlo un mes más cuando quieras.`
-                        : 'Extendé la vigencia del bot un mes más.'}
-                    </Typography>
-                    <Button variant="outlined" color="success" onClick={handlePurchase} disabled={purchasing}>
-                      {purchasing ? 'Generando pago…' : `Extender 1 mes (${priceLabel})`}
-                    </Button>
+                    {includedInPlan ? (
+                      <Typography variant="body2" color="text.secondary">
+                        El bot viene incluido en tu plan {subscription?.planName ?? ''}: no tenés que renovarlo ni pagarlo aparte.
+                      </Typography>
+                    ) : (
+                      <>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                          {addon?.paidUntil
+                            ? `Tu bot está pago hasta el ${new Date(addon.paidUntil).toLocaleDateString('es-AR')}. Podés extenderlo un mes más cuando quieras.`
+                            : 'Extendé la vigencia del bot un mes más.'}
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                          <Button variant="outlined" color="success" onClick={handlePurchase} disabled={purchasing}>
+                            {purchasing ? 'Generando pago…' : `Extender 1 mes (${priceLabel})`}
+                          </Button>
+                          <Button color="success" onClick={() => navigate(`/subscription/plans?highlight=${planWithBotCode}`)}>
+                            Incluido en {planWithBotName}
+                          </Button>
+                        </Box>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               </Grid>

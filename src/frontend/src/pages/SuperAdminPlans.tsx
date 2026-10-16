@@ -68,6 +68,17 @@ interface SubscriptionPlan {
   whatsAppExtraMessageCost: number;
   mercadoPagoPreapprovalPlanId: string | null;
   trialDays: number;
+  // Freemium. Opcionales: el GET /subscription-plans/admin todavía puede no mandarlos.
+  tagline?: string | null;
+  commissionPercent?: number;
+  maxServicesPerStaff?: number;
+  allowReminders?: boolean;
+  maxRecurringBookings?: number;
+  maxCustomFields?: number;
+  allowCoupons?: boolean;
+  allowTransferDetection?: boolean;
+  allowCustomerHistory?: boolean;
+  allowTrackingPixels?: boolean;
   isActive: boolean;
   isPopular: boolean;
   displayOrder: number;
@@ -104,7 +115,18 @@ interface PlanFormData {
   allowWhatsApp: boolean;
   whatsAppMonthlyLimit: number;
   whatsAppExtraMessageCost: number;
+  /** Sin pruebas con freemium: no se muestra; se reenvía el valor que tenía el plan (0 en planes nuevos). */
   trialDays: number;
+  tagline: string;
+  commissionPercent: number;
+  maxServicesPerStaff: number;
+  allowReminders: boolean;
+  maxRecurringBookings: number;
+  maxCustomFields: number;
+  allowCoupons: boolean;
+  allowTransferDetection: boolean;
+  allowCustomerHistory: boolean;
+  allowTrackingPixels: boolean;
   isActive: boolean;
   isPopular: boolean;
   displayOrder: number;
@@ -131,7 +153,17 @@ const initialFormData: PlanFormData = {
   allowWhatsApp: false,
   whatsAppMonthlyLimit: 0,
   whatsAppExtraMessageCost: 0,
-  trialDays: 14,
+  trialDays: 0,
+  tagline: '',
+  commissionPercent: 0,
+  maxServicesPerStaff: -1,
+  allowReminders: true,
+  maxRecurringBookings: 0,
+  maxCustomFields: 0,
+  allowCoupons: false,
+  allowTransferDetection: false,
+  allowCustomerHistory: false,
+  allowTrackingPixels: false,
   isActive: true,
   isPopular: false,
   displayOrder: 0,
@@ -154,6 +186,8 @@ const SuperAdminPlans: React.FC<SuperAdminPlansProps> = ({ embedded = false }) =
   const [editingPlan, setEditingPlan] = useState<SubscriptionPlan | null>(null);
   const [formData, setFormData] = useState<PlanFormData>(initialFormData);
   const [saving, setSaving] = useState(false);
+  // El backend guarda tagline/comisión/límites freemium (lo detectamos por el GET de admin).
+  const [freemiumFieldsSupported, setFreemiumFieldsSupported] = useState(true);
 
   // Delete confirmation
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -176,7 +210,21 @@ const SuperAdminPlans: React.FC<SuperAdminPlansProps> = ({ embedded = false }) =
       const response = await api.get('/subscription-plans/admin', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setPlans(response.data);
+      const rows: SubscriptionPlan[] = response.data;
+      const adminHasFreemium = rows.some((r) => r.commissionPercent !== undefined);
+      setFreemiumFieldsSupported(adminHasFreemium);
+      if (!adminHasFreemium) {
+        // El GET de admin todavía no trae los campos freemium: los completamos con /subscription/plans
+        // (solo planes activos) para que el formulario muestre los valores reales.
+        try {
+          const pub = (await api.get('/subscription/plans')).data as any[];
+          for (const r of rows) {
+            const p = pub.find((x) => x.code === r.code);
+            if (p?.features) Object.assign(r, { tagline: p.tagline, ...p.features, ...{ maxBookingsPerMonth: r.maxBookingsPerMonth, maxServices: r.maxServices, maxStaff: r.maxStaff, maxCustomers: r.maxCustomers } });
+          }
+        } catch { /* sin datos públicos: quedan los default */ }
+      }
+      setPlans(rows);
     } catch (err: any) {
       console.error('Error loading plans:', err);
       setError(err.response?.data?.error || 'Error al cargar los planes');
@@ -213,6 +261,16 @@ const SuperAdminPlans: React.FC<SuperAdminPlansProps> = ({ embedded = false }) =
       whatsAppMonthlyLimit: plan.whatsAppMonthlyLimit,
       whatsAppExtraMessageCost: plan.whatsAppExtraMessageCost,
       trialDays: plan.trialDays,
+      tagline: plan.tagline ?? '',
+      commissionPercent: plan.commissionPercent ?? initialFormData.commissionPercent,
+      maxServicesPerStaff: plan.maxServicesPerStaff ?? initialFormData.maxServicesPerStaff,
+      allowReminders: plan.allowReminders ?? initialFormData.allowReminders,
+      maxRecurringBookings: plan.maxRecurringBookings ?? initialFormData.maxRecurringBookings,
+      maxCustomFields: plan.maxCustomFields ?? initialFormData.maxCustomFields,
+      allowCoupons: plan.allowCoupons ?? initialFormData.allowCoupons,
+      allowTransferDetection: plan.allowTransferDetection ?? initialFormData.allowTransferDetection,
+      allowCustomerHistory: plan.allowCustomerHistory ?? initialFormData.allowCustomerHistory,
+      allowTrackingPixels: plan.allowTrackingPixels ?? initialFormData.allowTrackingPixels,
       isActive: plan.isActive,
       isPopular: plan.isPopular,
       displayOrder: plan.displayOrder,
@@ -402,7 +460,7 @@ const SuperAdminPlans: React.FC<SuperAdminPlansProps> = ({ embedded = false }) =
                     <TableCell align="right">Precio</TableCell>
                     <TableCell align="center">Límites</TableCell>
                     <TableCell align="center">WhatsApp</TableCell>
-                    <TableCell align="center">Trial</TableCell>
+                    <TableCell align="center">Comisión</TableCell>
                     <TableCell align="center">Estado</TableCell>
                     <TableCell align="center">Suscripciones</TableCell>
                     <TableCell align="center">Acciones</TableCell>
@@ -475,8 +533,8 @@ const SuperAdminPlans: React.FC<SuperAdminPlansProps> = ({ embedded = false }) =
                           )}
                         </TableCell>
                         <TableCell align="center">
-                          {plan.trialDays > 0 ? (
-                            <Chip label={`${plan.trialDays} días`} size="small" color="info" />
+                          {plan.commissionPercent !== undefined ? (
+                            <Typography variant="body2">{plan.commissionPercent}%</Typography>
                           ) : (
                             <Typography variant="body2" color="text.secondary">-</Typography>
                           )}
@@ -737,6 +795,122 @@ const SuperAdminPlans: React.FC<SuperAdminPlansProps> = ({ embedded = false }) =
                 label="Multi-Sucursal"
               />
             </Grid>
+            {/* Freemium */}
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+              <Typography variant="subtitle1" color="primary" fontWeight="bold">
+                Freemium
+              </Typography>
+              {!freemiumFieldsSupported && (
+                <Alert severity="warning" sx={{ mt: 1 }}>
+                  El backend todavía no guarda estos campos (tagline, comisión y límites freemium): los cambios de esta sección no se van a persistir.
+                </Alert>
+              )}
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Tagline"
+                value={formData.tagline}
+                onChange={(e) => setFormData({ ...formData, tagline: e.target.value })}
+                helperText="Frase corta debajo del nombre en la página de planes"
+              />
+            </Grid>
+            <Grid item xs={6} sm={4}>
+              <TextField
+                fullWidth
+                label="Comisión por cobro (%)"
+                type="number"
+                value={formData.commissionPercent}
+                onChange={(e) => setFormData({ ...formData, commissionPercent: parseFloat(e.target.value) || 0 })}
+                helperText="0 = sin comisión"
+              />
+            </Grid>
+            <Grid item xs={6} sm={4}>
+              <TextField
+                fullWidth
+                label="Servicios por agenda"
+                type="number"
+                value={formData.maxServicesPerStaff}
+                onChange={(e) => setFormData({ ...formData, maxServicesPerStaff: parseInt(e.target.value) })}
+                helperText="-1 = ilimitado"
+              />
+            </Grid>
+            <Grid item xs={6} sm={4}>
+              <TextField
+                fullWidth
+                label="Reservas recurrentes"
+                type="number"
+                value={formData.maxRecurringBookings}
+                onChange={(e) => setFormData({ ...formData, maxRecurringBookings: parseInt(e.target.value) })}
+                helperText="-1 = ilimitado, 0 = no incluido"
+              />
+            </Grid>
+            <Grid item xs={6} sm={4}>
+              <TextField
+                fullWidth
+                label="Campos personalizados"
+                type="number"
+                value={formData.maxCustomFields}
+                onChange={(e) => setFormData({ ...formData, maxCustomFields: parseInt(e.target.value) })}
+                helperText="-1 = ilimitado, 0 = no incluido"
+              />
+            </Grid>
+            <Grid item xs={6} sm={4}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.allowReminders}
+                    onChange={(e) => setFormData({ ...formData, allowReminders: e.target.checked })}
+                  />
+                }
+                label="Recordatorios (y bot de confirmación)"
+              />
+            </Grid>
+            <Grid item xs={6} sm={4}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.allowCoupons}
+                    onChange={(e) => setFormData({ ...formData, allowCoupons: e.target.checked })}
+                  />
+                }
+                label="Cupones de descuento"
+              />
+            </Grid>
+            <Grid item xs={6} sm={4}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.allowTransferDetection}
+                    onChange={(e) => setFormData({ ...formData, allowTransferDetection: e.target.checked })}
+                  />
+                }
+                label="Transferencia automática"
+              />
+            </Grid>
+            <Grid item xs={6} sm={4}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.allowCustomerHistory}
+                    onChange={(e) => setFormData({ ...formData, allowCustomerHistory: e.target.checked })}
+                  />
+                }
+                label="Ficha e historial de clientes"
+              />
+            </Grid>
+            <Grid item xs={6} sm={4}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.allowTrackingPixels}
+                    onChange={(e) => setFormData({ ...formData, allowTrackingPixels: e.target.checked })}
+                  />
+                }
+                label="Píxel y Google Analytics"
+              />
+            </Grid>
 
             {/* WhatsApp */}
             <Grid item xs={12}>
@@ -761,7 +935,7 @@ const SuperAdminPlans: React.FC<SuperAdminPlansProps> = ({ embedded = false }) =
                 <Grid item xs={6} sm={4}>
                   <TextField
                     fullWidth
-                    label="Mensajes/Mes"
+                    label="Mensajes incluidos/mes"
                     type="number"
                     value={formData.whatsAppMonthlyLimit}
                     onChange={(e) => setFormData({ ...formData, whatsAppMonthlyLimit: parseInt(e.target.value) })}
@@ -789,15 +963,6 @@ const SuperAdminPlans: React.FC<SuperAdminPlansProps> = ({ embedded = false }) =
               <Typography variant="subtitle1" color="primary" fontWeight="bold">
                 Configuración
               </Typography>
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <TextField
-                fullWidth
-                label="Días de Trial"
-                type="number"
-                value={formData.trialDays}
-                onChange={(e) => setFormData({ ...formData, trialDays: parseInt(e.target.value) || 0 })}
-              />
             </Grid>
             <Grid item xs={6} sm={3}>
               <TextField

@@ -61,12 +61,12 @@ namespace BookingPro.API.Controllers
                     return await StripeBillingController.CheckoutResponseAsync(this, stripeBilling, _context, tenantId, planCode, dto.ReturnPath);
                 }
 
-                // /empezar manda el código del plan (o nada: plan mensual "pro" por defecto);
+                // /empezar manda el código del plan (o nada: Pro por defecto);
                 // la pantalla vieja de suscripción recurrente sigue mandando el id.
                 var planId = dto.SubscriptionPlanId;
                 if (planId == Guid.Empty)
                 {
-                    var code = string.IsNullOrWhiteSpace(dto.PlanCode) ? "pro" : dto.PlanCode.Trim().ToLowerInvariant();
+                    var code = string.IsNullOrWhiteSpace(dto.PlanCode) ? BookingPro.API.Models.Constants.PlanCatalog.Pro : dto.PlanCode.Trim().ToLowerInvariant();
                     var plan = await _context.SubscriptionPlans
                         .FirstOrDefaultAsync(p => p.IsActive && p.Code.ToLower() == code);
                     if (plan == null)
@@ -510,7 +510,7 @@ namespace BookingPro.API.Controllers
     public class CreatePreapprovalDto
     {
         public Guid SubscriptionPlanId { get; set; }
-        /// <summary>Alternativa al id: código del plan ("pro", "6meses"...). Sin ninguno de los dos → "pro".</summary>
+        /// <summary>Alternativa al id: código del plan ("plus", "advance", "pro_v2"). Sin ninguno de los dos → Pro.</summary>
         public string? PlanCode { get; set; }
         public string? PayerEmail { get; set; }
         /// <summary>Path relativo al que MP devuelve al usuario al terminar (ej. /subscription/success?flow=trial).</summary>

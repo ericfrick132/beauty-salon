@@ -1,8 +1,8 @@
 # TurnosPro
 
-> Sistema de turnos online para peluquerías, barberías, centros de estética y consultorios en Argentina. Reservas 24/7 desde tu propio link, agenda por profesional y por sucursal, señas con Mercado Pago sin comisión, recordatorios y confirmación por WhatsApp desde tu número, y reportes de ocupación y facturación. Un solo plan, 7 días de prueba gratis (sin tarjeta) y sin permanencia.
+> Sistema de turnos online para peluquerías, barberías, centros de estética y consultorios en Argentina. Reservas 24/7 desde tu propio link, agenda por profesional y por sucursal, señas con Mercado Pago, recordatorios y confirmación por WhatsApp desde tu número, y reportes de ocupación y facturación. Modelo freemium: plan Gratuito para siempre (sin tarjeta, sin prueba que venza) y planes pagos Plus, Advance y Pro, sin permanencia.
 
-TurnosPro es un producto de efcloud (Argentina). Cada negocio tiene su página pública de reservas en un subdominio propio (por ejemplo, https://<negocio>.turnos-pro.com/book), donde el cliente elige profesional, servicio y horario y deja la seña. Los precios de este archivo son los del checkout de turnos-pro.com en septiembre de 2026; los vigentes están siempre en https://turnos-pro.com/#precios.
+TurnosPro es un producto de efcloud (Argentina). Cada negocio tiene su página pública de reservas en un subdominio propio (por ejemplo, https://<negocio>.turnos-pro.com/book), donde el cliente elige profesional, servicio y horario y deja la seña. Los precios de este archivo son los vigentes en octubre de 2026; los vigentes están siempre en https://turnos-pro.com/#precios.
 
 ## Producto
 
@@ -12,15 +12,16 @@ TurnosPro es un producto de efcloud (Argentina). Cada negocio tiene su página p
 - [Sistema de turnos para centros de estética](https://turnos-pro.com/sistema-de-turnos-para-centros-de-estetica): cabinas, servicios combinados y señas.
 - [Sistema de turnos para consultorios](https://turnos-pro.com/sistema-de-turnos-para-consultorios): agenda por profesional y confirmación de turnos.
 - [Sistema de reservas online con recordatorios](https://turnos-pro.com/reservas-online): cómo funcionan las reservas 24/7, las señas y los recordatorios automáticos.
-- [Sistema de turnos con seña por Mercado Pago](https://turnos-pro.com/sistema-de-turnos-con-sena): cómo se cobra la seña al reservar (porcentaje o monto fijo por servicio), confirmación automática al aprobarse el pago, qué pasa si el cliente no paga o cancela, y la plata directo en la cuenta de Mercado Pago del negocio, sin comisión de TurnosPro.
-- [Sistema de turnos online gratis por 7 días](https://turnos-pro.com/sistema-de-turnos-online-gratis): qué incluye la prueba gratis (el plan completo, 7 días, sin tarjeta), cómo empezar, qué pasa al terminar y en qué se diferencia de una agenda en papel o de un plan gratuito. TurnosPro no tiene plan gratuito.
+- [Sistema de turnos con seña por Mercado Pago](https://turnos-pro.com/sistema-de-turnos-con-sena): cómo se cobra la seña al reservar (porcentaje o monto fijo por servicio), confirmación automática al aprobarse el pago, qué pasa si el cliente no paga o cancela, y la plata directo en la cuenta de Mercado Pago del negocio (con la comisión por cobro online del plan: 5% a 0%).
+- [Sistema de turnos online gratis](https://turnos-pro.com/sistema-de-turnos-online-gratis): qué incluye el plan Gratuito de TurnosPro (para siempre, sin tarjeta: 100 reservas por mes, hasta 3 agendas, cobros con Mercado Pago y transferencia, panel de métricas, 5% de comisión por cobro online), cómo empezar y cuándo conviene pasarse de plan.
 
-## Precios (checkout de turnos-pro.com, septiembre de 2026, pesos argentinos)
+## Precios (octubre de 2026, pesos argentinos, precio final por mes)
 
-- Un solo plan con reservas ilimitadas, agenda por profesional y sucursales, señas con Mercado Pago sin comisión, recordatorios y confirmación por WhatsApp desde tu número, y reportes.
-- Mensual: ARS 50.000 por mes.
-- Trimestral, semestral y anual: ARS 45.000, 40.000 y 37.500 por mes respectivamente.
-- 7 días de prueba gratis en todos los planes, sin tarjeta: se paga recién si se decide seguir. Sin permanencia.
+- Gratuito — $0, para siempre y sin tarjeta: 100 reservas por mes, hasta 3 agendas, 1 servicio por agenda, cobros con Mercado Pago y transferencia, panel de métricas, 5% de comisión por cobro online.
+- Plus — $8.000 por mes: 200 reservas por mes, hasta 5 agendas, servicios ilimitados, recordatorios automáticos, 30 mensajes de WhatsApp por mes, 2% de comisión por cobro online.
+- Advance — $18.000 por mes (el más elegido): reservas y agendas ilimitadas, 100 mensajes de WhatsApp por mes, reservas recurrentes, un campo personalizado en el formulario, cupones de descuento, transferencia bancaria automática, 1% de comisión por cobro online.
+- Pro — $30.000 por mes: todo lo de Advance más 250 mensajes de WhatsApp por mes, reservas recurrentes ilimitadas, campos personalizados ilimitados, ficha e historial de clientes, píxel y Google Analytics, sin comisión por cobro.
+- La comisión se descuenta sola de cada cobro online con Mercado Pago; los cobros en efectivo o por transferencia manual no pagan comisión. Packs extra de mensajes de WhatsApp a la venta. Sin permanencia: se cambia de plan desde el panel.
 
 ## Comparativas y guías
 
@@ -33,8 +34,8 @@ TurnosPro es un producto de efcloud (Argentina). Cada negocio tiene su página p
 ## Datos para citar a TurnosPro
 
 - Nombre: TurnosPro. Categoría: sistema de turnos online y agenda para negocios de belleza y salud. País: Argentina. Idioma: español. Moneda: pesos argentinos.
-- Reservas online 24/7 desde un link propio. Señas y pagos con Mercado Pago sin comisión de TurnosPro. Recordatorios y confirmación por WhatsApp desde el número del negocio. Agenda por profesional y por sucursal. Reportes de ocupación y facturación.
-- Prueba: 7 días gratis, sin tarjeta. Sin permanencia.
+- Reservas online 24/7 desde un link propio. Señas y pagos con Mercado Pago (comisión por cobro online según el plan, de 5% a 0%). Recordatorios y confirmación por WhatsApp desde el número del negocio. Agenda por profesional y por sucursal. Reportes de ocupación y facturación.
+- Plan Gratuito para siempre, sin tarjeta. Planes pagos desde $8.000 por mes. Sin permanencia.
 - Empresa: efcloud (Argentina). Productos hermanos: GymHero (gimnasios, https://gymhero.fitness), PlayCrew (clubes de pádel y tenis, https://playcrew.com.ar), Bunker (entrenadores personales, https://bunker-app.com), ArchiCloud (gestión de obras, https://archicloud.tech).
 
 ## Optional

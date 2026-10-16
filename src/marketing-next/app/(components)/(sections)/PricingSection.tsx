@@ -2,11 +2,15 @@
 import { Box, Container, Typography, Button, Stack } from '@mui/material';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import AnimatedSection from './AnimatedSection';
+import PlanComparison from './PlanComparison';
 import { useEffect, useState } from 'react';
 import { useSignupModal } from './SignupModal';
 import { pricingContent } from '@/app/(lib)/content';
 import { palette } from '@/app/(lib)/theme';
-import { estimateFromArs, fetchCountryPlanPrices, priceParts } from '@/app/(lib)/countries';
+import { estimateFromArs, fetchCountryPlanPrices, formatCountryPrice, priceParts } from '@/app/(lib)/countries';
+
+/** Cotización para mostrar los precios en dólares en la home (solo referencia: se cobra en la moneda de cada país). */
+const USD_DISPLAY_RATE = 1500;
 
 function formatPrice(value: number): string {
   return new Intl.NumberFormat('es-AR', {
@@ -16,15 +20,19 @@ function formatPrice(value: number): string {
 }
 
 /**
- * Precios de la home. Sin país (Argentina) salen los de content.ts en ARS, como siempre. En las landings
- * por país (/uy, /mx, /es) o con ?pais=uy|mx|es, los precios son los de la suscripción en la moneda del
- * país (/api/subscription-plans?country=XX) y el copy es el del país (tú en MX/ES, anticipo/señal).
+ * Precios de la home (freemium: Gratuito, Plus, Advance y Pro). Sin país (Argentina) salen los de
+ * content.ts en ARS. En las landings por país (/uy, /mx, /es) o con ?pais=uy|mx|es, los precios pagos son
+ * los de la suscripción en la moneda del país (/api/subscription-plans?country=XX, por código de plan) y
+ * el copy es el del país (tú y "citas" en MX/ES). Gratuito siempre es 0, en cualquier moneda.
  */
 export default function PricingSection() {
   const { open, country } = useSignupModal();
   const copy = country?.copy.pricing;
   // Mientras llega la API (o si falla) se muestra el equivalente del precio en ARS, como el backend.
   const [countryPrices, setCountryPrices] = useState<Record<string, number>>({});
+  // Home sin país: el visitante de afuera de Argentina puede ver los precios en dólares.
+  const [currency, setCurrency] = useState<'ARS' | 'USD'>('ARS');
+  const inUsd = !country && currency === 'USD';
   useEffect(() => {
     if (!country) return;
     let cancelled = false;
@@ -35,10 +43,21 @@ export default function PricingSection() {
     return () => { cancelled = true; };
   }, [country]);
   const headline = copy?.headline ?? pricingContent.headline;
-  const features = copy?.features ?? pricingContent.features;
+  const accent = copy?.accent ?? pricingContent.accent;
+  const [before, ...rest] = headline.split(accent);
+  const after = rest.join(accent);
+  // Precio mensual por plan: Gratuito siempre 0; los pagos, el de la API del país o la estimación desde ARS.
+  const localPrice = (plan: (typeof pricingContent.plans)[number]) =>
+    country
+      ? (plan.price === 0 ? 0 : countryPrices[plan.code] ?? estimateFromArs(plan.price, country.currency))
+      : inUsd ? Math.round((plan.price / USD_DISPLAY_RATE) * 100) / 100 : plan.price;
+  const priceCurrency = country ? country.currency : inUsd ? 'USD' : null;
+  const tablePrices = pricingContent.plans.map((plan) =>
+    priceCurrency ? formatCountryPrice(localPrice(plan), priceCurrency) : `$${formatPrice(plan.price)}`,
+  );
   const selectPlan = (code: string) => {
     if (typeof window !== 'undefined') {
-      sessionStorage.setItem('_selected_plan', code);
+      try { sessionStorage.setItem('_selected_plan', code); } catch { /* sin storage */ }
     }
     open();
   };
@@ -88,15 +107,21 @@ export default function PricingSection() {
               mb: 2.5,
               letterSpacing: '-0.03em',
               lineHeight: 1.05,
-              maxWidth: 820,
+              maxWidth: 880,
               mx: 'auto',
             }}
           >
-            {headline.split('se adapta')[0]}
-            <Box component="span" sx={{ fontStyle: 'italic', color: palette.coral, fontWeight: 600 }}>
-              se adapta
-            </Box>
-            {headline.split('se adapta')[1]}
+            {rest.length ? (
+              <>
+                {before}
+                <Box component="span" sx={{ fontStyle: 'italic', color: palette.coral, fontWeight: 600 }}>
+                  {accent}
+                </Box>
+                {after}
+              </>
+            ) : (
+              headline
+            )}
           </Typography>
         </AnimatedSection>
 
@@ -104,9 +129,9 @@ export default function PricingSection() {
           <Typography
             sx={{
               textAlign: 'center',
-              maxWidth: 620,
+              maxWidth: 660,
               mx: 'auto',
-              mb: { xs: 5, md: 7 },
+              mb: { xs: 6, md: 8 },
               color: palette.inkSoft,
               fontSize: { xs: '1rem', md: '1.1rem' },
               lineHeight: 1.6,
@@ -116,25 +141,69 @@ export default function PricingSection() {
           </Typography>
         </AnimatedSection>
 
+        {!country && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.25, mt: { xs: -3, md: -4.5 }, mb: { xs: 5, md: 6 } }}>
+            <Box
+              role="group"
+              aria-label="Moneda de los precios"
+              sx={{ display: 'inline-flex', p: '3px', border: `1.5px solid ${palette.ink}`, borderRadius: 999, bgcolor: palette.paper }}
+            >
+              {(['ARS', 'USD'] as const).map((c) => {
+                const active = currency === c;
+                return (
+                  <Box
+                    key={c}
+                    component="button"
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setCurrency(c)}
+                    sx={{
+                      border: 0, cursor: 'pointer', borderRadius: 999, px: 2.25, py: 0.75, minWidth: 64,
+                      fontFamily: 'var(--font-mono), monospace', fontSize: '0.78rem', letterSpacing: '0.12em', fontWeight: 600,
+                      bgcolor: active ? palette.ink : 'transparent', color: active ? palette.paper : palette.ink,
+                      transition: 'background-color 160ms ease, color 160ms ease',
+                    }}
+                  >
+                    {c}
+                  </Box>
+                );
+              })}
+            </Box>
+            <Typography sx={{ fontSize: '0.8rem', color: palette.inkMute, textAlign: 'center', maxWidth: 420, minHeight: '1.2em' }}>
+              {inUsd
+                ? `Referencia en dólares (US$ 1 = $ ${formatPrice(USD_DISPLAY_RATE)}). Se cobra en la moneda de tu país.`
+                : 'Precios en pesos argentinos. ¿Estás en otro país? Miralos en dólares.'}
+            </Typography>
+          </Box>
+        )}
+
         <Box
           sx={{
             display: 'grid',
-            gap: { xs: 2.5, md: 3 },
+            gap: { xs: 3.5, md: 3 },
             gridTemplateColumns: {
               xs: '1fr',
-              sm: 'repeat(2, 1fr)',
-              lg: 'repeat(4, 1fr)',
+              sm: 'repeat(2, minmax(0, 1fr))',
+              lg: 'repeat(4, minmax(0, 1fr))',
             },
             alignItems: 'stretch',
+            maxWidth: { xs: 440, sm: 'none' },
+            mx: 'auto',
           }}
         >
-          {pricingContent.plans.map((plan) => {
+          {pricingContent.plans.map((plan, index) => {
             const highlighted = plan.highlighted;
-            const local = country
-              ? priceParts(countryPrices[plan.code] ?? estimateFromArs(plan.price, country.currency), country.currency)
-              : null;
+            const isFree = plan.price === 0;
+            const planCopy = copy?.plans[plan.code];
+            const tagline = planCopy?.tagline ?? plan.tagline;
+            const planFeatures = planCopy?.features ?? plan.features;
+            const local = priceCurrency ? priceParts(localPrice(plan), priceCurrency) : null;
+            const note = isFree
+              ? copy?.freeNote ?? pricingContent.freeNote
+              : inUsd ? 'Referencia en dólares. Se cobra en la moneda de tu país.' : copy?.paidNote ?? pricingContent.paidNote;
+            const muted = highlighted ? 'rgba(244,239,230,0.68)' : palette.inkSoft;
             return (
-              <AnimatedSection key={plan.code}>
+              <AnimatedSection key={plan.code} delay={index * 0.06}>
                 <Box
                   sx={{
                     position: 'relative',
@@ -145,12 +214,9 @@ export default function PricingSection() {
                     color: highlighted ? palette.paper : palette.ink,
                     border: highlighted ? `2.5px solid ${palette.ink}` : `1.5px solid ${palette.ink}`,
                     borderRadius: 2,
-                    boxShadow: highlighted
-                      ? `8px 8px 0 ${palette.coral}`
-                      : `4px 4px 0 ${palette.ink}`,
-                    p: { xs: 3, md: 3.5 },
-                    transform: highlighted ? { md: 'translateY(-12px)' } : 'none',
-                    transition: 'transform 200ms ease, box-shadow 200ms ease',
+                    boxShadow: highlighted ? `8px 8px 0 ${palette.coral}` : `4px 4px 0 ${palette.ink}`,
+                    p: { xs: 3, md: 3 },
+                    transform: highlighted ? { lg: 'translateY(-12px)' } : 'none',
                   }}
                 >
                   {plan.badge && (
@@ -160,7 +226,7 @@ export default function PricingSection() {
                         top: -14,
                         left: '50%',
                         transform: 'translateX(-50%)',
-                        bgcolor: highlighted ? palette.amber : palette.coral,
+                        bgcolor: palette.amber,
                         color: palette.ink,
                         border: `1.5px solid ${palette.ink}`,
                         borderRadius: 999,
@@ -178,71 +244,66 @@ export default function PricingSection() {
                     </Box>
                   )}
 
-                  {/* Header */}
+                  {/* Header: número de plan + nombre + bajada */}
                   <Box sx={{ mb: 2.5 }}>
                     <Box
                       sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1,
                         mb: 1,
                         fontFamily: 'var(--font-mono), monospace',
                         fontSize: '0.66rem',
                         letterSpacing: '0.16em',
                         textTransform: 'uppercase',
-                        color: highlighted ? palette.amber : palette.inkSoft,
+                        color: highlighted ? palette.amber : palette.inkMute,
                       }}
                     >
-                      <span>{plan.commitment}</span>
-                      {plan.discount && (
-                        <Box
-                          component="span"
-                          sx={{
-                            px: 0.8,
-                            py: 0.2,
-                            border: `1px solid ${highlighted ? palette.amber : palette.coral}`,
-                            borderRadius: 999,
-                            color: highlighted ? palette.amber : palette.coral,
-                            fontWeight: 700,
-                          }}
-                        >
-                          {plan.discount}
-                        </Box>
-                      )}
+                      Plan 0{index + 1}
                     </Box>
                     <Typography
-                      variant="h4"
+                      variant="h3"
                       sx={{
-                        fontSize: { xs: '1.4rem', md: '1.55rem' },
+                        fontSize: { xs: '1.6rem', md: '1.7rem' },
                         fontWeight: 600,
                         color: highlighted ? palette.paper : palette.ink,
                         letterSpacing: '-0.02em',
+                        lineHeight: 1.1,
+                        mb: 0.8,
                       }}
                     >
                       {plan.name}
                     </Typography>
+                    <Typography sx={{ fontSize: '0.92rem', lineHeight: 1.45, color: muted, minHeight: { lg: '2.7em' } }}>
+                      {tagline}
+                    </Typography>
                   </Box>
 
-                  {/* Price */}
-                  <Box sx={{ mb: 2.5 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-                      <Box
-                        component="span"
-                        sx={{
-                          fontFamily: 'var(--font-fraunces), serif',
-                          fontSize: '1.1rem',
-                          color: highlighted ? palette.amber : palette.inkSoft,
-                          mr: 0.3,
-                        }}
-                      >
-                        {local ? local.prefix : '$'}
-                      </Box>
+                  {/* Precio */}
+                  <Box
+                    sx={{
+                      mb: 2.5,
+                      pt: 2.2,
+                      borderTop: `1px dashed ${highlighted ? 'rgba(244,239,230,0.3)' : 'rgba(23,20,16,0.25)'}`,
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 0.5 }}>
+                      {(local ? local.prefix : '$') && (
+                        <Box
+                          component="span"
+                          sx={{
+                            fontFamily: 'var(--font-fraunces), serif',
+                            fontSize: '1.1rem',
+                            color: highlighted ? palette.amber : palette.inkSoft,
+                            mr: 0.2,
+                          }}
+                        >
+                          {local ? local.prefix : '$'}
+                        </Box>
+                      )}
                       <Box
                         component="span"
                         sx={{
                           fontFamily: 'var(--font-fraunces), serif',
                           fontWeight: 600,
-                          fontSize: { xs: '2.6rem', md: '3rem' },
+                          fontSize: { xs: '2.8rem', lg: '2.6rem' },
                           lineHeight: 1,
                           letterSpacing: '-0.04em',
                           color: highlighted ? palette.paper : palette.ink,
@@ -256,25 +317,27 @@ export default function PricingSection() {
                           fontFamily: 'var(--font-mono), monospace',
                           fontSize: '0.78rem',
                           letterSpacing: '0.08em',
-                          color: highlighted ? 'rgba(244,239,230,0.7)' : palette.inkSoft,
-                          ml: 0.5,
+                          color: muted,
+                          ml: 0.4,
                         }}
                       >
-                        {local ? `${local.suffix ? `${local.suffix} ` : ''}${copy?.perMonth ?? '/ mes'}` : '/ mes'}
+                        {local?.suffix ? `${local.suffix} ` : ''}
+                        {copy?.perMonth ?? '/ mes'}
                       </Box>
                     </Box>
                     <Typography
                       sx={{
                         mt: 1,
-                        fontSize: '0.82rem',
-                        color: highlighted ? 'rgba(244,239,230,0.65)' : palette.inkSoft,
+                        fontSize: '0.8rem',
+                        fontWeight: isFree ? 600 : 400,
+                        color: isFree ? (highlighted ? palette.amber : palette.forest) : muted,
                       }}
                     >
-                      {copy ? copy.trial(plan.trialDays) : <>{plan.trialDays} días de prueba gratis</>}
+                      {note}
                     </Typography>
                   </Box>
 
-                  {/* CTA */}
+                  {/* CTA: todos se registran gratis; el plan elegido viaja como pista (_selected_plan). */}
                   <Button
                     variant="contained"
                     onClick={() => selectPlan(plan.code)}
@@ -283,49 +346,52 @@ export default function PricingSection() {
                       py: 1.3,
                       fontSize: '0.95rem',
                       fontWeight: 700,
-                      bgcolor: highlighted ? palette.amber : palette.forest,
-                      color: highlighted ? palette.ink : palette.paperSoft,
-                      borderColor: highlighted ? palette.paper : palette.ink,
-                      boxShadow: highlighted
-                        ? `3px 3px 0 ${palette.paper}`
-                        : `3px 3px 0 ${palette.ink}`,
+                      bgcolor: highlighted ? palette.amber : isFree ? palette.forest : palette.paperSoft,
+                      color: highlighted ? palette.ink : isFree ? palette.paperSoft : palette.ink,
+                      border: `1.5px solid ${highlighted ? palette.paper : palette.ink}`,
+                      boxShadow: highlighted ? `3px 3px 0 ${palette.paper}` : `3px 3px 0 ${palette.ink}`,
                       '&:hover': {
-                        bgcolor: highlighted ? palette.coral : palette.forestDeep,
+                        bgcolor: highlighted ? palette.coral : isFree ? palette.forestDeep : palette.ink,
                         color: palette.paperSoft,
                       },
                     }}
                   >
-                    {copy?.cta ?? plan.cta}
+                    {plan.cta}
                     <Box component="span" sx={{ ml: 1 }} aria-hidden>
                       →
                     </Box>
                   </Button>
 
-                  {/* Features */}
-                  <Stack spacing={1.2} sx={{ mt: 'auto' }}>
-                    {features.map((f) => (
-                      <Box
-                        key={f}
-                        sx={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: 1,
-                          fontSize: '0.92rem',
-                          color: highlighted ? 'rgba(244,239,230,0.85)' : palette.ink,
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        <CheckRoundedIcon
+                  {/* Qué incluye */}
+                  <Stack component="ul" spacing={1.2} sx={{ m: 0, p: 0, listStyle: 'none' }}>
+                    {planFeatures.map((f, i) => {
+                      const lead = i === 0 && f.startsWith('Todo lo del');
+                      return (
+                        <Box
+                          component="li"
+                          key={f}
                           sx={{
-                            fontSize: '1.05rem',
-                            mt: '2px',
-                            color: highlighted ? palette.amber : palette.forest,
-                            flexShrink: 0,
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 1,
+                            fontSize: '0.92rem',
+                            fontWeight: lead ? 600 : 400,
+                            color: highlighted ? 'rgba(244,239,230,0.88)' : palette.ink,
+                            lineHeight: 1.4,
                           }}
-                        />
-                        <span>{f}</span>
-                      </Box>
-                    ))}
+                        >
+                          <CheckRoundedIcon
+                            sx={{
+                              fontSize: '1.05rem',
+                              mt: '2px',
+                              color: highlighted ? palette.amber : palette.forest,
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span>{f}</span>
+                        </Box>
+                      );
+                    })}
                   </Stack>
                 </Box>
               </AnimatedSection>
@@ -337,7 +403,26 @@ export default function PricingSection() {
           <Typography
             sx={{
               textAlign: 'center',
-              mt: { xs: 5, md: 6 },
+              maxWidth: 640,
+              mx: 'auto',
+              mt: { xs: 5, md: 7 },
+              fontSize: '0.88rem',
+              lineHeight: 1.6,
+              color: palette.inkSoft,
+            }}
+          >
+            <Box component="span" sx={{ color: palette.coral, fontWeight: 700, mr: 0.5 }} aria-hidden>
+              *
+            </Box>
+            {copy?.commissionNote ?? pricingContent.commissionNote}
+          </Typography>
+        </AnimatedSection>
+
+        <AnimatedSection>
+          <Typography
+            sx={{
+              textAlign: 'center',
+              mt: 2,
               fontFamily: 'var(--font-mono), monospace',
               fontSize: '0.72rem',
               letterSpacing: '0.14em',
@@ -348,6 +433,14 @@ export default function PricingSection() {
             {copy?.microcopy ?? pricingContent.microcopy}
           </Typography>
         </AnimatedSection>
+
+        <PlanComparison
+          copy={copy?.comparison ?? pricingContent.comparison}
+          plans={pricingContent.plans}
+          prices={tablePrices}
+          perMonth={copy?.perMonth ?? '/ mes'}
+          onSelect={selectPlan}
+        />
       </Container>
     </Box>
   );

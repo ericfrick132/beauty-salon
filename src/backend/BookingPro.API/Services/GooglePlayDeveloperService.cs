@@ -226,7 +226,8 @@ namespace BookingPro.API.Services
 
         public static readonly BasePlan[] BasePlans =
         {
-            new("mensual", "pro", 1),
+            // El mensual es el Pro de freemium; los de permanencia ya no se venden pero renuevan a quien los tiene.
+            new("mensual", BookingPro.API.Models.Constants.PlanCatalog.Pro, 1),
             new("trimestral", "promo", 3),
             new("semestral", "6meses", 6),
             new("anual", "12meses", 12),

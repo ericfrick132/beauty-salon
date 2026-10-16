@@ -105,6 +105,14 @@ namespace BookingPro.API.Models.Entities
         /// </summary>
         public Guid? SubscriptionPlanId { get; set; }
 
+        /// <summary>Píxel de Meta del negocio para su página de reservas (plan Pro).</summary>
+        [MaxLength(30)]
+        public string? MetaPixelId { get; set; }
+
+        /// <summary>ID de Google Analytics 4 (G-XXXXXXX) del negocio para su página de reservas (plan Pro).</summary>
+        [MaxLength(30)]
+        public string? GoogleAnalyticsId { get; set; }
+
         [MaxLength(255)]
         public string? CustomDomain { get; set; }
         

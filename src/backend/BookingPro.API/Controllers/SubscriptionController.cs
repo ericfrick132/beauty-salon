@@ -21,12 +21,15 @@ namespace BookingPro.API.Controllers
         private readonly ISubscriptionService _subscriptionService;
         private readonly ILogger<SubscriptionController> _logger;
         private readonly ApplicationDbContext _context;
+        private readonly IPlanEntitlementService _plans;
 
         public SubscriptionController(
             ISubscriptionService subscriptionService,
             ILogger<SubscriptionController> logger,
-            ApplicationDbContext context)
+            ApplicationDbContext context,
+            IPlanEntitlementService plans)
         {
+            _plans = plans;
             _subscriptionService = subscriptionService;
             _logger = logger;
             _context = context;
@@ -181,6 +184,16 @@ namespace BookingPro.API.Controllers
                 _logger.LogError(ex, "Error initializing trial subscription");
                 return StatusCode(500, new { error = "Error al inicializar período de prueba" });
             }
+        }
+
+        /// <summary>Plan efectivo y cuánto usó de cada límite (reservas del mes, agendas, servicios).</summary>
+        [HttpGet("usage")]
+        [Authorize]
+        public async Task<IActionResult> GetUsage()
+        {
+            if (!Guid.TryParse(GetTenantId(), out var tenantId))
+                return BadRequest(new { error = "Invalid tenant ID" });
+            return Ok(await _plans.GetUsageAsync(tenantId));
         }
 
         [HttpGet("status")]

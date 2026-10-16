@@ -1,6 +1,7 @@
 /**
  * Embudo de alta en Microsoft Clarity + GA4 (Lead → CompleteRegistration + StartTrial al crear la
- * cuenta, que ya arranca con la prueba activa → AddPaymentInfo cuando deja la tarjeta).
+ * cuenta, que arranca en el plan Gratuito → AddPaymentInfo cuando se pasa a un plan pago). StartTrial
+ * conserva el nombre aunque ya no haya prueba: las campañas optimizan sobre él.
  *
  * Clarity y GA4 se cargan desde public/index.html SOLO en el dominio principal y en rutas
  * públicas (ver isPublicAnalyticsPath, que tiene que coincidir con la lista del index.html).
@@ -61,8 +62,8 @@ export function stopAnalyticsIfPrivate(pathname: string): void {
 }
 
 /**
- * AddPaymentInfo desde el subdominio del negocio: cuando Mercado Pago autoriza la tarjeta
- * (/subscription/success?flow=trial). Ahí no se carga Clarity ni GA4 como página; solo mandamos
+ * AddPaymentInfo desde el subdominio del negocio: cuando Mercado Pago autoriza el débito de un plan pago
+ * (/subscription/success?flow=preapproval). Ahí no se carga Clarity ni GA4 como página; solo mandamos
  * este evento suelto a GA4 (send_page_view: false, sin URL de la página
  * más allá del path de éxito) para cerrar el embudo. La cookie _ga es de .turnos-pro.com, así que
  * el evento se une al mismo usuario que hizo el alta en el apex.

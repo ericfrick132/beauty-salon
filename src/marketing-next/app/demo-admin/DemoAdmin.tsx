@@ -271,7 +271,7 @@ export default function DemoAdmin() {
   }, []);
 
   const locked = (label: string) =>
-    toast(`«${label}» ya está en tu cuenta real. Probá TurnosPro 7 días gratis y lo usás con tu negocio.`, { cta: true });
+    toast(`«${label}» ya está en tu cuenta real. Empezá gratis con TurnosPro y lo usás con tu negocio.`, { cta: true });
 
   const register = useCallback(() => openSignup(), [openSignup]);
 
@@ -420,7 +420,7 @@ export default function DemoAdmin() {
             onClick={register}
             sx={{ border: '1.5px solid #171410', bgcolor: '#171410', color: '#F4C038', borderRadius: 999, px: 1.5, py: 0.25, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit', '&:hover': { bgcolor: 'transparent', color: '#171410' } }}
           >
-            Probalo gratis →
+            Usalo gratis →
           </Box>
         </Box>
 
@@ -549,7 +549,7 @@ export default function DemoAdmin() {
               <Box sx={{ flex: 1 }}>{t.msg}</Box>
               {t.cta && (
                 <Button size="small" variant="contained" onClick={register} sx={{ bgcolor: ui.accent, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                  Probar gratis
+                  Empezar gratis
                 </Button>
               )}
             </Box>
@@ -568,7 +568,7 @@ export default function DemoAdmin() {
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
               <Typography sx={{ color: '#fff', fontWeight: 600, display: { xs: 'none', sm: 'block' } }}>¿Te imaginás tu negocio acá?</Typography>
               <Button size="small" variant="contained" onClick={register} sx={{ bgcolor: '#F4C038', color: '#171410', '&:hover': { bgcolor: '#f7cf5f' } }}>
-                Empezar gratis 7 días →
+                Empezar gratis →
               </Button>
               <IconButton size="small" onClick={() => setCtaCollapsed(false)} sx={{ color: '#fff' }} aria-label="Expandir"><ExpandLess /></IconButton>
             </Box>
@@ -579,12 +579,12 @@ export default function DemoAdmin() {
                 Así vas a manejar tu agenda, tus cobros y tu WhatsApp
               </Typography>
               <Typography sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem', display: { xs: 'none', md: 'block' }, mt: 0.5 }}>
-                Tu sitio de reservas listo en 15 minutos. Probá 7 días gratis.
+                Tu sitio de reservas listo en 15 minutos. Gratis para siempre, sin tarjeta.
               </Typography>
               <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: { xs: 1, md: 2 }, mt: { xs: 1, md: 1.5 } }}>
                 <Button variant="contained" onClick={register} endIcon={<ArrowForward />} sx={{ bgcolor: '#F4C038', color: '#171410', fontWeight: 700, px: { xs: 1.5, md: 3 }, fontSize: { xs: '0.85rem', md: '0.95rem' }, whiteSpace: 'nowrap', '&:hover': { bgcolor: '#f7cf5f' } }}>
-                  <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Empezar gratis 7 días</Box>
-                  <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Probar gratis</Box>
+                  <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Empezar gratis</Box>
+                  <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Usar gratis</Box>
                 </Button>
                 <Button variant="outlined" href="/demo-app" startIcon={<PhoneIphone />} sx={{ color: '#fff', borderColor: 'rgba(255,255,255,0.4)', px: { xs: 1.5, md: 2.5 }, fontSize: { xs: '0.85rem', md: '0.95rem' }, whiteSpace: 'nowrap', '&:hover': { borderColor: '#fff', backgroundColor: 'rgba(255,255,255,0.08)' } }}>
                   <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Ver lo que ve tu cliente</Box>

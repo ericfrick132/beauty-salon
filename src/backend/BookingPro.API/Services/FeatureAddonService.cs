@@ -16,13 +16,19 @@ namespace BookingPro.API.Services
         private readonly IConfiguration _configuration;
         private readonly ILogger<FeatureAddonService> _logger;
         private readonly IPlatformPaymentConnectionService _platformConnections;
+        private readonly IPlanEntitlementService _plans;
+
+        /// <summary>Source de un add-on que viene incluido en el plan del negocio (no se compra aparte).</summary>
+        public const string PlanSource = "plan";
 
         public FeatureAddonService(
             ApplicationDbContext context,
             IConfiguration configuration,
             ILogger<FeatureAddonService> logger,
-            IPlatformPaymentConnectionService platformConnections)
+            IPlatformPaymentConnectionService platformConnections,
+            IPlanEntitlementService plans)
         {
+            _plans = plans;
             _context = context;
             _configuration = configuration;
             _logger = logger;
@@ -130,6 +136,8 @@ namespace BookingPro.API.Services
 
         public async Task<bool> HasActiveAddonAsync(Guid tenantId, string code)
         {
+            if (await _plans.PlanIncludesAddonAsync(tenantId, code)) return true;
+
             var now = DateTime.UtcNow;
             return await _context.TenantFeatureAddons
                 .IgnoreQueryFilters()
@@ -162,9 +170,15 @@ namespace BookingPro.API.Services
                     .Select(p => p.AddonCode)
                     .ToListAsync();
 
+                var includedByPlan = new HashSet<string>();
+                foreach (var a in addons)
+                    if (await _plans.PlanIncludesAddonAsync(tenantId, a.Code)) includedByPlan.Add(a.Code);
+
                 var result = addons.Select(a =>
                 {
                     var owned = tenantAddons.FirstOrDefault(t => t.AddonCode == a.Code);
+                    var bought = owned != null && owned.Status == "active" && owned.PaidUntil > now;
+                    var included = includedByPlan.Contains(a.Code);
                     return new FeatureAddonStatusDto
                     {
                         Code = a.Code,
@@ -172,11 +186,12 @@ namespace BookingPro.API.Services
                         Description = a.Description,
                         MonthlyPrice = a.MonthlyPrice,
                         Currency = a.Currency,
-                        Active = owned != null && owned.Status == "active" && owned.PaidUntil > now,
+                        Active = bought || included,
                         PaidUntil = owned?.PaidUntil,
                         HasPendingPurchase = pendingPurchases.Contains(a.Code),
-                        Source = owned?.Source,
-                        IsTrial = owned?.Source == TrialSource
+                        // Incluido en el plan pisa a la compra: el panel no le ofrece pagar algo que ya tiene.
+                        Source = included ? PlanSource : owned?.Source,
+                        IsTrial = !included && owned?.Source == TrialSource
                     };
                 }).ToList();
 

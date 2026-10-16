@@ -28,7 +28,14 @@ namespace BookingPro.API.Models.DTOs
 
     public class SubscriptionStatusDto
     {
+        /// <summary>
+        /// Puede usar el sistema. Freemium: siempre true (sin plan pago está en Gratuito); se mantiene para las
+        /// apps y versiones del panel que bloqueaban con false. Para saber si paga, usar IsPaid.
+        /// </summary>
         public bool IsActive { get; set; }
+
+        /// <summary>Tiene un plan pago vigente (MP, Stripe, Apple, Google Play o pago manual). False = Gratuito.</summary>
+        public bool IsPaid { get; set; }
         public string PlanType { get; set; } = string.Empty;
         public string PlanName { get; set; } = string.Empty;
         public DateTime? ExpiresAt { get; set; }
@@ -84,6 +91,43 @@ namespace BookingPro.API.Models.DTOs
         public bool AllowWhatsApp { get; set; }
         public int WhatsAppMonthlyLimit { get; set; }
         public decimal WhatsAppExtraMessageCost { get; set; }
+
+        // Freemium
+        public decimal CommissionPercent { get; set; }
+        public int MaxServicesPerStaff { get; set; }
+        public bool AllowReminders { get; set; }
+        public int MaxRecurringBookings { get; set; }
+        public int MaxCustomFields { get; set; }
+        public bool AllowCoupons { get; set; }
+        public bool AllowTransferDetection { get; set; }
+        public bool AllowCustomerHistory { get; set; }
+        public bool AllowTrackingPixels { get; set; }
+
+        public static PlanFeaturesDto From(BookingPro.API.Models.Entities.SubscriptionPlan plan) => new()
+        {
+            MaxBookingsPerMonth = plan.MaxBookingsPerMonth,
+            MaxServices = plan.MaxServices,
+            MaxStaff = plan.MaxStaff,
+            MaxCustomers = plan.MaxCustomers,
+            AllowOnlinePayments = plan.AllowOnlinePayments,
+            AllowCustomBranding = plan.AllowCustomBranding,
+            AllowSmsNotifications = plan.AllowSmsNotifications,
+            AllowEmailMarketing = plan.AllowEmailMarketing,
+            AllowReports = plan.AllowReports,
+            AllowMultiLocation = plan.AllowMultiLocation,
+            AllowWhatsApp = plan.AllowWhatsApp,
+            WhatsAppMonthlyLimit = plan.WhatsAppMonthlyLimit,
+            WhatsAppExtraMessageCost = plan.WhatsAppExtraMessageCost,
+            CommissionPercent = plan.CommissionPercent,
+            MaxServicesPerStaff = plan.MaxServicesPerStaff,
+            AllowReminders = plan.AllowReminders,
+            MaxRecurringBookings = plan.MaxRecurringBookings,
+            MaxCustomFields = plan.MaxCustomFields,
+            AllowCoupons = plan.AllowCoupons,
+            AllowTransferDetection = plan.AllowTransferDetection,
+            AllowCustomerHistory = plan.AllowCustomerHistory,
+            AllowTrackingPixels = plan.AllowTrackingPixels,
+        };
     }
 
     public class SubscriptionPlanDto
@@ -108,6 +152,10 @@ namespace BookingPro.API.Models.DTOs
         public decimal WhatsAppExtraMessageCost { get; set; }
         public bool IsPopular { get; set; }
         public int TrialDays { get; set; }
+        public string? Tagline { get; set; }
+        public int DisplayOrder { get; set; }
+        /// <summary>Todos los límites y features del plan (comisión, WhatsApp, recurrentes, cupones…).</summary>
+        public PlanFeaturesDto? Features { get; set; }
     }
 
     public class SubscriptionWebhookDto

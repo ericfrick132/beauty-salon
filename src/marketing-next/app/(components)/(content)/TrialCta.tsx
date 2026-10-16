@@ -11,10 +11,10 @@ interface Props {
   secondaryLabel?: string;
 }
 
-/** CTA de prueba gratis: abre el mismo SignupModal que usa la home. */
+/** CTA de alta gratis (plan gratuito): abre el mismo SignupModal que usa la home. */
 export default function TrialCta({
   label = 'Empezar gratis',
-  microcopy = 'Sin tarjeta · Sin permanencia · Listo en 15 minutos',
+  microcopy = 'Gratis para siempre · Sin tarjeta · Listo en 15 minutos',
   align = 'left',
   secondaryHref,
   secondaryLabel,

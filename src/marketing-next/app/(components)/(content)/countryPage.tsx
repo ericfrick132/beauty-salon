@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import { brand } from '@/app/(lib)/brand';
 import { countryAlternates } from '@/app/(lib)/seo';
-import { breadcrumbSchema, faqSchema } from '@/app/(lib)/schema';
-import { MARKET_COUNTRIES, type MarketCountryCode } from '@/app/(lib)/countries';
+import { breadcrumbSchema, faqSchema, planOffers } from '@/app/(lib)/schema';
+import { MARKET_COUNTRIES, estimateFromArs, type MarketCountryCode } from '@/app/(lib)/countries';
 import CountryLanding from './CountryLanding';
 
 /** Metadata de /uy, /mx y /es: canonical propio + hreflang recíproco con la home de Argentina. */
@@ -40,11 +40,15 @@ export default function CountryPage({ code }: { code: MarketCountryCode }) {
       operatingSystem: 'Web',
       inLanguage: c.hreflang,
       areaServed: c.name,
-      offers: { '@type': 'Offer', price: '0', priceCurrency: c.currency },
+      offers: planOffers(
+        c.currency,
+        (ars) => estimateFromArs(ars, c.currency),
+        (code) => c.copy.pricing.plans[code as keyof typeof c.copy.pricing.plans]?.tagline,
+      ),
       url: `${brand.brand_domain}${c.path}`,
-      featureList: c.copy.pricing.features,
+      featureList: Array.from(new Set(Object.values(c.copy.pricing.plans).flatMap((p) => p.features))),
     },
-    faqSchema(c.faqs),
+    faqSchema([...c.faqs, ...c.copy.pricing.comparison.faqs]),
   ];
 
   return (

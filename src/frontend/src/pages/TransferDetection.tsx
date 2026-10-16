@@ -47,6 +47,8 @@ import {
   IncomingPaymentHistoryItem,
   PayerCustomerMapping,
 } from '../services/api';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import { firstPlanWith, formatPlanPrice, PLAN_ADVANCE, usePlans } from '../utils/plans';
 
 const ADDON_CODE = 'transfer_detection';
 
@@ -108,6 +110,13 @@ const TransferDetection: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [addon, setAddon] = useState<FeatureAddonStatus | null>(null);
+  // Freemium: viene incluida desde Advance (source "plan"); sin vencimiento ni renovación.
+  const { subscription } = useSubscription();
+  const { plans } = usePlans();
+  const includedInPlan = addon?.source === 'plan';
+  const planWith = firstPlanWith(plans, (f) => f.allowTransferDetection);
+  const planWithCode = planWith?.code ?? PLAN_ADVANCE;
+  const planWithName = planWith?.name ?? 'Advance';
   const [status, setStatus] = useState<TransferDetectionStatus | null>(null);
   const [pending, setPending] = useState<PendingIncomingPayment[]>([]);
   const [history, setHistory] = useState<IncomingPaymentHistoryItem[]>([]);
@@ -273,14 +282,23 @@ const TransferDetection: React.FC = () => {
               <Grid item xs={12} md={5}>
                 <Card sx={{ bgcolor: 'grey.50' }}>
                   <CardContent>
-                    <Typography variant="h4" fontWeight={800}>
-                      {addon ? money(addon.monthlyPrice) : '—'} <Typography component="span" color="text.secondary">/ mes</Typography>
+                    <Chip label="Nuevo" size="small" color="warning" sx={{ fontWeight: 700, mb: 1 }} />
+                    <Typography variant="h5" fontWeight={800}>
+                      Incluida en {planWithName}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Se paga por mes adelantado con Mercado Pago. Sin permanencia.</Typography>
-                    {addon?.hasPendingPurchase && <Alert severity="info" sx={{ mt: 2 }}>Tenés un pago pendiente de acreditar en Mercado Pago.</Alert>}
-                    <Button variant="contained" fullWidth sx={{ mt: 2 }} disabled={purchasing || !addon || !status?.mercadoPagoConnected} onClick={handleBuy}>
-                      {purchasing ? 'Generando link…' : 'Activar con Mercado Pago'}
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      {planWith ? `Desde ${formatPlanPrice(planWith)}/mes, con reservas y agendas ilimitadas y 1% de comisión por cobro.` : 'Viene con los planes Advance y Pro.'}
+                    </Typography>
+                    <Button variant="contained" fullWidth sx={{ mt: 2 }} onClick={() => navigate(`/subscription/plans?highlight=${planWithCode}`)}>
+                      Pasarme a {planWithName}
                     </Button>
+                    {addon && addon.monthlyPrice > 0 && (
+                      <Button size="small" fullWidth color="inherit" sx={{ mt: 1, textTransform: 'none', color: 'text.secondary' }}
+                        disabled={purchasing || !status?.mercadoPagoConnected} onClick={handleBuy}>
+                        {purchasing ? 'Generando link…' : `O activá solo esta función por ${money(addon.monthlyPrice)}/mes`}
+                      </Button>
+                    )}
+                    {addon?.hasPendingPurchase && <Alert severity="info" sx={{ mt: 2 }}>Tenés un pago pendiente de acreditar en Mercado Pago.</Alert>}
                     {!status?.mercadoPagoConnected && (
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
                         Primero conectá tu cuenta de Mercado Pago: sin eso no podemos leer tus transferencias.
@@ -297,7 +315,9 @@ const TransferDetection: React.FC = () => {
           <Card variant="outlined" sx={{ mb: 2 }}>
             <CardContent sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
-                <Chip color="success" size="small" label={`Activo hasta ${addon?.paidUntil ? new Date(addon.paidUntil).toLocaleDateString('es-AR') : '—'}`} />
+                <Chip color="success" size="small" label={includedInPlan
+                  ? `Incluido en tu plan ${subscription?.planName ?? ''}`.trim()
+                  : `Activo hasta ${addon?.paidUntil ? new Date(addon.paidUntil).toLocaleDateString('es-AR') : '—'}`} />
                 <Chip size="small" color={status?.mercadoPagoConnected ? 'success' : 'warning'} label={status?.mercadoPagoConnected ? 'Mercado Pago conectado' : 'Mercado Pago sin conectar'} />
                 <Chip size="small" color={status?.whatsAppConnected ? 'success' : 'default'} label={status?.whatsAppConnected ? 'Confirma por WhatsApp' : 'WhatsApp sin conectar'} />
                 {status?.lastRunAt && <Typography variant="caption" color="text.secondary">Última revisión {fmtDateTime(status.lastRunAt)}</Typography>}
@@ -307,7 +327,7 @@ const TransferDetection: React.FC = () => {
                 <Button variant="outlined" startIcon={<RefreshIcon />} disabled={running || !status?.mercadoPagoConnected} onClick={handleRun}>
                   {running ? 'Revisando…' : 'Revisar ahora'}
                 </Button>
-                <Button variant="text" onClick={handleBuy} disabled={purchasing}>Renovar</Button>
+                {!includedInPlan && <Button variant="text" onClick={handleBuy} disabled={purchasing}>Renovar</Button>}
               </Box>
             </CardContent>
           </Card>

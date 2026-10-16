@@ -175,17 +175,6 @@ const RegisterCode: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
-  // Trial:RequireCard del backend. Arranca en false (el default): si la consulta falla, los textos
-  // dicen "sin tarjeta", que es la regla vigente.
-  const [requireCard, setRequireCard] = useState(false);
-
-  useEffect(() => {
-    registrationApi
-      .trialConfig()
-      .then((cfg) => setRequireCard(!!cfg?.requireCard))
-      .catch(() => {});
-  }, []);
-
   // Con ?s= resolvemos la transacción: email para mostrar y si la cuenta ya existía.
   useEffect(() => {
     if (!stateParam) return;
@@ -226,7 +215,6 @@ const RegisterCode: React.FC = () => {
   // Tú para México/España (por la landing o el código del teléfono); voseo para el resto, como siempre.
   const businessCountry = countryFromPhone(`${dial} 1`)?.code || countryParam || undefined;
   const w = getWording(businessCountry);
-  const billsWithStripe = getCountry(businessCountry).platformBilling === 'stripe';
   const slug = useMemo(() => slugify(businessName) || 'tunegocio', [businessName]);
 
   const formValid = businessName.trim().length >= 2 && emailValid(email.trim()) && phoneDigits.length >= 8;
@@ -286,8 +274,8 @@ const RegisterCode: React.FC = () => {
       if (!body?.success) throw new Error(body?.message || 'Código incorrecto.');
       if (!body.isExisting) {
         sendTrackingEvent('CompleteRegistration', { email: email.trim() });
-        // La cuenta nace con la prueba activa (sin tarjeta): StartTrial sale al crearla, solo a
-        // Clarity/GA4 (el backend ya manda StartTrial a Meta por CAPI).
+        // La cuenta nace en el plan Gratuito. El evento se sigue llamando StartTrial a propósito: las
+        // campañas optimizan sobre ese nombre. Solo a Clarity/GA4 (el backend ya lo manda a Meta por CAPI).
         trackFunnel('StartTrial');
       }
       if (body.redirectUrl) {
@@ -440,9 +428,7 @@ const RegisterCode: React.FC = () => {
             <Typography sx={finePrintSx}>
               {isExisting
                 ? w.t('Con el código entrás directo a tu panel.', 'Con el código entras directo a tu panel.')
-                : requireCard
-                  ? w.t(billsWithStripe ? 'Con el código entrás directo: activás los 7 días gratis dejando tu tarjeta (hoy no se cobra nada) y armás tu agenda.' : 'Con el código entrás directo: activás los 7 días gratis dejando tu tarjeta en Mercado Pago (hoy no se cobra nada) y armás tu agenda.', 'Con el código entras directo: activas los 7 días gratis dejando tu tarjeta (hoy no se cobra nada) y armas tu agenda.')
-                  : w.t('Con el código entrás directo a tu prueba de 7 días gratis, sin tarjeta, y armás tu agenda.', 'Con el código entras directo a tu prueba de 7 días gratis, sin tarjeta, y armas tu agenda.')}
+                : w.t('Con el código entrás directo y armás tu agenda. Gratis para siempre, sin tarjeta.', 'Con el código entras directo y armas tu agenda. Gratis para siempre, sin tarjeta.')}
             </Typography>
           </Box>
         </Box>
@@ -453,14 +439,12 @@ const RegisterCode: React.FC = () => {
   return (
     <AuthShell>
       <Box component={motion.div} {...item(0.2)} key="form-head" sx={{ mb: 3.5 }}>
-        <Typography sx={kickerSx}>Crear cuenta · 7 días gratis</Typography>
+        <Typography sx={kickerSx}>Crear cuenta gratis</Typography>
         <Typography component="h1" sx={titleSx}>
           {w.t('Empezá gratis con tu propia agenda', 'Empieza gratis con tu propia agenda')}
         </Typography>
         <Typography sx={subtitleSx}>
-          {requireCard
-            ? w.t(billsWithStripe ? 'Sin contraseña: te mandamos un código por email. Después activás 7 días gratis con tu tarjeta y el primer cobro es recién al terminar la prueba.' : 'Sin contraseña: te mandamos un código por email. Después activás 7 días gratis con tu tarjeta en Mercado Pago y el primer cobro es recién al terminar la prueba.', 'Sin contraseña: te enviamos un código por email. Después activas 7 días gratis con tu tarjeta y el primer cobro llega al terminar la prueba.')
-            : w.t('Sin contraseña: te mandamos un código por email y entrás directo. 7 días gratis, sin tarjeta.', 'Sin contraseña: te enviamos un código por email y entras directo. 7 días gratis, sin tarjeta.')}
+          {w.t('Sin contraseña: te mandamos un código por email y entrás directo. Gratis para siempre · Sin tarjeta.', 'Sin contraseña: te enviamos un código por email y entras directo. Gratis para siempre · Sin tarjeta.')}
         </Typography>
       </Box>
 
@@ -566,15 +550,13 @@ const RegisterCode: React.FC = () => {
 
         <Box component={motion.div} {...item(0.44)}>
           <PillCTA type="submit" disabled={!formValid || loading} loading={loading}>
-            Empezar gratis 7 días
+            Crear cuenta gratis
           </PillCTA>
         </Box>
 
         <Box component={motion.div} {...item(0.5)} sx={{ mt: 2 }}>
           <Typography sx={finePrintSx}>
-            {requireCard
-              ? w.t('Te mandamos un código de 6 dígitos a tu email para confirmar. Después activás la prueba con tu tarjeta (hoy no se cobra nada) y armás tu agenda: rubro, servicios y horarios.', 'Te enviamos un código de 6 dígitos a tu email para confirmar. Después activas la prueba con tu tarjeta (hoy no se cobra nada) y armas tu agenda: rubro, servicios y horarios.')
-              : w.t('Te mandamos un código de 6 dígitos a tu email para confirmar y armás tu agenda: rubro, servicios y horarios. No te pedimos tarjeta.', 'Te enviamos un código de 6 dígitos a tu email para confirmar y armas tu agenda: rubro, servicios y horarios. No te pedimos tarjeta.')}
+            {w.t('Te mandamos un código de 6 dígitos a tu email para confirmar y armás tu agenda: rubro, servicios y horarios. No te pedimos tarjeta.', 'Te enviamos un código de 6 dígitos a tu email para confirmar y armas tu agenda: rubro, servicios y horarios. No te pedimos tarjeta.')}
           </Typography>
         </Box>
 

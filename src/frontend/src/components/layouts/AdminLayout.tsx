@@ -68,6 +68,10 @@ import {
   VpnKey,
   SmartToy,
   DeleteForever,
+  LocalOffer,
+  DynamicForm,
+  Repeat,
+  Insights,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useAppDispatch, useAppSelector } from '../../store';
@@ -83,8 +87,8 @@ import {
 } from '../../utils/themeUtils';
 import ImpersonationBanner from '../common/ImpersonationBanner';
 import AddonTrialBanner from '../common/AddonTrialBanner';
-import TrialBanner from '../common/TrialBanner';
-import { useCardGate } from '../../hooks/useCardGate';
+import PlanUsageBanner from '../subscription/PlanUsageBanner';
+import PlanLimitDialog from '../subscription/PlanLimitDialog';
 import MercadoPagoIcon from '../icons/MercadoPagoIcon';
 import { isAdminLike } from '../../utils/permissions';
 import ChangePasswordDialog from '../auth/ChangePasswordDialog';
@@ -243,10 +247,6 @@ export const AdminLayout: React.FC = () => {
   const { config, getTerm } = useTenant();
   const user = useAppSelector(state => state.auth.user);
 
-  // Gate de la tarjeta (Trial:RequireCard): con true, durante la prueba sin preapproval autorizado
-  // el panel entero rebota a /empezar; con false, solo cuando la prueba venció sin tarjeta ni pago.
-  useCardGate();
-
   // If the tenant hasn't completed the post-register onboarding wizard, force-
   // redirect to /completar-perfil. We require `onboardingCompletedAt` to be
   // literally `null` (not `undefined`) so older backends that don't ship the
@@ -314,6 +314,7 @@ export const AdminLayout: React.FC = () => {
       children: [
         { text: 'Agenda', path: '/calendar', icon: <Schedule fontSize="small" /> },
         { text: 'Bloqueos', path: '/blocks', icon: <BlockIcon fontSize="small" />, adminOnly: true },
+        { text: 'Turnos fijos', path: '/recurring-bookings', icon: <Repeat fontSize="small" />, badge: 'Nuevo' },
       ],
     },
     {
@@ -322,6 +323,7 @@ export const AdminLayout: React.FC = () => {
       children: [
         { text: 'Clientes', path: '/customers', icon: <People fontSize="small" /> },
         { text: 'Servicios', path: '/services', icon: <ManageAccounts fontSize="small" /> },
+        { text: 'Cupones de descuento', path: '/coupons', icon: <LocalOffer fontSize="small" />, adminOnly: true, badge: 'Nuevo' },
         { text: 'Empleados', path: '/employees', icon: <Group fontSize="small" />, adminOnly: true },
       ],
     },
@@ -344,11 +346,13 @@ export const AdminLayout: React.FC = () => {
       icon: <Settings />,
       children: [
         { text: 'General', path: '/settings', icon: <Settings fontSize="small" />, adminOnly: true },
+        { text: 'Campos del formulario', path: '/booking-form-fields', icon: <DynamicForm fontSize="small" />, adminOnly: true, badge: 'Nuevo' },
         { text: 'Equipo', path: '/team', icon: <Group fontSize="small" />, adminOnly: true },
         { text: 'Suscripción', path: '/subscription', icon: <CreditCard fontSize="small" />, adminOnly: true },
         { text: 'Mensajería', path: '/messaging', icon: <WhatsApp fontSize="small" /> },
         { text: 'Asistente de WhatsApp', path: '/whatsapp-bot', icon: <WhatsApp fontSize="small" />, adminOnly: true, badge: 'Nuevo' },
         { text: 'Bot de Confirmación', path: '/confirmation-bot', icon: <SmartToy fontSize="small" />, adminOnly: true },
+        { text: 'Píxel y Analytics', path: '/settings/tracking', icon: <Insights fontSize="small" />, adminOnly: true, badge: 'Nuevo' },
         ...(countryFeatures.transferDetection
           ? [{ text: 'Transferencias MP', path: '/transfer-detection', icon: <AttachMoney fontSize="small" />, adminOnly: true, badge: 'Nuevo' }]
           : []),
@@ -765,9 +769,10 @@ export const AdminLayout: React.FC = () => {
         <Toolbar />
         <Box sx={{ p: 2, pt: 1 }}>
           <ImpersonationBanner />
-          <TrialBanner />
+          <PlanUsageBanner />
           <AddonTrialBanner />
         </Box>
+        <PlanLimitDialog />
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

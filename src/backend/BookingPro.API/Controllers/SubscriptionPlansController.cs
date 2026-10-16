@@ -161,6 +161,16 @@ namespace BookingPro.API.Controllers
                         p.IsActive,
                         p.IsPopular,
                         p.DisplayOrder,
+                        p.Tagline,
+                        p.CommissionPercent,
+                        p.MaxServicesPerStaff,
+                        p.AllowReminders,
+                        p.MaxRecurringBookings,
+                        p.MaxCustomFields,
+                        p.AllowCoupons,
+                        p.AllowTransferDetection,
+                        p.AllowCustomerHistory,
+                        p.AllowTrackingPixels,
                         p.CreatedAt,
                         p.UpdatedAt,
                         // Contar suscripciones activas
@@ -227,6 +237,7 @@ namespace BookingPro.API.Controllers
                     DisplayOrder = dto.DisplayOrder ?? 0,
                     CreatedAt = DateTime.UtcNow
                 };
+                dto.ApplyFreemiumTo(plan);
 
                 _context.SubscriptionPlans.Add(plan);
                 await _context.SaveChangesAsync();
@@ -291,6 +302,7 @@ namespace BookingPro.API.Controllers
                 plan.IsActive = dto.IsActive;
                 plan.TrialDays = dto.TrialDays;
                 plan.DisplayOrder = dto.DisplayOrder ?? plan.DisplayOrder;
+                dto.ApplyFreemiumTo(plan);
                 plan.UpdatedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
@@ -517,6 +529,32 @@ namespace BookingPro.API.Controllers
         public bool IsActive { get; set; } = true;
         public int TrialDays { get; set; } = 0;
         public int? DisplayOrder { get; set; }
+
+        // Freemium. Nullables: un PUT que no los manda (panel viejo) no le pisa los valores al plan.
+        public string? Tagline { get; set; }
+        public decimal? CommissionPercent { get; set; }
+        public int? MaxServicesPerStaff { get; set; }
+        public bool? AllowReminders { get; set; }
+        public int? MaxRecurringBookings { get; set; }
+        public int? MaxCustomFields { get; set; }
+        public bool? AllowCoupons { get; set; }
+        public bool? AllowTransferDetection { get; set; }
+        public bool? AllowCustomerHistory { get; set; }
+        public bool? AllowTrackingPixels { get; set; }
+
+        public void ApplyFreemiumTo(SubscriptionPlan plan)
+        {
+            if (Tagline != null) plan.Tagline = string.IsNullOrWhiteSpace(Tagline) ? null : Tagline.Trim();
+            if (CommissionPercent.HasValue) plan.CommissionPercent = Math.Clamp(CommissionPercent.Value, 0m, 100m);
+            if (MaxServicesPerStaff.HasValue) plan.MaxServicesPerStaff = MaxServicesPerStaff.Value;
+            if (AllowReminders.HasValue) plan.AllowReminders = AllowReminders.Value;
+            if (MaxRecurringBookings.HasValue) plan.MaxRecurringBookings = MaxRecurringBookings.Value;
+            if (MaxCustomFields.HasValue) plan.MaxCustomFields = MaxCustomFields.Value;
+            if (AllowCoupons.HasValue) plan.AllowCoupons = AllowCoupons.Value;
+            if (AllowTransferDetection.HasValue) plan.AllowTransferDetection = AllowTransferDetection.Value;
+            if (AllowCustomerHistory.HasValue) plan.AllowCustomerHistory = AllowCustomerHistory.Value;
+            if (AllowTrackingPixels.HasValue) plan.AllowTrackingPixels = AllowTrackingPixels.Value;
+        }
     }
 
     public class UpdateSubscriptionPlanDto : CreateSubscriptionPlanDto

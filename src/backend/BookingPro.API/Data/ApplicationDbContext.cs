@@ -52,6 +52,9 @@ namespace BookingPro.API.Data
         public DbSet<TenantMessageWallet> TenantMessageWallets { get; set; }
         public DbSet<MessagePurchase> MessagePurchases { get; set; }
         public DbSet<MessageLog> MessageLogs { get; set; }
+        public DbSet<BookingCoupon> BookingCoupons { get; set; }
+        public DbSet<BookingFormField> BookingFormFields { get; set; }
+        public DbSet<BookingSeries> BookingSeries { get; set; }
 
         // Feature add-ons (cobro modular) y bot de confirmación
         public DbSet<FeatureAddon> FeatureAddons { get; set; }
@@ -283,6 +286,23 @@ namespace BookingPro.API.Data
                     .WithMany()
                     .HasForeignKey(p => p.TenantId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // === Freemium ===
+            // Los planes que ya existen (pro y los de permanencia) tienen que seguir dando todo: default de base
+            // "permitido / ilimitado". ValueGeneratedNever: EF manda siempre el valor del objeto, así un false
+            // o un 0 explícito (Gratuito) no se reemplaza por el default de la columna.
+            modelBuilder.Entity<SubscriptionPlan>(entity =>
+            {
+                entity.Property(p => p.CommissionPercent).HasPrecision(5, 2).HasDefaultValue(0m).ValueGeneratedNever();
+                entity.Property(p => p.MaxServicesPerStaff).HasDefaultValue(-1).ValueGeneratedNever();
+                entity.Property(p => p.MaxRecurringBookings).HasDefaultValue(-1).ValueGeneratedNever();
+                entity.Property(p => p.MaxCustomFields).HasDefaultValue(-1).ValueGeneratedNever();
+                entity.Property(p => p.AllowReminders).HasDefaultValue(true).ValueGeneratedNever();
+                entity.Property(p => p.AllowCoupons).HasDefaultValue(true).ValueGeneratedNever();
+                entity.Property(p => p.AllowTransferDetection).HasDefaultValue(true).ValueGeneratedNever();
+                entity.Property(p => p.AllowCustomerHistory).HasDefaultValue(true).ValueGeneratedNever();
+                entity.Property(p => p.AllowTrackingPixels).HasDefaultValue(true).ValueGeneratedNever();
             });
 
             // === Stripe (suscripción a la plataforma fuera de Argentina) ===
@@ -884,6 +904,26 @@ namespace BookingPro.API.Data
             modelBuilder.Entity<TenantMessageWallet>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<MessagePurchase>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<MessageLog>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+
+            // Cupones, campos personalizados y reservas recurrentes (features de Advance / Pro)
+            modelBuilder.Entity<BookingCoupon>(entity =>
+            {
+                entity.HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+                entity.HasIndex(e => new { e.TenantId, e.Code }).IsUnique();
+                entity.Property(e => e.DiscountValue).HasPrecision(18, 2);
+            });
+            modelBuilder.Entity<BookingFormField>(entity =>
+            {
+                entity.HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+                entity.HasIndex(e => new { e.TenantId, e.DisplayOrder });
+            });
+            modelBuilder.Entity<BookingSeries>(entity =>
+            {
+                entity.HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+                entity.HasIndex(e => new { e.TenantId, e.Status });
+            });
+            modelBuilder.Entity<Booking>().HasIndex(b => b.SeriesId);
+            modelBuilder.Entity<Booking>().Property(b => b.DiscountAmount).HasPrecision(18, 2);
             modelBuilder.Entity<TenantWhatsAppConnection>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<TenantFeatureAddon>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<FeatureAddonPurchase>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());

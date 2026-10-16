@@ -520,7 +520,8 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false,
     switch (status) {
       case 'ACTIVE': return 'success';
       case 'PENDING': return 'warning';
-      case 'EXPIRED': return 'error';
+      // Freemium: sin plan pago el negocio está en Gratuito (no bloqueado).
+      case 'EXPIRED': return 'default';
       case 'NEVER_SUBSCRIBED': return 'default';
       default: return 'default';
     }
@@ -530,8 +531,8 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false,
     switch (status) {
       case 'ACTIVE': return 'Activo';
       case 'PENDING': return 'Pendiente';
-      case 'EXPIRED': return 'Vencido';
-      case 'NEVER_SUBSCRIBED': return 'Sin Suscripción';
+      case 'EXPIRED': return 'Gratuito';
+      case 'NEVER_SUBSCRIBED': return 'Gratuito';
       default: return status;
     }
   };
@@ -667,10 +668,10 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false,
           <Grid item xs={12} sm={6} md={2}>
             <Card>
               <CardContent sx={{ textAlign: 'center' }}>
-                <Typography variant="h4" color="error.main">
-                  {stats.expired}
+                <Typography variant="h4" color="text.secondary">
+                  {stats.expired + stats.neverSubscribed}
                 </Typography>
-                <Typography variant="body2">Vencidos</Typography>
+                <Typography variant="body2">Gratuito</Typography>
               </CardContent>
             </Card>
           </Grid>
@@ -727,8 +728,8 @@ const TenantsManagement: React.FC<TenantsManagementProps> = ({ embedded = false,
                   <MenuItem value="ALL">Todos los Estados</MenuItem>
                   <MenuItem value="ACTIVE">Activos</MenuItem>
                   <MenuItem value="PENDING">Pendientes</MenuItem>
-                  <MenuItem value="EXPIRED">Vencidos</MenuItem>
-                  <MenuItem value="NEVER_SUBSCRIBED">Sin Suscripción</MenuItem>
+                  <MenuItem value="EXPIRED">Gratuito (dejaron de pagar)</MenuItem>
+                  <MenuItem value="NEVER_SUBSCRIBED">Gratuito (nunca pagaron)</MenuItem>
                 </TextField>
               </Grid>
             </Grid>

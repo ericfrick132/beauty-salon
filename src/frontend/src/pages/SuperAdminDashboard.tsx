@@ -432,7 +432,7 @@ const SuperAdminDashboard: React.FC = () => {
           <Card>
             <CardHeader 
               title="Total de Negocios"
-              subheader="Negocios registrados (incluye trials)"
+              subheader="Negocios registrados (incluye Gratuito)"
             />
             <CardContent>
               <Typography variant="h4">{stats.totalTenants}</Typography>

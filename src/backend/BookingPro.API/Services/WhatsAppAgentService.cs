@@ -305,6 +305,11 @@ namespace BookingPro.API.Services
                     {
                         return $"No se pudo reservar: {ex.Message}. Ofrecé otro horario (usá check_availability).";
                     }
+                    catch (PlanLimitException)
+                    {
+                        // Tope de reservas del plan: no hay otro horario que ofrecer. No le contamos el motivo al cliente.
+                        return "No se pudo reservar online: el negocio no está tomando más reservas por este medio. No ofrezcas otro horario: decile al cliente que alguien del negocio le va a responder por acá para coordinar el turno.";
+                    }
                 }
                 default:
                     return "Herramienta no implementada.";

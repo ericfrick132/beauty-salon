@@ -14,8 +14,8 @@ namespace BookingPro.API.Services
     /// Señas de los negocios de España con Stripe Connect (cuentas Express). La seña es un direct charge:
     /// el Checkout se crea EN la cuenta del negocio (Stripe-Account), así el negocio es el comercio, cobra en
     /// EUR en su cuenta y los reembolsos/disputas salen de su saldo, igual que con su Mercado Pago en
-    /// Argentina. Hoy no hay comisión de la plataforma (como en Mercado Pago); se puede activar con
-    /// Stripe:Connect:ApplicationFeePercent.
+    /// Argentina. La comisión de la plataforma (application_fee) es la del plan del negocio, igual que el
+    /// marketplace_fee de Mercado Pago.
     /// </summary>
     public interface IStripeConnectService
     {
@@ -66,13 +66,16 @@ namespace BookingPro.API.Services
         private readonly IWhatsAppConnectionService _whatsApp;
 
         public StripeConnectService(ApplicationDbContext context, IConfiguration configuration, ILogger<StripeConnectService> logger,
-            IWhatsAppConnectionService whatsApp)
+            IWhatsAppConnectionService whatsApp, IPlanEntitlementService plans)
         {
             _context = context;
             _configuration = configuration;
             _logger = logger;
             _whatsApp = whatsApp;
+            _plans = plans;
         }
+
+        private readonly IPlanEntitlementService _plans;
 
         public bool IsConfigured => !string.IsNullOrWhiteSpace(_configuration["Stripe:SecretKey"]);
 
@@ -290,9 +293,9 @@ namespace BookingPro.API.Services
                     Metadata = metadata,
                     Description = $"{w.SenaTitle} — {booking.Service.Name} ({local:dd/MM/yyyy HH:mm})",
                 };
-                var feePercent = _configuration.GetValue<decimal?>("Stripe:Connect:ApplicationFeePercent") ?? 0m;
-                if (feePercent > 0)
-                    paymentIntentData.ApplicationFeeAmount = PlatformPricing.ToStripeAmount(Math.Round(amountToPay * feePercent / 100m, 2));
+                var fee = await _plans.GetPlatformFeeAsync(tenantId, amountToPay);
+                if (fee > 0 && fee < amountToPay)
+                    paymentIntentData.ApplicationFeeAmount = PlatformPricing.ToStripeAmount(fee);
 
                 var options = new StripeSdk.Checkout.SessionCreateOptions
                 {

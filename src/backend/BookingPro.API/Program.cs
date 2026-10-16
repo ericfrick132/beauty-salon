@@ -142,6 +142,8 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IAppleAppStoreServ
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ISubscriptionService, BookingPro.API.Services.SubscriptionService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ICouponService, BookingPro.API.Services.CouponService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IFeatureAddonService, BookingPro.API.Services.FeatureAddonService>();
+builder.Services.AddScoped<BookingPro.API.Services.IPlanEntitlementService, BookingPro.API.Services.PlanEntitlementService>();
+builder.Services.AddScoped<BookingPro.API.Services.IBookingExtrasService, BookingPro.API.Services.BookingExtrasService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IStorePurchaseService, BookingPro.API.Services.StorePurchaseService>();
 // Google Play Billing (app Android): suscripción del negocio. Sin GooglePlay:ServiceAccountJson el
 // verify responde 503 GOOGLE_PLAY_NOT_CONFIGURED.
@@ -181,7 +183,8 @@ builder.Services.AddHostedService<BookingPro.API.Services.WhatsAppReminderServic
 // Bot de confirmación de turnos por WhatsApp (add-on confirmation_bot)
 builder.Services.AddHostedService<BookingPro.API.Services.BookingConfirmationBotService>();
 // Daily-ish scan that emails trial_ending_2d / trial_expired warnings
-builder.Services.AddHostedService<BookingPro.API.Services.TrialReminderBackgroundService>();
+// Freemium: no hay prueba que se venza. Sus textos ("se te venció la prueba, la reactivás acá") ya no son ciertos.
+// builder.Services.AddHostedService<BookingPro.API.Services.TrialReminderBackgroundService>();
 // Recupera OTP abandonados (pidió código y no entró) — apagado por default (OtpFollowup:Enabled)
 builder.Services.AddHostedService<BookingPro.API.Services.OtpFollowupBackgroundService>();
 
@@ -308,9 +311,6 @@ app.UseMiddleware<BookingPro.API.Middleware.ImpersonationAuditMiddleware>();
 // El tenant_id del JWT tiene que coincidir con el negocio del host/header (super admin pasa).
 app.UseMiddleware<BookingPro.API.Middleware.JwtTenantValidationMiddleware>();
 app.UseAuthorization();
-
-// Add subscription verification middleware
-app.UseMiddleware<BookingPro.API.Middleware.SubscriptionMiddleware>();
 
 // Health check endpoints
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));

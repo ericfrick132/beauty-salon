@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { brand } from '@/app/(lib)/brand';
 import { countryAlternates } from '@/app/(lib)/seo';
 import { organizationSchema, softwareAppSchema, faqSchema } from '@/app/(lib)/schema';
-import { faqs } from '@/app/(lib)/content';
+import { faqs, pricingContent } from '@/app/(lib)/content';
 import LandingClient from '@/app/(components)/(sections)/LandingClient';
 
 export const metadata: Metadata = {
@@ -26,7 +26,8 @@ export default function Page() {
   const jsonLd = [
     organizationSchema(),
     softwareAppSchema(),
-    faqSchema(faqs),
+    // FAQ general + el de precios que muestra PricingSection (#precios).
+    faqSchema([...faqs, ...pricingContent.comparison.faqs]),
   ];
 
   return (

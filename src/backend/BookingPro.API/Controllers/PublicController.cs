@@ -29,6 +29,8 @@ namespace BookingPro.API.Controllers
         private readonly IWhatsAppService _whatsAppService;
         private readonly ILogger<PublicController> _logger;
         private readonly IConfiguration _configuration;
+        private readonly IPlanEntitlementService _plans;
+        private readonly IBookingExtrasService _extras;
 
         public PublicController(
             ApplicationDbContext context,
@@ -39,8 +41,12 @@ namespace BookingPro.API.Controllers
             IEmailService emailService,
             IWhatsAppService whatsAppService,
             ILogger<PublicController> logger,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IPlanEntitlementService plans,
+            IBookingExtrasService extras)
         {
+            _plans = plans;
+            _extras = extras;
             _context = context;
             _tenantService = tenantService;
             _mercadoPagoService = mercadoPagoService;
@@ -267,9 +273,13 @@ namespace BookingPro.API.Controllers
                 }
 
                 var profile = CountryProfile.For(tenant);
+                // Píxel / GA del negocio: solo mientras su plan los incluya (Pro).
+                var tracking = await _plans.CheckFeatureAsync(tenant.Id, PlanLimits.TrackingPixels);
                 return Ok(new
                 {
                     businessName = tenant.BusinessName,
+                    metaPixelId = tracking.Allowed ? tenant.MetaPixelId : null,
+                    googleAnalyticsId = tracking.Allowed ? tenant.GoogleAnalyticsId : null,
                     address = "",
                     phone = "",
                     email = "",
@@ -287,6 +297,38 @@ namespace BookingPro.API.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
+        }
+
+        /// <summary>Campos personalizados que el formulario de reserva tiene que pedir (según el plan del negocio).</summary>
+        [HttpGet("form-fields")]
+        public async Task<IActionResult> GetFormFields()
+        {
+            var tenantInfo = _tenantService.GetCurrentTenant();
+            if (tenantInfo == null) return Ok(Array.Empty<object>());
+            var fields = await _extras.GetPublicFieldsAsync(tenantInfo.Id);
+            return Ok(fields.Select(f => new
+            {
+                f.Id, f.Label, f.FieldType, f.Required, f.Placeholder,
+                options = BookingExtrasService.ParseOptions(f.OptionsJson),
+            }));
+        }
+
+        public class ValidateCouponDto
+        {
+            public string Code { get; set; } = string.Empty;
+            public Guid ServiceId { get; set; }
+        }
+
+        /// <summary>Precio con el cupón aplicado, para mostrarlo antes de confirmar. No consume un uso.</summary>
+        [HttpPost("coupons/validate")]
+        public async Task<IActionResult> ValidateCoupon([FromBody] ValidateCouponDto dto)
+        {
+            var tenantInfo = _tenantService.GetCurrentTenant();
+            var service = tenantInfo == null ? null
+                : await _context.Services.FirstOrDefaultAsync(sv => sv.Id == dto.ServiceId && sv.TenantId == tenantInfo.Id);
+            if (tenantInfo == null || service == null) return BadRequest(new { valid = false, message = "Servicio no encontrado" });
+            var quote = await _extras.QuoteCouponAsync(tenantInfo.Id, dto.Code, service.Price);
+            return Ok(quote);
         }
 
         [HttpPost("bookings")]
@@ -361,6 +403,29 @@ namespace BookingPro.API.Controllers
                     return BadRequest(new { message = "Servicio no encontrado" });
                 }
 
+                // Campos personalizados y cupón se validan antes de crear nada.
+                var answers = await _extras.ValidateAnswersAsync(service.TenantId, dto.CustomFields);
+                if (!answers.Valid) return BadRequest(new { message = answers.Message, reason = "custom_fields" });
+                CouponQuote? coupon = null;
+                if (!string.IsNullOrWhiteSpace(dto.CouponCode))
+                {
+                    coupon = await _extras.QuoteCouponAsync(service.TenantId, dto.CouponCode, service.Price);
+                    if (!coupon.Valid) return BadRequest(new { message = coupon.Message, reason = "coupon_invalid" });
+                }
+
+                // Tope de reservas del mes del plan: al cliente final no le contamos del plan del negocio.
+                var planCheck = await _plans.CanCreateBookingAsync(service.TenantId);
+                if (!planCheck.Allowed)
+                {
+                    _logger.LogWarning("Public booking rejected by plan limit: tenant={TenantId} plan={Plan} used={Used}/{Max}",
+                        service.TenantId, planCheck.PlanCode, planCheck.Used, planCheck.Max);
+                    return StatusCode(StatusCodes.Status409Conflict, new
+                    {
+                        message = BookingFailureReasons.ToCustomerMessage(BookingFailureReasons.PlanLimit),
+                        reason = BookingFailureReasons.PlanLimit,
+                    });
+                }
+
                 // Create booking
                 var booking = new Booking
                 {
@@ -371,14 +436,30 @@ namespace BookingPro.API.Controllers
                     StartTime = dto.StartTime,
                     EndTime = dto.EndTime,
                     Status = "confirmed",
-                    Price = service.Price,
+                    Price = coupon?.FinalPrice ?? service.Price,
+                    CouponCode = coupon?.Code,
+                    DiscountAmount = coupon != null && coupon.DiscountAmount > 0 ? coupon.DiscountAmount : null,
+                    CustomFieldsJson = answers.Json,
                     Notes = dto.Notes,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
 
+                // El uso se consume antes de guardar: si otro cliente se llevó el último, no hay descuento.
+                if (coupon != null && !await _extras.RedeemCouponAsync(service.TenantId, coupon.Code!))
+                    return BadRequest(new { message = "Ese cupón ya se usó todas las veces posibles.", reason = "coupon_invalid" });
+
                 _context.Bookings.Add(booking);
-                await _context.SaveChangesAsync();
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch
+                {
+                    // El uso del cupón ya se consumió: si la reserva no se guardó, se devuelve.
+                    if (coupon != null) await _extras.ReleaseCouponAsync(service.TenantId, coupon.Code!);
+                    throw;
+                }
                 PushDispatch.BookingEvent(booking.TenantId, booking.Id, "created");
 
                 // Generate confirmation code
@@ -392,6 +473,10 @@ namespace BookingPro.API.Controllers
                 {
                     // 1) Intentar seña si corresponde por configuración del servicio (independiente de toggles de UI)
                     var depositCalc = await _mercadoPagoService.CalculateDepositAsync(service.Id, customer.Id, dto.StartTime);
+                    // Con cupón la seña acompaña al descuento: misma proporción del precio, nunca más que lo que paga.
+                    if (coupon != null && depositCalc.Success && depositCalc.Data != null && service.Price > 0)
+                        depositCalc.Data.Amount = Math.Min(booking.Price ?? 0,
+                            Math.Round(depositCalc.Data.Amount * (booking.Price ?? 0) / service.Price, 2, MidpointRounding.AwayFromZero));
                     if (depositCalc.Success && depositCalc.Data != null && depositCalc.Data.RequiresDeposit && depositCalc.Data.Amount > 0)
                     {
                         booking.RequiresDeposit = true;
@@ -429,6 +514,10 @@ namespace BookingPro.API.Controllers
                             {
                                 success = true,
                                 bookingId = booking.Id,
+                                // Precio final con el cupón (la página lo muestra en la confirmación).
+                                finalPrice = booking.Price,
+                                couponCode = booking.CouponCode,
+                                discountAmount = booking.DiscountAmount,
                                 statusToken,
                                 confirmationCode,
                                 requiresPayment = true,
@@ -469,6 +558,10 @@ namespace BookingPro.API.Controllers
                             {
                                 success = true,
                                 bookingId = booking.Id,
+                                // Precio final con el cupón (la página lo muestra en la confirmación).
+                                finalPrice = booking.Price,
+                                couponCode = booking.CouponCode,
+                                discountAmount = booking.DiscountAmount,
                                 statusToken,
                                 confirmationCode,
                                 requiresPayment = true,
@@ -510,6 +603,10 @@ namespace BookingPro.API.Controllers
                         {
                             success = true,
                             bookingId = booking.Id,
+                            // Precio final con el cupón (la página lo muestra en la confirmación).
+                            finalPrice = booking.Price,
+                            couponCode = booking.CouponCode,
+                            discountAmount = booking.DiscountAmount,
                             statusToken,
                             confirmationCode = confirmationCode,
                             requiresPayment = true,
@@ -544,7 +641,7 @@ namespace BookingPro.API.Controllers
                         service.Name,
                         booking.StartTime,
                         (int)(booking.EndTime - booking.StartTime).TotalMinutes,
-                        service.Price,
+                        booking.Price ?? service.Price,
                         employee?.Name ?? "Sin asignar",
                         tenantName,
                         confirmationCode,
@@ -570,6 +667,10 @@ namespace BookingPro.API.Controllers
                 { 
                     success = true,
                     bookingId = booking.Id,
+                    // Precio final con el cupón (la página lo muestra en la confirmación).
+                    finalPrice = booking.Price,
+                    couponCode = booking.CouponCode,
+                    discountAmount = booking.DiscountAmount,
                     statusToken,
                     confirmationCode = confirmationCode,
                     requiresPayment = false,
@@ -721,5 +822,9 @@ namespace BookingPro.API.Controllers
         public string CustomerEmail { get; set; } = string.Empty;
         public string CustomerPhone { get; set; } = string.Empty;
         public string? Notes { get; set; }
+        /// <summary>Cupón del negocio (Advance en adelante).</summary>
+        public string? CouponCode { get; set; }
+        /// <summary>Respuestas a los campos personalizados: id del campo → valor.</summary>
+        public Dictionary<string, string>? CustomFields { get; set; }
     }
 }

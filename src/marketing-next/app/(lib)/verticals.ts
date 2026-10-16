@@ -31,7 +31,7 @@ export const verticals: VerticalContent[] = [
     ...verticalLinks[0],
     title: 'Sistema de turnos para peluquerías | TurnosPro',
     description:
-      'Sistema de turnos para peluquerías: agenda online por estilista, señas con MercadoPago y recordatorios por WhatsApp. Probalo gratis.',
+      'Sistema de turnos para peluquerías: agenda online por estilista, señas con MercadoPago y recordatorios por WhatsApp. Empezá gratis, sin tarjeta.',
     h1: 'Sistema de turnos para peluquerías',
     eyebrow: 'Peluquerías',
     intro: [
@@ -102,7 +102,7 @@ export const verticals: VerticalContent[] = [
           'Precios claros y sin permanencia: que sepas cuánto pagás por mes y puedas irte cuando quieras.',
         ],
         after: [
-          'TurnosPro cumple todos estos puntos en un solo plan, con turnos ilimitados y todos los profesionales que tengas.',
+          'TurnosPro cumple todos estos puntos. Arrancás gratis y, cuando tu peluquería crece, el plan Advance suma reservas y agendas ilimitadas para todo tu equipo.',
         ],
       },
       {
@@ -118,7 +118,7 @@ export const verticals: VerticalContent[] = [
           'Sumás el agente de IA cuando quieras dejar de confirmar turnos a mano.',
         ],
         after: [
-          'Tenés soporte prioritario en la puesta en marcha y después. No hay permanencia y arrancás con 7 días gratis, sin tarjeta.',
+          'Tenés soporte prioritario en la puesta en marcha y después. Arrancás en el plan Gratuito, sin tarjeta y para siempre, y te pasás de plan cuando lo necesitás.',
         ],
       },
     ],
@@ -129,7 +129,7 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿Cómo funcionan las señas para una peluquería?',
-        a: 'Elegís qué servicios exigen seña y de cuánto. Al reservar, la clienta paga con MercadoPago y el dinero entra directo en tu cuenta. TurnosPro no cobra comisión por turno.',
+        a: 'Elegís qué servicios exigen seña y de cuánto. Al reservar, la clienta paga con MercadoPago y el dinero entra directo en tu cuenta. TurnosPro no cobra por turno: según el plan se descuenta una comisión del cobro online (5% en Gratuito, 2% en Plus, 1% en Advance, 0% en Pro).',
       },
       {
         q: '¿Los recordatorios salen de mi propio número de WhatsApp?',
@@ -141,15 +141,15 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿Hay un sistema de turnos gratis para peluquerías?',
-        a: 'Podés probar TurnosPro gratis antes de pagar nada: creás tu cuenta, cargás tus estilistas y servicios y empezás a recibir reservas. Si no te sirve, lo cancelás sin costo. Los sistemas gratis para siempre suelen limitar la cantidad de turnos o profesionales y no incluyen señas ni recordatorios por WhatsApp.',
+        a: 'Sí. TurnosPro tiene un plan Gratuito para siempre, sin tarjeta: 100 reservas por mes, hasta 3 agendas, cobros con MercadoPago y transferencia y panel de métricas, con 5% de comisión por cobro online. Cuando necesitás más estilistas, servicios o recordatorios, te pasás a Plus, Advance o Pro desde el panel.',
       },
       {
         q: '¿Cuánto cuesta un sistema de turnos para peluquerías?',
-        a: 'TurnosPro cuesta ARS 50.000 por mes en el plan mensual y baja hasta ARS 37.500 por mes en el plan de 12 meses. Todos los planes arrancan con 7 días gratis, sin tarjeta, y no tienen permanencia.',
+        a: 'Hay un plan Gratuito para siempre, sin tarjeta, con 100 reservas por mes; los planes pagos cuestan $8.000 (Plus), $18.000 (Advance) y $30.000 (Pro) por mes, precio final en pesos, y no tienen permanencia.',
       },
     ],
     datePublished: '2026-09-03',
-    dateModified: '2026-10-05',
+    dateModified: '2026-10-16',
   },
   {
     ...verticalLinks[1],
@@ -160,7 +160,7 @@ export const verticals: VerticalContent[] = [
     eyebrow: 'Barberías',
     intro: [
       'Una barbería vive de volumen: cortes de 30 o 40 minutos, uno atrás del otro, todo el día. Cada hueco vacío es plata que no vuelve, y cada cliente que se olvidó de venir te rompe la tarde. TurnosPro es un sistema de turnos online hecho para ese ritmo: reservas 24/7 desde tu link de Instagram o WhatsApp, agenda por barbero, señas con MercadoPago y recordatorios automáticos para que el sillón no quede vacío.',
-      'Lo configurás en 15 minutos, con 7 días gratis y sin permanencia, y desde ese momento tus clientes sacan turno solos mientras vos cortás.',
+      'Lo configurás en 15 minutos, gratis y sin tarjeta, y desde ese momento tus clientes sacan turno solos mientras vos cortás.',
     ],
     sections: [
       {
@@ -174,7 +174,7 @@ export const verticals: VerticalContent[] = [
           'Bloqueos de horario y turnos recurrentes.',
           'Disponibilidad en tiempo real: sin dobles reservas.',
           'Notificaciones en el momento cada vez que entra una reserva.',
-          'Reservas online ilimitadas en todos los planes.',
+          'Reservas online ilimitadas desde el plan Advance.',
         ],
       },
       {
@@ -188,12 +188,12 @@ export const verticals: VerticalContent[] = [
         h2: 'Cobros y señas con MercadoPago',
         paragraphs: [
           'Cuando un turno de 30 minutos se pierde, no hay forma de recuperarlo. Por eso muchas barberías cobran una seña o el corte completo por adelantado, y TurnosPro lo hace automático: activás cobros con tu propia cuenta de MercadoPago, decidís qué servicios piden seña y de cuánto, y el cliente paga desde el celular al reservar.',
-          'La plata entra en tu cuenta de MercadoPago, no pasa por TurnosPro, y no pagás comisión por turno. Con la seña puesta, el que no puede venir avisa, y el horario se libera para el siguiente.',
+          'La plata entra en tu cuenta de MercadoPago, no pasa por TurnosPro, y no pagás por turno: la comisión por cobro online baja según el plan, hasta 0% en Pro. Con la seña puesta, el que no puede venir avisa, y el horario se libera para el siguiente.',
         ],
         bullets: [
           'Seña parcial o pago completo, según el servicio.',
           'Cobros directo en tu cuenta de MercadoPago.',
-          'Sin comisión por turno.',
+          'Comisión por cobro online de 5% a 0%, según el plan.',
           'Hasta 80% menos cancelaciones combinando señas y recordatorios.',
         ],
       },
@@ -214,7 +214,7 @@ export const verticals: VerticalContent[] = [
       {
         h2: 'Cómo arranca una barbería con TurnosPro',
         bullets: [
-          'Creás tu cuenta con tu email y entrás directo a 7 días gratis, sin tarjeta.',
+          'Creás tu cuenta con tu email y entrás directo al plan Gratuito, sin tarjeta.',
           'Cargás barberos, horarios y servicios con precios y duración.',
           'Conectás tu cuenta de MercadoPago para señas o cobros completos.',
           'Ponés el link de tu sitio en Instagram, WhatsApp y Google.',
@@ -232,7 +232,7 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿Puedo cobrar el corte completo por adelantado?',
-        a: 'Sí. Configurás, servicio por servicio, si pedís una seña parcial o el pago completo. Se cobra con tu cuenta de MercadoPago al momento de reservar y no hay comisión por turno.',
+        a: 'Sí. Configurás, servicio por servicio, si pedís una seña parcial o el pago completo. Se cobra con tu cuenta de MercadoPago al momento de reservar; la comisión por cobro online va de 5% en Gratuito a 0% en Pro.',
       },
       {
         q: '¿Mis clientes tienen que instalar algo para reservar?',
@@ -240,21 +240,21 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿Hay límite de turnos por mes?',
-        a: 'No. Todos los planes de TurnosPro incluyen reservas online ilimitadas, algo clave para una barbería con muchos turnos cortos por día.',
+        a: 'Depende del plan: Gratuito incluye 100 reservas por mes y Plus 200. Advance y Pro tienen reservas online ilimitadas, algo clave para una barbería con muchos turnos cortos por día.',
       },
       {
         q: '¿Cuánto cuesta y hay permanencia?',
-        a: 'Desde ARS 37.500 por mes en el plan de 12 meses hasta ARS 50.000 por mes en el plan mensual. Todos arrancan con 7 días gratis, sin tarjeta, y no hay permanencia: cancelás cuando quieras.',
+        a: 'Hay un plan Gratuito para siempre, sin tarjeta, con 100 reservas por mes; los planes pagos cuestan $8.000 (Plus), $18.000 (Advance) y $30.000 (Pro) por mes, precio final en pesos. No hay permanencia: cambiás de plan o cancelás cuando quieras.',
       },
     ],
     datePublished: '2026-09-03',
-    dateModified: '2026-09-03',
+    dateModified: '2026-10-16',
   },
   {
     ...verticalLinks[2],
     title: 'Sistema de turnos para centros de estética | TurnosPro',
     description:
-      'Tratamientos largos, señas obligatorias con MercadoPago, recordatorios por WhatsApp y agenda por cabina o profesional. Probá TurnosPro gratis.',
+      'Tratamientos largos, señas obligatorias con MercadoPago, recordatorios por WhatsApp y agenda por cabina o profesional. Empezá gratis con TurnosPro.',
     h1: 'Sistema de turnos para centros de estética',
     eyebrow: 'Centros de estética',
     intro: [
@@ -266,7 +266,7 @@ export const verticals: VerticalContent[] = [
         h2: 'Señas obligatorias para tratamientos largos',
         paragraphs: [
           'La regla es simple: cuanto más largo y más caro es el tratamiento, más te duele una ausencia. Un sistema de turnos para centros de estética tiene que permitirte exigir una seña antes de bloquear una cabina por dos horas.',
-          'En TurnosPro definís, servicio por servicio, si la reserva requiere seña y de qué monto. La clienta paga con MercadoPago desde el celular en el mismo momento en que reserva; si no paga, el turno no se confirma. El dinero va directo a tu cuenta de MercadoPago y TurnosPro no cobra comisión por cada turno.',
+          'En TurnosPro definís, servicio por servicio, si la reserva requiere seña y de qué monto. La clienta paga con MercadoPago desde el celular en el mismo momento en que reserva; si no paga, el turno no se confirma. El dinero va directo a tu cuenta de MercadoPago y TurnosPro no cobra por turno: la comisión por cobro online baja según el plan, hasta 0% en Pro.',
           'Con señas y recordatorios activos, los negocios que usan TurnosPro reportan hasta un 80% menos de cancelaciones. Para una esteticista, eso es la diferencia entre una agenda que parece llena y una que factura.',
         ],
       },
@@ -308,14 +308,14 @@ export const verticals: VerticalContent[] = [
       {
         h2: 'Cómo arranca un centro de estética con TurnosPro',
         bullets: [
-          'Creás tu cuenta con tu email y entrás directo a 7 días gratis, sin tarjeta.',
+          'Creás tu cuenta con tu email y entrás directo al plan Gratuito, sin tarjeta.',
           'Cargás profesionales, horarios y el catálogo de tratamientos con duración y precio.',
           'Definís qué tratamientos exigen seña y conectás tu cuenta de MercadoPago.',
           'Activás recordatorios por WhatsApp y, si querés, el agente de IA.',
           'Compartís el link de tu sitio de reservas y empezás a recibir turnos.',
         ],
         after: [
-          'La puesta a punto lleva unos 15 minutos. No hay permanencia: probás gratis, cambiás de plan cuando quieras y cancelás sin trámites.',
+          'La puesta a punto lleva unos 15 minutos. No hay permanencia: empezás gratis, cambiás de plan cuando quieras y cancelás sin trámites.',
         ],
       },
     ],
@@ -338,11 +338,11 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿Cuánto cuesta TurnosPro para un centro de estética?',
-        a: 'Desde ARS 37.500 por mes (plan de 12 meses) hasta ARS 50.000 por mes (plan mensual). Todos los planes arrancan con 7 días gratis sin tarjeta, incluyen reservas ilimitadas y no tienen permanencia.',
+        a: 'Hay un plan Gratuito para siempre, sin tarjeta, con 100 reservas por mes; los planes pagos cuestan $8.000 (Plus), $18.000 (Advance) y $30.000 (Pro) por mes, precio final en pesos, y no tienen permanencia. Advance y Pro incluyen reservas ilimitadas.',
       },
     ],
     datePublished: '2026-09-03',
-    dateModified: '2026-09-03',
+    dateModified: '2026-10-16',
   },
   {
     ...verticalLinks[3],
@@ -353,7 +353,7 @@ export const verticals: VerticalContent[] = [
     eyebrow: 'Consultorios',
     intro: [
       'Si atendés en un consultorio, sabés que el trabajo no termina con la sesión: hay que agendar la próxima, recordarle al paciente, confirmar la noche anterior y reacomodar todo cuando alguien cancela. TurnosPro es un sistema de turnos online para consultorios de psicólogos, nutricionistas, kinesiólogos y otros profesionales de la salud: reservas 24/7 desde tu propio sitio, turnos recurrentes, confirmación automática por WhatsApp e historial de turnos de cada paciente.',
-      'Se configura en 15 minutos, con 7 días gratis y sin permanencia. Funciona tanto para un profesional solo como para un consultorio con varios especialistas.',
+      'Se configura en 15 minutos, gratis y sin tarjeta. Funciona tanto para un profesional solo como para un consultorio con varios especialistas.',
     ],
     sections: [
       {
@@ -386,7 +386,7 @@ export const verticals: VerticalContent[] = [
       {
         h2: 'Señas con MercadoPago para reducir ausencias',
         paragraphs: [
-          'Muchos consultorios ya cobran la sesión por adelantado o piden una seña para la primera consulta. TurnosPro lo integra en la reserva: activás cobros con tu propia cuenta de MercadoPago, elegís qué servicios piden seña y el paciente paga desde el celular al reservar. La plata entra en tu cuenta, sin comisión de TurnosPro por turno.',
+          'Muchos consultorios ya cobran la sesión por adelantado o piden una seña para la primera consulta. TurnosPro lo integra en la reserva: activás cobros con tu propia cuenta de MercadoPago, elegís qué servicios piden seña y el paciente paga desde el celular al reservar. La plata entra en tu cuenta y TurnosPro no cobra por turno: la comisión por cobro online va de 5% en Gratuito a 0% en Pro.',
           'Con señas y confirmación automática, los negocios que usan TurnosPro reportan hasta un 80% menos de cancelaciones. Para un consultorio con turnos de 45 o 60 minutos, cada ausencia evitada es una sesión más facturada.',
         ],
       },
@@ -406,14 +406,14 @@ export const verticals: VerticalContent[] = [
       {
         h2: 'Cómo arranca un consultorio con TurnosPro',
         bullets: [
-          'Creás tu cuenta con tu email y entrás directo a 7 días gratis, sin tarjeta.',
+          'Creás tu cuenta con tu email y entrás directo al plan Gratuito, sin tarjeta.',
           'Cargás profesionales, horarios y prestaciones con su duración.',
           'Definís turnos recurrentes para los pacientes que ya tenés.',
           'Activás recordatorios y confirmación por WhatsApp, y el agente de IA si querés.',
           'Compartís el link de tu sitio y empezás a recibir reservas.',
         ],
         after: [
-          'Tenés soporte prioritario en la puesta en marcha. No hay permanencia: probás gratis, cambiás de plan en un clic y cancelás cuando quieras.',
+          'Tenés soporte prioritario en la puesta en marcha. No hay permanencia: empezás gratis, cambiás de plan en un clic y cancelás cuando quieras.',
         ],
       },
     ],
@@ -436,11 +436,11 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿Cuánto cuesta un sistema de turnos para consultorios?',
-        a: 'TurnosPro cuesta ARS 50.000 por mes en el plan mensual, y baja a ARS 45.000, ARS 40.000 y ARS 37.500 por mes en los planes de 3, 6 y 12 meses. Todos con 7 días gratis, sin tarjeta y sin permanencia.',
+        a: 'Hay un plan Gratuito para siempre, sin tarjeta, con 100 reservas por mes; los planes pagos cuestan $8.000 (Plus), $18.000 (Advance) y $30.000 (Pro) por mes, precio final en pesos, y no tienen permanencia.',
       },
     ],
     datePublished: '2026-09-03',
-    dateModified: '2026-09-03',
+    dateModified: '2026-10-16',
   },
   {
     // Landing de funcionalidad (no es un rubro): no va en verticalLinks para no aparecer en BusinessTypes/Footer.
@@ -450,12 +450,12 @@ export const verticals: VerticalContent[] = [
     businessTypeLabel: 'Reservas online',
     title: 'Recordatorio de turnos por WhatsApp y reservas online',
     description:
-      'Recordatorio de turnos por WhatsApp desde tu número, reservas online 24/7 y señas con MercadoPago sin comisión. Probá TurnosPro 7 días gratis.',
+      'Recordatorio de turnos por WhatsApp desde tu número, reservas online 24/7 y señas con MercadoPago. Empezá gratis con TurnosPro, sin tarjeta.',
     h1: 'Reservas online con recordatorio de turnos por WhatsApp',
     eyebrow: 'Reservas online',
     intro: [
       'Un sistema de reservas online tiene que hacer tres cosas: dejar que el cliente reserve solo a cualquier hora, cobrarle una seña para que no falte y recordarle el turno por el canal que sí lee. TurnosPro hace las tres desde una sola cuenta: tu propia web de turnos disponible 24/7, señas con MercadoPago directo en tu cuenta y recordatorios y confirmación por WhatsApp desde tu propio número.',
-      'Sirve para peluquerías, barberías, centros de estética, consultorios, estudios y cualquier negocio que trabaje con turnos. Se configura en 15 minutos, se prueba 7 días gratis y no tiene permanencia.',
+      'Sirve para peluquerías, barberías, centros de estética, consultorios, estudios y cualquier negocio que trabaje con turnos. Se configura en 15 minutos, arranca gratis y no tiene permanencia.',
     ],
     sections: [
       {
@@ -466,21 +466,21 @@ export const verticals: VerticalContent[] = [
         ],
       },
       {
-        h2: 'Señas con MercadoPago, sin comisión',
+        h2: 'Señas con MercadoPago, directo a tu cuenta',
         paragraphs: [
-          'La reserva online sin seña es una promesa; con seña es un compromiso. En TurnosPro definís, servicio por servicio, si pedís una seña parcial o el pago completo. El cliente paga con MercadoPago desde el celular en el mismo momento en que reserva, y la plata entra directo en tu cuenta. TurnosPro no cobra comisión por turno ni por cobro: pagás solo la cuota del plan.',
+          'La reserva online sin seña es una promesa; con seña es un compromiso. En TurnosPro definís, servicio por servicio, si pedís una seña parcial o el pago completo. El cliente paga con MercadoPago desde el celular en el mismo momento en que reserva, y la plata entra directo en tu cuenta. TurnosPro no cobra por turno: según el plan se descuenta una comisión del cobro online, que baja a 0% en el plan Pro.',
         ],
         bullets: [
           'Seña parcial o pago total, configurable por servicio.',
           'Cobro con tu propia cuenta de MercadoPago.',
-          '0% de comisión sobre cada turno.',
+          'Comisión por cobro online de 5% (Gratuito) a 0% (Pro).',
           'El horario queda tomado recién cuando entra el pago.',
         ],
       },
       {
         h2: 'Recordatorio de turnos por WhatsApp desde tu número',
         paragraphs: [
-          'Tus clientes no leen el mail: leen WhatsApp. TurnosPro manda el recordatorio de cada turno por WhatsApp desde el número de tu negocio, no desde uno genérico, y está incluido en el plan sin paquetes de mensajes. Con el agente de IA de confirmación, además, el sistema le escribe al cliente antes del turno, entiende la respuesta y actúa solo: confirma la asistencia o cancela y te libera el horario para que otra persona lo tome.',
+          'Tus clientes no leen el mail: leen WhatsApp. TurnosPro manda el recordatorio de cada turno por WhatsApp desde el número de tu negocio, no desde uno genérico, y viene incluido desde el plan Plus. Con el agente de IA de confirmación, además, el sistema le escribe al cliente antes del turno, entiende la respuesta y actúa solo: confirma la asistencia o cancela y te libera el horario para que otra persona lo tome.',
           'Los negocios que combinan señas y recordatorios con TurnosPro reportan hasta un 80% menos de ausencias. Es la diferencia entre agendar turnos y cobrarlos.',
         ],
       },
@@ -493,7 +493,7 @@ export const verticals: VerticalContent[] = [
       {
         h2: 'Cómo empezar',
         bullets: [
-          'Creás tu cuenta y entrás directo a 7 días gratis, sin tarjeta.',
+          'Creás tu cuenta y entrás directo al plan Gratuito, sin tarjeta.',
           'Cargás servicios, precios, profesionales y horarios.',
           'Compartís tu link de reservas en redes y en tu perfil de Google.',
           'Activás las señas con tu cuenta de MercadoPago y el agente de IA de confirmación.',
@@ -510,7 +510,7 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿Los recordatorios por WhatsApp están incluidos?',
-        a: 'Sí. Los recordatorios salen desde tu propio número y están incluidos en el plan, sin paquetes de mensajes. El agente de IA que pide confirmación y entiende la respuesta se activa como complemento.',
+        a: 'Sí, desde el plan Plus. Los recordatorios automáticos salen desde tu propio número. El agente de IA que pide confirmación y entiende la respuesta se activa como complemento.',
       },
       {
         q: '¿Cómo funciona el recordatorio de turnos por WhatsApp?',
@@ -518,7 +518,7 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿TurnosPro cobra comisión por las reservas o por las señas?',
-        a: 'No. La seña o el pago completo entran directo en tu cuenta de MercadoPago y no hay comisión por turno ni por cobro. Pagás solo la cuota del plan.',
+        a: 'Por reserva, no. Por cobro online, depende del plan: 5% en Gratuito, 2% en Plus, 1% en Advance y 0% en Pro. La comisión se descuenta sola de cada cobro con MercadoPago; los cobros en efectivo o transferencia manual no pagan comisión.',
       },
       {
         q: '¿Mis clientes tienen que instalar una app?',
@@ -526,15 +526,15 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿Cuánto cuesta el sistema de reservas online?',
-        a: 'TurnosPro cuesta ARS 50.000 por mes en el plan mensual, y baja a ARS 45.000, ARS 40.000 y ARS 37.500 por mes en los planes de 3, 6 y 12 meses. Todos con 7 días gratis sin tarjeta, reservas ilimitadas, profesionales y sucursales incluidos y sin permanencia.',
+        a: 'Hay un plan Gratuito para siempre, sin tarjeta, con 100 reservas por mes; los planes pagos cuestan $8.000 (Plus), $18.000 (Advance) y $30.000 (Pro) por mes, precio final en pesos, y no tienen permanencia.',
       },
       {
         q: '¿Sirve para varios profesionales o varias sucursales?',
-        a: 'Sí. Cada profesional tiene su agenda, sus servicios y sus horarios, y podés cargar más de una sucursal bajo la misma cuenta, sin pagar por profesional.',
+        a: 'Sí. Cada profesional tiene su agenda, sus servicios y sus horarios, y podés cargar más de una sucursal bajo la misma cuenta, sin pagar por profesional: el plan Gratuito incluye hasta 3 agendas, Plus hasta 5 y Advance y Pro, ilimitadas.',
       },
     ],
     datePublished: '2026-09-04',
-    dateModified: '2026-10-06',
+    dateModified: '2026-10-16',
   },
   {
     // Landing de funcionalidad (señas). Cada afirmación sale del backend:
@@ -548,12 +548,12 @@ export const verticals: VerticalContent[] = [
     kind: 'feature',
     title: 'Sistema de turnos con seña por Mercado Pago | TurnosPro',
     description:
-      'Cobrá la seña del turno online con Mercado Pago: el cliente paga al reservar, el turno se confirma solo y la plata entra en tu cuenta. Sin comisión.',
+      'Cobrá la seña del turno online con Mercado Pago: el cliente paga al reservar, el turno se confirma solo y la plata entra en tu cuenta. Gratis para empezar.',
     h1: 'Sistema de turnos con seña por Mercado Pago',
     eyebrow: 'Señas con Mercado Pago',
     intro: [
       'Un turno sin seña es una promesa; un turno con seña es un compromiso. Con TurnosPro cobrás la seña del turno online con Mercado Pago en el mismo momento en que el cliente reserva: elige servicio, profesional y horario en tu web de turnos, paga desde el celular y el turno se confirma solo cuando Mercado Pago aprueba el pago.',
-      'La plata entra directo en tu cuenta de Mercado Pago, que conectás una sola vez desde el panel. TurnosPro no le suma comisión a la seña: pagás la cuota del plan y listo. Vos elegís qué servicios piden seña, de cuánto y a qué clientes.',
+      'La plata entra directo en tu cuenta de Mercado Pago, que conectás una sola vez desde el panel. TurnosPro no cobra por turno: según el plan se descuenta una comisión del cobro online, que va de 5% en Gratuito a 0% en Pro. Vos elegís qué servicios piden seña, de cuánto y a qué clientes.',
     ],
     sections: [
       {
@@ -593,7 +593,7 @@ export const verticals: VerticalContent[] = [
           'Elegís a quién se la pedís: a todos los clientes, solo a los clientes nuevos o solo cuando el turno se reserva con cierta cantidad de días de anticipación.',
         ],
         after: [
-          'Podés cambiar la configuración de cada servicio cuando quieras. Todo esto viene en el mismo plan, con 7 días de prueba gratis y sin tarjeta.',
+          'Podés cambiar la configuración de cada servicio cuando quieras. Las señas con Mercado Pago vienen desde el plan Gratuito, sin tarjeta.',
         ],
       },
     ],
@@ -612,7 +612,7 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿TurnosPro cobra comisión por las señas?',
-        a: 'No. La seña entra directo en tu cuenta de Mercado Pago y TurnosPro no le suma comisión: pagás solo la cuota del plan. Las comisiones de Mercado Pago son las de tu propia cuenta.',
+        a: 'Depende del plan: 5% en Gratuito, 2% en Plus, 1% en Advance y 0% en Pro. Se descuenta sola de cada cobro online con Mercado Pago; además corren las comisiones de tu propia cuenta de Mercado Pago. Los cobros en efectivo o transferencia manual no pagan comisión.',
       },
       {
         q: '¿Cómo devuelvo una seña si el cliente cancela?',
@@ -620,89 +620,100 @@ export const verticals: VerticalContent[] = [
       },
     ],
     datePublished: '2026-10-15',
-    dateModified: '2026-10-15',
+    dateModified: '2026-10-16',
   },
   {
-    // Landing de "gratis". Hechos: RegistrationController (alta por mail, 7 días, Trial:RequireCard=false
-    // por defecto → sin tarjeta), SubscriptionMiddleware (al vencer, 402 en el panel hasta elegir plan),
-    // /api/subscription-plans (precios). TurnosPro NO tiene plan gratuito: no prometerlo.
+    // Landing de "gratis" (freemium). Hechos: todo negocio nace en el plan Gratuito (code "free"), sin
+    // prueba ni tarjeta; límites y precios de PlanCatalog / pricingContent (content.ts). La comisión es
+    // por cobro online y la descuenta Mercado Pago (5% Gratuito, 2% Plus, 1% Advance, 0% Pro).
     slug: 'sistema-de-turnos-online-gratis',
     path: '/sistema-de-turnos-online-gratis',
-    label: 'Prueba gratis',
-    businessTypeLabel: 'Prueba gratis',
+    label: 'Plan gratuito',
+    businessTypeLabel: 'Plan gratuito',
     kind: 'feature',
     featureCopy: {
-      callout: 'La prueba gratis es el mismo plan que usan los negocios que pagan TurnosPro.',
+      callout: 'El plan Gratuito no vence: es tu sistema de turnos para siempre, y te pasás de plan solo si lo necesitás.',
       pricingIntro:
-        'Después de los 7 días gratis, un solo plan con reservas ilimitadas, señas con Mercado Pago, recordatorios por WhatsApp y agenda por profesional. Sin permanencia; cuanto más largo el compromiso, más barato el mes.',
-      faqTitle: 'Preguntas frecuentes sobre la prueba gratis',
+        'Arrancás en Gratuito, sin tarjeta y para siempre. Cuando necesitás más reservas, recordatorios automáticos o mensajes de WhatsApp, te pasás a Plus, Advance o Pro desde el panel, sin permanencia.',
+      faqTitle: 'Preguntas frecuentes sobre el plan gratuito',
     },
-    title: 'Sistema de turnos online gratis por 7 días | TurnosPro',
+    title: 'Sistema de turnos online gratis para siempre | TurnosPro',
     description:
-      'Probá gratis el sistema de turnos online TurnosPro: 7 días sin tarjeta, con reservas 24/7, señas por Mercado Pago y recordatorios por WhatsApp.',
-    h1: 'Sistema de turnos online gratis por 7 días, sin tarjeta',
-    eyebrow: 'Prueba gratis',
+      'Sistema de turnos online gratis, sin tarjeta y sin vencimiento: 100 reservas por mes, hasta 3 agendas, cobros con Mercado Pago y panel de métricas. Empezá en 2 minutos.',
+    h1: 'Sistema de turnos online gratis, para siempre y sin tarjeta',
+    eyebrow: 'Plan gratuito',
     intro: [
-      'Si estás buscando un sistema de turnos online gratis, lo más útil es probar uno con tu negocio real antes de pagar nada. TurnosPro tiene 7 días de prueba gratis sin tarjeta: te registrás con tu mail, cargás tus servicios y tus profesionales, y en el día ya tenés tu link de reservas para compartir por WhatsApp o Instagram.',
-      'Durante la prueba usás el mismo plan que usan los negocios que pagan: reservas 24/7, agenda por profesional, señas con Mercado Pago y recordatorios por WhatsApp. Al terminar elegís si seguís; si no seguís, no se te cobra nada.',
+      'TurnosPro tiene un plan Gratuito de verdad: no es una prueba que se vence ni te pide tarjeta. Te registrás con tu mail, cargás tus servicios y tus horarios y en el día ya tenés tu link de reservas para compartir por WhatsApp o Instagram, con 100 reservas por mes incluidas.',
+      'Tus clientes reservan solos las 24 horas, vos cobrás con Mercado Pago o transferencia y ves cómo viene el mes en el panel de métricas. Cuando tu agenda crece, te pasás de plan desde el panel; mientras tanto, no pagás nada.',
     ],
     sections: [
       {
         h2: '¿Hay un sistema de turnos online gratis de verdad?',
         paragraphs: [
-          'Lo que se suele llamar "gratis" son tres cosas distintas: una agenda en papel o en una planilla, un sistema con plan gratuito limitado y la prueba gratis de un sistema pago. La agenda en papel no cuesta nada, pero no toma reservas sola, no manda recordatorios y depende de que alguien conteste cada mensaje. Si querés arrancar así, tenemos una agenda de turnos para imprimir, gratis, con hojas diaria y semanal por profesional.',
-          'Si mirás un plan gratuito, fijate cuántos turnos o profesionales permite, si cobra una comisión por cada seña y si los recordatorios están incluidos o se pagan aparte. TurnosPro no tiene plan gratuito: tiene 7 días de prueba sin tarjeta con todo incluido y después un precio mensual fijo, sin comisión por seña.',
+          'Lo que se suele llamar "gratis" son tres cosas distintas: una agenda en papel o en una planilla, la prueba gratis de un sistema pago que después se vence, y un plan gratuito que se puede usar para siempre. La agenda en papel no cuesta nada, pero no toma reservas sola y depende de que alguien conteste cada mensaje. Si querés arrancar así, tenemos una agenda de turnos para imprimir, gratis, con hojas diaria y semanal por profesional.',
+          'TurnosPro es la tercera opción: un plan Gratuito sin fecha de vencimiento. Como todo plan gratuito tiene límites claros, y conviene mirarlos antes de elegir: cuántas reservas por mes permite, cuántas agendas, si se puede cobrar online y cuánto se lleva el sistema por cada cobro. Acá van todos, sin letra chica.',
         ],
       },
       {
-        h2: 'Qué incluye la prueba gratis',
+        h2: 'Qué incluye el plan Gratuito',
         bullets: [
-          'Tu página de reservas con link propio, para que tus clientes reserven solos las 24 horas.',
-          'Agenda por profesional y por sucursal, con vista diaria, semanal y mensual.',
-          'Señas con Mercado Pago: la plata entra a tu cuenta y TurnosPro no le suma comisión.',
-          'Recordatorios y confirmación de turnos por WhatsApp desde el número de tu negocio.',
-          'Reportes de ocupación y facturación.',
+          '100 reservas por mes, desde tu página de reservas con link propio, abierta las 24 horas.',
+          'Hasta 3 agendas, para vos y dos profesionales más, con 1 servicio por agenda.',
+          'Cobros con Mercado Pago y transferencia: la plata entra a tu cuenta.',
+          'Panel de métricas para ver reservas, ocupación y cobros del mes.',
+          '5% de comisión por cobro online. Las reservas sin cobro y los pagos en efectivo o transferencia manual no pagan nada.',
         ],
         after: [
-          'Es el mismo plan que se paga después: reservas ilimitadas y sin pagar por profesional.',
+          'No hay período de prueba ni cobro automático: nunca dejaste una tarjeta, así que nadie te va a debitar nada.',
         ],
       },
       {
         h2: 'Cómo empezar en 3 pasos',
         bullets: [
           'Te registrás con tu mail: te llega un código, lo ingresás y entrás directo al panel. No dejás tarjeta.',
-          'Cargás tus servicios con su duración y precio, tus profesionales y sus horarios.',
+          'Cargás tus servicios con su duración y precio, tus agendas y sus horarios.',
           'Compartís tu link de reservas y empezás a recibir turnos.',
         ],
       },
       {
-        h2: 'Qué pasa cuando terminan los 7 días',
+        h2: 'Cuándo conviene pasarse de plan',
         paragraphs: [
-          'Para seguir usando el panel elegís un plan y lo pagás con Mercado Pago. No hay un cobro automático que no hayas autorizado, porque nunca dejaste la tarjeta, y no hay permanencia: podés dar de baja cuando quieras.',
-          'El plan mensual cuesta ARS 50.000 por mes. Si pagás por adelantado sale menos: ARS 45.000 por mes el trimestral, ARS 40.000 el semestral y ARS 37.500 el anual. Los precios vigentes están siempre en la sección de precios del sitio.',
+          'El plan Gratuito alcanza para arrancar y para negocios chicos. Conviene pasarse cuando tu agenda empieza a pedir más:',
+        ],
+        bullets: [
+          'Plus ($8.000 por mes): si pasás las 100 reservas, necesitás hasta 5 agendas o más de un servicio por agenda, o querés recordatorios automáticos y 30 mensajes de WhatsApp por mes. La comisión baja al 2%.',
+          'Advance ($18.000 por mes): reservas y agendas ilimitadas, 100 mensajes de WhatsApp, reservas recurrentes, cupones de descuento y transferencia bancaria automática, con 1% de comisión.',
+          'Pro ($30.000 por mes): todo lo de Advance más ficha e historial de clientes, campos personalizados ilimitados, píxel y Google Analytics, 250 mensajes de WhatsApp y sin comisión por cobro.',
+        ],
+        after: [
+          'Los precios son finales en pesos y no hay permanencia: subís, bajás o volvés al plan Gratuito desde el panel cuando quieras.',
         ],
       },
     ],
     faqs: [
       {
         q: '¿Hay un sistema de turnos online gratis?',
-        a: 'TurnosPro no tiene plan gratuito, pero lo podés usar 7 días gratis y sin tarjeta, con todo incluido. Si todavía no querés un sistema, tenemos una agenda de turnos para imprimir, gratis.',
+        a: 'Sí. TurnosPro tiene un plan Gratuito para siempre, sin tarjeta: 100 reservas por mes, hasta 3 agendas, cobros con Mercado Pago y transferencia y panel de métricas. Si todavía no querés un sistema, también tenemos una agenda de turnos para imprimir, gratis.',
       },
       {
-        q: '¿Necesito tarjeta de crédito para probar TurnosPro?',
-        a: 'No. Te registrás con tu mail, entrás al panel y usás TurnosPro 7 días sin dejar tarjeta ni datos de pago. Recién al terminar elegís un plan si querés seguir.',
+        q: '¿El plan gratuito se vence?',
+        a: 'No. No es una prueba: lo usás todo el tiempo que quieras. Solo pagás si decidís pasarte a Plus, Advance o Pro.',
       },
       {
-        q: '¿Qué incluye la prueba gratis?',
-        a: 'Lo mismo que el plan pago: página de reservas con link propio, agenda por profesional y sucursal, señas con Mercado Pago sin comisión, recordatorios por WhatsApp y reportes, con reservas ilimitadas y sin pagar por profesional.',
+        q: '¿Necesito tarjeta de crédito para registrarme?',
+        a: 'No. Te registrás con tu mail, entrás al panel y usás TurnosPro sin dejar tarjeta ni datos de pago.',
       },
       {
-        q: '¿Cuánto cuesta TurnosPro después de la prueba?',
-        a: 'El plan mensual cuesta ARS 50.000 por mes; trimestral, semestral y anual salen ARS 45.000, 40.000 y 37.500 por mes. No hay permanencia y TurnosPro no cobra comisión por las señas.',
+        q: '¿Qué incluye el plan gratuito?',
+        a: '100 reservas por mes, hasta 3 agendas con 1 servicio por agenda, cobros con Mercado Pago y transferencia y panel de métricas. Los recordatorios automáticos y los mensajes de WhatsApp vienen desde el plan Plus.',
       },
       {
-        q: '¿Qué pasa si no sigo después de los 7 días?',
-        a: 'No se te cobra nada, porque nunca dejaste la tarjeta. El panel queda bloqueado hasta que elijas un plan.',
+        q: '¿Cuánto cobra TurnosPro por cada cobro en el plan gratuito?',
+        a: 'Un 5% de cada cobro online, que se descuenta solo de cada cobro con Mercado Pago. Las reservas sin cobro y los pagos en efectivo o transferencia manual no pagan comisión. En Plus la comisión baja al 2%, en Advance al 1% y en Pro es 0%.',
+      },
+      {
+        q: '¿Qué pasa si llego a las 100 reservas del mes?',
+        a: 'Tus clientes no pueden reservar online hasta el mes siguiente o hasta que mejores el plan; ves el contador de reservas del mes en el panel. Plus suma 200 reservas por mes y Advance, ilimitadas. Cuestan $8.000 y $18.000 por mes (Pro, $30.000), precio final en pesos y sin permanencia.',
       },
     ],
     datePublished: '2026-10-16',

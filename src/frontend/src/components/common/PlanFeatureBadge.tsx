@@ -147,13 +147,8 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({ compact = false }) => 
         <Typography variant="subtitle2" fontWeight="bold">
           {subscription.planName}
         </Typography>
-        {subscription.isTrialPeriod && (
-          <Chip
-            size="small"
-            label={`${subscription.daysRemaining} dias de prueba`}
-            color="warning"
-            variant="outlined"
-          />
+        {!subscription.isPaid && (
+          <Chip size="small" label="Gratuito" variant="outlined" />
         )}
       </Box>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>

@@ -18,6 +18,8 @@ namespace BookingPro.API.Models.DTOs
         public string? Notes { get; set; }
         public bool HasPayment { get; set; }
         public bool IsPaymentSuccessful { get; set; }
+        /// <summary>Turno fijo: el calendario muestra el ícono de repetición.</summary>
+        public Guid? SeriesId { get; set; }
     }
 
     public class BookingDetailDto
@@ -36,6 +38,15 @@ namespace BookingPro.API.Models.DTOs
         public DateTime UpdatedAt { get; set; }
         public DateTime? CancelledAt { get; set; }
         public string? CancellationReason { get; set; }
+
+        /// <summary>Reserva recurrente a la que pertenece (turno fijo).</summary>
+        public Guid? SeriesId { get; set; }
+        /// <summary>Cada cuántas semanas se repite el turno fijo (null si no es de una serie).</summary>
+        public int? SeriesIntervalWeeks { get; set; }
+        public string? CouponCode { get; set; }
+        public decimal? DiscountAmount { get; set; }
+        /// <summary>Respuestas a los campos personalizados del formulario.</summary>
+        public List<BookingPro.API.Services.CustomFieldAnswer> CustomFields { get; set; } = new();
     }
 
     // Customer Response DTOs

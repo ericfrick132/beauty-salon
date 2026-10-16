@@ -103,7 +103,7 @@ function getAttribution(): Record<string, string | undefined> {
 }
 
 // Embudo de alta en Microsoft Clarity + GA4 (send_to: solo la propiedad GA4, no Google Ads).
-// StartTrial sale al crear la cuenta (la prueba arranca sin tarjeta); AddPaymentInfo lo manda el
+// StartTrial sale al crear la cuenta (el plan gratuito arranca sin tarjeta; el nombre del evento queda por las campañas); AddPaymentInfo lo manda el
 // panel del negocio cuando deja la tarjeta en Mercado Pago.
 const GA4_ID = 'G-X6HH01MKRW';
 const FUNNEL_EVENTS = new Set(['Lead', 'CompleteRegistration', 'StartTrial']);
@@ -478,7 +478,7 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
       sendRegFlow('COMPLETED');
       fbqTrack('CompleteRegistration');
       sendTrackingEvent('CompleteRegistration', { name: state.businessName, email: state.email, phone: fullPhone });
-      // La cuenta nace con la prueba activa (sin tarjeta): StartTrial a Clarity/GA4 al crearla.
+      // La cuenta nace en el plan gratuito (sin tarjeta): StartTrial a Clarity/GA4 al crearla.
       trackFunnel('StartTrial');
       // StartTrial: el backend lo manda por CAPI con event_id "tenant-{tenantId}-StartTrial"
       // (MetaTrialTracker); mismo eventID acá para que Meta deduplique browser + server.
@@ -572,7 +572,7 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
             {t ? t.title : 'Creá tu cuenta gratis'}
           </Typography>
           <Typography sx={subtitleSx}>
-            {t ? t.subtitle : 'Sin contraseña: te mandamos un código por email y entrás directo. 7 días gratis, sin tarjeta.'}
+            {t ? t.subtitle : 'Sin contraseña: te mandamos un código por email y entrás directo. Gratis para siempre, sin tarjeta.'}
           </Typography>
 
           <Stack spacing={2}>
@@ -624,7 +624,7 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
             startIcon={state.busy ? <CircularProgress size={18} color="inherit" /> : undefined}
             sx={{ ...primaryButtonSx, mt: 2.5 }}
           >
-            {state.busy ? (t ? t.sending : 'Enviando código...') : (t ? t.button : 'Empezar gratis 7 días')}
+            {state.busy ? (t ? t.sending : 'Enviando código...') : (t ? t.button : 'Empezar gratis')}
           </Button>
 
           <Typography sx={{ ...finePrintSx, mt: 1.5 }}>
@@ -652,7 +652,7 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
             Activá tu negocio en 2 minutos
           </Typography>
           <Typography sx={{ ...subtitleSx, mb: 3 }}>
-            Gratis 7 días · Sin tarjeta · Listo al instante
+            Gratis para siempre · Sin tarjeta · Listo al instante
           </Typography>
 
           <TextField
@@ -820,7 +820,7 @@ function SignupModalInner() {
           fontWeight: 700,
         }}
       >
-        {country ? country.copy.signup.ribbon : '⚡ 7 DÍAS GRATIS · SIN TARJETA · LISTO EN 2 MIN'}
+        {country ? country.copy.signup.ribbon : '⚡ GRATIS PARA SIEMPRE · SIN TARJETA · LISTO EN 2 MIN'}
       </Box>
 
       {/* Close button */}

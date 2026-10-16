@@ -12,11 +12,15 @@ namespace BookingPro.API.Services
         private readonly ILogger<WhatsAppService> _logger;
         private readonly IWhatsAppConnectionService _connectionService;
 
+        private readonly IPlanEntitlementService _plans;
+
         public WhatsAppService(
             ApplicationDbContext context,
             ILogger<WhatsAppService> logger,
-            IWhatsAppConnectionService connectionService)
+            IWhatsAppConnectionService connectionService,
+            IPlanEntitlementService plans)
         {
+            _plans = plans;
             _context = context;
             _logger = logger;
             _connectionService = connectionService;
@@ -39,10 +43,11 @@ namespace BookingPro.API.Services
                     return ServiceResult<bool>.Fail("WhatsApp reminders disabled");
                 }
 
-                // Check wallet
+                // Primero los mensajes que incluye el plan este mes; después los packs comprados.
                 var wallet = await _context.TenantMessageWallets
                     .FirstOrDefaultAsync(w => w.TenantId == booking.TenantId);
-                if (wallet == null || wallet.Balance <= 0)
+                var included = await _plans.GetIncludedWhatsAppRemainingAsync(booking.TenantId);
+                if (included <= 0 && (wallet == null || wallet.Balance <= 0))
                 {
                     return ServiceResult<bool>.Fail("Insufficient message credits");
                 }
@@ -85,9 +90,10 @@ namespace BookingPro.API.Services
 
                 _context.MessageLogs.Add(log);
 
-                if (sendResult.Success)
+                if (sendResult.Success && wallet != null)
                 {
-                    wallet.Balance -= 1;
+                    // Lo incluido en el plan no descuenta saldo: los packs se usan cuando se termina.
+                    if (included <= 0) wallet.Balance -= 1;
                     wallet.TotalSent += 1;
                     wallet.UpdatedAt = DateTime.UtcNow;
                 }
@@ -121,10 +127,11 @@ namespace BookingPro.API.Services
                 if (connection == null || connection.Status != "open")
                     return ServiceResult<bool>.Ok(false, "WhatsApp not connected");
 
-                // Check wallet
+                // Primero los mensajes que incluye el plan este mes; después los packs comprados.
                 var wallet = await _context.TenantMessageWallets
                     .FirstOrDefaultAsync(w => w.TenantId == booking.TenantId);
-                if (wallet == null || wallet.Balance <= 0)
+                var included = await _plans.GetIncludedWhatsAppRemainingAsync(booking.TenantId);
+                if (included <= 0 && (wallet == null || wallet.Balance <= 0))
                     return ServiceResult<bool>.Ok(false, "Insufficient credits");
 
                 var toPhone = booking.Customer?.Phone;
@@ -166,9 +173,10 @@ namespace BookingPro.API.Services
                 };
                 _context.MessageLogs.Add(log);
 
-                if (sendResult.Success)
+                if (sendResult.Success && wallet != null)
                 {
-                    wallet.Balance -= 1;
+                    // Lo incluido en el plan no descuenta saldo: los packs se usan cuando se termina.
+                    if (included <= 0) wallet.Balance -= 1;
                     wallet.TotalSent += 1;
                     wallet.UpdatedAt = DateTime.UtcNow;
                 }

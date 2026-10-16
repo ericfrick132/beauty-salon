@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using BookingPro.API.Data;
 using BookingPro.API.Models.Entities;
 using BookingPro.API.Services;
+using BookingPro.API.Utilities;
 using BookingPro.API.Models.DTOs;
 
 namespace BookingPro.API.Controllers
@@ -15,11 +16,13 @@ namespace BookingPro.API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly ITenantProvider _tenantProvider;
+        private readonly IPlanEntitlementService _plans;
 
-        public ServicesController(ApplicationDbContext context, ITenantProvider tenantProvider)
+        public ServicesController(ApplicationDbContext context, ITenantProvider tenantProvider, IPlanEntitlementService plans)
         {
             _context = context;
             _tenantProvider = tenantProvider;
+            _plans = plans;
         }
 
         [HttpGet]
@@ -107,6 +110,9 @@ namespace BookingPro.API.Controllers
         {
             var tenantId = _tenantProvider.GetCurrentTenantId();
 
+            var check = await _plans.CanCreateServiceAsync(tenantId);
+            if (!check.Allowed) return PlanLimitResult.From(check);
+
             if (dto.CategoryId.HasValue)
             {
                 var categoryExists = await _context.ServiceCategories.AnyAsync(c => c.Id == dto.CategoryId.Value);
@@ -159,6 +165,12 @@ namespace BookingPro.API.Controllers
                 {
                     return BadRequest(new { message = "La categoría seleccionada no existe" });
                 }
+            }
+
+            if (!service.IsActive && dto.IsActive)
+            {
+                var check = await _plans.CanCreateServiceAsync(tenantId);
+                if (!check.Allowed) return PlanLimitResult.From(check);
             }
 
             service.Name = dto.Name;

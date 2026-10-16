@@ -5,7 +5,7 @@ export const heroContent = {
     'Publica tu web de turnos, activa pagos anticipados y un agente de IA que confirma tus turnos por WhatsApp. Sin descargas ni apps nativas.',
   cta: 'Quiero mi sitio de reservas',
   secondaryCta: 'Ver demo',
-  microcopy: '7 días gratis, sin tarjeta. Cancelás cuando quieras.',
+  microcopy: 'Gratis para siempre, sin tarjeta. Pasate de plan cuando lo necesites.',
   trustBadges: ['Pago seguro', 'GDPR', '99.9% uptime'],
 };
 
@@ -157,69 +157,246 @@ export const faqs = [
   },
   {
     q: '¿Hay contrato mínimo?',
-    a: 'No. Puedes probarla, pausar o cambiar de plan cuando quieras.',
+    a: 'No. Empezás en el plan Gratuito y te pasás de plan, bajás o cancelás cuando quieras.',
   },
 ];
 
+export type PlanCode = 'free' | 'plus' | 'advance' | 'pro_v2';
+
+/** Celda de la tabla comparativa: true = incluido, false = no incluido, string = valor. */
+export type ComparisonCell = boolean | string;
+
+export interface ComparisonRow {
+  label: string;
+  /** Gratuito, Plus, Advance, Pro (mismo orden que pricingContent.plans). */
+  values: [ComparisonCell, ComparisonCell, ComparisonCell, ComparisonCell];
+}
+
+export interface ComparisonGroup {
+  title: string;
+  rows: ComparisonRow[];
+}
+
+export interface PlanComparisonCopy {
+  title: string;
+  accent: string;
+  intro: string;
+  featureHeader: string;
+  priceLabel: string;
+  swipeHint: string;
+  groups: ComparisonGroup[];
+  exampleTitle: string;
+  example: string;
+  packs: string;
+  faqTitle: string;
+  faqs: { q: string; a: string }[];
+}
+
+/**
+ * Tabla "Compará los planes". Voz: 'vos' (AR/UY: turnos, reservas) o 'tu' (MX/ES: citas).
+ * payments: con qué se cobra online en el país (Mercado Pago o tarjeta vía Stripe en España).
+ */
+export function buildPlanComparison(opts: {
+  voice: 'vos' | 'tu';
+  payments: 'mp' | 'stripe';
+  /** Transferencia automática (TransferDetection): hoy solo Argentina (CountryProfile del backend). */
+  autoTransfer: boolean;
+  /**
+   * Sin comisión por cobro en ningún plan: Uruguay y México conectan Mercado Pago pegando credenciales y
+   * con ese token Mercado Pago no permite cobrar marketplace_fee (solo con OAuth, como en Argentina).
+   */
+  noCommission?: boolean;
+  example: string;
+}): PlanComparisonCopy {
+  const tu = opts.voice === 'tu';
+  const mp = opts.payments === 'mp';
+  const bookings = tu ? 'Citas' : 'Reservas';
+  const processor = mp ? 'Mercado Pago' : 'tarjeta';
+  const autoTransferRow: ComparisonRow = { label: 'Transferencia bancaria automática (se confirma sola)', values: [false, false, true, true] };
+  return {
+    title: tu ? 'Compara los planes' : 'Compará los planes',
+    accent: tu ? 'Compara' : 'Compará',
+    intro: tu
+      ? 'Todo lo que incluye cada plan, fila por fila. Empiezas en Gratuito y cambias cuando tu agenda lo pida.'
+      : 'Todo lo que incluye cada plan, fila por fila. Arrancás en Gratuito y te pasás cuando tu agenda lo pida.',
+    featureHeader: 'Qué incluye',
+    priceLabel: 'Precio',
+    swipeHint: tu ? 'Desliza para ver todos los planes →' : 'Deslizá para ver todos los planes →',
+    groups: [
+      {
+        title: tu ? 'Citas y agenda' : 'Reservas y agenda',
+        rows: [
+          { label: `${bookings} por mes`, values: ['100', '200', 'Ilimitadas', 'Ilimitadas'] },
+          { label: 'Agendas (profesionales)', values: ['Hasta 3', 'Hasta 5', 'Ilimitadas', 'Ilimitadas'] },
+          { label: 'Servicios', values: ['1 por agenda', 'Ilimitados', 'Ilimitados', 'Ilimitados'] },
+          { label: tu ? 'Página de citas online con tu link' : 'Página de reservas online con tu link', values: [true, true, true, true] },
+          { label: tu ? 'Citas recurrentes (citas fijas)' : 'Reservas recurrentes (turnos fijos)', values: [false, false, true, 'Ilimitadas'] },
+          { label: 'Campos personalizados en el formulario', values: [false, false, '1', 'Ilimitados'] },
+        ],
+      },
+      {
+        title: 'Cobros',
+        rows: [
+          {
+            label: mp
+              ? tu ? 'Cobro de anticipos y citas con Mercado Pago' : 'Cobro de señas y turnos con Mercado Pago'
+              : 'Cobro de señal y citas con tarjeta (Stripe)',
+            values: [true, true, true, true],
+          },
+          { label: 'Transferencia (manual)', values: [true, true, true, true] },
+          ...(opts.autoTransfer ? [autoTransferRow] : []),
+          { label: 'Cupones de descuento', values: [false, false, true, true] },
+          {
+            label: 'Comisión por cobro online',
+            values: opts.noCommission ? ['Sin comisión', 'Sin comisión', 'Sin comisión', 'Sin comisión'] : ['5%', '2%', '1%', 'Sin comisión'],
+          },
+        ],
+      },
+      {
+        title: 'WhatsApp y recordatorios',
+        rows: [
+          { label: 'Recordatorios automáticos', values: [false, true, true, true] },
+          { label: 'Confirmación automática por WhatsApp (el cliente responde SI/NO)', values: [false, true, true, true] },
+          { label: 'Mensajes de WhatsApp incluidos por mes', values: [false, '30', '100', '250'] },
+        ],
+      },
+      {
+        title: tu ? 'Clientes y métricas' : 'Clientes y métricas',
+        rows: [
+          { label: 'Panel de métricas', values: [true, true, true, true] },
+          { label: 'Ficha e historial de clientes', values: [false, false, false, true] },
+          { label: 'Píxel de Meta y Google Analytics en tu página', values: [false, false, false, true] },
+        ],
+      },
+    ],
+    exampleTitle: opts.noCommission ? 'Sin comisión por cobro' : 'Así se calcula la comisión',
+    example: opts.example,
+    packs: tu
+      ? '¿Necesitas más mensajes de WhatsApp? Compras packs cuando quieras.'
+      : '¿Necesitás más mensajes de WhatsApp? Comprás packs cuando quieras.',
+    faqTitle: tu ? 'Preguntas sobre los planes' : 'Preguntas sobre los planes',
+    faqs: tu
+      ? [
+          { q: '¿El plan gratuito es para siempre?', a: 'Sí. No es una prueba: no pide tarjeta y no tiene vencimiento. Solo pagas si decides cambiar a Plus, Advance o Pro.' },
+          { q: '¿Qué pasa si llego a las 100 citas?', a: 'Tus clientes no pueden agendar en línea hasta el mes siguiente o hasta que mejores el plan. Ves el contador de citas del mes en el panel.' },
+          { q: '¿Puedo cambiar de plan cuando quiera?', a: 'Sí. Subes o bajas de plan desde el panel. Si vuelves a Gratuito no pierdes tu agenda ni tus clientes.' },
+          opts.noCommission
+            ? { q: '¿Cobran comisión por los pagos?', a: `No. Lo que cobras en línea con ${processor} es todo tuyo (aparte de la comisión de ${processor}).` }
+            : { q: '¿Cómo se cobra la comisión?', a: `Sale sola de cada cobro online con ${processor}. Los cobros en efectivo o por transferencia manual no pagan comisión.` },
+        ]
+      : [
+          { q: '¿El plan gratuito es para siempre?', a: 'Sí. No es una prueba: no pide tarjeta y no tiene vencimiento. Solo pagás si decidís pasarte a Plus, Advance o Pro.' },
+          { q: '¿Qué pasa si llego a las 100 reservas?', a: 'Tus clientes no pueden reservar online hasta el mes siguiente o hasta que mejores el plan. Ves el contador de reservas del mes en el panel.' },
+          { q: '¿Puedo cambiar de plan cuando quiera?', a: 'Sí. Subís o bajás de plan desde el panel. Si bajás a Gratuito no perdés tu agenda ni tus clientes.' },
+          opts.noCommission
+            ? { q: '¿Cobran comisión por los pagos?', a: `No. Lo que cobrás online con ${processor} es todo tuyo (aparte de la comisión de ${processor}).` }
+            : { q: '¿Cómo se cobra la comisión?', a: `Sale sola de cada cobro online con ${processor}. Los cobros en efectivo o por transferencia manual no pagan comisión.` },
+        ],
+  };
+}
+
+export interface PricingPlan {
+  /** Código del plan en el backend (SubscriptionPlan.Code). */
+  code: PlanCode;
+  name: string;
+  tagline: string;
+  /** Precio mensual final en ARS. 0 = Gratuito. */
+  price: number;
+  features: string[];
+  cta: string;
+  highlighted: boolean;
+  badge?: string;
+}
+
+// Freemium: todos los negocios arrancan en Gratuito (sin prueba, sin tarjeta) y se pasan de plan
+// desde el panel. La comisión es por cobro online y la descuenta sola Mercado Pago.
 export const pricingContent = {
   eyebrow: 'Nº 08 · Precios',
-  headline: 'Elegí el plan que se adapta a tu negocio',
+  headline: 'Empezá gratis. Pasate de plan cuando lo necesites.',
+  accent: 'gratis',
   subheadline:
-    'Mismo plan, distinto compromiso. Cuanto más largo, mayor el descuento. Todos arrancan con 7 días gratis, sin tarjeta: elegís el plan y pagás recién cuando decidís seguir.',
-  microcopy: 'Sin permanencia · Cancelás cuando quieras · Cambiás de plan en 1 clic',
-  features: [
-    'Reservas online ilimitadas',
-    'Cobros con MercadoPago',
-    'Recordatorios por WhatsApp',
-    'Agente IA de confirmación (add-on)',
-    'Agenda multi-profesional',
-    'Reportes y métricas',
-    'Soporte prioritario',
-  ],
+    'Todos los negocios arrancan en el plan Gratuito: 100 reservas por mes, sin tarjeta y para siempre. Cuando necesitás más agendas, recordatorios o WhatsApp, te pasás de plan desde el panel.',
+  freeNote: 'Gratis siempre. Sin tarjeta.',
+  paidNote: 'Precio final en pesos.',
+  commissionNote:
+    'La comisión se descuenta sola de cada cobro online con Mercado Pago. Los cobros en efectivo o transferencia manual no pagan comisión.',
+  microcopy: 'Sin permanencia · Sin tarjeta para empezar · Cambiás de plan cuando quieras',
+  comparison: buildPlanComparison({
+    voice: 'vos',
+    payments: 'mp',
+    autoTransfer: true,
+    example:
+      'Un turno de $20.000 cobrado online: en Gratuito pagás $1.000 de comisión, en Plus $400, en Advance $200, en Pro $0. La comisión se descuenta sola en cada cobro con Mercado Pago (aparte de la comisión de Mercado Pago). Los cobros en efectivo o por transferencia manual no pagan comisión.',
+  }),
   plans: [
     {
-      code: 'promo',
-      name: 'Promo 3 meses',
-      commitment: '3 meses',
-      price: 45000,
-      discount: '10% OFF',
-      trialDays: 7,
-      cta: 'Empezar prueba',
+      code: 'free',
+      name: 'Gratuito',
+      tagline: 'Para empezar a recibir reservas online.',
+      price: 0,
+      features: [
+        '100 reservas por mes',
+        'Hasta 3 agendas',
+        '1 servicio por agenda',
+        'Cobros con MercadoPago y transferencia',
+        'Panel de métricas',
+        '5% de comisión por cobro',
+      ],
+      cta: 'Empezar gratis',
       highlighted: false,
     },
     {
-      code: '6meses',
-      name: 'Plan 6 meses',
-      commitment: '6 meses',
-      price: 40000,
-      discount: '20% OFF',
-      trialDays: 7,
-      cta: 'Empezar prueba',
+      code: 'plus',
+      name: 'Plus',
+      tagline: 'Un plus en la gestión de tus reservas.',
+      price: 8000,
+      features: [
+        '200 reservas por mes',
+        'Hasta 5 agendas',
+        'Servicios ilimitados',
+        'Recordatorios automáticos',
+        '30 mensajes de WhatsApp por mes',
+        '2% de comisión por cobro',
+      ],
+      cta: 'Elegir Plus',
+      highlighted: false,
+    },
+    {
+      code: 'advance',
+      name: 'Advance',
+      tagline: 'Para ordenar y automatizar todas tus reservas.',
+      price: 18000,
+      features: [
+        'Reservas y agendas ilimitadas',
+        '100 mensajes de WhatsApp por mes',
+        'Reservas recurrentes',
+        'Un campo personalizado en el formulario',
+        'Cupones de descuento',
+        'Transferencia bancaria automática',
+        '1% de comisión por cobro',
+      ],
+      cta: 'Elegir Advance',
       highlighted: true,
       badge: 'Más elegido',
     },
     {
-      code: '12meses',
-      name: 'Plan 12 meses',
-      commitment: '12 meses',
-      price: 37500,
-      discount: '25% OFF',
-      trialDays: 7,
-      cta: 'Empezar prueba',
-      highlighted: false,
-      badge: 'Mejor precio',
-    },
-    {
-      code: 'pro',
-      name: 'Plan mensual',
-      commitment: 'Mes a mes',
-      price: 50000,
-      discount: null,
-      trialDays: 7,
-      cta: 'Empezar prueba',
+      code: 'pro_v2',
+      name: 'Pro',
+      tagline: 'Sin límites ni fricciones.',
+      price: 30000,
+      features: [
+        'Todo lo del plan Advance',
+        '250 mensajes de WhatsApp por mes',
+        'Reservas recurrentes ilimitadas',
+        'Campos personalizados ilimitados',
+        'Ficha e historial de clientes',
+        'Píxel y Google Analytics',
+        'Sin comisión por cobro',
+      ],
+      cta: 'Elegir Pro',
       highlighted: false,
     },
-  ],
+  ] as PricingPlan[],
 };
 
 export const finalCtaContent = {
@@ -232,19 +409,19 @@ export const finalCtaContent = {
 // Sección #registro del final de la landing (izquierda vende, derecha el formulario de alta).
 export const signupSectionContent = {
   eyebrow: 'Nº 09 · Empezá ahora',
-  ribbon: '⚡ 7 días gratis · Sin tarjeta · Listo en 2 min',
-  headline: 'Probá TurnosPro con tu propia agenda.',
+  ribbon: '⚡ Gratis para siempre · Sin tarjeta · Listo en 2 min',
+  headline: 'Empezá gratis con tu propia agenda.',
   accent: 'tu propia agenda',
   subheadline:
     'Creá tu cuenta y seguí la configuración guiada: rubro, servicios, horarios y tu equipo. En 15 minutos tus clientes ya pueden reservar.',
   steps: [
     { title: 'Creá tu cuenta', description: 'Nombre del negocio, email y WhatsApp. Confirmás con un código, sin contraseña.' },
-    { title: 'Usá los 7 días gratis', description: 'Entrás directo, sin tarjeta. Si te sirve, elegís tu plan y lo pagás con Mercado Pago.' },
+    { title: 'Arrancá en el plan Gratuito', description: 'Entrás directo, sin tarjeta, con 100 reservas por mes. Cuando necesitás más, te pasás de plan y lo pagás con Mercado Pago.' },
     { title: 'Armá tu agenda', description: 'Elegís tu rubro y cargás servicios, horarios y profesionales. Todo guiado.' },
     { title: 'Compartí tu link y cobrá', description: 'tunegocio.turnos-pro.com: tus clientes reservan solos 24/7, con señas por MercadoPago y recordatorios por WhatsApp.' },
   ],
   guarantee:
-    '7 días gratis, sin tarjeta. Pagás recién si decidís seguir. Sin permanencia: cancelás cuando quieras.',
+    'Plan Gratuito para siempre, sin tarjeta. Pagás recién si te pasás a un plan pago. Sin permanencia: cambiás o cancelás cuando quieras.',
 };
 
 export const logoCarouselTitle = 'Funciona con MercadoPago y WhatsApp';

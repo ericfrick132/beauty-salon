@@ -18,6 +18,8 @@ namespace BookingPro.API.Models.Common
         public const string EmployeeBlocked = "employee_blocked";
         public const string SlotTaken = "slot_taken";
         public const string MinimumGap = "minimum_gap";
+        /// <summary>El negocio llegó al tope de reservas del mes de su plan.</summary>
+        public const string PlanLimit = "plan_limit";
 
         /// <summary>
         /// Texto para el cliente final. Nunca expone configuración interna del negocio
@@ -33,6 +35,8 @@ namespace BookingPro.API.Models.Common
             EmployeeBlocked => "Ese horario ya no está disponible.",
             SlotTaken => "Ese horario se acaba de ocupar.",
             MinimumGap => "Ese horario queda muy pegado a otro turno.",
+            // No le contamos al cliente final nada del plan del negocio.
+            PlanLimit => "Por ahora no estamos tomando más reservas online. Escribinos para coordinar tu turno.",
             _ => "Ese horario no está disponible.",
         };
     }

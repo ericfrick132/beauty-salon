@@ -258,7 +258,7 @@ namespace BookingPro.API.Services
                 if (!profile.BillsWithStripe)
                     return ServiceResult<StripeCheckoutResult>.Fail("La suscripción de tu negocio se paga con Mercado Pago.");
 
-                var code = string.IsNullOrWhiteSpace(planCode) ? "pro" : planCode.Trim().ToLowerInvariant();
+                var code = string.IsNullOrWhiteSpace(planCode) ? BookingPro.API.Models.Constants.PlanCatalog.Pro : planCode.Trim().ToLowerInvariant();
                 var plan = await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.IsActive && p.Code.ToLower() == code);
                 if (plan == null) return ServiceResult<StripeCheckoutResult>.Fail($"Plan '{code}' no disponible");
 
@@ -838,7 +838,7 @@ namespace BookingPro.API.Services
                 subscription = new Subscription
                 {
                     TenantId = row.TenantId,
-                    PlanType = plan?.Code ?? "pro",
+                    PlanType = plan?.Code ?? BookingPro.API.Models.Constants.PlanCatalog.Pro,
                     CreatedAt = DateTime.UtcNow,
                 };
                 _context.Subscriptions.Add(subscription);

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using BookingPro.API.Data;
 using BookingPro.API.Models.Common;
 using BookingPro.API.Models.DTOs;
+using BookingPro.API.Models.Constants;
 using BookingPro.API.Models.Entities;
 using BookingPro.API.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -98,80 +99,48 @@ namespace BookingPro.API.Services
             }
         }
 
-        public async Task<ServiceResult<SubscriptionResponseDto>> CreateTrialSubscriptionAsync(Guid tenantId)
+        /// <summary>
+        /// Freemium: ya no hay prueba. Se mantiene la firma porque la llaman el alta de usuarios, el provisioning
+        /// del super admin y POST /subscription/initialize-trial; no crea nada y responde el plan Gratuito, que es
+        /// lo que tiene todo negocio sin un plan pago vigente.
+        /// </summary>
+        public Task<ServiceResult<SubscriptionResponseDto>> CreateTrialSubscriptionAsync(Guid tenantId)
         {
-            try
+            return Task.FromResult(ServiceResult<SubscriptionResponseDto>.Ok(new SubscriptionResponseDto
             {
-                // Check if tenant already has a subscription
-                var existingSubscription = await _context.Subscriptions
-                    .Where(s => s.TenantId == tenantId)
-                    .FirstOrDefaultAsync();
-
-                if (existingSubscription != null)
-                {
-                    return ServiceResult<SubscriptionResponseDto>.Fail("El tenant ya tiene una suscripción");
-                }
-
-                // Create trial subscription with basic plan
-                var trialSubscription = new Subscription
-                {
-                    Id = Guid.NewGuid(),
-                    TenantId = tenantId,
-                    PlanType = "basic",
-                    MonthlyAmount = 0, // Free during trial
-                    Status = "trial",
-                    IsTrialPeriod = true,
-                    TrialEndsAt = DateTime.UtcNow.AddDays(14), // 14 días de prueba
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-
-                _context.Subscriptions.Add(trialSubscription);
-                await _context.SaveChangesAsync();
-
-                return ServiceResult<SubscriptionResponseDto>.Ok(new SubscriptionResponseDto
-                {
-                    Id = trialSubscription.Id,
-                    Status = trialSubscription.Status,
-                    PlanType = trialSubscription.PlanType,
-                    MonthlyAmount = trialSubscription.MonthlyAmount
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error creating trial subscription for tenant {TenantId}", tenantId);
-                return ServiceResult<SubscriptionResponseDto>.Fail("Error al crear suscripción de prueba");
-            }
+                Status = "active",
+                PlanType = PlanCatalog.Free,
+                PlanName = "Gratuito",
+                MonthlyAmount = 0
+            }));
         }
 
         public async Task<ServiceResult<bool>> InitializePlansAsync()
         {
             try
             {
-                var plans = new[]
+                var plans = PlanCatalog.Seeds();
+
+                // Pase a freemium (una sola vez, cuando todavía no existe Gratuito): se dejan de ofrecer el Pro viejo,
+                // los planes por permanencia y los anteriores. Quien ya los paga los conserva: las renovaciones
+                // buscan el plan por código sin mirar IsActive (IsActive = se ofrece para compras nuevas).
+                if (!await _context.SubscriptionPlans.AnyAsync(p => p.Code == PlanCatalog.Free))
                 {
-                    new SubscriptionPlan
-                    {
-                        Code = "pro",
-                        Name = "Plan Profesional",
-                        Description = "Plan completo para tu negocio",
-                        Price = 15000m,
-                        Currency = "ARS",
-                        MaxBookingsPerMonth = -1,
-                        MaxServices = -1,
-                        MaxStaff = -1,
-                        MaxCustomers = -1,
-                        AllowOnlinePayments = true,
-                        AllowCustomBranding = true,
-                        AllowSmsNotifications = true,
-                        AllowEmailMarketing = true,
-                        AllowReports = true,
-                        AllowMultiLocation = true,
-                        TrialDays = 14,
-                        IsPopular = true,
-                        DisplayOrder = 1
-                    }
-                };
+                    var legacy = await _context.SubscriptionPlans
+                        .Where(p => p.IsActive && !PlanCatalog.Codes.Contains(p.Code))
+                        .ToListAsync();
+                    foreach (var old in legacy) old.IsActive = false;
+                    if (legacy.Count > 0)
+                        _logger.LogInformation("Freemium: planes viejos que dejan de ofrecerse: {Codes}", string.Join(", ", legacy.Select(l => l.Code)));
+
+                    // Los suspendidos lo estaban por no pagar (prueba vencida o débito caído; no hay suspensión
+                    // manual): en freemium vuelven a estar activos en Gratuito, con su página de reservas. Los que
+                    // cancelaron por su cuenta ("cancelled") quedan como están.
+                    var revived = await _context.Tenants.Where(t => t.Status == "suspended" || t.Status == "trial").ToListAsync();
+                    foreach (var t in revived) { t.Status = "active"; t.UpdatedAt = DateTime.UtcNow; }
+                    if (revived.Count > 0)
+                        _logger.LogInformation("Freemium: {Count} negocios suspendidos o en prueba pasan a activos (Gratuito)", revived.Count);
+                }
 
                 foreach (var plan in plans)
                 {
@@ -180,8 +149,8 @@ namespace BookingPro.API.Services
 
                     if (existingPlan == null)
                     {
-                        // Create plan in MercadoPago if we have credentials
-                        var accessToken = await GetPlatformAccessTokenAsync();
+                        // Create plan in MercadoPago if we have credentials (Gratuito no se cobra: sin plan de débito)
+                        var accessToken = plan.Price > 0 ? await GetPlatformAccessTokenAsync() : null;
                         if (!string.IsNullOrEmpty(accessToken))
                         {
                             try
@@ -308,9 +277,9 @@ namespace BookingPro.API.Services
                     PlanType = plan.Code,
                     MonthlyAmount = plan.Price,
                     PayerEmail = tenant.OwnerEmail,
+                    // Freemium: pasarse a un plan pago cobra desde el día uno (la prueba gratis es el plan Gratuito).
                     Status = "pending",
-                    IsTrialPeriod = true,
-                    TrialEndsAt = DateTime.UtcNow.AddDays(plan.TrialDays),
+                    IsTrialPeriod = false,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
@@ -336,11 +305,6 @@ namespace BookingPro.API.Services
                 }
 
                 _context.Subscriptions.Add(subscription);
-                
-                // Update tenant status
-                tenant.Status = "trial";
-                tenant.TrialEndsAt = subscription.TrialEndsAt;
-                
                 await _context.SaveChangesAsync();
 
                 // Generate QR code for payment
@@ -352,7 +316,6 @@ namespace BookingPro.API.Services
                     Status = subscription.Status,
                     PlanType = subscription.PlanType,
                     MonthlyAmount = subscription.MonthlyAmount,
-                    NextPaymentDate = subscription.TrialEndsAt,
                     QrCode = qrCode.Success ? qrCode.Data : null,
                     InitPoint = initPoint
                 });
@@ -536,15 +499,7 @@ namespace BookingPro.API.Services
 
                 if (subscription == null || tenant == null)
                 {
-                    return ServiceResult<SubscriptionStatusDto>.Ok(new SubscriptionStatusDto
-                    {
-                        IsActive = false,
-                        PlanType = "none",
-                        PlanName = "Sin plan",
-                        DaysRemaining = 0,
-                        IsTrialPeriod = false,
-                        RequireCard = requireCard
-                    });
+                    return ServiceResult<SubscriptionStatusDto>.Ok(await FreeStatusAsync());
                 }
 
                 var hasCard = await _context.TenantPreapprovals
@@ -623,23 +578,10 @@ namespace BookingPro.API.Services
                         && subscription.Status != "cancelled"
                         && subscription.AppleExpiresAt.HasValue
                         && subscription.AppleExpiresAt.Value > DateTime.UtcNow,
-                    Features = plan != null ? new PlanFeaturesDto
-                    {
-                        MaxBookingsPerMonth = plan.MaxBookingsPerMonth,
-                        MaxServices = plan.MaxServices,
-                        MaxStaff = plan.MaxStaff,
-                        MaxCustomers = plan.MaxCustomers,
-                        AllowOnlinePayments = plan.AllowOnlinePayments,
-                        AllowCustomBranding = plan.AllowCustomBranding,
-                        AllowSmsNotifications = plan.AllowSmsNotifications,
-                        AllowEmailMarketing = plan.AllowEmailMarketing,
-                        AllowReports = plan.AllowReports,
-                        AllowMultiLocation = plan.AllowMultiLocation,
-                        AllowWhatsApp = plan.AllowWhatsApp,
-                        WhatsAppMonthlyLimit = plan.WhatsAppMonthlyLimit,
-                        WhatsAppExtraMessageCost = plan.WhatsAppExtraMessageCost
-                    } : null
+                    Features = plan != null ? PlanFeaturesDto.From(plan) : null
                 };
+                // Con pago manual el plan sale del tenant: el código tiene que ser el del plan que rige.
+                if (plan != null) status.PlanType = plan.Code;
 
                 // App Android: suscripción comprada con Google Play Billing (tabla aparte).
                 var googlePlay = await _context.TenantGooglePlaySubscriptions.AsNoTracking()
@@ -655,18 +597,17 @@ namespace BookingPro.API.Services
                     status.GooglePlayAutoRenewing = googlePlay.AutoRenewing;
                 }
 
-                // Si la suscripción no está activa (expirada), generar QR de pago.
-                // La app de iOS lo pide sin link (includePaymentLink=false): no puede mostrar pagos
-                // por fuera del App Store y así tampoco se crea una preferencia de MP por cada consulta.
-                if (!isActive && includePaymentLink)
+                // Freemium: sin plan pago vigente el negocio está en Gratuito (no se bloquea ni se le genera un
+                // cobro). IsActive queda en true para las apps que bloqueaban con false; IsPaid dice si paga.
+                status.IsPaid = isActive || status.AppleSubscriptionActive || status.GooglePlaySubscriptionActive;
+                if (!status.IsPaid)
                 {
-                    var qrResult = await GeneratePaymentQRWithUrlAsync(tenantId, subscription.PlanType ?? "pro");
-                    if (qrResult.Success && qrResult.Data != null)
-                    {
-                        status.QrCodeData = qrResult.Data.QrCode;
-                        status.PaymentUrl = qrResult.Data.PaymentUrl;
-                    }
+                    var free = await FreeStatusAsync();
+                    free.HasCard = hasCard;
+                    free.CreatedAt = subscription.CreatedAt;
+                    return ServiceResult<SubscriptionStatusDto>.Ok(free);
                 }
+                status.IsActive = true;
 
                 return ServiceResult<SubscriptionStatusDto>.Ok(status);
             }
@@ -675,6 +616,23 @@ namespace BookingPro.API.Services
                 _logger.LogError(ex, "Error getting subscription status");
                 return ServiceResult<SubscriptionStatusDto>.Fail("Error al obtener estado de suscripción");
             }
+        }
+
+        /// <summary>Estado de un negocio sin plan pago: plan Gratuito, con sus límites.</summary>
+        private async Task<SubscriptionStatusDto> FreeStatusAsync()
+        {
+            var free = await _context.SubscriptionPlans.AsNoTracking().FirstOrDefaultAsync(p => p.Code == PlanCatalog.Free)
+                ?? PlanCatalog.Seeds()[0];
+            return new SubscriptionStatusDto
+            {
+                IsActive = true,
+                IsPaid = false,
+                PlanType = PlanCatalog.Free,
+                PlanName = free.Name,
+                MonthlyAmount = 0,
+                IsTrialPeriod = false,
+                Features = PlanFeaturesDto.From(free),
+            };
         }
 
         public async Task<ServiceResult<bool>> ProcessSubscriptionWebhookAsync(Dictionary<string, object> data)
@@ -872,12 +830,12 @@ namespace BookingPro.API.Services
 
                     subscription.UpdatedAt = DateTime.UtcNow;
 
-                    // Update tenant status
+                    // Freemium: dejar de pagar no suspende al negocio (eso le bajaba la página de reservas
+                    // y el login). Sigue activo y, sin suscripción vigente, queda en Gratuito.
                     var tenant = await _context.Tenants.FindAsync(subscription.TenantId);
-                    if (tenant != null)
+                    if (tenant != null && tenant.Status != "active")
                     {
-                        tenant.Status = subscription.Status == "active" ? "active" :
-                                       subscription.Status == "cancelled" ? "cancelled" : "suspended";
+                        tenant.Status = "active";
                     }
 
                     await _context.SaveChangesAsync();
@@ -936,15 +894,10 @@ namespace BookingPro.API.Services
                 subscription.CancelledAt = DateTime.UtcNow;
                 subscription.UpdatedAt = DateTime.UtcNow;
 
-                var tenant = await _context.Tenants.FindAsync(tenantId);
-                if (tenant != null)
-                {
-                    tenant.Status = "cancelled";
-                }
-
+                // Freemium: cancelar el plan pago lo deja en Gratuito, no lo da de baja.
                 await _context.SaveChangesAsync();
 
-                return ServiceResult<bool>.Ok(true, "Suscripción cancelada exitosamente");
+                return ServiceResult<bool>.Ok(true, "Suscripción cancelada: tu negocio sigue en el plan Gratuito");
             }
             catch (Exception ex)
             {
@@ -965,17 +918,11 @@ namespace BookingPro.API.Services
 
                 if (subscription.TrialEndsAt <= DateTime.UtcNow)
                 {
+                    // Una prueba vieja que vence pasa a Gratuito: la suscripción expira, el negocio sigue activo.
                     subscription.Status = "expired";
                     subscription.UpdatedAt = DateTime.UtcNow;
-
-                    var tenant = await _context.Tenants.FindAsync(tenantId);
-                    if (tenant != null)
-                    {
-                        tenant.Status = "suspended";
-                    }
-
                     await _context.SaveChangesAsync();
-                    
+
                     return ServiceResult<bool>.Ok(false, "Período de prueba expirado");
                 }
 
@@ -992,14 +939,17 @@ namespace BookingPro.API.Services
         {
             try
             {
-                var plans = await _context.SubscriptionPlans
+                var rows = await _context.SubscriptionPlans
                     .Where(p => p.IsActive)
                     .OrderBy(p => p.DisplayOrder)
-                    .Select(p => new SubscriptionPlanDto
+                    .ToListAsync();
+
+                var plans = rows.Select(p => new SubscriptionPlanDto
                     {
                         Code = p.Code,
                         Name = p.Name,
                         Description = p.Description,
+                        Tagline = p.Tagline,
                         Price = p.Price,
                         Currency = p.Currency,
                         MaxBookingsPerMonth = p.MaxBookingsPerMonth,
@@ -1012,10 +962,14 @@ namespace BookingPro.API.Services
                         AllowEmailMarketing = p.AllowEmailMarketing,
                         AllowReports = p.AllowReports,
                         AllowMultiLocation = p.AllowMultiLocation,
+                        AllowWhatsApp = p.AllowWhatsApp,
+                        WhatsAppMonthlyLimit = p.WhatsAppMonthlyLimit,
+                        WhatsAppExtraMessageCost = p.WhatsAppExtraMessageCost,
                         IsPopular = p.IsPopular,
-                        TrialDays = p.TrialDays
-                    })
-                    .ToListAsync();
+                        TrialDays = p.TrialDays,
+                        DisplayOrder = p.DisplayOrder,
+                        Features = PlanFeaturesDto.From(p)
+                    }).ToList();
 
                 return ServiceResult<List<SubscriptionPlanDto>>.Ok(plans);
             }
@@ -1237,12 +1191,12 @@ namespace BookingPro.API.Services
                 if (subscription == null)
                 {
                     var fallbackPlan = plan ?? await _context.SubscriptionPlans
-                        .FirstOrDefaultAsync(p => p.Code == "pro" && p.IsActive);
+                        .FirstOrDefaultAsync(p => p.Code == PlanCatalog.Pro);
                     subscription = new Subscription
                     {
                         Id = Guid.NewGuid(),
                         TenantId = tenantId,
-                        PlanType = fallbackPlan?.Code ?? "pro",
+                        PlanType = fallbackPlan?.Code ?? PlanCatalog.Pro,
                         MonthlyAmount = fallbackPlan?.Price ?? 0,
                         PayerEmail = tenant.OwnerEmail,
                         IsTrialPeriod = false,
@@ -1463,7 +1417,8 @@ namespace BookingPro.API.Services
 
         /// <summary>
         /// App Store product ids are com.ericfrick.turnospro.&lt;code&gt;.mensual; the code segment
-        /// matches SubscriptionPlan.Code (e.g. "pro" → Plan Profesional). Null for unknown products.
+        /// matches SubscriptionPlan.Code (e.g. "pro" → Pro viejo, "pro_v2" → Pro). Null for unknown products.
+        /// Sin filtrar IsActive: un plan que ya no se ofrece igual tiene que renovar a quien lo compró.
         /// </summary>
         private async Task<SubscriptionPlan?> ResolveApplePlanAsync(string? productId)
         {
@@ -1475,9 +1430,9 @@ namespace BookingPro.API.Services
             }
 
             var code = parts[^2].ToLowerInvariant();
-            var plan = await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Code == code && p.IsActive);
+            var plan = await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Code == code);
             if (plan == null)
-                _logger.LogWarning("Apple product {Product} has no active plan with code {Code}", productId, code);
+                _logger.LogWarning("Apple product {Product} has no plan with code {Code}", productId, code);
             return plan;
         }
 

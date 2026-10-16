@@ -42,6 +42,7 @@ import { useTenantWording } from '../utils/wording';
 import api from '../services/api';
 import { useAppSelector } from '../store';
 import { isEmployee } from '../utils/permissions';
+import CustomerHistoryDrawer from '../components/customers/CustomerHistoryDrawer';
 
 interface Customer {
   id: string;
@@ -81,6 +82,7 @@ const Customers: React.FC = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [fichaCustomer, setFichaCustomer] = useState<Customer | null>(null);
 
   useEffect(() => {
     fetchCustomers();
@@ -294,7 +296,8 @@ const Customers: React.FC = () => {
                     .map((customer) => (
                       <TableRow
                         key={customer.id}
-                        sx={{ '&:hover': { backgroundColor: 'action.hover' } }}
+                        onClick={() => setFichaCustomer(customer)}
+                        sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'action.hover' } }}
                       >
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -345,7 +348,7 @@ const Customers: React.FC = () => {
                             );
                           })()}
                         </TableCell>
-                        <TableCell align="right">
+                        <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                           <Tooltip title="Editar">
                             <IconButton
                               size="small"
@@ -384,6 +387,18 @@ const Customers: React.FC = () => {
             labelDisplayedRows={({ from, to, count }) => `${from}-${to} de ${count}`}
           />
         </Paper>
+
+        {/* Ficha del cliente (Pro; sin el plan, ejemplo borroso con el paywall) */}
+        <CustomerHistoryDrawer
+          customer={fichaCustomer}
+          hidePhone={hidePhone}
+          onClose={() => setFichaCustomer(null)}
+          onEdit={(c) => {
+            setFichaCustomer(null);
+            const full = customers.find((x) => x.id === c.id);
+            if (full) handleOpenDialog(full);
+          }}
+        />
 
         {/* Dialog para crear/editar cliente */}
         <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>

@@ -7,6 +7,8 @@
  * "anticipo" (MX) y "señal" + "móvil" (ES). España cobra la señal con tarjeta (Stripe), no con Mercado Pago.
  */
 
+import { buildPlanComparison, pricingContent, type PlanCode, type PlanComparisonCopy } from './content';
+
 export type CountryCode = 'AR' | 'UY' | 'MX' | 'ES';
 export type MarketCountryCode = Exclude<CountryCode, 'AR'>;
 
@@ -19,6 +21,11 @@ export interface CountrySection {
   h2: string;
   paragraphs?: string[];
   bullets?: string[];
+}
+
+export interface CountryPlanCopy {
+  tagline: string;
+  features: string[];
 }
 
 export interface CountryCopy {
@@ -35,12 +42,21 @@ export interface CountryCopy {
   };
   pricing: {
     headline: string;
+    /** Palabra del titular que va en cursiva coral. */
+    accent: string;
     subheadline: string;
     microcopy: string;
-    features: string[];
     perMonth: string;
-    trial: (days: number) => string;
-    cta: string;
+    /** Nota bajo el precio del plan Gratuito. */
+    freeNote: string;
+    /** Nota bajo el precio de los planes pagos (moneda). */
+    paidNote: string;
+    /** Aclaración de la comisión por cobro online, debajo de las tarjetas. */
+    commissionNote: string;
+    /** Bajada y bullets de cada plan en la voz del país (mismo orden que pricingContent). */
+    plans: Record<PlanCode, CountryPlanCopy>;
+    /** Tabla "Compará los planes", ejemplo de comisión, packs y FAQ de precios. */
+    comparison: PlanComparisonCopy;
   };
   footerTagline: string;
   footerFindUs: string;
@@ -70,14 +86,83 @@ export interface MarketCountry {
 }
 
 const tuSignup = (deposit: string): CountryCopy['signup'] => ({
-  ribbon: '⚡ 7 DÍAS GRATIS · SIN TARJETA · LISTO EN 2 MIN',
+  ribbon: '⚡ GRATIS PARA SIEMPRE · SIN TARJETA · LISTO EN 2 MIN',
   title: 'Crea tu cuenta gratis',
-  subtitle: 'Sin contraseña: te enviamos un código por email y entras directo. 7 días gratis, sin tarjeta.',
-  button: 'Empezar gratis 7 días',
+  subtitle: 'Sin contraseña: te enviamos un código por email y entras directo. Gratis para siempre, sin tarjeta.',
+  button: 'Empezar gratis',
   sending: 'Enviando código...',
   finePrint: `Te enviamos un código de 6 dígitos a tu email para confirmar y armas tu agenda: rubro, servicios, horarios y ${deposit}. No te pedimos tarjeta.`,
   passwordLink: 'Prefiero crear usuario y contraseña',
   sendError: 'No pudimos enviar el código. Inténtalo de nuevo.',
+});
+
+/** La transferencia automática (TransferDetection) hoy solo funciona en Argentina: afuera no se ofrece. */
+const AUTO_TRANSFER = 'Transferencia bancaria automática';
+
+/**
+ * Uruguay y México conectan Mercado Pago pegando credenciales: con ese token no se puede cobrar
+ * marketplace_fee, así que ahí ningún plan tiene comisión por cobro (en España sí, vía Stripe).
+ */
+const withoutCommission = (plans: Record<PlanCode, CountryPlanCopy>): Record<PlanCode, CountryPlanCopy> =>
+  Object.fromEntries(
+    Object.entries(plans).map(([code, p]) => [
+      code,
+      { ...p, features: p.features.map((f) => (/comisión por cobro/.test(f) ? 'Sin comisión por cobro' : f)) },
+    ]),
+  ) as Record<PlanCode, CountryPlanCopy>;
+
+/** Uruguay usa la misma voz que Argentina (vos, turnos, Mercado Pago), sin la transferencia automática. */
+const voseoPlans = Object.fromEntries(
+  pricingContent.plans.map((p) => [p.code, { tagline: p.tagline, features: p.features.filter((f) => f !== AUTO_TRANSFER) }]),
+) as Record<PlanCode, CountryPlanCopy>;
+
+/** México y España: tú y "citas". España cobra con tarjeta (Stripe) en vez de Mercado Pago. */
+const tuPlans = (opts: { perMonth: string; payments: string }): Record<PlanCode, CountryPlanCopy> => ({
+  free: {
+    tagline: 'Para empezar a recibir citas online.',
+    features: [
+      `100 citas ${opts.perMonth}`,
+      'Hasta 3 agendas',
+      '1 servicio por agenda',
+      opts.payments,
+      'Panel de métricas',
+      '5% de comisión por cobro',
+    ],
+  },
+  plus: {
+    tagline: 'Un plus en la gestión de tus citas.',
+    features: [
+      `200 citas ${opts.perMonth}`,
+      'Hasta 5 agendas',
+      'Servicios ilimitados',
+      'Recordatorios automáticos',
+      `30 mensajes de WhatsApp ${opts.perMonth}`,
+      '2% de comisión por cobro',
+    ],
+  },
+  advance: {
+    tagline: 'Para ordenar y automatizar todas tus citas.',
+    features: [
+      'Citas y agendas ilimitadas',
+      `100 mensajes de WhatsApp ${opts.perMonth}`,
+      'Citas recurrentes',
+      'Un campo personalizado en el formulario',
+      'Cupones de descuento',
+      '1% de comisión por cobro',
+    ],
+  },
+  pro_v2: {
+    tagline: 'Sin límites ni fricciones.',
+    features: [
+      'Todo lo del plan Advance',
+      `250 mensajes de WhatsApp ${opts.perMonth}`,
+      'Citas recurrentes ilimitadas',
+      'Campos personalizados ilimitados',
+      'Ficha e historial de clientes',
+      'Píxel y Google Analytics',
+      'Sin comisión por cobro',
+    ],
+  },
 });
 
 export const MARKET_COUNTRIES: Record<MarketCountryCode, MarketCountry> = {
@@ -92,7 +177,7 @@ export const MARKET_COUNTRIES: Record<MarketCountryCode, MarketCountry> = {
     meta: {
       title: 'TurnosPro Uruguay | Agenda de turnos online con señas y WhatsApp',
       description:
-        'Sistema de turnos online para negocios de Uruguay: reservas 24/7, señas con Mercado Pago y recordatorios por WhatsApp. 7 días gratis, sin tarjeta.',
+        'Sistema de turnos online para negocios de Uruguay: reservas 24/7, señas con Mercado Pago y recordatorios por WhatsApp. Plan gratuito para siempre, sin tarjeta.',
     },
     hero: {
       label: 'TurnosPro en Uruguay',
@@ -102,7 +187,7 @@ export const MARKET_COUNTRIES: Record<MarketCountryCode, MarketCountry> = {
         'Hecho para peluquerías, barberías, centros de estética, consultorios y profesionales independientes de Montevideo y todo Uruguay. Precios en dólares, horario de Montevideo y teléfonos +598.',
       ],
       cta: 'Empezar gratis',
-      microcopy: 'Sin tarjeta · Sin permanencia · Listo en 15 minutos',
+      microcopy: 'Gratis para siempre · Sin tarjeta · Listo en 15 minutos',
       secondary: 'Ver precios',
     },
     benefits: {
@@ -129,51 +214,53 @@ export const MARKET_COUNTRIES: Record<MarketCountryCode, MarketCountry> = {
         h2: 'Un sistema de turnos pensado para Uruguay',
         paragraphs: [
           'Los montos se muestran en pesos uruguayos, la agenda usa el horario de Montevideo y los teléfonos de tus clientes van con +598, así los recordatorios por WhatsApp llegan bien.',
-          'La suscripción a TurnosPro se paga en dólares con tarjeta, con 7 días de prueba gratis y sin permanencia.',
+          'Arrancás gratis en el plan Gratuito, sin tarjeta y para siempre. Si te pasás a un plan pago, la suscripción se paga en dólares con tarjeta y sin permanencia.',
         ],
       },
     ],
     faqs: [
       { q: '¿Funciona en Uruguay?', a: 'Sí. TurnosPro trabaja con pesos uruguayos, el horario de Montevideo y teléfonos +598 para los recordatorios por WhatsApp.' },
       { q: '¿Cómo cobro las señas?', a: 'Conectás tu cuenta de Mercado Pago Uruguay con tus credenciales y cada reserva online te pide la seña antes de confirmar el turno. La plata va directo a tu cuenta.' },
-      { q: '¿En qué moneda pago la suscripción?', a: 'La suscripción a TurnosPro se paga en dólares con tarjeta. Tus clientes te pagan en pesos uruguayos.' },
-      { q: '¿Necesito tarjeta para la prueba?', a: 'No. Tenés 7 días gratis sin cargar tarjeta; elegís el plan recién cuando decidís seguir.' },
-      { q: '¿Puedo cancelar cuando quiera?', a: 'Sí, no hay permanencia: cancelás desde el panel en un clic.' },
+      { q: '¿En qué moneda pago la suscripción?', a: 'Los planes pagos se pagan en dólares con tarjeta. Tus clientes te pagan en pesos uruguayos.' },
+      { q: '¿Puedo cancelar cuando quiera?', a: 'Sí, no hay permanencia: bajás al plan Gratuito o cancelás desde el panel en un clic.' },
     ],
     faqTitle: 'Lo que todos preguntan',
     faqAccent: 'antes de empezar.',
     pricingSnippet: {
       title: 'Precios de TurnosPro en Uruguay',
-      intro: 'Mismo plan, distinto compromiso: cuanto más largo, mayor el descuento. Precios en dólares por mes.',
+      intro: 'Arrancás gratis y te pasás de plan cuando lo necesitás. Precios en dólares por mes.',
     },
     copy: {
       signup: {
-        ribbon: '⚡ 7 DÍAS GRATIS · SIN TARJETA · LISTO EN 2 MIN',
+        ribbon: '⚡ GRATIS PARA SIEMPRE · SIN TARJETA · LISTO EN 2 MIN',
         title: 'Creá tu cuenta gratis',
-        subtitle: 'Sin contraseña: te mandamos un código por email y entrás directo. 7 días gratis, sin tarjeta.',
-        button: 'Empezar gratis 7 días',
+        subtitle: 'Sin contraseña: te mandamos un código por email y entrás directo. Gratis para siempre, sin tarjeta.',
+        button: 'Empezar gratis',
         sending: 'Enviando código...',
         finePrint: 'Te mandamos un código de 6 dígitos a tu email para confirmar y armás tu agenda: rubro, servicios y horarios. No te pedimos tarjeta.',
         passwordLink: 'Prefiero crear usuario y contraseña',
         sendError: 'No pudimos enviar el código. Intentá de nuevo.',
       },
       pricing: {
-        headline: 'Elegí el plan que se adapta a tu negocio',
+        headline: 'Empezá gratis. Pasate de plan cuando lo necesites.',
+        accent: 'gratis',
         subheadline:
-          'Mismo plan, distinto compromiso. Cuanto más largo, mayor el descuento. Todos arrancan con 7 días gratis, sin tarjeta: elegís el plan y pagás recién cuando decidís seguir.',
-        microcopy: 'Sin permanencia · Cancelás cuando quieras · Precios en dólares',
-        features: [
-          'Reservas online ilimitadas',
-          'Señas con Mercado Pago',
-          'Recordatorios por WhatsApp',
-          'Agente IA de confirmación (add-on)',
-          'Agenda multi-profesional',
-          'Reportes y métricas',
-          'Soporte prioritario',
-        ],
+          'Todos los negocios arrancan en el plan Gratuito: 100 reservas por mes, sin tarjeta y para siempre. Cuando necesitás más agendas, recordatorios o WhatsApp, te pasás de plan desde el panel.',
+        microcopy: 'Sin permanencia · Sin tarjeta para empezar · Precios en dólares',
         perMonth: '/ mes',
-        trial: (d) => `${d} días de prueba gratis`,
-        cta: 'Empezar prueba',
+        freeNote: 'Gratis siempre. Sin tarjeta.',
+        paidNote: 'Precio final en dólares.',
+        commissionNote:
+          'En Uruguay no cobramos comisión por los cobros online: lo que cobrás con Mercado Pago es todo tuyo (aparte de la comisión de Mercado Pago).',
+        plans: withoutCommission(voseoPlans),
+        comparison: buildPlanComparison({
+          voice: 'vos',
+          payments: 'mp',
+          autoTransfer: false,
+          noCommission: true,
+          example:
+            'Un turno de US$ 20 cobrado online con Mercado Pago: en cualquier plan te llegan los US$ 20 (menos la comisión de Mercado Pago). TurnosPro no se queda con nada del cobro.',
+        }),
       },
       footerTagline: 'Reservas online, cobros con seña y recordatorios por WhatsApp. Construido para profesionales independientes y pequeños negocios.',
       footerFindUs: 'Encontranos en:',
@@ -191,7 +278,7 @@ export const MARKET_COUNTRIES: Record<MarketCountryCode, MarketCountry> = {
     meta: {
       title: 'TurnosPro México | Agenda de citas en línea con anticipos y WhatsApp',
       description:
-        'Sistema de citas en línea para negocios de México: reservas 24/7, anticipos con Mercado Pago y recordatorios por WhatsApp. 7 días gratis, sin tarjeta.',
+        'Sistema de citas en línea para negocios de México: reservas 24/7, anticipos con Mercado Pago y recordatorios por WhatsApp. Plan gratuito para siempre, sin tarjeta.',
     },
     hero: {
       label: 'TurnosPro en México',
@@ -201,7 +288,7 @@ export const MARKET_COUNTRIES: Record<MarketCountryCode, MarketCountry> = {
         'Hecho para estéticas, barberías, salones de belleza, consultorios y profesionales independientes de CDMX, Guadalajara, Monterrey y todo México. Precios en pesos mexicanos y celulares +52.',
       ],
       cta: 'Empezar gratis',
-      microcopy: 'Sin tarjeta · Sin plazo forzoso · Listo en 15 minutos',
+      microcopy: 'Gratis para siempre · Sin tarjeta · Listo en 15 minutos',
       secondary: 'Ver precios',
     },
     benefits: {
@@ -228,42 +315,44 @@ export const MARKET_COUNTRIES: Record<MarketCountryCode, MarketCountry> = {
         h2: 'Un sistema de citas pensado para México',
         paragraphs: [
           'Los montos se muestran en pesos mexicanos, la agenda usa el horario del centro de México y los celulares de tus clientes van con +52, así los recordatorios por WhatsApp llegan bien.',
-          'La suscripción a TurnosPro se paga en pesos mexicanos con tarjeta, con 7 días de prueba gratis y sin plazo forzoso.',
+          'Empiezas gratis en el plan Gratuito, sin tarjeta y para siempre. Si te pasas a un plan de pago, la suscripción se paga en pesos mexicanos con tarjeta y sin plazo forzoso.',
         ],
       },
     ],
     faqs: [
       { q: '¿Funciona en México?', a: 'Sí. TurnosPro trabaja con pesos mexicanos, el horario del centro de México y celulares +52 para los recordatorios por WhatsApp.' },
       { q: '¿Cómo cobro los anticipos?', a: 'Conectas tu cuenta de Mercado Pago México con tus credenciales y cada cita en línea pide el anticipo antes de confirmarse. El dinero llega directo a tu cuenta.' },
-      { q: '¿En qué moneda pago la suscripción?', a: 'En pesos mexicanos, con tarjeta. Tus clientes también te pagan en pesos mexicanos.' },
-      { q: '¿Necesito tarjeta para la prueba?', a: 'No. Tienes 7 días gratis sin registrar tarjeta; eliges el plan cuando decides continuar.' },
-      { q: '¿Puedo cancelar cuando quiera?', a: 'Sí, no hay plazo forzoso: cancelas desde el panel en un clic.' },
+      { q: '¿En qué moneda pago la suscripción?', a: 'Los planes de pago se pagan en pesos mexicanos, con tarjeta. Tus clientes también te pagan en pesos mexicanos.' },
+      { q: '¿Puedo cancelar cuando quiera?', a: 'Sí, no hay plazo forzoso: vuelves al plan Gratuito o cancelas desde el panel en un clic.' },
     ],
     faqTitle: 'Lo que todos preguntan',
     faqAccent: 'antes de empezar.',
     pricingSnippet: {
       title: 'Precios de TurnosPro en México',
-      intro: 'Mismo plan, distinto compromiso: entre más largo, mayor el descuento. Precios mensuales en pesos mexicanos.',
+      intro: 'Empiezas gratis y cambias de plan cuando lo necesitas. Precios mensuales en pesos mexicanos.',
     },
     copy: {
       signup: tuSignup('anticipos'),
       pricing: {
-        headline: 'Elige el plan que se adapta a tu negocio',
+        headline: 'Empieza gratis. Cambia de plan cuando lo necesites.',
+        accent: 'gratis',
         subheadline:
-          'Mismo plan, distinto compromiso. Entre más largo, mayor el descuento. Todos empiezan con 7 días gratis, sin tarjeta: eliges el plan y pagas solo cuando decides continuar.',
-        microcopy: 'Sin plazo forzoso · Cancelas cuando quieras · Precios en pesos mexicanos',
-        features: [
-          'Citas en línea ilimitadas',
-          'Anticipos con Mercado Pago',
-          'Recordatorios por WhatsApp',
-          'Agente IA de confirmación (add-on)',
-          'Agenda para todo tu equipo',
-          'Reportes y métricas',
-          'Soporte prioritario',
-        ],
+          'Todos los negocios empiezan en el plan Gratuito: 100 citas por mes, sin tarjeta y para siempre. Cuando necesitas más agendas, recordatorios o WhatsApp, cambias de plan desde el panel.',
+        microcopy: 'Sin plazo forzoso · Sin tarjeta para empezar · Precios en pesos mexicanos',
         perMonth: '/ mes',
-        trial: (d) => `${d} días de prueba gratis`,
-        cta: 'Empezar prueba',
+        freeNote: 'Gratis siempre. Sin tarjeta.',
+        paidNote: 'Precio final en pesos mexicanos.',
+        commissionNote:
+          'En México no cobramos comisión por los cobros en línea: lo que cobras con Mercado Pago es todo tuyo (aparte de la comisión de Mercado Pago).',
+        plans: withoutCommission(tuPlans({ perMonth: 'por mes', payments: 'Cobros con Mercado Pago y transferencia' })),
+        comparison: buildPlanComparison({
+          voice: 'tu',
+          payments: 'mp',
+          autoTransfer: false,
+          noCommission: true,
+          example:
+            'Una cita de $400 MXN cobrada en línea con Mercado Pago: en cualquier plan te llegan los $400 MXN (menos la comisión de Mercado Pago). TurnosPro no se queda con nada del cobro.',
+        }),
       },
       footerTagline: 'Citas en línea, cobro de anticipos y recordatorios por WhatsApp. Hecho para profesionales independientes y pequeños negocios.',
       footerFindUs: 'Encuéntranos en:',
@@ -281,7 +370,7 @@ export const MARKET_COUNTRIES: Record<MarketCountryCode, MarketCountry> = {
     meta: {
       title: 'TurnosPro España | Agenda de citas online con señal y WhatsApp',
       description:
-        'Software de citas online para negocios de España: reservas 24/7, señal con tarjeta y recordatorios por WhatsApp. 7 días gratis, sin tarjeta.',
+        'Software de citas online para negocios de España: reservas 24/7, señal con tarjeta y recordatorios por WhatsApp. Plan gratuito para siempre, sin tarjeta.',
     },
     hero: {
       label: 'TurnosPro en España',
@@ -291,7 +380,7 @@ export const MARKET_COUNTRIES: Record<MarketCountryCode, MarketCountry> = {
         'Hecho para peluquerías, barberías, centros de estética, clínicas y profesionales autónomos de Madrid, Barcelona, Valencia y toda España. Precios en euros, horario peninsular y móviles +34.',
       ],
       cta: 'Empezar gratis',
-      microcopy: 'Sin tarjeta · Sin permanencia · Listo en 15 minutos',
+      microcopy: 'Gratis para siempre · Sin tarjeta · Listo en 15 minutos',
       secondary: 'Ver precios',
     },
     benefits: {
@@ -318,42 +407,43 @@ export const MARKET_COUNTRIES: Record<MarketCountryCode, MarketCountry> = {
         h2: 'Un software de citas pensado para España',
         paragraphs: [
           'Los importes se muestran en euros, la agenda usa el horario peninsular y los móviles de tus clientes van con +34, así los recordatorios por WhatsApp llegan bien.',
-          'La señal se cobra con tarjeta a través de Stripe, en tu propia cuenta: el dinero es tuyo desde el primer momento. La suscripción a TurnosPro se paga en euros con tarjeta o domiciliación SEPA.',
+          'La señal se cobra con tarjeta a través de Stripe, en tu propia cuenta: el dinero es tuyo desde el primer momento. Empiezas gratis en el plan Gratuito, sin tarjeta y para siempre; si te pasas a un plan de pago, se paga en euros con tarjeta o domiciliación SEPA.',
         ],
       },
     ],
     faqs: [
       { q: '¿Funciona en España?', a: 'Sí. TurnosPro trabaja con euros, el horario peninsular y móviles +34 para los recordatorios por WhatsApp.' },
       { q: '¿Cómo cobro la señal?', a: 'Conectas tu cuenta de Stripe desde el panel y cada reserva online pide la señal con tarjeta antes de confirmar la cita. El dinero va directo a tu cuenta.' },
-      { q: '¿En qué moneda pago la suscripción?', a: 'En euros, con tarjeta o domiciliación SEPA.' },
-      { q: '¿Necesito tarjeta para la prueba?', a: 'No. Tienes 7 días gratis sin añadir tarjeta; eliges el plan cuando decides continuar.' },
-      { q: '¿Puedo cancelar cuando quiera?', a: 'Sí, no hay permanencia: cancelas desde el panel en un clic.' },
+      { q: '¿En qué moneda pago la suscripción?', a: 'Los planes de pago se pagan en euros, con tarjeta o domiciliación SEPA.' },
+      { q: '¿Puedo cancelar cuando quiera?', a: 'Sí, no hay permanencia: vuelves al plan Gratuito o cancelas desde el panel en un clic.' },
     ],
     faqTitle: 'Lo que todos preguntan',
     faqAccent: 'antes de empezar.',
     pricingSnippet: {
       title: 'Precios de TurnosPro en España',
-      intro: 'Mismo plan, distinto compromiso: cuanto más largo, mayor el descuento. Precios mensuales en euros.',
+      intro: 'Empiezas gratis y cambias de plan cuando lo necesitas. Precios mensuales en euros.',
     },
     copy: {
       signup: tuSignup('señal'),
       pricing: {
-        headline: 'Elige el plan que se adapta a tu negocio',
+        headline: 'Empieza gratis. Cambia de plan cuando lo necesites.',
+        accent: 'gratis',
         subheadline:
-          'Mismo plan, distinto compromiso. Cuanto más largo, mayor el descuento. Todos empiezan con 7 días gratis, sin tarjeta: eliges el plan y pagas solo cuando decides continuar.',
-        microcopy: 'Sin permanencia · Cancelas cuando quieras · Precios en euros',
-        features: [
-          'Reservas online ilimitadas',
-          'Señal con tarjeta (Stripe)',
-          'Recordatorios por WhatsApp',
-          'Agente IA de confirmación (add-on)',
-          'Agenda para todo tu equipo',
-          'Informes y métricas',
-          'Soporte prioritario',
-        ],
+          'Todos los negocios empiezan en el plan Gratuito: 100 citas al mes, sin tarjeta y para siempre. Cuando necesitas más agendas, recordatorios o WhatsApp, cambias de plan desde el panel.',
+        microcopy: 'Sin permanencia · Sin tarjeta para empezar · Precios en euros',
         perMonth: '/ mes',
-        trial: (d) => `${d} días de prueba gratis`,
-        cta: 'Empezar prueba',
+        freeNote: 'Gratis siempre. Sin tarjeta.',
+        paidNote: 'Precio final en euros.',
+        commissionNote:
+          'La comisión se descuenta sola de cada cobro online con tarjeta. Los cobros en efectivo o por transferencia manual no pagan comisión.',
+        plans: tuPlans({ perMonth: 'al mes', payments: 'Cobros con tarjeta (Stripe) y transferencia' }),
+        comparison: buildPlanComparison({
+          voice: 'tu',
+          payments: 'stripe',
+          autoTransfer: false,
+          example:
+            'Una cita de 20 € cobrada online: en Gratuito pagas 1 € de comisión, en Plus 0,40 €, en Advance 0,20 €, en Pro 0 €. La comisión se descuenta sola en cada cobro con tarjeta (aparte de la comisión del procesador de pagos). Los cobros en efectivo o por transferencia manual no pagan comisión.',
+        }),
       },
       footerTagline: 'Citas online, cobro de señal y recordatorios por WhatsApp. Hecho para profesionales autónomos y pequeños negocios.',
       footerFindUs: 'Encuéntranos en:',

@@ -44,7 +44,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTenant } from '../contexts/TenantContext';
-import api, { serviceCategoryApi } from '../services/api';
+import api, { isPlanLimitError, serviceCategoryApi } from '../services/api';
 import TextField from '../components/common/TextField';
 import { useTenantMoney } from '../hooks/useTenantMoney';
 import { useTenantWording } from '../utils/wording';
@@ -255,6 +255,8 @@ const Services: React.FC = () => {
       fetchServices();
       handleCloseDialog();
     } catch (error) {
+      // Tope de servicios del plan: ya lo muestra PlanLimitDialog.
+      if (isPlanLimitError(error)) return;
       console.error('Error saving service:', error);
       setErrors({ submit: 'Error al guardar el servicio' });
     }

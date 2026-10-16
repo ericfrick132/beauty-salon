@@ -17,10 +17,13 @@ namespace BookingPro.API.Services
         private static readonly TimeSpan DefaultOpening = new TimeSpan(9, 0, 0);
         private static readonly TimeSpan DefaultClosing = new TimeSpan(22, 0, 0);
 
-        public PublicService(ApplicationDbContext context, ITenantService tenantService)
+        private readonly IPlanEntitlementService _plans;
+
+        public PublicService(ApplicationDbContext context, ITenantService tenantService, IPlanEntitlementService plans)
         {
             _context = context;
             _tenantService = tenantService;
+            _plans = plans;
         }
 
         public async Task<IEnumerable<Service>> GetServicesAsync()
@@ -108,6 +111,10 @@ namespace BookingPro.API.Services
 
             if (existingBooking)
                 throw new InvalidOperationException("Time slot is no longer available");
+
+            var tenantId = await _context.Employees.Where(e => e.Id == dto.EmployeeId).Select(e => e.TenantId).FirstOrDefaultAsync();
+            var check = await _plans.CanCreateBookingAsync(tenantId);
+            if (!check.Allowed) throw new PlanLimitException(check);
 
             // Find or create customer
             Customer? customer = null;

@@ -42,6 +42,8 @@ import {
   LocalAtm,
   CreditCard,
   AccountBalance,
+  Repeat,
+  LocalOffer,
 } from '@mui/icons-material';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -60,6 +62,8 @@ import { EventImpl } from '@fullcalendar/core/internal';
 import api from '../../services/api';
 import ProductLinesPicker, { ProductLine, productLinesTotal } from '../sales/ProductLinesPicker';
 import TextField from '../common/TextField';
+import { BookingDetailExtras, bookingDetailApi, bookingSeriesApi, frequencyLabel } from '../../services/planFeaturesApi';
+import { useTenantMoney } from '../../hooks/useTenantMoney';
 
 interface BookingEvent {
   id: string;
@@ -80,6 +84,8 @@ interface BookingEvent {
     notes?: string;
     hasPayment?: boolean;
     isPaymentSuccessful?: boolean;
+    /** Turno fijo (serie). GET /bookings todavía no lo manda en la lista: el detalle sí. */
+    seriesId?: string | null;
   };
 }
 
@@ -158,6 +164,49 @@ const CalendarView: React.FC = () => {
     mode: 'view' | 'edit' | 'delete';
   }>({ open: false, event: null, mode: 'view' });
   
+  // Extras del detalle (turno fijo, cupón, respuestas del formulario): GET /bookings/{id} al abrir.
+  const { formatMoney } = useTenantMoney();
+  const [detailExtras, setDetailExtras] = useState<BookingDetailExtras | null>(null);
+  const [seriesWeeks, setSeriesWeeks] = useState<number | null>(null);
+  const [cancelSeriesOpen, setCancelSeriesOpen] = useState(false);
+  const [cancellingSeries, setCancellingSeries] = useState(false);
+  const detailBookingId = eventDialog.open ? eventDialog.event?.id : undefined;
+  useEffect(() => {
+    setDetailExtras(null);
+    setSeriesWeeks(null);
+    if (!detailBookingId) return;
+    let cancelled = false;
+    bookingDetailApi
+      .get(detailBookingId)
+      .then((d) => {
+        if (cancelled) return;
+        setDetailExtras(d);
+        if (d.seriesId) {
+          bookingSeriesApi
+            .list()
+            .then((l) => { if (!cancelled) setSeriesWeeks(l.series.find((x) => x.id === d.seriesId)?.intervalWeeks ?? null); })
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [detailBookingId]);
+
+  const handleCancelSeries = async () => {
+    if (!detailExtras?.seriesId) return;
+    setCancellingSeries(true);
+    try {
+      await bookingSeriesApi.cancel(detailExtras.seriesId);
+      setCancelSeriesOpen(false);
+      setEventDialog({ open: false, event: null, mode: 'view' });
+      dispatch(fetchBookings());
+    } catch (error) {
+      console.error('Error cancelling series:', error);
+    } finally {
+      setCancellingSeries(false);
+    }
+  };
+
   const [rescheduleDialog, setRescheduleDialog] = useState<{
     open: boolean;
     event: BookingEvent | null;
@@ -293,7 +342,8 @@ const CalendarView: React.FC = () => {
         price: booking.price || 0,
         notes: booking.notes,
         hasPayment: booking.hasPayment || false,
-        isPaymentSuccessful: booking.isPaymentSuccessful || false
+        isPaymentSuccessful: booking.isPaymentSuccessful || false,
+        seriesId: (booking as any).seriesId ?? null,
       }
     }));
 
@@ -708,6 +758,21 @@ const CalendarView: React.FC = () => {
           }}
           dayHeaderFormat={{ weekday: 'short', day: 'numeric' }}
           eventDisplay="block"
+          eventContent={(arg) => {
+            const props: any = arg.event.extendedProps;
+            if (props?.isBlock || props?.isGap) return true;
+            return (
+              <div className="fc-event-main-frame" style={{ overflow: 'hidden' }}>
+                {arg.timeText && <div className="fc-event-time">{arg.timeText}</div>}
+                <div className="fc-event-title-container">
+                  <div className="fc-event-title fc-sticky" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    {props?.seriesId && <Repeat titleAccess="Turno fijo" sx={{ fontSize: 13, flexShrink: 0 }} />}
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{arg.event.title}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          }}
         />
         </Box>
      </Paper>
@@ -1043,6 +1108,43 @@ const CalendarView: React.FC = () => {
                     </Typography>
                   </Box>
                 )}
+
+                {detailExtras?.couponCode && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <LocalOffer fontSize="small" color="primary" />
+                    <Typography variant="body1">
+                      Cupón <b>{detailExtras.couponCode}</b>
+                      {detailExtras.discountAmount ? `: -${formatMoney(detailExtras.discountAmount)}` : ''}
+                    </Typography>
+                  </Box>
+                )}
+
+                {detailExtras?.customFields && detailExtras.customFields.length > 0 && (
+                  <Box>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Datos del formulario:
+                    </Typography>
+                    {detailExtras.customFields.map((f) => (
+                      <Typography key={f.fieldId} variant="body2">
+                        {f.label}: <b>{f.value}</b>
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
+
+                {detailExtras?.seriesId && (
+                  <Alert
+                    icon={<Repeat />}
+                    severity="info"
+                    action={
+                      <Button color="error" size="small" onClick={() => setCancelSeriesOpen(true)}>
+                        Cancelar todos los próximos
+                      </Button>
+                    }
+                  >
+                    Turno fijo{seriesWeeks ? ` · ${frequencyLabel(seriesWeeks)}` : ''}
+                  </Alert>
+                )}
               </Box>
 
               {eventDialog.mode === 'delete' && (
@@ -1113,6 +1215,22 @@ const CalendarView: React.FC = () => {
               </Button>
             </>
           )}
+        </DialogActions>
+      </Dialog>
+
+      {/* Confirmar cancelación del turno fijo */}
+      <Dialog open={cancelSeriesOpen} onClose={() => !cancellingSeries && setCancelSeriesOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>¿Cancelar todos los próximos turnos?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            Se cancelan todos los turnos que faltan de este turno fijo. Los que ya pasaron quedan como están.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCancelSeriesOpen(false)} disabled={cancellingSeries}>Volver</Button>
+          <Button color="error" variant="contained" onClick={handleCancelSeries} disabled={cancellingSeries}>
+            Cancelar todos
+          </Button>
         </DialogActions>
       </Dialog>
 

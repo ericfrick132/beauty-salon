@@ -1093,7 +1093,7 @@ namespace BookingPro.API.Services
                 subscription = new Subscription
                 {
                     TenantId = preapproval.TenantId,
-                    PlanType = plan?.Code ?? "pro",
+                    PlanType = plan?.Code ?? BookingPro.API.Models.Constants.PlanCatalog.Pro,
                     MonthlyAmount = preapproval.TransactionAmount,
                     MercadoPagoPreapprovalId = preapproval.MercadoPagoPreapprovalId,
                     PayerEmail = preapproval.PayerEmail,

@@ -124,6 +124,17 @@ namespace BookingPro.API.Models.Entities
         // Payment information
         public bool RequiresDeposit { get; set; } = false;
         public decimal? DepositAmount { get; set; }
+
+        /// <summary>Ocurrencia de una reserva recurrente (BookingSeries).</summary>
+        public Guid? SeriesId { get; set; }
+
+        /// <summary>Cupón del negocio aplicado al reservar: Price ya viene con el descuento.</summary>
+        [MaxLength(40)]
+        public string? CouponCode { get; set; }
+        public decimal? DiscountAmount { get; set; }
+
+        /// <summary>Respuestas a los campos personalizados del formulario: JSON [{fieldId, label, value}].</summary>
+        public string? CustomFieldsJson { get; set; }
         
         // Navigation properties
         public Customer Customer { get; set; } = null!;

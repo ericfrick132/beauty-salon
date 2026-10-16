@@ -55,6 +55,7 @@ namespace BookingPro.API.Services
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var connectionService = scope.ServiceProvider.GetRequiredService<IWhatsAppConnectionService>();
             var featureAddons = scope.ServiceProvider.GetRequiredService<IFeatureAddonService>();
+            var plans = scope.ServiceProvider.GetRequiredService<IPlanEntitlementService>();
 
             var enabledSettings = await context.TenantMessagingSettings
                 .IgnoreQueryFilters()
@@ -67,7 +68,7 @@ namespace BookingPro.API.Services
 
                 try
                 {
-                    await ProcessTenantConfirmations(context, connectionService, featureAddons, settings, ct);
+                    await ProcessTenantConfirmations(context, connectionService, featureAddons, plans, settings, ct);
                 }
                 catch (Exception ex)
                 {
@@ -82,10 +83,11 @@ namespace BookingPro.API.Services
             ApplicationDbContext context,
             IWhatsAppConnectionService connectionService,
             IFeatureAddonService featureAddons,
+            IPlanEntitlementService plans,
             TenantMessagingSettings settings,
             CancellationToken ct)
         {
-            // El bot es un add-on pago: sin vigencia, no se envía nada
+            // Incluido desde Plus (recordatorios automáticos) o comprado aparte como add-on: si no, no se envía nada
             if (!await featureAddons.HasActiveAddonAsync(settings.TenantId, FeatureCodes.ConfirmationBot))
             {
                 return;
@@ -103,10 +105,13 @@ namespace BookingPro.API.Services
                 await connectionService.EnsureInboundWebhookAsync(settings.TenantId);
             }
 
+            // Primero los mensajes que incluye el plan este mes; después los packs comprados.
             var wallet = await context.TenantMessageWallets
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(w => w.TenantId == settings.TenantId, ct);
-            if (wallet == null || wallet.Balance <= 0)
+            var included = await plans.GetIncludedWhatsAppRemainingAsync(settings.TenantId);
+            bool CanSend() => included > 0 || (wallet != null && wallet.Balance > 0);
+            if (!CanSend())
             {
                 return;
             }
@@ -141,7 +146,7 @@ namespace BookingPro.API.Services
 
             foreach (var booking in bookings)
             {
-                if (ct.IsCancellationRequested || wallet.Balance <= 0) break;
+                if (ct.IsCancellationRequested || !CanSend()) break;
 
                 var phone = booking.Customer?.Phone;
                 if (string.IsNullOrWhiteSpace(phone)) continue;
@@ -192,9 +197,13 @@ namespace BookingPro.API.Services
                             SentAt = DateTime.UtcNow
                         });
 
-                        wallet.Balance -= 1;
-                        wallet.TotalSent += 1;
-                        wallet.UpdatedAt = DateTime.UtcNow;
+                        if (included > 0) { if (included != int.MaxValue) included--; }
+                        else wallet!.Balance -= 1;
+                        if (wallet != null)
+                        {
+                            wallet.TotalSent += 1;
+                            wallet.UpdatedAt = DateTime.UtcNow;
+                        }
                         _logger.LogInformation("Sent confirmation request for booking {BookingId} to {Phone}",
                             booking.Id, phone);
                     }

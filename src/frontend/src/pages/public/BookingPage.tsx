@@ -51,6 +51,9 @@ import { format, addDays, isSameDay, isAfter, isBefore, startOfDay } from 'date-
 import api from '../../services/api';
 import { formatMoney, getCountry } from '../../utils/intl';
 import { getWording } from '../../utils/wording';
+import CustomFieldInput from '../../components/booking/CustomFieldInput';
+import { CouponQuote, normalizeCouponCode, PublicFormField, publicBookingExtrasApi } from '../../services/bookingExtrasApi';
+import { initBusinessTracking, trackBookingCreated, trackDepositCheckout, trackDepositPaid } from '../../utils/businessTracking';
 
 // Steps are computed dynamically depending on whether the service requires a deposit
 const baseSteps = ['Servicio', 'Profesional', 'Fecha y Hora', 'Tus Datos'] as const;
@@ -194,6 +197,9 @@ const BookingPage: React.FC = () => {
   // Próximos horarios libres que devuelve el backend cuando rechaza la reserva, para
   // no dejar al cliente sin salida.
   const [alternatives, setAlternatives] = useState<{ date: string; times: string[] }[]>([]);
+  // El negocio llegó al tope de reservas online de su plan (409 reason "plan_limit"): mensaje para el cliente
+  // que arma el backend, sin horarios alternativos (no hay otro horario que ofrecer).
+  const [planLimitMessage, setPlanLimitMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [bookingConfirmed, setBookingConfirmed] = useState(false);
   const [confirmationCode, setConfirmationCode] = useState('');
@@ -204,10 +210,30 @@ const BookingPage: React.FC = () => {
   const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
   // Token que da el backend al crear la reserva: solo con él se puede consultar su estado sin sesión.
   const [statusToken, setStatusToken] = useState<string | null>(null);
+  // Campos personalizados del negocio (ya recortados a su plan) y las respuestas: id → valor ("true"/"false" en casillas).
+  const [formFields, setFormFields] = useState<PublicFormField[]>([]);
+  const [customValues, setCustomValues] = useState<Record<string, string>>({});
+  // Error del backend (400 reason custom_fields) que se muestra junto a los campos.
+  const [customFieldsError, setCustomFieldsError] = useState<string | null>(null);
+  // Cupón: se valida antes de confirmar (no consume uso); el backend recalcula precio y seña al crear.
+  const [couponOpen, setCouponOpen] = useState(false);
+  const [couponInput, setCouponInput] = useState('');
+  const [couponQuote, setCouponQuote] = useState<CouponQuote | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [couponChecking, setCouponChecking] = useState(false);
+  const purchaseTracked = useRef(false);
 
   useEffect(() => {
     fetchInitialData();
+    // Aparte: si falla, la página de reservas funciona igual sin campos extra.
+    publicBookingExtrasApi.formFields().then(setFormFields).catch(() => setFormFields([]));
   }, []);
+
+  // El descuento depende del precio del servicio: si cambia el servicio, hay que volver a aplicarlo.
+  useEffect(() => {
+    setCouponQuote(null);
+    setCouponError(null);
+  }, [bookingData.serviceId]);
 
   // Sync serviceSearchValue with bookingData.serviceId
   useEffect(() => {
@@ -257,6 +283,10 @@ const BookingPage: React.FC = () => {
       setServices(servicesRes.data || []);
       setProfessionals(professionalsRes.data || []);
       setBusinessInfo(tenantRes.data);
+      initBusinessTracking({
+        metaPixelId: tenantRes.data?.metaPixelId,
+        googleAnalyticsId: tenantRes.data?.googleAnalyticsId,
+      });
     } catch (error) {
       console.error('Error fetching data:', error);
       // Set empty arrays to avoid rendering issues
@@ -335,6 +365,97 @@ const BookingPage: React.FC = () => {
     });
   };
 
+  const validateCustomField = (field: PublicFormField, raw: string): string | undefined => {
+    const value = raw.trim();
+    const empty = field.fieldType === 'checkbox' ? value !== 'true' : !value;
+    if (field.required && empty) return field.fieldType === 'checkbox' ? w.t('Marcá esta casilla para continuar', 'Marca esta casilla para continuar') : w.t('Completá este campo', 'Completa este campo');
+    if (!empty && field.fieldType === 'number' && Number.isNaN(Number(value.replace(',', '.')))) return 'Tiene que ser un número';
+    return undefined;
+  };
+
+  const handleCustomChange = (field: PublicFormField, value: string) => {
+    setCustomValues(prev => ({ ...prev, [field.id]: value }));
+    setCustomFieldsError(null);
+    const key = `cf_${field.id}`;
+    if (errors[key]) {
+      const message = validateCustomField(field, value);
+      setErrors((prev: any) => {
+        const next = { ...prev };
+        if (message) next[key] = message; else delete next[key];
+        return next;
+      });
+    }
+  };
+
+  /** Respuestas para el backend: solo lo que el cliente completó; casillas como "true"/"false". */
+  const buildCustomFields = (): Record<string, string> | undefined => {
+    if (formFields.length === 0) return undefined;
+    const out: Record<string, string> = {};
+    for (const field of formFields) {
+      const value = (customValues[field.id] ?? '').trim();
+      if (field.fieldType === 'checkbox') out[field.id] = value === 'true' ? 'true' : 'false';
+      else if (value) out[field.id] = value;
+    }
+    return out;
+  };
+
+  const money = (value?: number | null) =>
+    businessInfo?.currency && businessInfo.currency !== 'ARS'
+      ? formatPrice(value, businessInfo.currency, businessInfo.locale)
+      : formatPrice(value, 'ARS', businessInfo?.locale);
+
+  const appliedCoupon = couponQuote?.valid && couponQuote.code ? couponQuote : null;
+
+  const handleApplyCoupon = async () => {
+    const code = normalizeCouponCode(couponInput);
+    if (!code) {
+      setCouponError(w.t('Ingresá un código.', 'Ingresa un código.'));
+      return;
+    }
+    if (!bookingData.serviceId) return;
+    setCouponChecking(true);
+    setCouponError(null);
+    try {
+      const quote = await publicBookingExtrasApi.validateCoupon(code, bookingData.serviceId);
+      if (quote?.valid) {
+        setCouponQuote(quote);
+        setCouponInput(quote.code || code);
+      } else {
+        setCouponQuote(null);
+        setCouponError(quote?.message || 'Ese cupón no es válido.');
+      }
+    } catch (error: any) {
+      setCouponQuote(null);
+      setCouponError(error?.response?.data?.message || w.t('No pudimos validar el cupón. Probá de nuevo.', 'No pudimos validar el cupón. Prueba de nuevo.'));
+    } finally {
+      setCouponChecking(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setCouponQuote(null);
+    setCouponInput('');
+    setCouponError(null);
+  };
+
+  const trackedBooking = () => {
+    const service = services.find(s => s.id === bookingData.serviceId);
+    return {
+      serviceId: service?.id,
+      serviceName: service?.name,
+      value: appliedCoupon ? appliedCoupon.finalPrice : service?.price,
+      currency: businessInfo?.currency || 'ARS',
+      bookingId: createdBookingId || undefined,
+    };
+  };
+
+  /** Ir a la pasarela de la seña (Mercado Pago / Stripe). */
+  const goToPayment = () => {
+    if (!paymentInfo?.initPoint) return;
+    trackDepositCheckout({ ...trackedBooking(), depositAmount: paymentInfo.amount != null ? Number(paymentInfo.amount) : undefined });
+    window.location.assign(paymentInfo.initPoint);
+  };
+
   const validateStep = () => {
     const newErrors: any = {};
     
@@ -367,6 +488,10 @@ const BookingPage: React.FC = () => {
           setTouched({ customerName: true, customerEmail: true, customerPhone: true });
           const input = contactInputRefs.current[firstInvalid];
           setTimeout(() => input?.focus(), 0);
+        }
+        for (const field of formFields) {
+          const message = validateCustomField(field, customValues[field.id] ?? '');
+          if (message) newErrors[`cf_${field.id}`] = message;
         }
         break;
       }
@@ -422,7 +547,11 @@ const BookingPage: React.FC = () => {
         customerEmail: bookingData.customerEmail,
         customerPhone: withDialCode(bookingData.customerPhone, businessInfo?.country),
         notes: bookingData.notes,
+        couponCode: appliedCoupon?.code || undefined,
+        customFields: buildCustomFields(),
       });
+
+      trackBookingCreated({ ...trackedBooking(), bookingId: response.data?.bookingId });
 
       setConfirmationCode(response.data.confirmationCode);
       setCreatedBookingId(response.data.bookingId);
@@ -452,6 +581,31 @@ const BookingPage: React.FC = () => {
     } catch (error: any) {
       console.error('Error creating booking:', error);
       const data = error.response?.data;
+      // Campos personalizados o cupón rechazados: el error va donde está el problema, no como error genérico.
+      if (error.response?.status === 400 && data?.reason === 'custom_fields') {
+        setAlternatives([]);
+        setPlanLimitMessage(null);
+        setErrors({});
+        setCustomFieldsError(data?.message || w.t('Revisá los datos del formulario.', 'Revisa los datos del formulario.'));
+        setActiveStep(3);
+        return;
+      }
+      if (error.response?.status === 400 && data?.reason === 'coupon_invalid') {
+        setAlternatives([]);
+        setPlanLimitMessage(null);
+        setErrors({});
+        setCouponQuote(null);
+        setCouponOpen(true);
+        setCouponError(data?.message || 'Ese cupón no es válido.');
+        return;
+      }
+      if (error.response?.status === 409 && data?.reason === 'plan_limit') {
+        setAlternatives([]);
+        setErrors({});
+        setPlanLimitMessage(data?.message || 'Por ahora no estamos tomando más reservas online. Escribinos para coordinar tu turno.');
+        return;
+      }
+      setPlanLimitMessage(null);
       setAlternatives(Array.isArray(data?.alternatives) ? data.alternatives : []);
       setErrors({ submit: data?.message || 'Error al crear la reserva. Por favor intenta nuevamente.' });
     } finally {
@@ -487,6 +641,11 @@ const BookingPage: React.FC = () => {
         const res = await api.get(`/public/bookings/${createdBookingId}/status`, { params: { token: statusToken } });
         const status = (res?.data?.status || res?.data?.Status || '').toString().toLowerCase();
         if (status === 'confirmed' || status === 'completed') {
+          // La seña quedó acreditada mientras el cliente seguía en la página: es la conversión con valor.
+          if (!purchaseTracked.current) {
+            purchaseTracked.current = true;
+            trackDepositPaid({ ...trackedBooking(), depositAmount: paymentInfo?.amount != null ? Number(paymentInfo.amount) : undefined });
+          }
           setPaymentRequired(false);
           setBookingConfirmed(true);
           setActiveStep(5);
@@ -908,6 +1067,21 @@ const BookingPage: React.FC = () => {
                     helperText={errors.customerPhone}
                   />
                 </Grid>
+                {customFieldsError && (
+                  <Grid item xs={12}>
+                    <Alert severity="error">{customFieldsError}</Alert>
+                  </Grid>
+                )}
+                {formFields.map((field) => (
+                  <Grid item xs={12} key={field.id}>
+                    <CustomFieldInput
+                      field={field}
+                      value={customValues[field.id] ?? ''}
+                      onChange={(value) => handleCustomChange(field, value)}
+                      error={errors[`cf_${field.id}`]}
+                    />
+                  </Grid>
+                ))}
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
@@ -997,6 +1171,11 @@ const BookingPage: React.FC = () => {
                       </Typography>
                     </Box>
 
+                    {appliedCoupon && (
+                      <Typography sx={{ mt: 2, fontSize: '0.9rem', color: 'success.main', fontWeight: 600 }}>
+                        Descuento aplicado ({appliedCoupon.code}): -{money(appliedCoupon.discountAmount)}
+                      </Typography>
+                    )}
                     <Typography sx={{ mt: 2.5, fontSize: '0.85rem', color: ui.inkSoft }}>
                       Te mandamos los detalles a {bookingData.customerEmail}
                     </Typography>
@@ -1066,11 +1245,63 @@ const BookingPage: React.FC = () => {
                             Precio:
                           </Typography>
                         </Box>
-                        <Typography variant="h6" color="primary" sx={{ ml: 4 }}>
-                          {businessInfo?.currency && businessInfo.currency !== 'ARS'
-                            ? formatPrice(selectedService?.price, businessInfo.currency, businessInfo.locale)
-                            : `$${selectedService?.price}`}
-                        </Typography>
+                        {appliedCoupon ? (
+                          <Box sx={{ ml: 4 }}>
+                            <Typography component="span" sx={{ textDecoration: 'line-through', color: ui.inkMute, mr: 1 }}>
+                              {money(selectedService?.price)}
+                            </Typography>
+                            <Typography component="span" variant="h6" color="primary">
+                              {money(appliedCoupon.finalPrice)}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: 'success.main', mt: 0.25 }}>
+                              Descuento ({appliedCoupon.code}): -{money(appliedCoupon.discountAmount)}
+                            </Typography>
+                          </Box>
+                        ) : (
+                          <Typography variant="h6" color="primary" sx={{ ml: 4 }}>
+                            {businessInfo?.currency && businessInfo.currency !== 'ARS'
+                              ? formatPrice(selectedService?.price, businessInfo.currency, businessInfo.locale)
+                              : `$${selectedService?.price}`}
+                          </Typography>
+                        )}
+
+                        {/* Cupón: discreto, para quien tiene un código; el resto ni lo nota. */}
+                        {!createdBookingId && (
+                          <Box sx={{ ml: 4, mt: 1 }}>
+                            {appliedCoupon ? (
+                              <Button size="small" color="inherit" sx={{ px: 0, color: ui.inkSoft, textTransform: 'none' }} onClick={handleRemoveCoupon}>
+                                Quitar cupón
+                              </Button>
+                            ) : !couponOpen ? (
+                              <Button size="small" sx={{ px: 0, textTransform: 'none' }} onClick={() => setCouponOpen(true)}>
+                                {w.t('¿Tenés un cupón?', '¿Tienes un cupón?')}
+                              </Button>
+                            ) : (
+                              <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', maxWidth: 360 }}>
+                                <TextField
+                                  size="small"
+                                  fullWidth
+                                  autoFocus
+                                  placeholder="Código"
+                                  value={couponInput}
+                                  onChange={(e) => { setCouponInput(normalizeCouponCode(e.target.value)); setCouponError(null); }}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleApplyCoupon(); } }}
+                                  inputProps={{ maxLength: 40, style: { fontFamily: ui.mono, letterSpacing: '0.06em' }, 'aria-label': 'Código de cupón' }}
+                                  error={!!couponError}
+                                  helperText={couponError || undefined}
+                                />
+                                <Button variant="outlined" onClick={handleApplyCoupon} disabled={couponChecking || !couponInput.trim()} sx={{ flexShrink: 0, height: 40 }}>
+                                  {couponChecking ? <CircularProgress size={18} /> : 'Aplicar'}
+                                </Button>
+                              </Box>
+                            )}
+                            {appliedCoupon && selectedService?.requiresDeposit && (
+                              <Typography variant="caption" sx={{ display: 'block', color: ui.inkSoft }}>
+                                {w.pick('La seña se ajusta con el descuento.', 'El anticipo se ajusta con el descuento.', 'La señal se ajusta con el descuento.')}
+                              </Typography>
+                            )}
+                          </Box>
+                        )}
                       </Grid>
                       
                       <Grid item xs={12}>
@@ -1090,6 +1321,15 @@ const BookingPage: React.FC = () => {
                         <Typography variant="body2">
                           {bookingData.customerPhone}
                         </Typography>
+                        {formFields.map((field) => {
+                          const raw = (customValues[field.id] ?? '').trim();
+                          const shown = field.fieldType === 'checkbox' ? (raw === 'true' ? 'Sí' : '') : raw;
+                          return shown ? (
+                            <Typography key={field.id} variant="body2" sx={{ mt: 0.5 }}>
+                              {field.label}: {shown}
+                            </Typography>
+                          ) : null;
+                        })}
                         {bookingData.notes && (
                           <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
                             Notas: {bookingData.notes}
@@ -1098,6 +1338,12 @@ const BookingPage: React.FC = () => {
                       </Grid>
                     </Grid>
                     
+                    {planLimitMessage && (
+                      <Alert severity="info" variant="filled" sx={{ mt: 2, width: '100%', fontSize: '1rem', alignItems: 'center' }}>
+                        {planLimitMessage}
+                      </Alert>
+                    )}
+
                     {errors.submit && (
                       <Alert severity="error" sx={{ mt: 2 }}>
                         {errors.submit}
@@ -1162,7 +1408,7 @@ const BookingPage: React.FC = () => {
                         <Typography variant="h6" sx={{ mb: 1 }}>
                           {w.Sena} {paymentInfo.amount ? `: ${formatPrice(Number(paymentInfo.amount), businessInfo?.currency, businessInfo?.locale)}` : ''}
                         </Typography>
-                        <Button variant="contained" size="large" onClick={() => window.location.assign(paymentInfo.initPoint!)}>
+                        <Button variant="contained" size="large" onClick={goToPayment}>
                           {paymentInfo.provider === 'stripe' ? `Pagar ${w.sena} con tarjeta` : 'Pagar ahora con MercadoPago'}
                         </Button>
                         <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
@@ -1244,6 +1490,11 @@ const BookingPage: React.FC = () => {
                       </Typography>
                     </Box>
 
+                    {appliedCoupon && (
+                      <Typography sx={{ mt: 2, fontSize: '0.9rem', color: 'success.main', fontWeight: 600 }}>
+                        Descuento aplicado ({appliedCoupon.code}): -{money(appliedCoupon.discountAmount)}
+                      </Typography>
+                    )}
                     <Typography sx={{ mt: 2.5, fontSize: '0.85rem', color: ui.inkSoft }}>
                       Te mandamos los detalles a {bookingData.customerEmail}
                     </Typography>
@@ -1374,7 +1625,7 @@ const BookingPage: React.FC = () => {
                       variant="contained"
                       size="large"
                       onClick={handleSubmit}
-                      disabled={submitting}
+                      disabled={submitting || !!planLimitMessage}
                       endIcon={submitting ? <CircularProgress size={20} /> : <Check />}
                     >
                       Confirmar Reserva
@@ -1383,7 +1634,7 @@ const BookingPage: React.FC = () => {
                     <Button
                       variant="contained"
                       size="large"
-                      onClick={() => paymentInfo?.initPoint && window.location.assign(paymentInfo.initPoint)}
+                      onClick={goToPayment}
                       disabled={!paymentInfo?.initPoint}
                     >
                       {paymentInfo?.provider === 'stripe' ? `Pagar ${w.sena}` : 'Pagar ahora'}

@@ -22,13 +22,16 @@ namespace BookingPro.API.Controllers
     {
         private readonly IBookingService _bookingService;
         private readonly ITenantService _tenantService;
+        private readonly IPlanEntitlementService _plans;
 
         public BookingsController(
             IBookingService bookingService,
-            ITenantService tenantService)
+            ITenantService tenantService,
+            IPlanEntitlementService plans)
         {
             _bookingService = bookingService;
             _tenantService = tenantService;
+            _plans = plans;
         }
 
         [HttpGet]
@@ -64,7 +67,10 @@ namespace BookingPro.API.Controllers
         public async Task<IActionResult> CreateBooking([FromBody] CreateBookingDto dto)
         {
             var result = await _bookingService.CreateBookingAsync(dto);
-            
+
+            if (!result.Success && result.Reason == BookingPro.API.Models.Common.BookingFailureReasons.PlanLimit)
+                return PlanLimitResult.From(await _plans.CanCreateBookingAsync(_tenantService.GetCurrentTenantIdFromContext()));
+
             if (!result.Success)
                 return BadRequest(new { message = result.Message, errors = result.Errors });
                 

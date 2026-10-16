@@ -37,7 +37,7 @@ import {
 
 /** Decide where to go after login — onboarding if incomplete, else dashboard. */
 async function resolvePostLoginRoute(): Promise<string> {
-  // Venía de los planes sin sesión (link de fin de prueba): volver ahí.
+  // Venía de los planes sin sesión (link de un mail/WhatsApp): volver ahí.
   try {
     const back = sessionStorage.getItem('postLoginRedirect');
     sessionStorage.removeItem('postLoginRedirect');

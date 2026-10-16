@@ -1,11 +1,11 @@
 /**
- * /subscription/success — vuelta desde Mercado Pago.
+ * /subscription/success — vuelta del checkout al pasarse a un plan pago (Plus / Advance / Pro).
  *
  * Dos orígenes:
- *  - ?flow=trial (o preapproval_id en la query): el dueño autorizó el débito automático desde
- *    /empezar (AddPaymentInfo en GA4). Confirmamos contra /preapproval/status y seguimos al onboarding si falta
- *    (/completar-perfil) o al panel.
- *  - pago/suscripción clásica: se confirma contra /subscription/status como antes.
+ *  - preapproval_id en la query (o ?flow=trial de links viejos): el dueño autorizó el débito automático de
+ *    Mercado Pago desde /subscription/plans (AddPaymentInfo en GA4). Se confirma contra /preapproval/status.
+ *  - Stripe (?provider=stripe) u otros pagos: se confirma contra /subscription/status (isPaid).
+ * Freemium: no hay prueba, el débito arranca hoy.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -40,7 +40,10 @@ const SubscriptionSuccess: React.FC = () => {
   const paymentStatus = searchParams.get('status');
   const preapprovalId = searchParams.get('preapproval_id');
   const externalReference = searchParams.get('external_reference');
-  const isTrialFlow = searchParams.get('flow') === 'trial' || !!preapprovalId;
+  // Débito automático de Mercado Pago (flow=trial queda por links viejos que todavía vuelvan así). Stripe se
+  // confirma contra /subscription/status.
+  const flow = searchParams.get('flow');
+  const isPreapprovalFlow = searchParams.get('provider') !== 'stripe' && (flow === 'preapproval' || flow === 'trial' || !!preapprovalId);
   // Fuera de Argentina la suscripción se paga con Stripe (vuelve con ?provider=stripe&session_id=...).
   const providerName = searchParams.get('provider') === 'stripe' ? 'Stripe' : 'Mercado Pago';
   // Tú para negocios de México y España (el país llega con la config del negocio).
@@ -49,9 +52,9 @@ const SubscriptionSuccess: React.FC = () => {
 
   const nextPath = onboardingDone ? '/dashboard' : '/completar-perfil';
 
-  // AddPaymentInfo (embudo GA4): una sola vez, cuando MP confirma la tarjeta. StartTrial ya salió
-  // al crear la cuenta (la prueba arranca sin tarjeta). El ref evita el doble disparo entre el poll
-  // inicial y el del intervalo.
+  // AddPaymentInfo (embudo GA4): una sola vez, cuando MP confirma el débito. StartTrial ya salió al crear
+  // la cuenta (nombre histórico, las campañas optimizan sobre él). El ref evita el doble disparo entre el
+  // poll inicial y el del intervalo.
   const paymentInfoSent = useRef(false);
 
   useEffect(() => {
@@ -83,8 +86,8 @@ const SubscriptionSuccess: React.FC = () => {
     if (mpStatus === 'rejected' || mpStatus === 'failure' || mpStatus === 'cancelled') {
       setState('failed');
       setMessage(
-        isTrialFlow
-          ? w.t('No pudimos autorizar la tarjeta. Podés reintentar cuando quieras: mientras dure la prueba seguís usando TurnosPro.', 'No pudimos autorizar la tarjeta. Puedes reintentar cuando quieras: mientras dure la prueba sigues usando TurnosPro.')
+        isPreapprovalFlow
+          ? w.t('No pudimos autorizar el débito. Podés reintentar cuando quieras: mientras tanto seguís con tu plan actual.', 'No pudimos autorizar el cobro. Puedes reintentar cuando quieras: mientras tanto sigues con tu plan actual.')
           : w.t('El pago no se completó. Podés reintentar desde tu panel.', 'El pago no se completó. Puedes reintentar desde tu panel.')
       );
       return;
@@ -92,22 +95,16 @@ const SubscriptionSuccess: React.FC = () => {
 
     const poll = async (): Promise<boolean> => {
       try {
-        if (isTrialFlow) {
+        if (isPreapprovalFlow) {
           const res = await api.get('/preapproval/status');
           if (res.data?.hasActivePreapproval) {
             reportAddPaymentInfo();
-            const next = res.data?.nextPaymentDate ? new Date(res.data.nextPaymentDate) : null;
-            // Con la prueba vencida MP cobra en el momento (sin free_trial): el próximo débito queda
-            // a horas, no al terminar la prueba.
-            const chargedToday = !!next && next.getTime() - Date.now() < 86_400_000;
-            const firstCharge = fmtDate(res.data?.nextPaymentDate);
+            const next = fmtDate(res.data?.nextPaymentDate);
             setState('approved');
             setMessage(
-              chargedToday
-                ? '¡Tu suscripción está activa! El débito se hace hoy y después se renueva solo cada mes.'
-                : firstCharge
-                  ? `¡Listo! Tu tarjeta quedó registrada. Hoy no se cobró nada: el primer débito es el ${firstCharge}.`
-                  : '¡Listo! Tu tarjeta quedó registrada. Hoy no se cobró nada: el primer débito es al terminar la prueba.'
+              next
+                ? `¡Listo, ya tenés tu nuevo plan! El débito se renueva solo cada mes; el próximo es el ${next}.`
+                : '¡Listo, ya tenés tu nuevo plan! El débito se hace hoy y se renueva solo cada mes.'
             );
             return true;
           }
@@ -115,9 +112,10 @@ const SubscriptionSuccess: React.FC = () => {
         }
         const res = await api.get('/subscription/status');
         const sub = res.data?.data || res.data;
-        if (sub?.isActive && !sub?.isTrialPeriod) {
+        // Freemium: isActive siempre es true; lo que confirma el pago es isPaid.
+        if (sub?.isPaid) {
           setState('approved');
-          setMessage('¡Tu suscripción está activa!');
+          setMessage(`¡Listo, ya tenés el plan ${sub.planName}!`);
           return true;
         }
         return false;
@@ -136,8 +134,8 @@ const SubscriptionSuccess: React.FC = () => {
         if (!done) {
           setState('pending');
           setMessage(
-            isTrialFlow
-              ? w.t(`${providerName} recibió la autorización. Puede demorar unos minutos en confirmarse; mientras tanto podés seguir armando tu agenda.`, `${providerName} recibió la autorización. Puede tardar unos minutos en confirmarse; mientras tanto puedes seguir armando tu agenda.`)
+            isPreapprovalFlow
+              ? w.t(`${providerName} recibió la autorización. Puede demorar unos minutos en confirmarse; mientras tanto seguís usando TurnosPro.`, `${providerName} recibió la autorización. Puede tardar unos minutos en confirmarse; mientras tanto sigues usando TurnosPro.`)
               : `${providerName} recibió el pago. La activación puede demorar unos minutos — vas a recibir un aviso cuando se confirme.`
           );
         }
@@ -147,7 +145,7 @@ const SubscriptionSuccess: React.FC = () => {
       if (done) clearInterval(interval);
     });
     return () => clearInterval(interval);
-  }, [collectionStatus, paymentStatus, isTrialFlow, providerName]);
+  }, [collectionStatus, paymentStatus, isPreapprovalFlow, providerName]);
 
   const renderIcon = () => {
     if (state === 'approved') return <CheckCircle sx={{ fontSize: 72, color: 'success.main' }} />;
@@ -156,10 +154,10 @@ const SubscriptionSuccess: React.FC = () => {
   };
 
   const renderTitle = () => {
-    if (state === 'approved') return isTrialFlow ? '¡Plan activado!' : '¡Pago confirmado!';
-    if (state === 'failed') return isTrialFlow ? 'No se autorizó la tarjeta' : 'El pago no se completó';
-    if (state === 'pending') return isTrialFlow ? 'Autorización recibida' : 'Pago recibido — activación pendiente';
-    return isTrialFlow ? 'Confirmando tu tarjeta...' : 'Confirmando tu pago...';
+    if (state === 'approved') return '¡Plan activado!';
+    if (state === 'failed') return isPreapprovalFlow ? 'No se autorizó el débito' : 'El pago no se completó';
+    if (state === 'pending') return isPreapprovalFlow ? 'Autorización recibida' : 'Pago recibido — activación pendiente';
+    return 'Confirmando tu plan...';
   };
 
   const continueLabel = !onboardingDone ? 'Armar mi agenda' : 'Ir al panel';
@@ -194,7 +192,7 @@ const SubscriptionSuccess: React.FC = () => {
             {state === 'failed' && (
               <Button
                 variant="outlined"
-                onClick={() => navigate(isTrialFlow ? '/empezar' : '/subscription/plans')}
+                onClick={() => navigate('/subscription/plans')}
               >
                 Reintentar
               </Button>

@@ -27,6 +27,20 @@ namespace BookingPro.API.Services
         private readonly IWhatsAppConnectionService _whatsApp;
         private readonly IStripeConnectService _stripeConnect;
 
+        private readonly IPlanEntitlementService _plans;
+
+        /// <summary>
+        /// Comisión de la plataforma según el plan del negocio. MP la descuenta del pago y la acredita en la
+        /// cuenta dueña de la app solo si el token salió del OAuth de esa app; con credenciales pegadas la
+        /// ignora, así que en ese caso no se manda. Null = sin comisión.
+        /// </summary>
+        private async Task<decimal?> MarketplaceFeeAsync(Guid tenantId, decimal amount, bool oauthToken)
+        {
+            if (!oauthToken) return null;
+            var fee = await _plans.GetPlatformFeeAsync(tenantId, amount);
+            return fee > 0 && fee < amount ? fee : null;
+        }
+
         public MercadoPagoService(
             ApplicationDbContext context,
             ILogger<MercadoPagoService> logger,
@@ -34,8 +48,10 @@ namespace BookingPro.API.Services
             ITenantProvider tenantProvider,
             IMercadoPagoOAuthService oauthService,
             IWhatsAppConnectionService whatsApp,
-            IStripeConnectService stripeConnect)
+            IStripeConnectService stripeConnect,
+            IPlanEntitlementService plans)
         {
+            _plans = plans;
             _context = context;
             _logger = logger;
             _configuration = configuration;
@@ -204,6 +220,7 @@ namespace BookingPro.API.Services
                         Pending = $"{(_configuration["FrontendUrl"] ?? _configuration["BaseUrl"] ?? string.Empty).TrimEnd('/')}/booking-confirmation?status=pending&bookingId={booking.Id}"
                     },
                     AutoReturn = "approved",
+                    MarketplaceFee = await MarketplaceFeeAsync(tenantId, amountToPay, tokenResult.Success),
                     NotificationUrl = $"{_configuration["BaseUrl"]}/api/webhooks/mercadopago/{tenantId}",
                     ExternalReference = booking.Id.ToString(),
                     Metadata = new Dictionary<string, object>
@@ -903,9 +920,8 @@ namespace BookingPro.API.Services
                     return ServiceResult<PaymentLinkResponseDto>.Fail("MercadoPago not configured");
                 }
                 
-                // Create preference using MercadoPago SDK or API
-                // Calculate marketplace fee (5% commission for the platform)
-                var marketplaceFee = dto.Amount * 0.05m;
+                // Comisión según el plan del negocio (antes era un 5% fijo para todos).
+                var marketplaceFee = await MarketplaceFeeAsync(tenantGuid, dto.Amount, oauthToken: true) ?? 0m;
                 
                 var preferenceRequest = new
                 {
@@ -933,7 +949,7 @@ namespace BookingPro.API.Services
                             new { id = "atm" }
                         }
                     },
-                    marketplace_fee = marketplaceFee, // 5% commission for the platform
+                    marketplace_fee = marketplaceFee,
                     expires = true,
                     expiration_date_to = DateTime.UtcNow.AddMinutes(config.PaymentExpirationMinutes),
                     back_urls = new
@@ -1231,6 +1247,7 @@ namespace BookingPro.API.Services
                         }
                     },
                     ExternalReference = bookingId.ToString(),
+                    MarketplaceFee = await MarketplaceFeeAsync(tenantId, amount, tokenResult.Success),
                     NotificationUrl = $"{_configuration["BaseUrl"]}/api/webhooks/mercadopago/{tenantId}",
                     BackUrls = new PreferenceBackUrlsRequest
                     {

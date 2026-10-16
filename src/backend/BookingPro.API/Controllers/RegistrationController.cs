@@ -100,33 +100,6 @@ namespace BookingPro.API.Controllers
         }
 
         /// <summary>
-        /// Returns the monthly amount to charge after applying a promo/coupon code (if valid for the
-        /// chosen plan). Mirrors GymHero's CheckoutController register flow: a valid coupon replaces
-        /// the price with FinalPrice and records the original price + coupon code on the subscription.
-        /// Returns the plan price unchanged when there's no plan or no valid code.
-        /// </summary>
-        private async Task<(decimal monthlyAmount, decimal? originalMonthlyPrice, string? appliedCouponCode)>
-            ResolveCouponAsync(SubscriptionPlan? chosenPlan, string? promoCode)
-        {
-            var monthlyAmount = chosenPlan?.Price ?? 0;
-            decimal? originalMonthlyPrice = null;
-            string? appliedCouponCode = null;
-
-            if (chosenPlan != null && !string.IsNullOrWhiteSpace(promoCode))
-            {
-                var couponResult = await _couponService.ValidateCouponAsync(promoCode, chosenPlan.Code);
-                if (couponResult.IsValid)
-                {
-                    originalMonthlyPrice = chosenPlan.Price;
-                    monthlyAmount = couponResult.FinalPrice;
-                    appliedCouponCode = couponResult.CouponCode;
-                }
-            }
-
-            return (monthlyAmount, originalMonthlyPrice, appliedCouponCode);
-        }
-
-        /// <summary>
         /// Step 1: Start registration - receives email + password, creates PendingRegistration, "sends" confirmation email.
         /// </summary>
         [HttpPost("start")]
@@ -328,11 +301,8 @@ namespace BookingPro.API.Controllers
                     Currency = CountryProfile.Resolve(dto.Country, dto.Mobile).Currency,
                     Language = "es",
                     Country = CountryProfile.Resolve(dto.Country, dto.Mobile).Code,
-                    Status = "trial",
-                    IsDemo = true,
-                    DemoDays = 7,
-                    DemoExpiresAt = DateTime.UtcNow.AddDays(7),
-                    TrialEndsAt = DateTime.UtcNow.AddDays(7),
+                    // Freemium: arranca en Gratuito para siempre, sin prueba ni vencimiento.
+                    Status = "active",
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
@@ -361,31 +331,6 @@ namespace BookingPro.API.Controllers
                 _context.Users.Add(adminUser);
                 await _context.SaveChangesAsync();
 
-                // Resolve chosen plan (if any). Default to trial demo otherwise.
-                var chosenPlan = !string.IsNullOrWhiteSpace(dto.PlanCode)
-                    ? await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Code == dto.PlanCode && p.IsActive)
-                    : null;
-
-                // Apply promo/coupon discount if a valid code was provided for the chosen plan.
-                var (couponMonthlyAmount, couponOriginalPrice, appliedCouponCode) =
-                    await ResolveCouponAsync(chosenPlan, dto.PromoCode);
-
-                var subscription = new Subscription
-                {
-                    Id = Guid.NewGuid(),
-                    TenantId = tenant.Id,
-                    PlanType = chosenPlan?.Code ?? "demo",
-                    MonthlyAmount = couponMonthlyAmount,
-                    OriginalMonthlyPrice = couponOriginalPrice,
-                    AppliedCouponCode = appliedCouponCode,
-                    Status = "trial",
-                    IsTrialPeriod = true,
-                    TrialEndsAt = DateTime.UtcNow.AddDays(chosenPlan?.TrialDays > 0 ? chosenPlan.TrialDays : 7),
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-
-                _context.Subscriptions.Add(subscription);
                 await _context.SaveChangesAsync();
 
                 await transaction.CommitAsync();
@@ -405,9 +350,6 @@ namespace BookingPro.API.Controllers
 
                 var redirectUrl = $"{tenantUrl}/dashboard?impersonationToken={token}";
 
-                // Redeem coupon after the subscription is created (mirrors GymHero).
-                if (appliedCouponCode != null)
-                    await _couponService.RedeemCouponAsync(appliedCouponCode);
 
                 _logger.LogInformation("Registration completed for {Email}, tenant {TenantId}, subdomain {Subdomain}", pending.Email, tenant.Id, subdomain);
 
@@ -489,11 +431,8 @@ namespace BookingPro.API.Controllers
                     Currency = CountryProfile.Resolve(dto.Country, dto.Mobile).Currency,
                     Language = "es",
                     Country = CountryProfile.Resolve(dto.Country, dto.Mobile).Code,
-                    Status = "trial",
-                    IsDemo = true,
-                    DemoDays = 7,
-                    DemoExpiresAt = DateTime.UtcNow.AddDays(7),
-                    TrialEndsAt = DateTime.UtcNow.AddDays(7),
+                    // Freemium: arranca en Gratuito para siempre, sin prueba ni vencimiento.
+                    Status = "active",
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
@@ -538,29 +477,6 @@ namespace BookingPro.API.Controllers
                 _context.Users.Add(adminUser);
                 await _context.SaveChangesAsync();
 
-                var chosenPlan = !string.IsNullOrWhiteSpace(dto.PlanCode)
-                    ? await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Code == dto.PlanCode && p.IsActive)
-                    : null;
-
-                // Apply promo/coupon discount if a valid code was provided for the chosen plan.
-                var (couponMonthlyAmount, couponOriginalPrice, appliedCouponCode) =
-                    await ResolveCouponAsync(chosenPlan, dto.PromoCode);
-
-                var subscription = new Subscription
-                {
-                    Id = Guid.NewGuid(),
-                    TenantId = tenant.Id,
-                    PlanType = chosenPlan?.Code ?? "demo",
-                    MonthlyAmount = couponMonthlyAmount,
-                    OriginalMonthlyPrice = couponOriginalPrice,
-                    AppliedCouponCode = appliedCouponCode,
-                    Status = "trial",
-                    IsTrialPeriod = true,
-                    TrialEndsAt = DateTime.UtcNow.AddDays(chosenPlan?.TrialDays > 0 ? chosenPlan.TrialDays : 7),
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                _context.Subscriptions.Add(subscription);
                 await _context.SaveChangesAsync();
 
                 await transaction.CommitAsync();
@@ -587,9 +503,6 @@ namespace BookingPro.API.Controllers
                     catch (Exception ex) { _logger.LogWarning(ex, "Failed to send welcome email to {Email}", emailLower); }
                 });
 
-                // Redeem coupon after the subscription is created (mirrors GymHero).
-                if (appliedCouponCode != null)
-                    await _couponService.RedeemCouponAsync(appliedCouponCode);
 
                 _logger.LogInformation("Quick registration completed for {Email}, tenant {TenantId}, subdomain {Subdomain}", emailLower, tenant.Id, subdomain);
 
@@ -736,11 +649,8 @@ namespace BookingPro.API.Controllers
                     Currency = CountryProfile.Resolve(dto.Country, null).Currency,
                     Language = "es",
                     Country = CountryProfile.Resolve(dto.Country, null).Code,
-                    Status = "trial",
-                    IsDemo = true,
-                    DemoDays = 7,
-                    DemoExpiresAt = DateTime.UtcNow.AddDays(7),
-                    TrialEndsAt = DateTime.UtcNow.AddDays(7),
+                    // Freemium: arranca en Gratuito para siempre, sin prueba ni vencimiento.
+                    Status = "active",
                     UtmSource = dto.UtmSource ?? "whatsapp-bot",
                     UtmMedium = dto.UtmMedium ?? "whatsapp",
                     UtmCampaign = dto.UtmCampaign ?? "chatbot-turnospro",
@@ -769,21 +679,8 @@ namespace BookingPro.API.Controllers
                 _context.Users.Add(adminUser);
                 await _context.SaveChangesAsync();
 
-                var subscription = new Subscription
-                {
-                    Id = Guid.NewGuid(),
-                    TenantId = tenant.Id,
-                    PlanType = "demo",
-                    MonthlyAmount = 0,
-                    Status = "trial",
-                    IsTrialPeriod = true,
-                    TrialEndsAt = DateTime.UtcNow.AddDays(7),
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
                 // utm_* / fbclid / utm_content ({{ad.id}}) que el frontend capturó al aterrizar desde el anuncio.
                 MetaAttribution.Apply(tenant, dto, "web");
-                _context.Subscriptions.Add(subscription);
                 await _context.SaveChangesAsync();
 
                 await transaction.CommitAsync();
@@ -1156,11 +1053,8 @@ namespace BookingPro.API.Controllers
                     Currency = CountryProfile.Resolve(null, signupPhone).Currency,
                     Language = "es",
                     Country = CountryProfile.Resolve(null, signupPhone).Code,
-                    Status = "trial",
-                    IsDemo = true,
-                    DemoDays = 7,
-                    DemoExpiresAt = now.AddDays(7),
-                    TrialEndsAt = now.AddDays(7),
+                    // Freemium: arranca en Gratuito para siempre, sin prueba ni vencimiento.
+                    Status = "active",
                     CreatedAt = now,
                     UpdatedAt = now
                 };
@@ -1192,19 +1086,6 @@ namespace BookingPro.API.Controllers
                 _context.Users.Add(adminUser);
                 await _context.SaveChangesAsync();
 
-                var subscription = new Subscription
-                {
-                    Id = Guid.NewGuid(),
-                    TenantId = tenant.Id,
-                    PlanType = "demo",
-                    MonthlyAmount = 0,
-                    Status = "trial",
-                    IsTrialPeriod = true,
-                    TrialEndsAt = now.AddDays(7),
-                    CreatedAt = now,
-                    UpdatedAt = now
-                };
-                _context.Subscriptions.Add(subscription);
 
                 verification.ConsumedAt = now;
                 verification.UpdatedAt = now;
@@ -1242,23 +1123,16 @@ namespace BookingPro.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Primer destino de una cuenta nueva. Con Trial:RequireCard=false (default) va directo al
-        /// onboarding (/completar-perfil, que después sigue al panel) con la prueba ya activa; con true,
-        /// primero /empezar a dejar la tarjeta en Mercado Pago (free_trial) y de ahí al onboarding.
-        /// </summary>
-        private string NewAccountRedirectUrl(string tenantUrl, string token) =>
-            TrialSettings.RequireCard(_config)
-                ? $"{tenantUrl}/empezar?nuevo=1&impersonationToken={token}"
-                : $"{tenantUrl}/completar-perfil?nuevo=1&impersonationToken={token}";
+        /// <summary>Primer destino de una cuenta nueva: el onboarding, ya en el plan Gratuito (no se pide tarjeta).</summary>
+        private static string NewAccountRedirectUrl(string tenantUrl, string token) =>
+            $"{tenantUrl}/completar-perfil?nuevo=1&impersonationToken={token}";
 
         /// <summary>
-        /// Config pública de la prueba para los textos del alta (SPA del dominio principal): si pide
-        /// tarjeta y cuántos días dura. Sin datos del negocio, se puede llamar sin sesión.
+        /// Config pública del alta para los textos de la SPA. Freemium: sin prueba ni tarjeta. Se mantiene
+        /// el endpoint para las versiones del frontend que todavía lo consultan.
         /// </summary>
         [HttpGet("trial-config")]
-        public IActionResult GetTrialConfig() =>
-            Ok(new { requireCard = TrialSettings.RequireCard(_config), trialDays = 7 });
+        public IActionResult GetTrialConfig() => Ok(new { requireCard = false, trialDays = 0 });
 
         /// <summary>
         /// Check subdomain availability.
@@ -1481,11 +1355,8 @@ namespace BookingPro.API.Controllers
                     Currency = CountryProfile.Resolve(dto.Country, dto.Mobile).Currency,
                     Language = "es",
                     Country = CountryProfile.Resolve(dto.Country, dto.Mobile).Code,
-                    Status = "trial",
-                    IsDemo = true,
-                    DemoDays = 7,
-                    DemoExpiresAt = DateTime.UtcNow.AddDays(7),
-                    TrialEndsAt = DateTime.UtcNow.AddDays(7),
+                    // Freemium: arranca en Gratuito para siempre, sin prueba ni vencimiento.
+                    Status = "active",
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
@@ -1514,29 +1385,6 @@ namespace BookingPro.API.Controllers
                 _context.Users.Add(adminUser);
                 await _context.SaveChangesAsync();
 
-                var chosenPlan = !string.IsNullOrWhiteSpace(dto.PlanCode)
-                    ? await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Code == dto.PlanCode && p.IsActive)
-                    : null;
-
-                // Apply promo/coupon discount if a valid code was provided for the chosen plan.
-                var (couponMonthlyAmount, couponOriginalPrice, appliedCouponCode) =
-                    await ResolveCouponAsync(chosenPlan, dto.PromoCode);
-
-                var subscription = new Subscription
-                {
-                    Id = Guid.NewGuid(),
-                    TenantId = tenant.Id,
-                    PlanType = chosenPlan?.Code ?? "demo",
-                    MonthlyAmount = couponMonthlyAmount,
-                    OriginalMonthlyPrice = couponOriginalPrice,
-                    AppliedCouponCode = appliedCouponCode,
-                    Status = "trial",
-                    IsTrialPeriod = true,
-                    TrialEndsAt = DateTime.UtcNow.AddDays(chosenPlan?.TrialDays > 0 ? chosenPlan.TrialDays : 7),
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                _context.Subscriptions.Add(subscription);
                 await _context.SaveChangesAsync();
 
                 await transaction.CommitAsync();
@@ -1550,9 +1398,6 @@ namespace BookingPro.API.Controllers
                 var tenantUrl = isLocal ? $"http://{subdomain}.localhost:3001" : $"https://{subdomain}.turnos-pro.com";
                 var redirectUrl = $"{tenantUrl}/dashboard?impersonationToken={token}";
 
-                // Redeem coupon after the subscription is created (mirrors GymHero).
-                if (appliedCouponCode != null)
-                    await _couponService.RedeemCouponAsync(appliedCouponCode);
 
                 _logger.LogInformation("{Provider} registration completed for {Email}, tenant {TenantId}, subdomain {Subdomain}", provider, email, tenant.Id, subdomain);
 

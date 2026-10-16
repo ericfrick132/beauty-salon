@@ -21,6 +21,14 @@ import {
   CardContent,
   IconButton,
   InputAdornment,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
 import {
   ArrowBack,
@@ -29,17 +37,26 @@ import {
   Schedule,
   Check,
   Search,
+  Repeat,
+  Lock,
+  EventBusy,
+  EventAvailable,
 } from '@mui/icons-material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { TimePicker } from '@mui/x-date-pickers/TimePicker';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { format } from 'date-fns';
 import { motion } from 'framer-motion';
 import { useTenant } from '../contexts/TenantContext';
 import { useAppDispatch, useAppSelector } from '../store';
 import { fetchCustomers, fetchEmployees, fetchServices, createBooking } from '../store/slices/bookingSlice';
-import api from '../services/api';
+import { openPlanUpsell, PLAN_USAGE_REFRESH_EVENT } from '../utils/plans';
+import api, { isPlanLimitError } from '../services/api';
+import { bookingSeriesApi, CreateBookingSeriesResponse, frequencyLabel, SkippedOccurrence } from '../services/planFeaturesApi';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import CommonTextField from '../components/common/TextField';
 import { isEmployee } from '../utils/permissions';
 import { es } from 'date-fns/locale';
 
@@ -99,6 +116,28 @@ const NewBooking: React.FC = () => {
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Turno fijo: 0 = no se repite; 1..4 = cada N semanas.
+  const [searchParams] = useSearchParams();
+  const { subscription } = useSubscription();
+  const recurringMax = subscription?.features ? subscription.features.maxRecurringBookings : null;
+  // Sin features cargadas no se bloquea: si el plan no lo incluye, el backend responde PLAN_LIMIT.
+  const recurringLocked = recurringMax === 0;
+  const [repeatWeeks, setRepeatWeeks] = useState(0);
+  const [occurrences, setOccurrences] = useState(8);
+  const [seriesResult, setSeriesResult] = useState<{ created: number; skipped: SkippedOccurrence[]; error?: string } | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get('repeat') === '1' && !recurringLocked) setRepeatWeeks(1);
+  }, [searchParams, recurringLocked]);
+
+  const handleRepeatChange = (value: number) => {
+    if (value > 0 && recurringLocked) {
+      openPlanUpsell('recurring_bookings', subscription?.planType || 'free', subscription?.planName || 'Gratuito');
+      return;
+    }
+    setRepeatWeeks(value);
+  };
+
   useEffect(() => {
     dispatch(fetchServices());
     dispatch(fetchEmployees());
@@ -142,6 +181,7 @@ const NewBooking: React.FC = () => {
       case 2:
         if (!bookingData.date) newErrors.date = 'Seleccione una fecha';
         if (!bookingData.time) newErrors.time = 'Seleccione una hora';
+        if (repeatWeeks > 0 && (occurrences < 2 || occurrences > 52)) newErrors.occurrences = 'Elegí entre 2 y 52 turnos';
         break;
       case 3:
         if (newCustomer) {
@@ -231,6 +271,31 @@ const NewBooking: React.FC = () => {
         customerId = customerResponse.data.id;
       }
 
+      if (repeatWeeks > 0) {
+        try {
+          const res: CreateBookingSeriesResponse = await bookingSeriesApi.create({
+            customerId,
+            employeeId: bookingData.employeeId,
+            serviceId: bookingData.serviceId,
+            startTime: startTime.toISOString(),
+            intervalWeeks: repeatWeeks,
+            occurrences,
+            notes: bookingData.notes || undefined,
+          });
+          window.dispatchEvent(new Event(PLAN_USAGE_REFRESH_EVENT));
+          setSeriesResult({ created: res.created?.length ?? 0, skipped: res.skipped ?? [] });
+        } catch (err: any) {
+          if (isPlanLimitError(err)) return;
+          const data = err?.response?.data;
+          if (Array.isArray(data?.skipped)) {
+            setSeriesResult({ created: 0, skipped: data.skipped, error: data.message || 'No se pudo crear ningún turno.' });
+          } else {
+            setErrors({ submit: extractApiError(err) });
+          }
+        }
+        return;
+      }
+
       await dispatch(createBooking({
         serviceId: bookingData.serviceId,
         employeeId: bookingData.employeeId,
@@ -241,8 +306,11 @@ const NewBooking: React.FC = () => {
         status: 'confirmed',
       })).unwrap();
 
+      window.dispatchEvent(new Event(PLAN_USAGE_REFRESH_EVENT));
       navigate('/calendar');
     } catch (error: any) {
+      // Tope del plan: ya lo muestra PlanLimitDialog (403 PLAN_LIMIT), sin error genérico acá.
+      if (error?.code === 'PLAN_LIMIT') return;
       console.error('Error creating booking:', error);
       setErrors({ submit: extractApiError(error) });
     } finally {
@@ -461,6 +529,47 @@ const NewBooking: React.FC = () => {
                 </Box>
               </Grid>
             )}
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth>
+                <InputLabel id="repeat-label">Repetir</InputLabel>
+                <Select
+                  labelId="repeat-label"
+                  label="Repetir"
+                  value={repeatWeeks}
+                  onChange={(e) => handleRepeatChange(Number(e.target.value))}
+                  startAdornment={<InputAdornment position="start"><Repeat fontSize="small" /></InputAdornment>}
+                >
+                  <MenuItem value={0}>No se repite</MenuItem>
+                  {[1, 2, 3, 4].map((w) => (
+                    <MenuItem key={w} value={w}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                        <span>{w === 1 ? 'Cada semana' : `Cada ${w} semanas`}</span>
+                        {recurringLocked && <Lock fontSize="small" color="action" sx={{ ml: 'auto' }} />}
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              {recurringLocked && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                  <Lock sx={{ fontSize: 14 }} /> Turnos fijos: incluidos desde el plan Advance
+                </Typography>
+              )}
+            </Grid>
+            {repeatWeeks > 0 && (
+              <Grid item xs={12} md={6}>
+                <CommonTextField
+                  fullWidth
+                  type="number"
+                  label="Cantidad de turnos"
+                  value={occurrences}
+                  onChange={(e) => setOccurrences(Math.max(0, Math.min(52, parseInt(e.target.value, 10) || 0)))}
+                  inputProps={{ min: 2, max: 52 }}
+                  error={!!errors.occurrences}
+                  helperText={errors.occurrences || `Se agenda ${frequencyLabel(repeatWeeks)}, ${occurrences} turnos en total. Si algún horario está ocupado, ese se saltea.`}
+                />
+              </Grid>
+            )}
           </Grid>
         );
 
@@ -605,6 +714,17 @@ const NewBooking: React.FC = () => {
                       : `${selectedCustomer?.name} - ${selectedCustomer?.email}`}
                   </Typography>
                 </Grid>
+                {repeatWeeks > 0 && (
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Turno fijo:
+                    </Typography>
+                    <Typography variant="body1" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                      <Repeat fontSize="small" color="primary" />
+                      Se repite {frequencyLabel(repeatWeeks)} · {occurrences} turnos
+                    </Typography>
+                  </Grid>
+                )}
                 {bookingData.notes && (
                   <Grid item xs={12}>
                     <Typography variant="subtitle2" color="text.secondary">
@@ -682,7 +802,7 @@ const NewBooking: React.FC = () => {
                     disabled={submitting}
                     endIcon={submitting ? <CircularProgress size={20} /> : <Check />}
                   >
-                    Confirmar Reserva
+                    {repeatWeeks > 0 ? `Crear ${occurrences} turnos` : 'Confirmar Reserva'}
                   </Button>
                 ) : (
                   <Button
@@ -698,6 +818,52 @@ const NewBooking: React.FC = () => {
           )}
         </Paper>
       </motion.div>
+
+      <Dialog open={!!seriesResult} onClose={() => setSeriesResult(null)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Repeat color="primary" />
+          {seriesResult && seriesResult.created > 0
+            ? `Se ${seriesResult.created === 1 ? 'creó 1 turno' : `crearon ${seriesResult.created} turnos`}`
+            : 'No se pudo crear el turno fijo'}
+        </DialogTitle>
+        <DialogContent>
+          {seriesResult?.error && <Alert severity="error" sx={{ mb: 2 }}>{seriesResult.error}</Alert>}
+          {seriesResult && seriesResult.created > 0 && (
+            <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+              <EventAvailable fontSize="small" color="success" />
+              Quedaron agendados {frequencyLabel(repeatWeeks)}, con el mismo {getTerm('professional').toLowerCase()} y servicio.
+            </Typography>
+          )}
+          {seriesResult && seriesResult.skipped.length > 0 && (
+            <>
+              <Typography variant="subtitle2" sx={{ mt: 2 }}>
+                {seriesResult.skipped.length === 1 ? '1 no se pudo agendar:' : `${seriesResult.skipped.length} no se pudieron agendar:`}
+              </Typography>
+              <List dense>
+                {seriesResult.skipped.map((s) => (
+                  <ListItem key={s.startTime} disableGutters>
+                    <ListItemIcon sx={{ minWidth: 32 }}><EventBusy fontSize="small" color="warning" /></ListItemIcon>
+                    <ListItemText
+                      primary={format(new Date(s.startTime), 'EEE dd/MM HH:mm', { locale: es })}
+                      secondary={s.reason}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          {seriesResult && seriesResult.created > 0 ? (
+            <>
+              <Button onClick={() => navigate('/recurring-bookings')}>Ver turnos fijos</Button>
+              <Button variant="contained" onClick={() => navigate('/calendar')}>Ir a la agenda</Button>
+            </>
+          ) : (
+            <Button variant="contained" onClick={() => setSeriesResult(null)}>Elegir otro horario</Button>
+          )}
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

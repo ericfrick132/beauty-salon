@@ -45,9 +45,10 @@ interface SubscriptionData {
   monthlyAmount: number;
   nextPaymentDate?: string;
   lastPaymentDate?: string;
-  isTrialPeriod: boolean;
-  trialEndsAt?: string;
-  daysRemaining: number;
+  /** Freemium: false = plan Gratuito. */
+  isPaid: boolean;
+  appleSubscriptionActive?: boolean;
+  googlePlaySubscriptionActive?: boolean;
   createdAt: string;
   mercadoPagoPreapprovalId?: string;
 }
@@ -215,22 +216,15 @@ const SubscriptionManagement: React.FC = () => {
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
                   <Chip
-                    label={subscription.status === 'active' ? 'ACTIVO' : (subscription.status || 'pending').toUpperCase()}
-                    color={getStatusColor(subscription.status || 'pending') as any}
+                    label={subscription.isPaid ? 'ACTIVO' : 'GRATIS PARA SIEMPRE'}
+                    color={(subscription.isPaid ? getStatusColor('active') : 'default') as any}
                     size="small"
                   />
-                  {subscription.isTrialPeriod && (
-                    <Chip
-                      label={`PRUEBA - ${subscription.daysRemaining} días restantes`}
-                      color="info"
-                      size="small"
-                    />
-                  )}
                 </Box>
               </Box>
               <Box sx={{ textAlign: 'right' }}>
                 <Typography variant="h4" sx={{ color: getPlanColor(subscription.planType) }}>
-                  ${subscription.monthlyAmount.toLocaleString('es-AR')}
+                  ${(subscription.isPaid ? subscription.monthlyAmount : 0).toLocaleString('es-AR')}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   por mes
@@ -294,17 +288,18 @@ const SubscriptionManagement: React.FC = () => {
                 onClick={handleChangePlan}
                 sx={{ backgroundColor: getPlanColor(subscription.planType) }}
               >
-                Cambiar Plan
+                {subscription.isPaid ? 'Cambiar plan' : 'Mejorar plan'}
               </Button>
-              
-              {subscription.status === 'active' && !subscription.isTrialPeriod && (
+
+              {/* Bajar a Gratuito. Las compras de la app (Apple / Google Play) se cancelan desde la tienda. */}
+              {subscription.isPaid && !subscription.appleSubscriptionActive && !subscription.googlePlaySubscriptionActive && (
                 <Button
                   variant="outlined"
                   color="error"
                   onClick={() => setShowCancelDialog(true)}
                   startIcon={<Cancel />}
                 >
-                  Cancelar Suscripción
+                  Pasarme a Gratuito
                 </Button>
               )}
 
@@ -369,19 +364,16 @@ const SubscriptionManagement: React.FC = () => {
           maxWidth="sm"
           fullWidth
         >
-          <DialogTitle>Cancelar Suscripción</DialogTitle>
+          <DialogTitle>¿Pasarte a Gratuito?</DialogTitle>
           <DialogContent>
             <Alert severity="warning" sx={{ mb: 2 }}>
-              ¿Estás seguro de que deseas cancelar tu suscripción?
+              Vas a quedar en Gratuito con 100 reservas por mes y 5% por cobro.
             </Alert>
             <Typography variant="body2">
-              • Tu suscripción permanecerá activa hasta el final del período de facturación actual.
+              • Cancelamos tu débito automático: no se realizan más cobros.
             </Typography>
             <Typography variant="body2">
-              • Podrás reactivarla en cualquier momento.
-            </Typography>
-            <Typography variant="body2">
-              • No se realizarán más cobros después de la cancelación.
+              • Podés volver a un plan pago cuando quieras desde Planes.
             </Typography>
           </DialogContent>
           <DialogActions>
@@ -394,7 +386,7 @@ const SubscriptionManagement: React.FC = () => {
               variant="contained"
               disabled={cancelling}
             >
-              {cancelling ? <CircularProgress size={24} /> : 'Cancelar Suscripción'}
+              {cancelling ? <CircularProgress size={24} /> : 'Pasarme a Gratuito'}
             </Button>
           </DialogActions>
         </Dialog>

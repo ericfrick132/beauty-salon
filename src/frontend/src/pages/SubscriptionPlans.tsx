@@ -1,92 +1,55 @@
 /**
- * /subscription/plans — High-converting paywall, Editorial Gazette skin.
+ * /subscription/plans — planes freemium (Gratuito / Plus / Advance / Pro), Editorial Gazette skin.
  *
- * Aesthetic: matches the landing + /login + /register + the prior pricing
- * page — warm cream paper, Fraunces italic display, JetBrains Mono kickers,
- * forest/coral ink, SVG grain overlay, coral-slide PillCTA, framer-motion.
+ * Aesthetic: matches the landing + /login + /register — warm cream paper, Fraunces italic display,
+ * JetBrains Mono kickers, forest/coral ink, SVG grain overlay, coral-slide PillCTA, framer-motion.
  *
- * Conversion anatomy (top → bottom):
- *   1. SOCIAL PROOF        — negocios que ya usan TurnosPro + testimonios.
- *   2. VISION HEADLINE     — el resultado para el negocio ("Llená tu agenda…").
- *   3. IMPACT BULLETS      — menos ausencias, más reservas, cobro online, reportes.
- *   4. PRICING TIERS       — los PLANES REALES (Anual "Más popular" + Mensual),
- *                            con un toggle Anual/Mensual. Precios reales del backend.
- *   5. CTA motivacional    — cableado al checkout EXISTENTE de MercadoPago.
- *   6. TRUST FOOTER        — links a privacidad y términos.
- *
- * Data + checkout contract is UNCHANGED from the prior page:
- *   - Planes:    GET  /subscription/plans   (con fallback hardcodeado).
- *   - Checkout:  POST /subscription/subscribe { planCode } → { paymentUrl, qrCode }.
- *
- * Importante sobre Anual/Mensual: el backend factura mensual (frequency_type
- * "months") y `planCode` debe existir como SubscriptionPlan.Code, si no el
- * checkout falla con "Plan no encontrado". Por eso el ciclo Anual/Mensual es
- * una capa de PRESENTACIÓN: muestra el precio anual con descuento, pero el CTA
- * SIEMPRE suscribe con el `plan.code` real (el único contrato cobrable). El
- * ahorro anual es informativo/comercial — no inventamos un código que el
- * backend no conozca.
+ * Contrato:
+ *   - Planes:   GET  /subscription/plans (con el catálogo de respaldo de utils/plans). Fuera de Argentina ya
+ *               vienen en la moneda de Stripe del país.
+ *   - Plan:     GET  /subscription/status → planType (código efectivo; "free" si no paga), isPaid, planName.
+ *   - Subir:    POST /preapproval/create { planCode, returnPath } → initPoint (débito de MP o Checkout de
+ *               Stripe). Si ya tenía débito, el backend cambia el plan de esa suscripción (planChanged).
+ *   - Bajar a Gratuito: POST /subscription/cancel.
+ *   - ?highlight=<code> resalta un plan y lo lleva a la vista (lo usan el diálogo de límite y los add-ons).
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
+  Button,
   CircularProgress,
   Container,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
-  IconButton,
   Typography,
 } from '@mui/material';
 import {
-  AllInclusive,
-  Assessment,
-  Close,
+  Check,
   EventAvailable,
-  Email,
-  Groups,
-  LocationOn,
   NotificationsActive,
-  Palette,
   Payment,
-  People,
-  QrCode2,
-  Sms,
-  Storefront,
   TrendingUp,
-  WhatsApp,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import api from '../services/api';
+import { subscriptionApi, SubscriptionPlanInfo } from '../services/api';
 import useTenantMoney from '../hooks/useTenantMoney';
 import { useTenantWording } from '../utils/wording';
 import { isPlanChanged, planChangedMessage } from '../utils/planChange';
+import { bulletsByPlan, formatPlanPrice, OFFERED_PLAN_CODES, PLAN_FREE, usePlans } from '../utils/plans';
+import { useSubscription } from '../contexts/SubscriptionContext';
 
-interface Plan {
-  code: string;
-  name: string;
-  description?: string;
-  price: number;
-  currency: string;
-  isPopular: boolean;
-  trialDays: number;
-}
-
-interface SubscriptionStatus {
-  isActive: boolean;
+interface CurrentStatus {
+  isPaid: boolean;
   planType: string;
   planName: string;
-  expiresAt?: string;
-  monthlyAmount: number;
-  daysRemaining: number;
-  isTrialPeriod: boolean;
-  trialEndsAt?: string;
-  qrCodeData?: string;
+  appleSubscriptionActive?: boolean;
+  googlePlaySubscriptionActive?: boolean;
 }
-
-// Descuento comercial al pagar el año por adelantado (presentación).
-const ANNUAL_DISCOUNT = 0.2; // 20% — "2 meses gratis" aprox.
 
 // ────────────────────── Editorial palette/fonts ──────────────────────
 const palette = {
@@ -239,53 +202,6 @@ const SectionRule: React.FC<{ label: string }> = ({ label }) => (
   </Box>
 );
 
-// ────────────────────── Feature row ──────────────────────
-const FeatureRow: React.FC<{
-  icon: React.ReactNode;
-  text: string;
-  highlight?: boolean;
-}> = ({ icon, text, highlight }) => (
-  <Box
-    sx={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 1.75,
-      py: 1.25,
-      borderBottom: `1px dashed ${palette.rule}`,
-      '&:last-of-type': { borderBottom: 'none' },
-    }}
-  >
-    <Box
-      sx={{
-        width: 30,
-        height: 30,
-        flexShrink: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: highlight ? palette.secondary : palette.primary,
-        backgroundColor: highlight
-          ? 'rgba(232, 89, 60, 0.08)'
-          : 'rgba(30, 94, 63, 0.08)',
-        borderRadius: 0,
-        '& svg': { fontSize: 18 },
-      }}
-    >
-      {icon}
-    </Box>
-    <Typography
-      sx={{
-        fontFamily: fonts.body,
-        fontSize: 14,
-        color: palette.ink,
-        fontWeight: highlight ? 600 : 400,
-      }}
-    >
-      {text}
-    </Typography>
-  </Box>
-);
-
 /** Pie de la página de planes: moneda en la que se cobra la suscripción y ciudad, por país del negocio. */
 const PLAN_FOOTER: Record<string, string> = {
   AR: 'Pesos argentinos · Buenos Aires',
@@ -293,19 +209,6 @@ const PLAN_FOOTER: Record<string, string> = {
   MX: 'Pesos mexicanos · Ciudad de México',
   ES: 'Euros · Madrid',
 };
-
-const includedFeatures: { icon: React.ReactNode; text: string; stripeText?: string }[] = [
-  { icon: <AllInclusive />, text: 'Reservas ilimitadas' },
-  { icon: <Storefront />, text: 'Servicios ilimitados' },
-  { icon: <Groups />, text: 'Empleados ilimitados' },
-  { icon: <People />, text: 'Clientes ilimitados' },
-  { icon: <Payment />, text: 'Pagos online con MercadoPago', stripeText: 'Pagos online con tarjeta' },
-  { icon: <Palette />, text: 'Branding personalizado' },
-  { icon: <Sms />, text: 'Notificaciones SMS' },
-  { icon: <Email />, text: 'Email automático' },
-  { icon: <Assessment />, text: 'Reportes y analytics' },
-  { icon: <LocationOn />, text: 'Múltiples sucursales' },
-];
 
 // ────────────────────── 1. SOCIAL PROOF ──────────────────────
 const testimonials = [
@@ -570,183 +473,62 @@ const ImpactBullets: React.FC<{ bullets?: ImpactBullet[] }> = ({ bullets = impac
   </Box>
 );
 
-// ────────────────────── 4. Billing cycle toggle ──────────────────────
-type Cycle = 'annual' | 'monthly';
-
-const BillingToggle: React.FC<{
-  cycle: Cycle;
-  onChange: (c: Cycle) => void;
-}> = ({ cycle, onChange }) => {
-  const savePct = Math.round(ANNUAL_DISCOUNT * 100);
-  const options: { key: Cycle; label: string }[] = [
-    { key: 'annual', label: 'Anual' },
-    { key: 'monthly', label: 'Mensual' },
-  ];
-  return (
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexWrap: 'wrap',
-        gap: 2,
-        mb: 4,
-      }}
-    >
-      <Box
-        sx={{
-          display: 'inline-flex',
-          border: `1px solid ${palette.ink}`,
-          borderRadius: 999,
-          p: '4px',
-          backgroundColor: 'rgba(255, 255, 255, 0.45)',
-        }}
-      >
-        {options.map((opt) => {
-          const active = cycle === opt.key;
-          return (
-            <Box
-              key={opt.key}
-              component="button"
-              type="button"
-              onClick={() => onChange(opt.key)}
-              sx={{
-                border: 'none',
-                outline: 'none',
-                cursor: 'pointer',
-                borderRadius: 999,
-                px: { xs: 2.5, md: 3.5 },
-                height: 38,
-                backgroundColor: active ? palette.primary : 'transparent',
-                color: active ? '#F4EFE6' : palette.ink,
-                fontFamily: fonts.mono,
-                fontSize: 11.5,
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                fontWeight: 500,
-                transition: 'background-color 180ms ease, color 180ms ease',
-              }}
-            >
-              {opt.label}
-            </Box>
-          );
-        })}
-      </Box>
-      <Box
-        sx={{
-          fontFamily: fonts.mono,
-          fontSize: 10.5,
-          letterSpacing: '0.16em',
-          textTransform: 'uppercase',
-          color: palette.secondary,
-          border: `1px solid ${palette.secondary}`,
-          px: 1.5,
-          py: 0.75,
-          borderRadius: 999,
-          opacity: cycle === 'annual' ? 1 : 0.55,
-          transition: 'opacity 180ms ease',
-        }}
-      >
-        ★ Ahorrá {savePct}% pagando anual
-      </Box>
-    </Box>
-  );
-};
-
 // ────────────────────── Page ──────────────────────
 const SubscriptionPlans: React.FC = () => {
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { plans, loading } = usePlans();
+  const [searchParams] = useSearchParams();
+  const highlight = searchParams.get('highlight');
   const [subscribing, setSubscribing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [currentStatus, setCurrentStatus] = useState<SubscriptionStatus | null>(null);
-  const [showQrModal, setShowQrModal] = useState(false);
-  const [qrCode, setQrCode] = useState<string | null>(null);
-  const [cycle, setCycle] = useState<Cycle>('annual');
+  const [currentStatus, setCurrentStatus] = useState<CurrentStatus | null>(null);
+  const [confirmDowngrade, setConfirmDowngrade] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const highlightRef = useRef<HTMLDivElement | null>(null);
+  const { refresh: refreshSubscription } = useSubscription();
   // Argentina se ve como siempre; fuera de AR cambia la pasarela (Stripe), la moneda y el tono (tú en MX/ES).
   const { features, country } = useTenantMoney();
   const w = useTenantWording();
   const billsWithStripe = features.platformBilling === 'stripe';
-  const isArgentina = country.code === 'AR';
 
   useEffect(() => {
     ensureFontsLoaded();
-    fetchPlans();
     checkSubscriptionStatus();
   }, []);
 
-  const fetchPlans = async () => {
-    try {
-      const hardcoded: Plan[] = [
-        {
-          code: 'basic',
-          name: 'Plan Básico',
-          description: 'Todo lo esencial para que tu agenda corra sola.',
-          price: 15000,
-          currency: 'ARS',
-          isPopular: false,
-          trialDays: 0,
-        },
-        {
-          code: 'premium',
-          name: 'Plan Premium',
-          description: 'Suma WhatsApp con 100 mensajes incluidos por mes.',
-          price: 20000,
-          currency: 'ARS',
-          isPopular: true,
-          trialDays: 0,
-        },
-      ];
-      setPlans(hardcoded);
-
-      try {
-        const response = await api.get('/subscription/plans');
-        if (response.data && response.data.length > 0) setPlans(response.data);
-      } catch {
-        // hardcoded is the safe fallback
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const checkSubscriptionStatus = async () => {
     try {
-      const response = await api.get('/subscription/status');
-      setCurrentStatus(response.data);
-      if (response.data.qrCodeData && !response.data.isActive) {
-        setQrCode(response.data.qrCodeData);
-        setShowQrModal(true);
-      }
+      setCurrentStatus(await subscriptionApi.status());
     } catch {
-      /* ignore */
+      /* sin sesión o sin red: se muestran los planes sin marcar el actual */
     }
   };
 
-  // CTA → checkout EXISTENTE. El backend factura mensual y resuelve el
-  // `planCode` contra SubscriptionPlan.Code. El ciclo Anual/Mensual es
-  // presentación: SIEMPRE mandamos el `plan.code` real.
+  // ?highlight=<code>: llevar el plan a la vista una vez cargado.
+  useEffect(() => {
+    if (!loading && highlight && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [loading, highlight]);
+
   const handleSubscribe = async (planCode: string) => {
     setSubscribing(planCode);
     setError(null);
     setSuccess(null);
     try {
-      const response = await api.post('/subscription/subscribe', { planCode });
-      // Ya tenía el débito automático: el backend cambió el plan de esa misma suscripción (no hay link de
-      // pago). Se confirma y se refresca el plan actual.
-      if (isPlanChanged(response.data)) {
-        setSuccess(planChangedMessage(response.data));
+      const data = await subscriptionApi.checkout(planCode);
+      // Ya tenía el débito automático: el backend cambió el plan de esa misma suscripción (no hay link de pago).
+      if (isPlanChanged(data)) {
+        setSuccess(planChangedMessage(data));
         await checkSubscriptionStatus();
+        refreshSubscription();
         return;
       }
-      if (response.data.paymentUrl) {
-        window.location.href = response.data.paymentUrl;
-      } else if (response.data.qrCode) {
-        setQrCode(response.data.qrCode);
-        setShowQrModal(true);
+      const url: string | undefined = data?.initPoint || data?.paymentUrl;
+      if (url) {
+        window.location.href = url;
       } else {
-        setError(w.t('No se pudo generar el link de pago. Probá de nuevo en un momento.', 'No se pudo generar el enlace de pago. Inténtalo de nuevo en un momento.'));
+        setError(data?.error || w.t('No se pudo generar el link de pago. Probá de nuevo en un momento.', 'No se pudo generar el enlace de pago. Inténtalo de nuevo en un momento.'));
       }
     } catch (err: any) {
       setError(err.response?.data?.error || w.t('Error procesando el pago. Probá nuevamente.', 'Error procesando el pago. Inténtalo de nuevo.'));
@@ -755,38 +537,63 @@ const SubscriptionPlans: React.FC = () => {
     }
   };
 
-  // Fuera de Argentina /subscription/plans ya viene en la moneda de Stripe del país (USD, MXN, EUR).
-  const plansCurrency = plans[0]?.currency || 'ARS';
-  const formatPrice = (price: number) =>
-    new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: plansCurrency,
-      minimumFractionDigits: 0,
-    }).format(Math.round(price));
+  const handleDowngrade = async () => {
+    setCancelling(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await subscriptionApi.cancel();
+      setConfirmDowngrade(false);
+      setSuccess(w.t('Listo, cancelamos tu plan pago. Quedás en Gratuito.', 'Listo, cancelamos tu plan de pago. Quedas en Gratuito.'));
+      await checkSubscriptionStatus();
+      refreshSubscription();
+    } catch (err: any) {
+      setConfirmDowngrade(false);
+      setError(err.response?.data?.error || w.t('No pudimos cancelar el plan. Probá de nuevo o escribinos.', 'No pudimos cancelar el plan. Inténtalo de nuevo o escríbenos.'));
+    } finally {
+      setCancelling(false);
+    }
+  };
 
-  // Orden: el plan popular primero (columna recomendada a la izquierda en
-  // desktop), igual que en una góndola de pricing.
-  const orderedPlans = useMemo(() => {
-    return [...plans].sort((a, b) => Number(b.isPopular) - Number(a.isPopular));
-  }, [plans]);
+  const bullets = useMemo(() => bulletsByPlan(plans, features.stripeDeposits), [plans, features.stripeDeposits]);
+  const freePlan = plans.find((p) => p.code === PLAN_FREE);
+  const currentCode = currentStatus ? (currentStatus.isPaid ? currentStatus.planType : PLAN_FREE) : null;
+  // Plan pago viejo (pro, promo, 6meses, 12meses): ya no se ofrece pero lo mantiene.
+  const isLegacy = !!currentStatus?.isPaid && !OFFERED_PLAN_CODES.includes(currentStatus.planType);
+  // Compras en la app de iOS/Android: se cancelan desde la tienda, no desde acá.
+  const storeManaged = !!(currentStatus?.appleSubscriptionActive || currentStatus?.googlePlaySubscriptionActive);
 
   if (loading) {
     return (
-      <Box
-        sx={{
-          minHeight: '60vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: palette.paper,
-        }}
-      >
+      <Box sx={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: palette.paper }}>
         <CircularProgress sx={{ color: palette.primary }} />
       </Box>
     );
   }
 
-  const savePct = Math.round(ANNUAL_DISCOUNT * 100);
+  const ctaFor = (plan: SubscriptionPlanInfo) => {
+    const isCurrent = currentCode === plan.code;
+    if (isCurrent) return { label: 'Tu plan actual', disabled: true, onClick: undefined };
+    if (plan.price <= 0) {
+      if (!currentStatus?.isPaid) return { label: 'Tu plan actual', disabled: true, onClick: undefined };
+      return {
+        label: `Pasarme a ${plan.name}`,
+        disabled: subscribing !== null || storeManaged,
+        onClick: () => setConfirmDowngrade(true),
+      };
+    }
+    return { label: `Pasarme a ${plan.name}`, disabled: subscribing !== null, onClick: () => handleSubscribe(plan.code) };
+  };
+
+  const alertSx = (color: string, bg: string) => ({
+    mb: 3,
+    borderRadius: 0,
+    border: `1px solid ${color}`,
+    backgroundColor: bg,
+    fontFamily: fonts.body,
+    color: palette.ink,
+    '& .MuiAlert-icon': { color },
+  });
 
   return (
     <Box
@@ -796,221 +603,105 @@ const SubscriptionPlans: React.FC = () => {
         color: palette.ink,
         position: 'relative',
         minHeight: '100vh',
-        // Counter the AdminLayout's outer padding so the page reads as a
-        // full editorial spread rather than a card-on-canvas.
+        // Counter the AdminLayout's outer padding so the page reads as a full editorial spread.
         mx: { xs: -2, md: -3 },
         my: { xs: -2, md: -3 },
-        px: { xs: 3, md: 6 },
+        px: { xs: 2, sm: 3, md: 6 },
         py: { xs: 4, md: 6 },
+        overflowX: 'hidden',
       }}
     >
       {/* Grain overlay */}
       <Box
         aria-hidden
-        sx={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: GRAIN_URL,
-          backgroundSize: '220px 220px',
-          opacity: 0.07,
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
+        sx={{ position: 'absolute', inset: 0, backgroundImage: GRAIN_URL, backgroundSize: '220px 220px', opacity: 0.07, pointerEvents: 'none', zIndex: 0 }}
       />
 
-      <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
+      <Container maxWidth="lg" disableGutters sx={{ position: 'relative', zIndex: 1 }}>
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           {/* Masthead */}
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              borderBottom: `1px solid ${palette.rule}`,
-              pb: 1.5,
-              mb: 4,
-            }}
-          >
-            <Typography
-              sx={{
-                fontFamily: fonts.mono,
-                fontSize: 10.5,
-                letterSpacing: '0.22em',
-                textTransform: 'uppercase',
-                color: palette.inkFaint,
-              }}
-            >
-              Sección · Suscripción
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${palette.rule}`, pb: 1.5, mb: 4 }}>
+            <Typography sx={{ fontFamily: fonts.mono, fontSize: 10.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: palette.inkFaint }}>
+              Sección · Planes
             </Typography>
-            <Typography
-              sx={{
-                fontFamily: fonts.mono,
-                fontSize: 10.5,
-                letterSpacing: '0.22em',
-                textTransform: 'uppercase',
-                color: palette.inkFaint,
-              }}
-            >
+            <Typography sx={{ fontFamily: fonts.mono, fontSize: 10.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: palette.inkFaint }}>
               Planes &amp; precios
             </Typography>
           </Box>
 
-          {/* ───────── 1. SOCIAL PROOF ───────── */}
-          <SocialProof />
-
-          {/* ───────── 2. VISION HEADLINE ───────── */}
+          {/* ───────── HEADLINE ───────── */}
           <Box sx={{ maxWidth: 760, mb: 4 }}>
             <Typography
               sx={{
-                fontFamily: fonts.mono,
-                fontSize: 10.5,
-                letterSpacing: '0.24em',
-                textTransform: 'uppercase',
-                color: palette.secondary,
-                mb: 1.5,
-                '&::before': {
-                  content: '""',
-                  display: 'inline-block',
-                  width: 20,
-                  height: '1px',
-                  backgroundColor: palette.secondary,
-                  verticalAlign: 'middle',
-                  mr: 1.25,
-                },
+                fontFamily: fonts.mono, fontSize: 10.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: palette.secondary, mb: 1.5,
+                '&::before': { content: '""', display: 'inline-block', width: 20, height: '1px', backgroundColor: palette.secondary, verticalAlign: 'middle', mr: 1.25 },
               }}
             >
-              El plan que hace crecer tu salón
+              Gratis para siempre · Sin tarjeta
             </Typography>
             <Typography
               component="h1"
               sx={{
-                fontFamily: fonts.display,
-                fontWeight: 400,
-                fontStyle: 'italic',
-                fontSize: { xs: 44, sm: 64 },
-                lineHeight: 0.98,
-                letterSpacing: '-0.025em',
-                color: palette.ink,
-                mb: 2,
-                fontVariationSettings: '"opsz" 144, "SOFT" 30',
+                fontFamily: fonts.display, fontWeight: 400, fontStyle: 'italic', fontSize: { xs: 40, sm: 60 }, lineHeight: 0.98,
+                letterSpacing: '-0.025em', color: palette.ink, mb: 2, fontVariationSettings: '"opsz" 144, "SOFT" 30',
                 '& .upright': { fontStyle: 'normal', fontWeight: 500 },
               }}
             >
-              <span className="upright">{w.t('Llená tu agenda', 'Llena tu agenda')}</span>
+              <span className="upright">{w.t('Empezá gratis.', 'Empieza gratis.')}</span>
               <br />
-              {w.t('y dejá de perder turnos.', 'y deja de perder citas.')}
+              {w.t('Pasate de plan cuando crezcas.', 'Cambia de plan cuando crezcas.')}
             </Typography>
-            <Typography
-              sx={{
-                fontFamily: fonts.display,
-                fontStyle: 'italic',
-                fontSize: 17,
-                lineHeight: 1.5,
-                color: palette.inkSoft,
-                maxWidth: 560,
-              }}
-            >
-              {currentStatus?.isTrialPeriod
-                ? w.t(
-                    `Te quedan ${currentStatus.daysRemaining} días de prueba — activá tu suscripción para que la agenda no se corte.`,
-                    `Te quedan ${currentStatus.daysRemaining} días de prueba — activa tu suscripción para que la agenda no se corte.`)
-                : w.t(
-                    'Activá TurnosPro y convertí cada reserva en caja: menos ausencias, más turnos y cobro online. Sin tarjetas escondidas.',
-                    'Activa TurnosPro y convierte cada reserva en caja: menos ausencias, más citas y cobro online. Sin cargos escondidos.')}
+            <Typography sx={{ fontFamily: fonts.display, fontStyle: 'italic', fontSize: 17, lineHeight: 1.5, color: palette.inkSoft, maxWidth: 580 }}>
+              {w.t(
+                'Con el plan Gratuito ya recibís reservas online y cobrás. Cuando necesites más reservas, agendas, recordatorios o WhatsApp, elegí el plan que te queda. Cancelás cuando quieras.',
+                'Con el plan Gratuito ya recibes reservas online y cobras. Cuando necesites más reservas, agendas, recordatorios o WhatsApp, elige el plan que te queda. Cancelas cuando quieras.')}
             </Typography>
           </Box>
 
-          {/* ───────── 3. IMPACT BULLETS ───────── */}
-          <ImpactBullets bullets={w.usesTu ? impactBulletsTu(features.stripeDeposits, w.sena) : impactBullets} />
-
-          {currentStatus?.isActive && (
-            <Alert
-              severity="success"
-              sx={{
-                mb: 3,
-                borderRadius: 0,
-                border: `1px solid ${palette.primary}`,
-                backgroundColor: 'rgba(30, 94, 63, 0.06)',
-                fontFamily: fonts.body,
-                color: palette.ink,
-                '& .MuiAlert-icon': { color: palette.primary },
-              }}
-            >
-              <strong>Plan actual:</strong> {currentStatus.planName}
-              {currentStatus.isTrialPeriod && (
-                <> — período de prueba (quedan {currentStatus.daysRemaining} días)</>
-              )}
+          {isLegacy && currentStatus && (
+            <Alert severity="success" sx={alertSx(palette.primary, 'rgba(30, 94, 63, 0.06)')}>
+              {w.t(
+                `Tenés el plan ${currentStatus.planName} (anterior), con todo incluido. Lo mantenés mientras siga activo; si te pasás a otro plan, ya no se puede volver.`,
+                `Tienes el plan ${currentStatus.planName} (anterior), con todo incluido. Lo mantienes mientras siga activo; si cambias a otro plan, ya no se puede volver.`)}
             </Alert>
           )}
 
           {success && (
-            <Alert
-              severity="success"
-              onClose={() => setSuccess(null)}
-              sx={{
-                mb: 3,
-                borderRadius: 0,
-                border: `1px solid ${palette.primary}`,
-                backgroundColor: 'rgba(30, 94, 63, 0.06)',
-                fontFamily: fonts.body,
-                color: palette.ink,
-                '& .MuiAlert-icon': { color: palette.primary },
-              }}
-            >
+            <Alert severity="success" onClose={() => setSuccess(null)} sx={alertSx(palette.primary, 'rgba(30, 94, 63, 0.06)')}>
               {success}
             </Alert>
           )}
 
           {error && (
-            <Alert
-              severity="error"
-              onClose={() => setError(null)}
-              sx={{
-                mb: 3,
-                borderRadius: 0,
-                border: `1px solid ${palette.secondary}`,
-                backgroundColor: 'rgba(232, 89, 60, 0.08)',
-                fontFamily: fonts.body,
-                color: palette.ink,
-                '& .MuiAlert-icon': { color: palette.secondary },
-              }}
-            >
+            <Alert severity="error" onClose={() => setError(null)} sx={alertSx(palette.secondary, 'rgba(232, 89, 60, 0.08)')}>
               {error}
             </Alert>
           )}
 
-          {/* ───────── 4. PRICING TIERS ───────── */}
+          {/* ───────── PRICING TIERS ───────── */}
           <SectionRule label={w.t('— Elegí tu plan —', '— Elige tu plan —')} />
-
-          <BillingToggle cycle={cycle} onChange={setCycle} />
 
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
-              gap: { xs: 3, md: 4 },
+              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' },
+              gap: { xs: 2.5, md: 3 },
               alignItems: 'stretch',
               mt: 1,
+              mb: 2,
             }}
           >
-            {orderedPlans.map((plan, idx) => {
+            {plans.map((plan, idx) => {
               const isPopular = plan.isPopular;
-              const isCurrent =
-                currentStatus?.planType === plan.code && currentStatus?.isActive;
-
-              // Precio efectivo por mes según ciclo (presentación).
-              const monthlyEffective =
-                cycle === 'annual' ? plan.price * (1 - ANNUAL_DISCOUNT) : plan.price;
-              const annualTotal = plan.price * 12 * (1 - ANNUAL_DISCOUNT);
-              const annualSavings = plan.price * 12 - annualTotal;
+              const isCurrent = currentCode === plan.code;
+              const isHighlighted = highlight === plan.code;
+              const emphasized = isPopular || isHighlighted;
+              const cta = ctaFor(plan);
 
               return (
                 <motion.div
                   key={plan.code}
+                  ref={isHighlighted ? highlightRef : undefined}
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.45, delay: 0.1 + idx * 0.08 }}
@@ -1020,230 +711,101 @@ const SubscriptionPlans: React.FC = () => {
                     sx={{
                       position: 'relative',
                       height: '100%',
-                      backgroundColor: isPopular
-                        ? '#FFFFFF'
-                        : 'rgba(255, 255, 255, 0.45)',
-                      border: `1px solid ${isPopular ? palette.ink : palette.rule}`,
-                      padding: { xs: '32px 28px', md: '40px 36px' },
+                      backgroundColor: emphasized ? '#FFFFFF' : 'rgba(255, 255, 255, 0.45)',
+                      border: `${isHighlighted ? 2 : 1}px solid ${isHighlighted ? palette.secondary : isPopular ? palette.ink : palette.rule}`,
+                      padding: { xs: '28px 22px', md: '32px 24px' },
                       display: 'flex',
                       flexDirection: 'column',
-                      // Editorial tab on the popular plan, similar to the
-                      // testimonial card that escapes the gutter on /register.
                       '&::before': isPopular
-                        ? {
-                            content: '""',
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '4px',
-                            height: '100%',
-                            backgroundColor: palette.secondary,
-                          }
+                        ? { content: '""', position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', backgroundColor: palette.secondary }
                         : undefined,
-                      boxShadow: isPopular
-                        ? '0 22px 40px -28px rgba(0,0,0,0.45)'
-                        : 'none',
+                      boxShadow: emphasized ? '0 22px 40px -28px rgba(0,0,0,0.45)' : 'none',
                     }}
                   >
-                    {isPopular && (
-                      <Typography
-                        sx={{
-                          fontFamily: fonts.mono,
-                          fontSize: 10,
-                          letterSpacing: '0.26em',
-                          textTransform: 'uppercase',
-                          color: palette.secondary,
-                          mb: 2,
-                        }}
-                      >
-                        ★ Más popular
-                      </Typography>
-                    )}
-
-                    <Typography
-                      sx={{
-                        fontFamily: fonts.mono,
-                        fontSize: 10.5,
-                        letterSpacing: '0.22em',
-                        textTransform: 'uppercase',
-                        color: palette.inkFaint,
-                        mb: 1,
-                      }}
-                    >
-                      {plan.code === 'premium'
-                        ? 'Premium · WhatsApp incluido'
-                        : 'Esencial · Todo lo del día a día'}
-                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', minHeight: 22, mb: 1.5 }}>
+                      {isPopular && (
+                        <Typography sx={{ fontFamily: fonts.mono, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: palette.secondary }}>
+                          ★ Más elegido
+                        </Typography>
+                      )}
+                      {isCurrent && (
+                        <Typography
+                          sx={{
+                            fontFamily: fonts.mono, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase',
+                            color: '#F4EFE6', backgroundColor: palette.primary, px: 1, py: 0.25, borderRadius: 999,
+                          }}
+                        >
+                          Tu plan actual
+                        </Typography>
+                      )}
+                    </Box>
 
                     <Typography
                       component="h2"
                       sx={{
-                        fontFamily: fonts.display,
-                        fontStyle: 'italic',
-                        fontWeight: 400,
-                        fontSize: { xs: 36, md: 44 },
-                        lineHeight: 1,
-                        letterSpacing: '-0.02em',
-                        color: palette.ink,
-                        mb: 1.5,
-                        fontVariationSettings: '"opsz" 144, "SOFT" 30',
+                        fontFamily: fonts.display, fontStyle: 'italic', fontWeight: 400, fontSize: { xs: 34, md: 38 }, lineHeight: 1,
+                        letterSpacing: '-0.02em', color: palette.ink, mb: 1, fontVariationSettings: '"opsz" 144, "SOFT" 30',
                       }}
                     >
                       {plan.name}
                     </Typography>
 
-                    {plan.description && (
-                      <Typography
-                        sx={{
-                          fontFamily: fonts.display,
-                          fontStyle: 'italic',
-                          fontSize: 15.5,
-                          color: palette.inkSoft,
-                          mb: 3,
-                          lineHeight: 1.5,
-                        }}
-                      >
-                        {plan.description}
+                    {(plan.tagline || plan.description) && (
+                      <Typography sx={{ fontFamily: fonts.display, fontStyle: 'italic', fontSize: 15, color: palette.inkSoft, mb: 2.5, lineHeight: 1.45, minHeight: { lg: 44 } }}>
+                        {plan.tagline || plan.description}
                       </Typography>
                     )}
 
                     {/* Price */}
-                    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 0.5 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
                       <Typography
                         sx={{
-                          fontFamily: fonts.display,
-                          fontWeight: 500,
-                          fontSize: { xs: 52, md: 64 },
-                          lineHeight: 1,
-                          letterSpacing: '-0.03em',
-                          color: palette.primary,
-                          fontVariationSettings: '"opsz" 144',
+                          fontFamily: fonts.display, fontWeight: 500, fontSize: { xs: 44, md: 42 }, lineHeight: 1,
+                          letterSpacing: '-0.03em', color: palette.primary, fontVariationSettings: '"opsz" 144',
                         }}
                       >
-                        {formatPrice(monthlyEffective)}
+                        {formatPlanPrice(plan)}
                       </Typography>
-                      <Typography
-                        sx={{
-                          fontFamily: fonts.mono,
-                          fontSize: 11,
-                          letterSpacing: '0.18em',
-                          textTransform: 'uppercase',
-                          color: palette.inkFaint,
-                        }}
-                      >
+                      <Typography sx={{ fontFamily: fonts.mono, fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: palette.inkFaint }}>
                         / mes
                       </Typography>
                     </Box>
+                    <Typography sx={{ fontFamily: fonts.mono, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: palette.inkFaint, minHeight: 18 }}>
+                      {plan.price <= 0 ? 'Gratis para siempre · Sin tarjeta' : w.t('Mes a mes · cancelás cuando quieras', 'Mes a mes · cancelas cuando quieras')}
+                    </Typography>
 
-                    {/* Annual context line */}
-                    {cycle === 'annual' ? (
-                      <Box sx={{ minHeight: 22, mb: 1 }}>
-                        <Typography
-                          component="span"
-                          sx={{
-                            fontFamily: fonts.body,
-                            fontSize: 13.5,
-                            color: palette.inkFaint,
-                            textDecoration: 'line-through',
-                            mr: 1,
-                          }}
-                        >
-                          {formatPrice(plan.price)}/mes
-                        </Typography>
-                        <Typography
-                          component="span"
-                          sx={{
-                            fontFamily: fonts.mono,
-                            fontSize: 10.5,
-                            letterSpacing: '0.12em',
-                            textTransform: 'uppercase',
-                            color: palette.secondary,
-                          }}
-                        >
-                          Ahorrás {formatPrice(annualSavings)} / año
-                        </Typography>
-                      </Box>
-                    ) : (
-                      <Box sx={{ minHeight: 22, mb: 1 }}>
-                        <Typography
-                          sx={{
-                            fontFamily: fonts.mono,
-                            fontSize: 10.5,
-                            letterSpacing: '0.12em',
-                            textTransform: 'uppercase',
-                            color: palette.inkFaint,
-                          }}
-                        >
-                          Facturado mes a mes · cancelás cuando quieras
-                        </Typography>
-                      </Box>
-                    )}
+                    <Box sx={{ height: '1px', backgroundColor: palette.rule, my: 2.5 }} />
 
-                    <Box
-                      sx={{
-                        height: '1px',
-                        backgroundColor: palette.rule,
-                        my: 2.5,
-                      }}
-                    />
-
-                    {/* Features list */}
-                    <Box sx={{ flex: 1 }}>
-                      {includedFeatures.map((f) => (
-                        <FeatureRow key={f.text} icon={f.icon} text={features.stripeDeposits && f.stripeText ? f.stripeText : f.text} />
-                      ))}
-                      <FeatureRow
-                        icon={<WhatsApp />}
-                        text={
-                          plan.code === 'premium'
-                            ? 'WhatsApp · 100 mensajes incluidos / mes'
-                            : 'Notificaciones WhatsApp (no incluido)'
-                        }
-                        highlight={plan.code === 'premium'}
-                      />
+                    {/* Bullets */}
+                    <Box component="ul" sx={{ listStyle: 'none', p: 0, m: 0, flex: 1 }}>
+                      {(bullets[plan.code] ?? []).map((b, i) => {
+                        const lead = i === 0 && b.startsWith('Todo lo del plan');
+                        return (
+                          <Box component="li" key={b} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25, py: 0.75 }}>
+                            <Check sx={{ fontSize: 18, mt: '2px', color: lead ? palette.secondary : palette.primary, flexShrink: 0 }} />
+                            <Typography sx={{ fontFamily: fonts.body, fontSize: 14, lineHeight: 1.4, color: palette.ink, fontWeight: lead ? 600 : 400 }}>
+                              {b}
+                            </Typography>
+                          </Box>
+                        );
+                      })}
                     </Box>
-
-                    {plan.code === 'premium' && (
-                      <Typography
-                        sx={{
-                          fontFamily: fonts.mono,
-                          fontSize: 10.5,
-                          letterSpacing: '0.16em',
-                          textTransform: 'uppercase',
-                          color: palette.inkFaint,
-                          mt: 1.5,
-                          mb: 2,
-                        }}
-                      >
-                        {isArgentina ? 'Después del 100, $50 por mensaje extra' : 'Después del 100, cada mensaje extra se cobra aparte'}
-                      </Typography>
-                    )}
 
                     <Box sx={{ mt: 3 }}>
                       <PillCTA
-                        variant={isPopular ? 'primary' : 'outline'}
-                        disabled={subscribing !== null || isCurrent}
+                        variant={emphasized && !isCurrent ? 'primary' : 'outline'}
+                        disabled={cta.disabled}
                         loading={subscribing === plan.code}
-                        onClick={() => handleSubscribe(plan.code)}
+                        onClick={cta.onClick}
                       >
-                        {isCurrent
-                          ? 'Plan actual'
-                          : cycle === 'annual'
-                          ? w.t('Empezá a llenar tu agenda →', 'Empieza a llenar tu agenda →')
-                          : 'Activar mi plan →'}
+                        {cta.label}
                       </PillCTA>
                       <Typography
-                        sx={{
-                          fontFamily: fonts.mono,
-                          fontSize: 9.5,
-                          letterSpacing: '0.14em',
-                          textTransform: 'uppercase',
-                          color: palette.inkFaint,
-                          textAlign: 'center',
-                          mt: 1.5,
-                        }}
+                        sx={{ fontFamily: fonts.mono, fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: palette.inkFaint, textAlign: 'center', mt: 1.5, minHeight: 14 }}
                       >
-                        {billsWithStripe ? 'Pago seguro con Stripe' : 'Pago seguro con MercadoPago'}
+                        {plan.price > 0
+                          ? billsWithStripe ? 'Pago seguro con Stripe' : 'Débito automático con MercadoPago'
+                          : storeManaged && currentStatus?.isPaid ? 'Tu plan se gestiona desde la tienda del celular' : ''}
                       </Typography>
                     </Box>
                   </Box>
@@ -1252,218 +814,66 @@ const SubscriptionPlans: React.FC = () => {
             })}
           </Box>
 
-          {cycle === 'annual' && (
-            <Typography
-              sx={{
-                fontFamily: fonts.body,
-                fontSize: 12.5,
-                color: palette.inkFaint,
-                textAlign: 'center',
-                mt: 2.5,
-              }}
-            >
-              * El precio anual aplica un {savePct}% de descuento sobre la tarifa mensual.
-              {billsWithStripe ? 'La activación y el cobro se gestionan con Stripe.' : 'La activación y el cobro se gestionan con MercadoPago.'}
-            </Typography>
-          )}
+          <Typography sx={{ fontFamily: fonts.body, fontSize: 12.5, color: palette.inkFaint, textAlign: 'center', mt: 2.5, mb: 6 }}>
+            {w.t(
+              'La comisión se cobra solo sobre los cobros online de reservas. Los planes pagos se cobran por mes desde el día que los activás.',
+              'La comisión se cobra solo sobre los cobros online de reservas. Los planes de pago se cobran por mes desde el día que los activas.')}
+          </Typography>
 
-          <SectionRule label="— Detalle del consumo de WhatsApp —" />
+          <SectionRule label="— Por qué TurnosPro —" />
 
+          {/* ───────── IMPACT BULLETS + SOCIAL PROOF ───────── */}
+          <ImpactBullets bullets={w.usesTu ? impactBulletsTu(features.stripeDeposits, w.sena) : impactBullets} />
+          <SocialProof />
+
+          {/* ───────── TRUST FOOTER ───────── */}
           <Box
             sx={{
-              display: 'grid',
-              gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
-              gap: 3,
-              mb: 6,
-            }}
-          >
-            {[
-              {
-                kicker: '01',
-                title: '100 mensajes incluidos',
-                copy: 'Ya entran sin costo extra en el plan Premium. Recordatorios, confirmaciones y promos.',
-              },
-              {
-                kicker: '02',
-                title: isArgentina ? '$50 por mensaje extra' : 'Mensajes extra',
-                copy: 'Pasado el cupo, cada mensaje adicional se factura al cierre del mes. Sin sorpresas.',
-              },
-              {
-                kicker: '03',
-                title: 'Cobro al cierre',
-                copy: w.t('Vemos tu consumo, te lo informamos y se suma a la suscripción del mes siguiente.', 'Revisamos tu consumo, te lo informamos y se suma a la suscripción del mes siguiente.'),
-              },
-            ].map((item) => (
-              <Box
-                key={item.kicker}
-                sx={{
-                  borderTop: `2px solid ${palette.ink}`,
-                  pt: 2.5,
-                }}
-              >
-                <Typography
-                  sx={{
-                    fontFamily: fonts.display,
-                    fontStyle: 'italic',
-                    fontWeight: 300,
-                    fontSize: 56,
-                    lineHeight: 0.85,
-                    color: palette.secondary,
-                    fontVariationSettings: '"opsz" 144',
-                    mb: 1.5,
-                  }}
-                >
-                  {item.kicker}
-                </Typography>
-                <Typography
-                  sx={{
-                    fontFamily: fonts.display,
-                    fontWeight: 500,
-                    fontSize: 20,
-                    color: palette.ink,
-                    mb: 1,
-                    letterSpacing: '-0.01em',
-                  }}
-                >
-                  {item.title}
-                </Typography>
-                <Typography
-                  sx={{
-                    fontFamily: fonts.body,
-                    fontSize: 14.5,
-                    lineHeight: 1.55,
-                    color: palette.inkSoft,
-                  }}
-                >
-                  {item.copy}
-                </Typography>
-              </Box>
-            ))}
-          </Box>
-
-          {/* ───────── 6. TRUST FOOTER ───────── */}
-          <Box
-            sx={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 1.5,
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              borderTop: `1px solid ${palette.rule}`,
-              pt: 1.5,
-              fontFamily: fonts.mono,
-              fontSize: 10,
-              letterSpacing: '0.22em',
-              color: palette.inkFaint,
-              textTransform: 'uppercase',
+              display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center', justifyContent: 'space-between',
+              borderTop: `1px solid ${palette.rule}`, pt: 1.5, fontFamily: fonts.mono, fontSize: 10, letterSpacing: '0.22em',
+              color: palette.inkFaint, textTransform: 'uppercase',
             }}
           >
             <span>© TurnosPro {new Date().getFullYear()} · {PLAN_FOOTER[country.code] ?? 'Pesos argentinos · Buenos Aires'}</span>
             <Box sx={{ display: 'flex', gap: 2.5, alignItems: 'center' }}>
-              <Box
-                component="a"
-                href="/privacidad"
-                target="_blank"
-                rel="noreferrer"
-                sx={{
-                  color: palette.inkFaint,
-                  textDecoration: 'none',
-                  borderBottom: `1px solid transparent`,
-                  pb: '1px',
-                  '&:hover': { color: palette.secondary, borderColor: palette.secondary },
-                }}
-              >
-                Privacidad
-              </Box>
-              <Box
-                component="a"
-                href="/terminos"
-                target="_blank"
-                rel="noreferrer"
-                sx={{
-                  color: palette.inkFaint,
-                  textDecoration: 'none',
-                  borderBottom: `1px solid transparent`,
-                  pb: '1px',
-                  '&:hover': { color: palette.secondary, borderColor: palette.secondary },
-                }}
-              >
-                Términos
-              </Box>
+              {[{ href: '/privacidad', label: 'Privacidad' }, { href: '/terminos', label: 'Términos' }].map((l) => (
+                <Box
+                  key={l.href}
+                  component="a"
+                  href={l.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  sx={{ color: palette.inkFaint, textDecoration: 'none', borderBottom: '1px solid transparent', pb: '1px', '&:hover': { color: palette.secondary, borderColor: palette.secondary } }}
+                >
+                  {l.label}
+                </Box>
+              ))}
             </Box>
           </Box>
         </motion.div>
       </Container>
 
-      {/* QR Payment Modal */}
-      <Dialog
-        open={showQrModal}
-        onClose={() => setShowQrModal(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            backgroundColor: palette.paper,
-            borderRadius: 0,
-            border: `1px solid ${palette.ink}`,
-          },
-        }}
-      >
-        <DialogTitle sx={{ fontFamily: fonts.display, fontWeight: 500, color: palette.ink }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>Completá tu pago</span>
-            <IconButton onClick={() => setShowQrModal(false)} sx={{ color: palette.ink }}>
-              <Close />
-            </IconButton>
-          </Box>
-        </DialogTitle>
+      {/* Bajar a Gratuito = cancelar el plan pago */}
+      <Dialog open={confirmDowngrade} onClose={() => !cancelling && setConfirmDowngrade(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>{w.t('¿Pasarte a Gratuito?', '¿Cambiar a Gratuito?')}</DialogTitle>
         <DialogContent>
-          <Box sx={{ textAlign: 'center', py: 3 }}>
-            <QrCode2 sx={{ fontSize: 48, color: palette.primary, mb: 2 }} />
-            <Typography
-              sx={{
-                fontFamily: fonts.display,
-                fontStyle: 'italic',
-                fontSize: 22,
-                color: palette.ink,
-                mb: 1,
-              }}
-            >
-              Escaneá el código con MercadoPago
-            </Typography>
-            <Typography
-              sx={{
-                fontFamily: fonts.body,
-                fontSize: 14,
-                color: palette.inkSoft,
-                mb: 3,
-              }}
-            >
-              Abrí MercadoPago en el celular y escaneá este QR para terminar la suscripción.
-            </Typography>
-            {qrCode && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
-                <img
-                  src={qrCode}
-                  alt="QR Code para pago"
-                  style={{ maxWidth: '300px', width: '100%' }}
-                />
-              </Box>
-            )}
-            <Alert
-              severity="info"
-              sx={{
-                borderRadius: 0,
-                fontFamily: fonts.body,
-                border: `1px solid ${palette.rule}`,
-                backgroundColor: 'rgba(30, 94, 63, 0.06)',
-                '& .MuiAlert-icon': { color: palette.primary },
-              }}
-            >
-              Una vez completado el pago la suscripción se activa sola.
-            </Alert>
-          </Box>
+          <Typography variant="body2" color="text.secondary">
+            {(() => {
+              const f = freePlan?.features;
+              const bookings = f && f.maxBookingsPerMonth > 0 ? f.maxBookingsPerMonth : 100;
+              const pct = f ? f.commissionPercent : 5;
+              return w.t(
+                `Vas a quedar en Gratuito con ${bookings} reservas por mes y ${pct}% por cobro. Cancelamos tu débito automático y no se te cobra más.`,
+                `Vas a quedar en Gratuito con ${bookings} reservas por mes y ${pct}% por cobro. Cancelamos tu cobro automático y no se te cobra más.`);
+            })()}
+          </Typography>
         </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDowngrade(false)} disabled={cancelling}>{w.t('Seguir con mi plan', 'Seguir con mi plan')}</Button>
+          <Button color="error" variant="contained" onClick={handleDowngrade} disabled={cancelling}>
+            {cancelling ? <CircularProgress size={18} color="inherit" /> : w.t('Pasarme a Gratuito', 'Cambiar a Gratuito')}
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

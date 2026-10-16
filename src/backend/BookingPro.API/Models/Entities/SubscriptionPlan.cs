@@ -38,6 +38,21 @@ namespace BookingPro.API.Models.Entities
         public int WhatsAppMonthlyLimit { get; set; } = 0; // 0 means no WhatsApp, -1 unlimited
         public decimal WhatsAppExtraMessageCost { get; set; } = 0; // Cost per message after limit
         
+        // Freemium (Gratuito / Plus / Advance / Pro). Los defaults son "todo permitido": así los planes
+        // pagos que ya existían (pro, promo, 6meses, 12meses) siguen dando todo sin migrar datos, y solo
+        // los planes nuevos de PlanCatalog nacen con restricciones.
+        [MaxLength(200)]
+        public string? Tagline { get; set; }
+        public decimal CommissionPercent { get; set; } = 0; // % por cobro online, va como marketplace_fee
+        public int MaxServicesPerStaff { get; set; } = -1; // servicios activos <= agendas * este valor
+        public bool AllowReminders { get; set; } = true;
+        public int MaxRecurringBookings { get; set; } = -1; // 0 = no permite, -1 ilimitadas
+        public int MaxCustomFields { get; set; } = -1; // 0 = no permite, -1 ilimitados
+        public bool AllowCoupons { get; set; } = true;
+        public bool AllowTransferDetection { get; set; } = true;
+        public bool AllowCustomerHistory { get; set; } = true;
+        public bool AllowTrackingPixels { get; set; } = true;
+
         // MercadoPago integration
         [MaxLength(255)]
         public string? MercadoPagoPreapprovalPlanId { get; set; }

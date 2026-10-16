@@ -262,8 +262,9 @@ namespace BookingPro.API.Services
                 row.LatestOrderId = info.LatestOrderId ?? row.LatestOrderId;
             }
 
-            var plan = await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Code == basePlan.PlanCode && p.IsActive)
-                       ?? await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Code == "pro" && p.IsActive);
+            // Sin IsActive: un plan base que ya no se vende igual renueva a quien lo compró.
+            var plan = await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Code == basePlan.PlanCode)
+                       ?? await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Code == BookingPro.API.Models.Constants.PlanCatalog.Pro);
             if (plan == null || plan.Code != basePlan.PlanCode)
                 _logger.LogError("Google Play base plan {BasePlan} has no active SubscriptionPlan with code {Code} — using {Fallback}",
                     info.BasePlanId, basePlan.PlanCode, plan?.Code ?? "(none)");
@@ -279,7 +280,7 @@ namespace BookingPro.API.Services
                 {
                     Id = Guid.NewGuid(),
                     TenantId = tenant.Id,
-                    PlanType = plan?.Code ?? "pro",
+                    PlanType = plan?.Code ?? BookingPro.API.Models.Constants.PlanCatalog.Pro,
                     MonthlyAmount = plan?.Price ?? 0,
                     PayerEmail = tenant.OwnerEmail,
                     IsTrialPeriod = false,

@@ -31,6 +31,8 @@ import MessagePackagesAdmin from './pages/admin/MessagePackagesAdmin';
 import NewBooking from './pages/NewBooking';
 import Calendar from './pages/Calendar';
 import Customers from './pages/Customers';
+import RecurringBookings from './pages/RecurringBookings';
+import TrackingSettings from './pages/TrackingSettings';
 import NewCustomer from './pages/NewCustomer';
 import Services from './pages/Services';
 import Reports from './pages/Reports';
@@ -60,6 +62,8 @@ import MessagingSettings from './pages/MessagingSettings';
 import WhatsAppSettings from './pages/WhatsAppSettings';
 import ConfirmationBot from './pages/ConfirmationBot';
 import TransferDetection from './pages/TransferDetection';
+import BookingCoupons from './pages/BookingCoupons';
+import BookingFormFields from './pages/BookingFormFields';
 import WhatsAppBot from './pages/WhatsAppBot';
 import AiAgent from './pages/AiAgent';
 import MessageHistory from './pages/MessageHistory';
@@ -70,9 +74,7 @@ import TenantsManagement from './pages/TenantsManagement';
 import Blocks from './pages/Blocks';
 import LoginRedirect from './pages/LoginRedirect';
 import CompletarPerfil from './pages/CompletarPerfil';
-import ActivateSubscription from './pages/ActivateSubscription';
 import { AdminLayout } from './components/layouts/AdminLayout';
-import SubscriptionVerification from './components/SubscriptionVerification';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import CountryFeatureGate from './components/common/CountryFeatureGate';
 
@@ -86,6 +88,16 @@ function AnalyticsRouteGuard() {
     stopAnalyticsIfPrivate(pathname);
   }, [pathname]);
   return null;
+}
+
+/**
+ * /empezar era la pantalla de la tarjeta para la prueba de 7 días. Con freemium no hay prueba: los links
+ * viejos (mails, WhatsApp, apps) caen en los planes, conservando ?plan= como plan a resaltar.
+ */
+function EmpezarRedirect() {
+  const { search } = useLocation();
+  const plan = new URLSearchParams(search).get('plan');
+  return <Navigate to={plan ? `/subscription/plans?highlight=${encodeURIComponent(plan)}` : '/subscription/plans'} replace />;
 }
 
 function App() {
@@ -360,7 +372,6 @@ function App() {
             <Router>
               <AnalyticsRouteGuard />
               <SubscriptionProvider>
-              <SubscriptionVerification />
               <Routes>
                 {/* Rutas Super Admin */}
                 <Route path="/super-admin/login" element={<SuperAdminLogin />} />
@@ -397,8 +408,7 @@ function App() {
                     <Route path="/invitation/:token" element={<InvitationPage />} />
                     <Route path="/subscription/plans" element={<SubscriptionPlans />} />
                     <Route path="/subscription/success" element={<SubscriptionSuccess />} />
-                    {/* El backend manda este link por WhatsApp/email (trial por vencer);
-                        nunca tuvo pantalla propia: va a la selección de planes. */}
+                    {/* Link que manda el backend por WhatsApp/email: nunca tuvo pantalla propia, va a los planes. */}
                     <Route path="/subscription/upgrade" element={<Navigate to="/subscription/plans" replace />} />
                     {/* Catch-all: cualquier link roto cae en la landing del tenant
                         en vez de una pantalla blanca. */}
@@ -409,9 +419,8 @@ function App() {
                 {/* Onboarding wizard: full-screen, NO admin layout.
                     Authenticated but shown before the user sees the dashboard. */}
                 <Route path="/completar-perfil" element={<CompletarPerfil />} />
-                {/* Tarjeta en Mercado Pago (free_trial durante la prueba): opcional con Trial:RequireCard=false,
-                    paso obligatorio del alta con true y destino al vencer la prueba. Full-screen, sin layout. */}
-                <Route path="/empezar" element={<ActivateSubscription />} />
+                {/* Links viejos de la prueba con tarjeta: ahora van a los planes (freemium, sin prueba). */}
+                <Route path="/empezar" element={<EmpezarRedirect />} />
 
                 {/* Rutas Admin con Layout */}
                 <Route element={<AdminLayout />}>
@@ -420,6 +429,7 @@ function App() {
                   <Route path="/blocks" element={<Blocks />} />
                   <Route path="/bookings/new" element={<NewBooking />} />
                   <Route path="/new-booking" element={<NewBooking />} />
+                  <Route path="/recurring-bookings" element={<RecurringBookings />} />
                   <Route path="/customers" element={<Customers />} />
                   <Route path="/customers/new" element={<NewCustomer />} />
                   <Route path="/services" element={<Services />} />
@@ -434,6 +444,9 @@ function App() {
                   <Route path="/sales-history" element={<SalesHistory />} />
                   <Route path="/invoicing" element={<CountryFeatureGate feature="arcaInvoicing"><InvoicingPage /></CountryFeatureGate>} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route path="/coupons" element={<BookingCoupons />} />
+                  <Route path="/booking-form-fields" element={<BookingFormFields />} />
+                  <Route path="/settings/tracking" element={<TrackingSettings />} />
                   <Route path="/theme-settings" element={<ThemeSettings />} />
                   <Route path="/mercadopago-settings" element={<MercadoPagoSettings />} />
                   <Route path="/stripe-settings" element={<StripeSettings />} />

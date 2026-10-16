@@ -3,6 +3,94 @@ import { TenantConfig, Booking, Customer, Employee, Service } from '../types';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
+// ───────────── Freemium: planes, uso y límites ─────────────
+
+/** Límites y features del plan (PlanFeaturesDto). En los números, -1 = ilimitado y 0 = no incluido. */
+export interface PlanFeatures {
+  maxBookingsPerMonth: number;
+  maxServices: number;
+  maxStaff: number;
+  maxCustomers: number;
+  allowOnlinePayments: boolean;
+  allowCustomBranding: boolean;
+  allowSmsNotifications: boolean;
+  allowEmailMarketing: boolean;
+  allowReports: boolean;
+  allowMultiLocation: boolean;
+  allowWhatsApp: boolean;
+  whatsAppMonthlyLimit: number;
+  whatsAppExtraMessageCost: number;
+  commissionPercent: number;
+  maxServicesPerStaff: number;
+  allowReminders: boolean;
+  maxRecurringBookings: number;
+  maxCustomFields: number;
+  allowCoupons: boolean;
+  allowTransferDetection: boolean;
+  allowCustomerHistory: boolean;
+  allowTrackingPixels: boolean;
+}
+
+/** GET /subscription/plans (SubscriptionPlanDto). */
+export interface SubscriptionPlanInfo {
+  code: string;
+  name: string;
+  description?: string | null;
+  tagline?: string | null;
+  price: number;
+  currency: string;
+  isPopular: boolean;
+  displayOrder?: number;
+  trialDays?: number;
+  features?: PlanFeatures | null;
+}
+
+/** GET /subscription/usage (PlanUsage): plan efectivo y cuánto usó de cada límite (-1 = ilimitado). */
+export interface PlanUsage {
+  planCode: string;
+  planName: string;
+  isFree: boolean;
+  commissionPercent: number;
+  bookingsThisMonth: number;
+  maxBookingsPerMonth: number;
+  activeStaff: number;
+  maxStaff: number;
+  activeServices: number;
+  maxServices: number;
+  /** Mensajes de WhatsApp incluidos por mes en el plan (0 = sin WhatsApp, -1 = ilimitados). */
+  whatsAppMonthlyLimit?: number;
+  /** Cuántos de los incluidos le quedan este mes (-1 = ilimitados). Después se usan los packs comprados. */
+  whatsAppIncludedRemaining?: number;
+}
+
+export type PlanLimitKind =
+  | 'bookings_per_month'
+  | 'staff'
+  | 'services'
+  | 'coupons'
+  | 'custom_fields'
+  | 'recurring_bookings'
+  | 'customer_history'
+  | 'tracking_pixels';
+
+/** Cuerpo del 403 cuando una acción supera el plan (PlanLimitErrorDto). */
+export interface PlanLimitError {
+  code: 'PLAN_LIMIT';
+  limit: PlanLimitKind;
+  max: number;
+  used: number;
+  planCode: string;
+  planName: string;
+  message?: string | null;
+}
+
+/** Evento global que dispara el interceptor con un PlanLimitError en `detail`. */
+export const PLAN_LIMIT_EVENT = 'plan-limit';
+
+/** El error es un 403 PLAN_LIMIT: ya lo muestra PlanLimitDialog, la pantalla no tiene que mostrar otro error. */
+export const isPlanLimitError = (error: any): boolean =>
+  error?.response?.status === 403 && error?.response?.data?.code === 'PLAN_LIMIT';
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
@@ -52,15 +140,18 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 402) {
-      // Emitir un evento global para que el frontend reaccione. Ojo: CARD_REQUIRED no es
-      // "se te venció la suscripción", es una cuenta nueva sin tarjeta — el listener lo
-      // manda al checkout en vez de abrir el modal de vencimiento.
+    // 402 queda solo para los add-ons pagos (FEATURE_REQUIRED, ej. Bot de Confirmación): cada pantalla
+    // muestra su paywall. Con freemium ya no existe el 402 de "suscripción vencida".
+    if (error.response?.status === 402 && error.response?.data?.code === 'FEATURE_REQUIRED') {
       try {
-        const event = new CustomEvent('subscription-required', {
-          detail: error.response?.data || null,
-        });
-        window.dispatchEvent(event);
+        window.dispatchEvent(new CustomEvent('feature-required', { detail: error.response.data }));
+      } catch {}
+    }
+    // 403 PLAN_LIMIT: la acción supera el plan (reservas del mes, agendas, servicios). PlanLimitDialog
+    // escucha el evento y ofrece pasarse de plan; las pantallas no muestran su error genérico (isPlanLimitError).
+    if (isPlanLimitError(error)) {
+      try {
+        window.dispatchEvent(new CustomEvent(PLAN_LIMIT_EVENT, { detail: error.response.data }));
       } catch {}
     }
     if (error.response?.status === 401) {
@@ -74,7 +165,7 @@ api.interceptors.response.use(
       } else if (currentPath !== '/login' && !currentPath.includes('/super-admin')) {
         // Regular token expired — redirect to tenant login
         localStorage.removeItem('authToken');
-        // Llegó sin sesión a los planes (link del mail/WhatsApp de fin de prueba): volver ahí después del login.
+        // Llegó sin sesión a los planes (link del mail/WhatsApp): volver ahí después del login.
         if (currentPath.startsWith('/subscription/plans')) {
           try { sessionStorage.setItem('postLoginRedirect', currentPath + window.location.search); } catch { /* sin storage */ }
         }
@@ -298,10 +389,6 @@ export const registrationApi = {
   emailStart: (data: { email?: string; state?: string; businessName?: string; phone?: string; [attribution: string]: string | undefined }) =>
     api.post('/registration/email/start', data).then(res => res.data),
 
-  // Trial:RequireCard del backend: si la prueba pide tarjeta (textos del alta). Sin sesión.
-  trialConfig: (): Promise<{ requireCard: boolean; trialDays: number }> =>
-    api.get('/registration/trial-config').then(res => res.data),
-
   emailState: (state: string) =>
     api.get(`/registration/email/state/${encodeURIComponent(state)}`).then(res => res.data),
 
@@ -362,6 +449,20 @@ export const templatesApi = {
 };
 
 export default api;
+
+export const subscriptionApi = {
+  usage: (): Promise<PlanUsage> => api.get('/subscription/usage').then(res => res.data),
+  plans: (): Promise<SubscriptionPlanInfo[]> => api.get('/subscription/plans').then(res => res.data),
+  status: () => api.get('/subscription/status', { params: { includePaymentLink: false } }).then(res => res.data),
+  /**
+   * Pasarse a un plan pago. Argentina: débito automático de Mercado Pago (preapproval); fuera de AR el mismo
+   * endpoint devuelve el Checkout de Stripe. Si ya tenía débito, el backend cambia el plan (planChanged).
+   */
+  checkout: (planCode: string) =>
+    api.post('/preapproval/create', { planCode, returnPath: '/subscription/success?flow=preapproval' }).then(res => res.data),
+  /** Baja del plan pago (MP o Stripe): queda en Gratuito. */
+  cancel: () => api.post('/subscription/cancel').then(res => res.data),
+};
 
 export const inventoryApi = {
   getProducts: (includeInactive = false) => api.get('/inventory/products', { params: { includeInactive } }).then(res => res.data),
