@@ -142,6 +142,7 @@ export default function PricingSection() {
         </AnimatedSection>
 
         {!country && (
+          <AnimatedSection>
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.25, mt: { xs: -3, md: -4.5 }, mb: { xs: 5, md: 6 } }}>
             <Box
               role="group"
@@ -169,12 +170,14 @@ export default function PricingSection() {
                 );
               })}
             </Box>
-            <Typography sx={{ fontSize: '0.8rem', color: palette.inkMute, textAlign: 'center', maxWidth: 420, minHeight: '1.2em' }}>
-              {inUsd
-                ? `Referencia en dólares (US$ 1 = $ ${formatPrice(USD_DISPLAY_RATE)}). Se cobra en la moneda de tu país.`
-                : 'Precios en pesos argentinos. ¿Estás en otro país? Miralos en dólares.'}
-            </Typography>
+            {/* La aclaración solo en dólares: en pesos el selector solo alcanza. */}
+            {inUsd && (
+              <Typography sx={{ fontSize: '0.8rem', color: palette.inkMute, textAlign: 'center', maxWidth: 420 }}>
+                Referencia en dólares (US$ 1 = $ {formatPrice(USD_DISPLAY_RATE)}). Se cobra en la moneda de tu país.
+              </Typography>
+            )}
           </Box>
+          </AnimatedSection>
         )}
 
         <Box

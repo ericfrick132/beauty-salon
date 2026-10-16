@@ -35,10 +35,10 @@ namespace BookingPro.API.Controllers
             {
                 var query = _context.SubscriptionPlans.AsQueryable();
 
-                if (isActive.HasValue)
-                {
-                    query = query.Where(p => p.IsActive == isActive.Value);
-                }
+                // Sin parámetro, solo los que se ofrecen: los planes ocultos (Pro viejo, por permanencia) no van
+                // a la landing. El super admin lista todos por /admin.
+                var onlyActive = isActive ?? true;
+                query = query.Where(p => p.IsActive == onlyActive);
 
                 var plans = await query
                     .OrderBy(p => p.DisplayOrder)
