@@ -153,6 +153,14 @@ namespace BookingPro.API.Models.Entities
         public string? MetaAttributionSource { get; set; }
         public DateTime? MetaAttributionAt { get; set; }
 
+        /// <summary>
+        /// Cupón de promo que el negocio trajo al darse de alta (entró por /promo: utm_campaign = slug de la
+        /// promo). Queda pendiente hasta que se suscribe; ahí PromoCouponService lo aplica al débito automático
+        /// de Mercado Pago. null = sin cupón pendiente.
+        /// </summary>
+        [MaxLength(50)]
+        public string? PendingCouponCode { get; set; }
+
         // Onboarding wizard (post-register, /completar-perfil)
         [MaxLength(120)]
         public string? OwnerName { get; set; }

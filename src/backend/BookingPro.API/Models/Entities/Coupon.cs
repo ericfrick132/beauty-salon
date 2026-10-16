@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace BookingPro.API.Models.Entities
@@ -59,5 +60,9 @@ namespace BookingPro.API.Models.Entities
 
         // Navigation
         public virtual SubscriptionPlan? SubscriptionPlan { get; set; }
+        /// <summary>Promos de la landing /promo que usan este cupón (las crea sales-hub por /api/hub/promos).</summary>
+        public virtual ICollection<Promo> Promos { get; set; } = new List<Promo>();
+        /// <summary>Débitos automáticos a los que se les aplicó este cupón.</summary>
+        public virtual ICollection<CouponRedemption> Redemptions { get; set; } = new List<CouponRedemption>();
     }
 }

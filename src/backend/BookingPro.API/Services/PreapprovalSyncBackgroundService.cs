@@ -16,6 +16,9 @@ namespace BookingPro.API.Services
     /// Duplicadas: en el mismo tick, los negocios con más de una preapproval authorized (MP debita todas)
     /// se quedan con la más nueva y las demás se cancelan en MP
     /// (IPreapprovalService.ResolveDuplicateAuthorizedPreapprovalsAsync, lo mismo que hace el webhook).
+    ///
+    /// Cupones de promo: al final de cada tick corre PromoCouponService (aplica el descuento del cupón de
+    /// /promo a la preapproval y lo saca cuando se cumplen los meses).
     /// </summary>
     public class PreapprovalSyncBackgroundService : BackgroundService
     {
@@ -64,6 +67,19 @@ namespace BookingPro.API.Services
             }
 
             await ResolveDuplicateAuthorizedAsync(ct);
+
+            // Cupones de /promo: bajar el monto de la preapproval del que se suscribe con cupón y volverlo al
+            // precio normal cuando se cumplen los meses de descuento (PromoCouponService).
+            try
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var promoCoupons = ActivatorUtilities.CreateInstance<PromoCouponService>(scope.ServiceProvider);
+                await promoCoupons.RunAsync(ct);
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                _logger.LogError(ex, "PreapprovalSync promo coupons phase failed");
+            }
         }
 
         /// <summary>
