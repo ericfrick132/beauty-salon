@@ -73,7 +73,7 @@ namespace BookingPro.API.Services
                 }
 
                 // Seed categories, services, professionals, and sample customers
-                await SeedVerticalData(tenantId, verticalCode);
+                await SeedVerticalData(tenantId, verticalCode, Utilities.CountryProfile.CurrencyFor(tenant));
 
                 _logger.LogInformation("Template {VerticalCode} applied to tenant {TenantId}", verticalCode, tenantId);
                 return true;
@@ -100,7 +100,7 @@ namespace BookingPro.API.Services
 
                 var verticalCode = tenant.Vertical.Code;
 
-                await SeedVerticalData(tenantId, verticalCode);
+                await SeedVerticalData(tenantId, verticalCode, Utilities.CountryProfile.CurrencyFor(tenant));
 
                 _logger.LogInformation($"Tenant {tenantId} provisioned successfully");
                 return true;
@@ -206,18 +206,19 @@ namespace BookingPro.API.Services
             }
         }
 
-        private async Task SeedVerticalData(Guid tenantId, string verticalCode)
+        // currency: moneda del negocio al sembrar; los precios de los seeders (ARS) se convierten a ella.
+        private async Task SeedVerticalData(Guid tenantId, string verticalCode, string currency)
         {
             List<ServiceCategory> categories = verticalCode switch
             {
-                "barbershop" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.BarbershopSeeder.GetCategories()),
-                "peluqueria" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.BeautySalonSeeder.GetCategories()),
-                "aesthetics" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.AestheticsSeeder.GetCategories()),
-                "nailsalon" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.NailSalonSeeder.GetCategories()),
-                "carwash" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.CarWashSeeder.GetCategories()),
-                "depilation" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.DepilationSeeder.GetCategories()),
-                "sports" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.SportsSeeder.GetCategories()),
-                "consulting" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.ConsultingSeeder.GetCategories()),
+                "barbershop" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.BarbershopSeeder.GetCategories(), currency),
+                "peluqueria" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.BeautySalonSeeder.GetCategories(), currency),
+                "aesthetics" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.AestheticsSeeder.GetCategories(), currency),
+                "nailsalon" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.NailSalonSeeder.GetCategories(), currency),
+                "carwash" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.CarWashSeeder.GetCategories(), currency),
+                "depilation" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.DepilationSeeder.GetCategories(), currency),
+                "sports" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.SportsSeeder.GetCategories(), currency),
+                "consulting" => GetCategoriesFromSeeder(tenantId, VerticalSeeders.ConsultingSeeder.GetCategories(), currency),
                 _ => new List<ServiceCategory>()
             };
 
@@ -247,7 +248,7 @@ namespace BookingPro.API.Services
             await _context.SaveChangesAsync();
         }
 
-        private List<ServiceCategory> GetCategoriesFromSeeder(Guid tenantId, List<ServiceCategoryTemplate> templates)
+        private List<ServiceCategory> GetCategoriesFromSeeder(Guid tenantId, List<ServiceCategoryTemplate> templates, string currency)
         {
             var result = new List<ServiceCategory>();
             foreach (var cat in templates)
@@ -273,7 +274,7 @@ namespace BookingPro.API.Services
                         Name = svc.Name,
                         Description = svc.Description,
                         DurationMinutes = svc.DurationMinutes,
-                        Price = svc.Price,
+                        Price = Utilities.SeedPrices.FromArs(svc.Price, currency),
                         IsActive = true,
                         CreatedAt = DateTime.UtcNow
                     });

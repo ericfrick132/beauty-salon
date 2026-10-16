@@ -233,7 +233,7 @@ namespace BookingPro.API.Services
                 // Initialize tenant data (services, categories, etc.) only if vertical is specified
                 if (vertical != null)
                 {
-                    await InitializeTenantData(tenant.Id, vertical.Code);
+                    await InitializeTenantData(tenant.Id, vertical.Code, CountryProfile.CurrencyFor(tenant));
                 }
 
                 await transaction.CommitAsync();
@@ -282,7 +282,7 @@ namespace BookingPro.API.Services
 
         // Password hashing centralized in Services.Security.PasswordHasher
 
-        private async Task InitializeTenantData(Guid tenantId, string verticalCode)
+        private async Task InitializeTenantData(Guid tenantId, string verticalCode, string currency)
         {
             // Set current tenant context for seeding
             var tempTenant = new TenantInfo 
@@ -302,11 +302,11 @@ namespace BookingPro.API.Services
 
                 if (verticalCode == "barbershop")
                 {
-                    await SeedBarbershopData(tenantId);
+                    await SeedBarbershopData(tenantId, currency);
                 }
                 else if (verticalCode == "salon")
                 {
-                    await SeedSalonData(tenantId);
+                    await SeedSalonData(tenantId, currency);
                 }
                 // Add more verticals as needed
 
@@ -320,7 +320,7 @@ namespace BookingPro.API.Services
             }
         }
 
-        private async Task SeedBarbershopData(Guid tenantId)
+        private async Task SeedBarbershopData(Guid tenantId, string currency)
         {
             // Add default service categories and services for barbershop
             var cortesCategory = new Models.Entities.ServiceCategory
@@ -338,14 +338,14 @@ namespace BookingPro.API.Services
             // Add default services
             var services = new[]
             {
-                new Service { TenantId = tenantId, CategoryId = cortesCategory.Id, Name = "Corte Clásico", Description = "Corte tradicional", DurationMinutes = 30, Price = 15000, IsActive = true, CreatedAt = DateTime.UtcNow },
-                new Service { TenantId = tenantId, CategoryId = cortesCategory.Id, Name = "Corte + Barba", Description = "Corte y arreglo de barba", DurationMinutes = 45, Price = 20000, IsActive = true, CreatedAt = DateTime.UtcNow }
+                new Service { TenantId = tenantId, CategoryId = cortesCategory.Id, Name = "Corte Clásico", Description = "Corte tradicional", DurationMinutes = 30, Price = SeedPrices.FromArs(15000, currency), IsActive = true, CreatedAt = DateTime.UtcNow },
+                new Service { TenantId = tenantId, CategoryId = cortesCategory.Id, Name = "Corte + Barba", Description = "Corte y arreglo de barba", DurationMinutes = 45, Price = SeedPrices.FromArs(20000, currency), IsActive = true, CreatedAt = DateTime.UtcNow }
             };
 
             _context.Services.AddRange(services);
         }
 
-        private async Task SeedSalonData(Guid tenantId)
+        private async Task SeedSalonData(Guid tenantId, string currency)
         {
             // Add default service categories and services for salon
             var corteCategory = new Models.Entities.ServiceCategory
@@ -362,8 +362,8 @@ namespace BookingPro.API.Services
 
             var services = new[]
             {
-                new Service { TenantId = tenantId, CategoryId = corteCategory.Id, Name = "Corte Dama", Description = "Corte para damas", DurationMinutes = 45, Price = 18000, IsActive = true, CreatedAt = DateTime.UtcNow },
-                new Service { TenantId = tenantId, CategoryId = corteCategory.Id, Name = "Lavado y Peinado", Description = "Lavado y peinado completo", DurationMinutes = 60, Price = 25000, IsActive = true, CreatedAt = DateTime.UtcNow }
+                new Service { TenantId = tenantId, CategoryId = corteCategory.Id, Name = "Corte Dama", Description = "Corte para damas", DurationMinutes = 45, Price = SeedPrices.FromArs(18000, currency), IsActive = true, CreatedAt = DateTime.UtcNow },
+                new Service { TenantId = tenantId, CategoryId = corteCategory.Id, Name = "Lavado y Peinado", Description = "Lavado y peinado completo", DurationMinutes = 60, Price = SeedPrices.FromArs(25000, currency), IsActive = true, CreatedAt = DateTime.UtcNow }
             };
 
             _context.Services.AddRange(services);
