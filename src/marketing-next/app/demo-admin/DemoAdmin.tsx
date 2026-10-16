@@ -164,9 +164,13 @@ async function adminTour(p: Pilot, isMobile: boolean) {
   await p.sleep(700);
   await p.pick('Servicio', 'Coloración completa');
   await p.pick('Profesional', 'Lucía');
-  await p.pick('Día', 1);
-  await p.sleep(400);
-  const slots = p.all('[data-tour="nb-slot"]');
+  // Algunos días la profesional está completa: se prueba el siguiente hasta encontrar horarios.
+  let slots: HTMLElement[] = [];
+  for (let d = 1; d < 7 && !slots.length; d++) {
+    await p.pick('Día', d);
+    await p.sleep(400);
+    slots = p.all('[data-tour="nb-slot"]');
+  }
   if (slots.length) await p.tap(slots[Math.min(2, slots.length - 1)]);
   await p.sleep(700);
   await p.tap('[data-tour="nb-create"]');
@@ -236,7 +240,12 @@ export default function DemoAdmin() {
   const overlayRef = useRef<HTMLDivElement>(null);
   const isMobileRef = useRef(isMobile);
   isMobileRef.current = isMobile;
-  const pilot = useAutopilot({ overlay: overlayRef, root: rootRef, windowScroll: true, script: (p) => adminTour(p, isMobileRef.current) });
+  const pilot = useAutopilot({
+    overlay: overlayRef, root: rootRef, windowScroll: true,
+    script: (p) => adminTour(p, isMobileRef.current),
+    // Si algo no apareció, se cierra todo (diálogos, menú) volviendo al inicio antes de reintentar.
+    onError: () => { setDrawerOpen(false); setScreen('dashboard'); setRestartKey((k) => k + 1); },
+  });
 
   // Los datos dependen de la fecha y la hora: se arman recién en el cliente (el HTML exportado queda vacío).
   useEffect(() => {

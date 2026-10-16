@@ -32,11 +32,13 @@ export function useAutopilot({
   root,
   script,
   windowScroll = false,
+  onError,
 }: {
   overlay: RefObject<HTMLElement>;
   root: RefObject<HTMLElement>;
   script: (p: Pilot, round: number) => Promise<void>;
   windowScroll?: boolean;
+  onError?: () => void;
 }) {
   const [running, setRunning] = useState(false);
   const [caption, setCaption] = useState('');
@@ -44,6 +46,8 @@ export function useAutopilot({
   const token = useRef(0);
   const scriptRef = useRef(script);
   scriptRef.current = script;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
   const stop = useCallback(() => {
     token.current++;
@@ -187,6 +191,7 @@ export function useAutopilot({
           if (e instanceof Aborted) return;
           // Si algo de la UI no apareció, se reintenta desde el principio en vez de quedar trabado.
           console.warn(e);
+          onErrorRef.current?.();
           try { await sleep(800); } catch { return; }
         }
       }

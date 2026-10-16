@@ -106,7 +106,8 @@ export default function BookingApp({ today, autoplay = false, fullscreen = false
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
-  const pilot = useAutopilot({ overlay: overlayRef, root: rootRef, script: bookingTour });
+  const resetRef = useRef<() => void>(() => {});
+  const pilot = useAutopilot({ overlay: overlayRef, root: rootRef, script: bookingTour, onError: () => resetRef.current() });
   const wasRunning = useRef(false);
   useEffect(() => {
     if (autoplay) pilot.start();
@@ -184,6 +185,8 @@ export default function BookingApp({ today, autoplay = false, fullscreen = false
   const reset = () => {
     setStep(0); setService(null); setProId(null); setSlot(null); setDayIdx(0); setCode(''); setNotif(false); setChat(null); setErrors(null);
   };
+
+  resetRef.current = () => { reset(); setPaying('idle'); setName(''); setPhone(''); setEmail(''); };
 
   const filtered = SERVICES.filter((s) => !query || s.name.toLowerCase().includes(query.toLowerCase()));
 
