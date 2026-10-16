@@ -22,6 +22,8 @@ export type VerticalContent = VerticalLink & {
   dateModified: string;
   /** 'feature' = landing de funcionalidad (no rubro): VerticalLanding usa títulos neutros y otro callout. */
   kind?: 'feature';
+  /** Textos de VerticalLanding para landings 'feature' que no son la de señas (default: los de señas). */
+  featureCopy?: { callout: string; pricingIntro: string; faqTitle: string };
 };
 
 export const verticals: VerticalContent[] = [
@@ -619,6 +621,92 @@ export const verticals: VerticalContent[] = [
     ],
     datePublished: '2026-10-15',
     dateModified: '2026-10-15',
+  },
+  {
+    // Landing de "gratis". Hechos: RegistrationController (alta por mail, 7 días, Trial:RequireCard=false
+    // por defecto → sin tarjeta), SubscriptionMiddleware (al vencer, 402 en el panel hasta elegir plan),
+    // /api/subscription-plans (precios). TurnosPro NO tiene plan gratuito: no prometerlo.
+    slug: 'sistema-de-turnos-online-gratis',
+    path: '/sistema-de-turnos-online-gratis',
+    label: 'Prueba gratis',
+    businessTypeLabel: 'Prueba gratis',
+    kind: 'feature',
+    featureCopy: {
+      callout: 'La prueba gratis es el mismo plan que usan los negocios que pagan TurnosPro.',
+      pricingIntro:
+        'Después de los 7 días gratis, un solo plan con reservas ilimitadas, señas con Mercado Pago, recordatorios por WhatsApp y agenda por profesional. Sin permanencia; cuanto más largo el compromiso, más barato el mes.',
+      faqTitle: 'Preguntas frecuentes sobre la prueba gratis',
+    },
+    title: 'Sistema de turnos online gratis por 7 días | TurnosPro',
+    description:
+      'Probá gratis el sistema de turnos online TurnosPro: 7 días sin tarjeta, con reservas 24/7, señas por Mercado Pago y recordatorios por WhatsApp.',
+    h1: 'Sistema de turnos online gratis por 7 días, sin tarjeta',
+    eyebrow: 'Prueba gratis',
+    intro: [
+      'Si estás buscando un sistema de turnos online gratis, lo más útil es probar uno con tu negocio real antes de pagar nada. TurnosPro tiene 7 días de prueba gratis sin tarjeta: te registrás con tu mail, cargás tus servicios y tus profesionales, y en el día ya tenés tu link de reservas para compartir por WhatsApp o Instagram.',
+      'Durante la prueba usás el mismo plan que usan los negocios que pagan: reservas 24/7, agenda por profesional, señas con Mercado Pago y recordatorios por WhatsApp. Al terminar elegís si seguís; si no seguís, no se te cobra nada.',
+    ],
+    sections: [
+      {
+        h2: '¿Hay un sistema de turnos online gratis de verdad?',
+        paragraphs: [
+          'Lo que se suele llamar "gratis" son tres cosas distintas: una agenda en papel o en una planilla, un sistema con plan gratuito limitado y la prueba gratis de un sistema pago. La agenda en papel no cuesta nada, pero no toma reservas sola, no manda recordatorios y depende de que alguien conteste cada mensaje. Si querés arrancar así, tenemos una agenda de turnos para imprimir, gratis, con hojas diaria y semanal por profesional.',
+          'Si mirás un plan gratuito, fijate cuántos turnos o profesionales permite, si cobra una comisión por cada seña y si los recordatorios están incluidos o se pagan aparte. TurnosPro no tiene plan gratuito: tiene 7 días de prueba sin tarjeta con todo incluido y después un precio mensual fijo, sin comisión por seña.',
+        ],
+      },
+      {
+        h2: 'Qué incluye la prueba gratis',
+        bullets: [
+          'Tu página de reservas con link propio, para que tus clientes reserven solos las 24 horas.',
+          'Agenda por profesional y por sucursal, con vista diaria, semanal y mensual.',
+          'Señas con Mercado Pago: la plata entra a tu cuenta y TurnosPro no le suma comisión.',
+          'Recordatorios y confirmación de turnos por WhatsApp desde el número de tu negocio.',
+          'Reportes de ocupación y facturación.',
+        ],
+        after: [
+          'Es el mismo plan que se paga después: reservas ilimitadas y sin pagar por profesional.',
+        ],
+      },
+      {
+        h2: 'Cómo empezar en 3 pasos',
+        bullets: [
+          'Te registrás con tu mail: te llega un código, lo ingresás y entrás directo al panel. No dejás tarjeta.',
+          'Cargás tus servicios con su duración y precio, tus profesionales y sus horarios.',
+          'Compartís tu link de reservas y empezás a recibir turnos.',
+        ],
+      },
+      {
+        h2: 'Qué pasa cuando terminan los 7 días',
+        paragraphs: [
+          'Para seguir usando el panel elegís un plan y lo pagás con Mercado Pago. No hay un cobro automático que no hayas autorizado, porque nunca dejaste la tarjeta, y no hay permanencia: podés dar de baja cuando quieras.',
+          'El plan mensual cuesta ARS 50.000 por mes. Si pagás por adelantado sale menos: ARS 45.000 por mes el trimestral, ARS 40.000 el semestral y ARS 37.500 el anual. Los precios vigentes están siempre en la sección de precios del sitio.',
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: '¿Hay un sistema de turnos online gratis?',
+        a: 'TurnosPro no tiene plan gratuito, pero lo podés usar 7 días gratis y sin tarjeta, con todo incluido. Si todavía no querés un sistema, tenemos una agenda de turnos para imprimir, gratis.',
+      },
+      {
+        q: '¿Necesito tarjeta de crédito para probar TurnosPro?',
+        a: 'No. Te registrás con tu mail, entrás al panel y usás TurnosPro 7 días sin dejar tarjeta ni datos de pago. Recién al terminar elegís un plan si querés seguir.',
+      },
+      {
+        q: '¿Qué incluye la prueba gratis?',
+        a: 'Lo mismo que el plan pago: página de reservas con link propio, agenda por profesional y sucursal, señas con Mercado Pago sin comisión, recordatorios por WhatsApp y reportes, con reservas ilimitadas y sin pagar por profesional.',
+      },
+      {
+        q: '¿Cuánto cuesta TurnosPro después de la prueba?',
+        a: 'El plan mensual cuesta ARS 50.000 por mes; trimestral, semestral y anual salen ARS 45.000, 40.000 y 37.500 por mes. No hay permanencia y TurnosPro no cobra comisión por las señas.',
+      },
+      {
+        q: '¿Qué pasa si no sigo después de los 7 días?',
+        a: 'No se te cobra nada, porque nunca dejaste la tarjeta. El panel queda bloqueado hasta que elijas un plan.',
+      },
+    ],
+    datePublished: '2026-10-16',
+    dateModified: '2026-10-16',
   },
 ];
 

@@ -12,6 +12,7 @@ export const verticalLinks: VerticalLink[] = [
 // Landings de funcionalidad (no son rubros): van al Footer pero no a BusinessTypes ni a RelatedVerticals.
 export const featureLinks = [
   { path: '/sistema-de-turnos-con-sena', label: 'Turnos con seña por Mercado Pago' },
+  { path: '/sistema-de-turnos-online-gratis', label: 'Sistema de turnos online gratis' },
 ];
 
 /** Etiqueta de BusinessTypes → path de la landing vertical (si existe). */

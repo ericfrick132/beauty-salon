@@ -57,7 +57,7 @@ export default function VerticalLanding({ v }: { v: VerticalContent }) {
         {isFeature ? (
           <div className="tp-callout">
             <p>
-              Las señas vienen incluidas en el mismo plan que el resto de TurnosPro. Para ver cómo funcionan juntas
+              {v.featureCopy?.callout ?? 'Las señas vienen incluidas en el mismo plan que el resto de TurnosPro.'} Para ver cómo funcionan juntas
               la web de turnos, las señas y los recordatorios, mirá{' '}
               <Link href="/reservas-online">reservas online con recordatorio por WhatsApp</Link> o la{' '}
               <Link href="/">página principal de TurnosPro</Link>; si estás comparando opciones, leé{' '}
@@ -80,7 +80,7 @@ export default function VerticalLanding({ v }: { v: VerticalContent }) {
         title={isFeature ? 'Precios de TurnosPro' : `Precios de TurnosPro para ${label}`}
         intro={
           isFeature
-            ? 'Las señas con Mercado Pago no son un extra: vienen en el mismo plan, junto con las reservas ilimitadas, los recordatorios por WhatsApp y la agenda por profesional. Cuanto más largo el compromiso, más barato el mes.'
+            ? v.featureCopy?.pricingIntro ?? 'Las señas con Mercado Pago no son un extra: vienen en el mismo plan, junto con las reservas ilimitadas, los recordatorios por WhatsApp y la agenda por profesional. Cuanto más largo el compromiso, más barato el mes.'
             : `Mismo plan para ${label} que para cualquier otro rubro: reservas ilimitadas, señas con MercadoPago, recordatorios por WhatsApp y agenda por profesional. Cuanto más largo el compromiso, más barato el mes.`
         }
       />
@@ -91,7 +91,7 @@ export default function VerticalLanding({ v }: { v: VerticalContent }) {
         items={v.faqs}
         number="05"
         label="Preguntas"
-        title={isFeature ? 'Preguntas frecuentes sobre las señas' : `Preguntas frecuentes de ${label}`}
+        title={isFeature ? v.featureCopy?.faqTitle ?? 'Preguntas frecuentes sobre las señas' : `Preguntas frecuentes de ${label}`}
         titleAccent="antes de empezar."
       />
 
