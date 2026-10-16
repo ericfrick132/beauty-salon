@@ -371,9 +371,9 @@ export function CalendarScreen({ demo }: { demo: Demo }) {
             />
           ))}
           <Box sx={{ flex: 1 }} />
-          <Button variant="contained" startIcon={<Add />} onClick={(e) => setNewAnchor(e.currentTarget)}>Nuevo</Button>
+          <Button data-tour="cal-new" variant="contained" startIcon={<Add />} onClick={(e) => setNewAnchor(e.currentTarget)}>Nuevo</Button>
           <Menu anchorEl={newAnchor} open={!!newAnchor} onClose={() => setNewAnchor(null)}>
-            <MenuItem onClick={() => { setNewAnchor(null); setCreating(true); }}>Nueva Reserva</MenuItem>
+            <MenuItem data-tour="cal-new-booking" onClick={() => { setNewAnchor(null); setCreating(true); }}>Nueva Reserva</MenuItem>
             <MenuItem onClick={() => { setNewAnchor(null); demo.locked('Bloquear horario'); }}>Bloquear horario</MenuItem>
           </Menu>
         </Box>
@@ -613,7 +613,7 @@ function NewBookingDialog({ demo, initialDay, onClose, onCreated }: { demo: Demo
           ) : (
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
               {slots.slice(0, 16).map((t, i) => (
-                <Chip key={t.toISOString()} label={fmtTime(t)} onClick={() => setSlotIdx(i)} variant={i === slotIdx ? 'filled' : 'outlined'} sx={i === slotIdx ? { bgcolor: ui.primary, color: '#fff' } : { borderColor: ui.border }} />
+                <Chip key={t.toISOString()} data-tour="nb-slot" label={fmtTime(t)} onClick={() => setSlotIdx(i)} variant={i === slotIdx ? 'filled' : 'outlined'} sx={i === slotIdx ? { bgcolor: ui.primary, color: '#fff' } : { borderColor: ui.border }} />
               ))}
             </Box>
           )}
@@ -626,7 +626,7 @@ function NewBookingDialog({ demo, initialDay, onClose, onCreated }: { demo: Demo
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancelar</Button>
-        <Button variant="contained" onClick={create} disabled={!slots.length}>Crear reserva</Button>
+        <Button data-tour="nb-create" variant="contained" onClick={create} disabled={!slots.length}>Crear reserva</Button>
       </DialogActions>
     </Dialog>
   );

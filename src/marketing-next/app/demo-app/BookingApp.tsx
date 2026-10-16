@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Avatar,
   Box,
@@ -17,6 +17,7 @@ import {
 } from '@mui/material';
 import { AccessTime, ArrowBack, ArrowForward, Check, Search, TrendingUp } from '@mui/icons-material';
 import { adminTheme, mono, ui } from '../demo-admin/adminTheme';
+import { AutopilotCursor, useAutopilot, type Pilot } from '../demo-admin/autopilot';
 import {
   BUSINESS,
   DAYS,
@@ -43,7 +44,79 @@ const BASE_STEPS = ['Servicio', 'Profesional', 'Fecha y Hora', 'Tus Datos'];
 
 type Chat = { from: 'business' | 'client'; text: string };
 
-export default function BookingApp({ today }: { today: Date }) {
+// Guión del piloto automático: una vuelta con seña por MercadoPago y otra sin seña, alternadas.
+const CLIENTS = [
+  { name: 'Camila Romero', phone: '+54 9 11 5678-1234', email: 'camila.romero@gmail.com' },
+  { name: 'Julieta Sosa', phone: '+54 9 11 4421-9087', email: 'juli.sosa@gmail.com' },
+];
+
+async function bookingTour(p: Pilot, round: number) {
+  const withDeposit = round % 2 === 0;
+  const client = CLIENTS[round % CLIENTS.length];
+  p.caption('Tu cliente entra a tu link y elige el servicio');
+  await p.sleep(1400);
+  await p.tap(`[data-tour="service-${withDeposit ? 'color' : 'corte-barba'}"]`);
+  await p.sleep(700);
+  p.caption('Elige con quién atenderse');
+  await p.tap(`[data-tour="pro-${withDeposit ? 'lucia' : 'matias'}"]`);
+  await p.sleep(700);
+  p.caption('Ve solo los horarios que están libres');
+  for (let d = 1; d < 6; d++) {
+    await p.tap(`[data-tour="day-${d}"]`);
+    await p.sleep(500);
+    const slots = p.all('[data-tour="slot"]');
+    if (slots.length) { await p.tap(slots[Math.min(3, slots.length - 1)]); break; }
+  }
+  await p.tap('[data-tour="next"]');
+  await p.sleep(500);
+  p.caption('Deja sus datos, sin crear cuenta');
+  await p.type('[data-tour="name"]', client.name);
+  await p.type('[data-tour="phone"]', client.phone);
+  await p.type('[data-tour="email"]', client.email);
+  await p.sleep(500);
+  await p.tap('[data-tour="next"]');
+  if (withDeposit) {
+    await p.sleep(600);
+    p.caption('Paga la seña con MercadoPago');
+    await p.sleep(1200);
+    await p.tap('[data-tour="pay"]');
+  }
+  await p.find('[data-tour="confirmed"]', 6000);
+  p.caption('Turno confirmado al instante, y ya está en tu agenda');
+  await p.sleep(1200);
+  await p.find('[data-tour="notif"]', 6000);
+  p.caption('Antes del turno, el bot le escribe por WhatsApp');
+  await p.sleep(1300);
+  await p.tap('[data-tour="notif"]');
+  await p.sleep(1600);
+  await p.tap('[data-tour="reply-si"]');
+  p.caption('Responde SI y el turno queda confirmado solo');
+  await p.sleep(3800);
+  await p.tap('[data-tour="again"]');
+  await p.sleep(600);
+}
+
+export default function BookingApp({ today, autoplay = false, onCaption, onTakeover }: {
+  today: Date;
+  autoplay?: boolean;
+  onCaption?: (text: string) => void;
+  onTakeover?: () => void;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const pilot = useAutopilot({ overlay: overlayRef, root: rootRef, script: bookingTour });
+  const wasRunning = useRef(false);
+  useEffect(() => {
+    if (autoplay) pilot.start();
+    else pilot.stop();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoplay]);
+  useEffect(() => { onCaption?.(pilot.caption); }, [pilot.caption, onCaption]);
+  useEffect(() => {
+    if (wasRunning.current && !pilot.running) onTakeover?.();
+    wasRunning.current = pilot.running;
+  }, [pilot.running, onTakeover]);
+
   const taken = useMemo(() => buildBookings(buildCustomers(today), today), [today]);
   const [step, setStep] = useState(0);
   const [query, setQuery] = useState('');
@@ -122,7 +195,7 @@ export default function BookingApp({ today }: { today: Date }) {
 
   return (
     <ThemeProvider theme={adminTheme}>
-      <Box sx={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', bgcolor: ui.paper, color: ui.ink, fontFamily: adminTheme.typography.fontFamily }}>
+      <Box ref={rootRef} sx={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', bgcolor: ui.paper, color: ui.ink, fontFamily: adminTheme.typography.fontFamily }}>
         <Box sx={{ flex: 1, overflowY: 'auto', px: 1.75, pt: 6.5, pb: 2, scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
           <Typography component="h1" sx={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontWeight: 500, color: ui.ink, fontSize: '2.1rem', lineHeight: 0.98, letterSpacing: '-0.035em', textAlign: 'center', mb: 2 }}>
             {BUSINESS}
@@ -158,6 +231,7 @@ export default function BookingApp({ today }: { today: Date }) {
                   {filtered.map((s) => (
                     <Box
                       key={s.id}
+                      data-tour={`service-${s.id}`}
                       component="button"
                       type="button"
                       onClick={() => { setService(s); window.setTimeout(() => setStep(1), 250); }}
@@ -184,6 +258,7 @@ export default function BookingApp({ today }: { today: Date }) {
                   {PROS.map((p) => (
                     <Box
                       key={p.id}
+                      data-tour={`pro-${p.id}`}
                       component="button"
                       type="button"
                       onClick={() => { setProId(p.id); window.setTimeout(() => setStep(2), 250); }}
@@ -207,6 +282,7 @@ export default function BookingApp({ today }: { today: Date }) {
                   {days.map((d, i) => (
                     <Box
                       key={d.toISOString()}
+                      data-tour={`day-${i}`}
                       component="button"
                       type="button"
                       onClick={() => setDayIdx(i)}
@@ -225,7 +301,7 @@ export default function BookingApp({ today }: { today: Date }) {
                     {slots.slice(0, 15).map((t) => {
                       const active = slot?.getTime() === t.getTime();
                       return (
-                        <Box key={t.toISOString()} component="button" type="button" onClick={() => setSlot(t)} sx={{ py: 1, borderRadius: 2, border: `1px solid ${active ? ui.primary : ui.rule}`, bgcolor: active ? ui.primary : '#fff', color: active ? '#fff' : ui.ink, fontFamily: mono, fontSize: 14, cursor: 'pointer' }}>
+                        <Box key={t.toISOString()} data-tour="slot" component="button" type="button" onClick={() => setSlot(t)} sx={{ py: 1, borderRadius: 2, border: `1px solid ${active ? ui.primary : ui.rule}`, bgcolor: active ? ui.primary : '#fff', color: active ? '#fff' : ui.ink, fontFamily: mono, fontSize: 14, cursor: 'pointer' }}>
                           {fmtTime(t)}
                         </Box>
                       );
@@ -239,9 +315,9 @@ export default function BookingApp({ today }: { today: Date }) {
               <>
                 <StepHeading title="Tus Datos" hint="Te mandamos la confirmación por WhatsApp y email." />
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-                  <TextField size="small" label="Nombre completo" value={name} onChange={(e) => setName(e.target.value)} />
-                  <TextField size="small" label="Teléfono" value={phone} onChange={(e) => setPhone(e.target.value)} inputProps={{ inputMode: 'tel' }} />
-                  <TextField size="small" label="Email" value={email} onChange={(e) => setEmail(e.target.value)} inputProps={{ inputMode: 'email' }} />
+                  <TextField size="small" label="Nombre completo" value={name} onChange={(e) => setName(e.target.value)} inputProps={{ 'data-tour': 'name' }} />
+                  <TextField size="small" label="Teléfono" value={phone} onChange={(e) => setPhone(e.target.value)} inputProps={{ inputMode: 'tel', 'data-tour': 'phone' }} />
+                  <TextField size="small" label="Email" value={email} onChange={(e) => setEmail(e.target.value)} inputProps={{ inputMode: 'email', 'data-tour': 'email' }} />
                   <TextField size="small" label="Notas adicionales (opcional)" multiline minRows={2} />
                   <Button size="small" onClick={() => { setName('Camila Romero'); setPhone('+54 9 11 5678-1234'); setEmail('camila.romero@gmail.com'); setErrors(null); }} sx={{ alignSelf: 'flex-start', px: 0, '&:hover': { transform: 'none', boxShadow: 'none', background: 'transparent' } }}>
                     Completar con datos de ejemplo
@@ -265,7 +341,7 @@ export default function BookingApp({ today }: { today: Date }) {
                   <Typography sx={{ color: ui.inkMute, fontSize: 13 }}>Seña: {money(service.deposit)}</Typography>
                   <Typography sx={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: '2.2rem', fontWeight: 500 }}>{money(service.deposit)}</Typography>
                   <Typography variant="caption" sx={{ color: ui.inkSoft, display: 'block', mb: 2 }}>El resto ({money(service.price - service.deposit)}) lo pagás en el local.</Typography>
-                  <Button fullWidth variant="contained" size="large" onClick={() => { setPaying('redirect'); window.setTimeout(() => { setPaying('idle'); confirmBooking(); }, 1800); }} sx={{ bgcolor: '#009EE3', '&:hover': { bgcolor: '#0086c3' } }}>
+                  <Button data-tour="pay" fullWidth variant="contained" size="large" onClick={() => { setPaying('redirect'); window.setTimeout(() => { setPaying('idle'); confirmBooking(); }, 1800); }} sx={{ bgcolor: '#009EE3', '&:hover': { bgcolor: '#0086c3' } }}>
                     Pagar ahora con MercadoPago
                   </Button>
                   <Typography variant="caption" sx={{ color: ui.inkMute, display: 'block', mt: 1 }}>
@@ -276,7 +352,7 @@ export default function BookingApp({ today }: { today: Date }) {
             ) : null}
 
             {step === lastStep && code && (
-              <Box sx={{ textAlign: 'center', py: 1 }}>
+              <Box data-tour="confirmed" sx={{ textAlign: 'center', py: 1 }}>
                 <Avatar sx={{ width: 56, height: 56, bgcolor: ui.primary, mx: 'auto', mb: 2 }}><Check /></Avatar>
                 <Typography sx={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: '1.7rem', fontWeight: 500, lineHeight: 1.05 }}>Turno confirmado</Typography>
                 <Typography variant="body2" sx={{ color: ui.inkSoft, mt: 1 }}>
@@ -298,7 +374,7 @@ export default function BookingApp({ today }: { today: Date }) {
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1.5 }}>
               <Button startIcon={<ArrowBack />} onClick={() => { setErrors(null); setStep((s) => s - 1); }} sx={{ color: ui.inkSoft }}>Anterior</Button>
               {step >= 2 && (
-                <Button variant="contained" endIcon={<ArrowForward />} onClick={next}>
+                <Button data-tour="next" variant="contained" endIcon={<ArrowForward />} onClick={next}>
                   {step === 3 && !service?.deposit ? 'Confirmar Reserva' : 'Siguiente'}
                 </Button>
               )}
@@ -319,6 +395,7 @@ export default function BookingApp({ today }: { today: Date }) {
 
         {notif && !chat && (
           <Box
+            data-tour="notif"
             component="button"
             type="button"
             onClick={() => {
@@ -361,7 +438,7 @@ export default function BookingApp({ today }: { today: Date }) {
             <Box sx={{ p: 1.25, bgcolor: '#f0f2f5', display: 'flex', gap: 1 }}>
               {chat.length === 1 ? (
                 <>
-                  <Button fullWidth variant="contained" sx={{ bgcolor: '#25d366', '&:hover': { bgcolor: '#1ebe5b' } }} onClick={() => setChat((c) => [...(c ?? []), { from: 'client', text: 'Si' }, { from: 'business', text: `¡Gracias ${firstName}! Tu turno del ${slot ? DAYS[slot.getDay()] : ''} a las ${slot ? fmtTime(slot) : ''} quedó confirmado. Te esperamos 😊` }])}>
+                  <Button data-tour="reply-si" fullWidth variant="contained" sx={{ bgcolor: '#25d366', '&:hover': { bgcolor: '#1ebe5b' } }} onClick={() => setChat((c) => [...(c ?? []), { from: 'client', text: 'Si' }, { from: 'business', text: `¡Gracias ${firstName}! Tu turno del ${slot ? DAYS[slot.getDay()] : ''} a las ${slot ? fmtTime(slot) : ''} quedó confirmado. Te esperamos 😊` }])}>
                     Responder SI
                   </Button>
                   <Button fullWidth variant="outlined" sx={{ bgcolor: '#fff' }} onClick={() => setChat((c) => [...(c ?? []), { from: 'client', text: 'No voy a poder' }, { from: 'business', text: `Listo ${firstName}, cancelamos tu turno del ${slot ? DAYS[slot.getDay()] : ''} a las ${slot ? fmtTime(slot) : ''}. ¡Te esperamos la próxima! 🙌` }])}>
@@ -369,11 +446,15 @@ export default function BookingApp({ today }: { today: Date }) {
                   </Button>
                 </>
               ) : (
-                <Button fullWidth variant="outlined" sx={{ bgcolor: '#fff' }} onClick={reset}>Reservar otro turno</Button>
+                <Button data-tour="again" fullWidth variant="outlined" sx={{ bgcolor: '#fff' }} onClick={reset}>Reservar otro turno</Button>
               )}
             </Box>
           </Box>
         )}
+
+        <Box ref={overlayRef} aria-hidden sx={{ position: 'absolute', inset: 0, zIndex: 40, pointerEvents: 'none' }}>
+          <AutopilotCursor cursor={pilot.cursor} variant="touch" />
+        </Box>
       </Box>
     </ThemeProvider>
   );

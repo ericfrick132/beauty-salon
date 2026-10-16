@@ -52,10 +52,12 @@ import {
   ArrowBack,
   ArrowForward,
   PhoneIphone,
+  PlayArrow,
 } from '@mui/icons-material';
 import { useSignupModal } from '@/app/(components)/(sections)/SignupModal';
 import { trackDemoView } from '@/app/(lib)/demoTracking';
 import { adminTheme, ui } from './adminTheme';
+import { AutopilotCursor, useAutopilot, type Pilot } from './autopilot';
 import {
   ADMIN,
   BUSINESS,
@@ -128,6 +130,94 @@ const MOBILE_NAV: Array<{ label: string; icon: ReactNode; screen?: ScreenId }> =
 
 type Toast = { id: number; msg: string; cta?: boolean };
 
+// Navega como lo haría una persona: menú lateral en desktop, barra inferior o menú hamburguesa en mobile.
+async function navTo(p: Pilot, screen: ScreenId, isMobile: boolean) {
+  if (isMobile) {
+    if (MOBILE_NAV.some((n) => n.screen === screen)) return void await p.tap(`[data-tour="mnav-${screen}"]`);
+    await p.tap('[aria-label="Abrir menú"]');
+    await p.sleep(450);
+  }
+  const group = parentOf(screen);
+  if (group && !p.exists(`[data-tour="nav-${screen}"]`)) {
+    await p.tap(`[data-tour="group-${group}"]`);
+    await p.sleep(450);
+  }
+  await p.tap(`[data-tour="nav-${screen}"]`);
+  await p.sleep(700);
+}
+
+async function adminTour(p: Pilot, isMobile: boolean) {
+  await p.scrollWindow(0);
+  p.caption('Arrancás el día viendo turnos, ingresos y pendientes de un vistazo');
+  await p.sleep(2600);
+  await p.scrollWindow(520);
+  await p.sleep(1600);
+  await p.scrollWindow(0);
+
+  await navTo(p, 'calendar', isMobile);
+  p.caption('Tu agenda, por día y por profesional');
+  await p.sleep(2200);
+  p.caption('Cargás un turno en segundos');
+  await p.tap('[data-tour="cal-new"]');
+  await p.sleep(400);
+  await p.tap('[data-tour="cal-new-booking"]');
+  await p.sleep(700);
+  await p.pick('Servicio', 'Coloración completa');
+  await p.pick('Profesional', 'Lucía');
+  await p.pick('Día', 1);
+  await p.sleep(400);
+  const slots = p.all('[data-tour="nb-slot"]');
+  if (slots.length) await p.tap(slots[Math.min(2, slots.length - 1)]);
+  await p.sleep(700);
+  await p.tap('[data-tour="nb-create"]');
+  p.caption('Queda en la agenda y al cliente le llega el link para pagar la seña');
+  await p.sleep(3200);
+
+  await navTo(p, 'payments', isMobile);
+  p.caption('Efectivo, tarjeta, transferencia y MercadoPago en un solo lugar');
+  await p.sleep(2000);
+  const cobrar = p.exists('[data-tour="pay-cobrar"]');
+  if (cobrar) {
+    await p.tap(cobrar);
+    p.caption('Cobrás con un clic y la caja del día se actualiza sola');
+    await p.sleep(2600);
+  }
+
+  await navTo(p, 'bot', isMobile);
+  p.caption('El bot le pide confirmación a cada cliente por WhatsApp');
+  await p.sleep(2200);
+  await p.tap('[data-tour="bot-si"]');
+  p.caption('El cliente responde SI y el turno se confirma solo en tu agenda');
+  await p.sleep(3400);
+
+  await navTo(p, 'agent', isMobile);
+  p.caption('El Agente IA atiende tu WhatsApp las 24 hs y agenda turnos nuevos');
+  await p.sleep(1800);
+  const tried = new Set<string>();
+  for (let i = 0; i < 8 && !p.exists('[data-tour="agent-done"]'); i++) {
+    const opt = await p.find(() => {
+      const opts = p.all('[data-tour="agent-opt"]');
+      return opts.find((o) => o.textContent === 'Sí, dale')
+        ?? opts.find((o) => o.textContent === 'Hola! quería sacar un turno')
+        ?? opts.find((o) => o.textContent && o.textContent !== '¿Cuánto sale el corte?' && o.textContent !== 'Mejor otro horario' && !tried.has(o.textContent));
+    }, 6000);
+    if (opt.textContent) tried.add(opt.textContent);
+    await p.tap(opt);
+    await p.sleep(1200);
+  }
+  await p.find('[data-tour="agent-done"]', 6000);
+  p.caption('Turno nuevo en tu agenda, sin que toques el celular');
+  await p.sleep(3200);
+
+  await navTo(p, 'reports', isMobile);
+  p.caption('Y ves cuánto facturás, por servicio y por profesional');
+  await p.sleep(2400);
+  await p.scrollWindow(600);
+  await p.sleep(1800);
+
+  await navTo(p, 'dashboard', isMobile);
+}
+
 export default function DemoAdmin() {
   const { open: openSignup } = useSignupModal();
   const isMobile = useMediaQuery(adminTheme.breakpoints.down('md'));
@@ -140,7 +230,13 @@ export default function DemoAdmin() {
   const [ctaCollapsed, setCtaCollapsed] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [botEnabled, setBotEnabled] = useState(true);
+  const [restartKey, setRestartKey] = useState(0);
   const toastId = useRef(0);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const isMobileRef = useRef(isMobile);
+  isMobileRef.current = isMobile;
+  const pilot = useAutopilot({ overlay: overlayRef, root: rootRef, windowScroll: true, script: (p) => adminTour(p, isMobileRef.current) });
 
   // Los datos dependen de la fecha y la hora: se arman recién en el cliente (el HTML exportado queda vacío).
   useEffect(() => {
@@ -205,6 +301,22 @@ export default function DemoAdmin() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [today, customers, bookings, botEnabled, isMobile, go, toast, register, addBooking, updateBooking, registerPayment, addCustomer]);
 
+  // La demo se mueve sola apenas cargan los datos; con un clic o una tecla el visitante toma el control.
+  const ready = !!demo;
+  useEffect(() => {
+    if (!ready) return;
+    const t = window.setTimeout(() => pilot.start(), 900);
+    return () => window.clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
+
+  const replay = () => {
+    setDrawerOpen(false);
+    setScreen('dashboard');
+    setRestartKey((k) => k + 1);
+    window.setTimeout(() => pilot.start(), 300);
+  };
+
   const pendingCount = bookings.filter((b) => b.status === 'pending' && today && b.start > today).length;
   const mobileNavValue = MOBILE_NAV.findIndex((n) => n.screen === screen);
   const ctaH = ctaCollapsed ? 56 : isMobile ? 112 : 132;
@@ -227,7 +339,7 @@ export default function DemoAdmin() {
             const active = item.screen === screen;
             return (
               <ListItem key={item.text} disablePadding>
-                <NavButton active={active} locked={!item.screen} onClick={() => (item.screen ? go(item.screen) : locked(item.text))}>
+                <NavButton tour={item.screen && `nav-${item.screen}`} active={active} locked={!item.screen} onClick={() => (item.screen ? go(item.screen) : locked(item.text))}>
                   <ListItemIcon>{item.icon}</ListItemIcon>
                   <ListItemText primary={item.text} />
                 </NavButton>
@@ -238,7 +350,7 @@ export default function DemoAdmin() {
           return (
             <Box key={item.text}>
               <ListItem disablePadding>
-                <NavButton onClick={() => setOpenGroup(expanded ? null : item.text)}>
+                <NavButton tour={`group-${item.text}`} onClick={() => setOpenGroup(expanded ? null : item.text)}>
                   <ListItemIcon>{item.icon}</ListItemIcon>
                   <ListItemText primary={item.text} />
                   {expanded ? <ExpandLess /> : <ExpandMore />}
@@ -249,6 +361,7 @@ export default function DemoAdmin() {
                   {item.children.map((child) => (
                     <ListItem key={child.text} disablePadding sx={{ pl: 2 }}>
                       <NavButton
+                        tour={child.screen && `nav-${child.screen}`}
                         small
                         active={child.screen === screen}
                         locked={!child.screen}
@@ -278,7 +391,7 @@ export default function DemoAdmin() {
 
   return (
     <ThemeProvider theme={adminTheme}>
-      <Box sx={{ minHeight: '100vh', bgcolor: ui.bg, fontFamily: adminTheme.typography.fontFamily }}>
+      <Box ref={rootRef} sx={{ minHeight: '100vh', bgcolor: ui.bg, fontFamily: adminTheme.typography.fontFamily }}>
         {/* Banner de demo */}
         <Box
           sx={{
@@ -378,7 +491,7 @@ export default function DemoAdmin() {
           {!demo ? (
             <Typography sx={{ py: 10, textAlign: 'center', color: ui.textMute }}>Cargando tu agenda…</Typography>
           ) : (
-            <Box key={screen} sx={{ maxWidth: 1240, mx: 'auto', animation: 'tpDemoIn 280ms ease', '@keyframes tpDemoIn': { from: { opacity: 0, transform: 'translateY(8px)' }, to: { opacity: 1, transform: 'none' } } }}>
+            <Box key={`${screen}-${restartKey}`} sx={{ maxWidth: 1240, mx: 'auto', animation: 'tpDemoIn 280ms ease', '@keyframes tpDemoIn': { from: { opacity: 0, transform: 'translateY(8px)' }, to: { opacity: 1, transform: 'none' } } }}>
               {screen === 'dashboard' && <DashboardScreen demo={demo} />}
               {screen === 'calendar' && <CalendarScreen demo={demo} />}
               {screen === 'customers' && <CustomersScreen demo={demo} />}
@@ -388,6 +501,35 @@ export default function DemoAdmin() {
               {screen === 'bot' && <BotScreen demo={demo} />}
               {screen === 'agent' && <AgentScreen demo={demo} />}
             </Box>
+          )}
+        </Box>
+
+        {/* Piloto automático: cursor + estado de la demo */}
+        <Box ref={overlayRef} aria-hidden sx={{ position: 'fixed', inset: 0, zIndex: 1500, pointerEvents: 'none' }}>
+          <AutopilotCursor cursor={pilot.cursor} variant={isMobile ? 'touch' : 'mouse'} />
+        </Box>
+        <Box
+          data-autopilot-ui
+          sx={{
+            position: 'fixed', zIndex: 1450, display: 'flex', justifyContent: 'center', pointerEvents: 'none',
+            left: { xs: 12, md: SIDEBAR_W + 24 }, right: { xs: 12, md: 420 },
+            ...(isMobile ? { top: BANNER_H + 56 + 8 } : { bottom: ctaH + 16 }),
+          }}
+        >
+          {pilot.running ? (
+            <Box sx={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 1.25, pl: 1.5, pr: 0.75, py: 0.75, maxWidth: 640, bgcolor: '#fff', color: ui.text, border: `1px solid ${ui.line}`, borderRadius: 999, boxShadow: '0 10px 28px rgba(17,24,39,0.16)', fontSize: { xs: 13, md: 14 } }}>
+              <Box component="span" sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#E8593C', flexShrink: 0, animation: 'tpLive 1.4s ease-in-out infinite', '@keyframes tpLive': { '50%': { opacity: 0.25 } } }} />
+              <Box key={pilot.caption} sx={{ flex: 1, minWidth: 0, fontWeight: 600, lineHeight: 1.3, animation: 'tpCap 300ms ease', '@keyframes tpCap': { from: { opacity: 0, transform: 'translateY(4px)' } } }}>
+                {pilot.caption || 'Demo en vivo'}
+              </Box>
+              <Button size="small" onClick={pilot.stop} sx={{ flexShrink: 0, borderRadius: 999, whiteSpace: 'nowrap', fontSize: 12 }}>
+                Probar yo
+              </Button>
+            </Box>
+          ) : (
+            <Button variant="contained" size="small" startIcon={<PlayArrow />} onClick={replay} sx={{ pointerEvents: 'auto', borderRadius: 999, px: 2, bgcolor: ui.navbar, boxShadow: '0 10px 28px rgba(17,24,39,0.25)', '&:hover': { bgcolor: '#1f2937' } }}>
+              Ver la demo automática
+            </Button>
           )}
         </Box>
 
@@ -458,7 +600,7 @@ export default function DemoAdmin() {
             }}
             sx={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 1160, borderTop: `1px solid ${ui.border}`, boxShadow: '0 -6px 18px rgba(0,0,0,0.08)', bgcolor: '#fff' }}
           >
-            {MOBILE_NAV.map((n) => <BottomNavigationAction key={n.label} label={n.label} icon={n.icon} sx={{ minWidth: 0 }} />)}
+            {MOBILE_NAV.map((n) => <BottomNavigationAction key={n.label} data-tour={n.screen && `mnav-${n.screen}`} label={n.label} icon={n.icon} sx={{ minWidth: 0 }} />)}
           </BottomNavigation>
         )}
       </Box>
@@ -466,9 +608,10 @@ export default function DemoAdmin() {
   );
 }
 
-function NavButton({ active, locked, small, onClick, children }: { active?: boolean; locked?: boolean; small?: boolean; onClick: () => void; children: ReactNode }) {
+function NavButton({ tour, active, locked, small, onClick, children }: { tour?: string; active?: boolean; locked?: boolean; small?: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <ListItemButton
+      data-tour={tour}
       onClick={onClick}
       sx={{
         mx: 1, my: 0.5, borderRadius: '8px', transition: 'all 0.2s ease',

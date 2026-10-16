@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Box, Button, Container, Stack, Typography } from '@mui/material';
 import Header from '@/app/(components)/Header';
@@ -21,12 +21,28 @@ export default function DemoAppPage() {
 function DemoAppContent() {
   const { open } = useSignupModal();
   const [today, setToday] = useState<Date | null>(null);
+  const [auto, setAuto] = useState(true);
+  const [inView, setInView] = useState(false);
+  const [caption, setCaption] = useState('');
+  const [run, setRun] = useState(0);
+  const phoneRef = useRef<HTMLDivElement>(null);
 
   // Horarios y fechas dependen de hoy: la app se monta recién en el cliente.
   useEffect(() => {
     setToday(new Date());
     trackDemoView('demo-app');
   }, []);
+
+  // La demo arranca sola recién cuando el celular está a la vista (en mobile queda abajo del texto).
+  useEffect(() => {
+    const el = phoneRef.current;
+    if (!el || inView) return;
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) setInView(true); }, { threshold: 0.45 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [inView, today]);
+
+  const replay = () => { setRun((r) => r + 1); setCaption(''); setAuto(true); };
 
   return (
     <Box component="main" sx={{ py: { xs: 5, md: 8 } }}>
@@ -39,7 +55,7 @@ function DemoAppContent() {
               <Box component="span" sx={{ color: palette.coral, fontStyle: 'italic' }}>tus clientes.</Box>
             </Typography>
             <Typography sx={{ fontSize: { xs: '1.05rem', md: '1.15rem' }, color: palette.inkSoft, maxWidth: 520, lineHeight: 1.6, mb: 3 }}>
-              Entran a tu link, eligen servicio, profesional y horario, y si hace falta pagan la seña con MercadoPago. Sin apps ni descargas. Tocá todo: es la página real, con datos de ejemplo.
+              Entran a tu link, eligen servicio, profesional y horario, y si hace falta pagan la seña con MercadoPago. Sin apps ni descargas. Mirá cómo se completa una reserva, o tocá la pantalla y probala vos: es la página real, con datos de ejemplo.
             </Typography>
             <Box component="ul" sx={{ listStyle: 'none', p: 0, m: 0, mb: 4, display: 'flex', flexDirection: 'column', gap: 1.2 }}>
               {[
@@ -68,6 +84,7 @@ function DemoAppContent() {
 
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
             <Box
+              ref={phoneRef}
               sx={{
                 position: 'relative', width: 'min(380px, 100%)', height: { xs: '78vh', md: 'min(780px, 84vh)' }, minHeight: 620,
                 p: { xs: '8px', sm: '12px' }, borderRadius: { xs: '40px', sm: '48px' }, bgcolor: palette.ink,
@@ -76,12 +93,31 @@ function DemoAppContent() {
             >
               <Box aria-hidden sx={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', width: 96, height: 26, borderRadius: 999, bgcolor: '#000', zIndex: 30 }} />
               <Box sx={{ position: 'relative', height: '100%', borderRadius: { xs: '32px', sm: '36px' }, overflow: 'hidden', bgcolor: palette.paper }}>
-                {today ? <BookingApp today={today} /> : <Box sx={{ display: 'grid', placeItems: 'center', height: '100%', color: palette.inkMute }}>Cargando…</Box>}
+                {today ? <BookingApp key={run} today={today} autoplay={auto && inView} onCaption={setCaption} onTakeover={() => setAuto(false)} /> : <Box sx={{ display: 'grid', placeItems: 'center', height: '100%', color: palette.inkMute }}>Cargando…</Box>}
               </Box>
             </Box>
-            <Typography sx={{ fontFamily: 'var(--font-mono), monospace', fontSize: '0.7rem', letterSpacing: '0.14em', textTransform: 'uppercase', color: palette.inkMute, textAlign: 'center' }}>
-              Interactuá: elegí, reservá, pagá la seña.
-            </Typography>
+            {auto ? (
+              <Box sx={{ minHeight: 52, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, textAlign: 'center' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: palette.ink, fontWeight: 600, fontSize: '0.98rem' }}>
+                  <Box component="span" sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: palette.coral, flexShrink: 0, animation: 'tpLive 1.4s ease-in-out infinite', '@keyframes tpLive': { '50%': { opacity: 0.25 } } }} />
+                  <Box key={caption} component="span" sx={{ animation: 'tpCap 300ms ease', '@keyframes tpCap': { from: { opacity: 0, transform: 'translateY(4px)' } } }}>
+                    {caption || 'Demo en vivo'}
+                  </Box>
+                </Box>
+                <Typography sx={{ fontFamily: 'var(--font-mono), monospace', fontSize: '0.68rem', letterSpacing: '0.14em', textTransform: 'uppercase', color: palette.inkMute }}>
+                  Tocá la pantalla para probarla vos
+                </Typography>
+              </Box>
+            ) : (
+              <Box sx={{ minHeight: 52, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.75 }}>
+                <Typography sx={{ fontFamily: 'var(--font-mono), monospace', fontSize: '0.7rem', letterSpacing: '0.14em', textTransform: 'uppercase', color: palette.inkMute, textAlign: 'center' }}>
+                  Interactuá: elegí, reservá, pagá la seña.
+                </Typography>
+                <Button size="small" variant="outlined" onClick={replay} sx={{ borderRadius: 999, px: 2 }}>
+                  ▶ Ver la demo automática
+                </Button>
+              </Box>
+            )}
           </Box>
         </Box>
       </Container>

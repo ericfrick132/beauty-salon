@@ -212,7 +212,7 @@ export function PaymentsScreen({ demo }: { demo: Demo }) {
                     {b.paid ? (
                       <Chip size="small" icon={<CheckCircle sx={{ fontSize: 16 }} />} label="Pagado" color="success" />
                     ) : (
-                      <Button size="small" variant="outlined" onClick={() => demo.registerPayment(b.id, 'cash')}>Cobrar</Button>
+                      <Button data-tour="pay-cobrar" size="small" variant="outlined" onClick={() => demo.registerPayment(b.id, 'cash')}>Cobrar</Button>
                     )}
                   </TableCell>
                 </TableRow>
@@ -418,7 +418,7 @@ export function BotScreen({ demo }: { demo: Demo }) {
                 <Button fullWidth onClick={() => { setReply(null); setSampleIdx((i) => i + 1); }}>Probar con otro turno</Button>
               ) : (
                 <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Button fullWidth variant="contained" onClick={() => answer('si')} sx={{ bgcolor: '#25d366', '&:hover': { bgcolor: '#1ebe5b' } }}>Responder SI</Button>
+                  <Button data-tour="bot-si" fullWidth variant="contained" onClick={() => answer('si')} sx={{ bgcolor: '#25d366', '&:hover': { bgcolor: '#1ebe5b' } }}>Responder SI</Button>
                   <Button fullWidth variant="outlined" onClick={() => answer('no')} sx={{ bgcolor: '#fff' }}>Responder NO</Button>
                 </Box>
               )}
@@ -577,13 +577,13 @@ export function AgentScreen({ demo }: { demo: Demo }) {
                 footer={
                   step === 'done' && !typing ? (
                     <Box sx={{ display: 'flex', gap: 1 }}>
-                      <Button fullWidth variant="contained" startIcon={<CalendarToday />} onClick={() => demo.go('calendar')}>Ver en la agenda</Button>
+                      <Button data-tour="agent-done" fullWidth variant="contained" startIcon={<CalendarToday />} onClick={() => demo.go('calendar')}>Ver en la agenda</Button>
                       <Button fullWidth variant="outlined" onClick={reset} sx={{ bgcolor: '#fff' }}>Otra conversación</Button>
                     </Box>
                   ) : options.length ? (
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                       {options.map((o) => (
-                        <Chip key={o.label} label={o.label} onClick={o.onClick} sx={{ bgcolor: '#fff', border: `1px solid ${ui.border}`, height: 32, '&:hover': { bgcolor: '#E7F8EE' } }} />
+                        <Chip key={o.label} data-tour="agent-opt" label={o.label} onClick={o.onClick} sx={{ bgcolor: '#fff', border: `1px solid ${ui.border}`, height: 32, '&:hover': { bgcolor: '#E7F8EE' } }} />
                       ))}
                     </Box>
                   ) : (
