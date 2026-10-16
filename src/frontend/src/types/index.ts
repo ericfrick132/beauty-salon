@@ -12,6 +12,8 @@ export interface ThemeConfiguration {
   textSecondaryColor: string;
   borderColor: string;
   fontFamily: string;
+  /** Tipografía de títulos del look del rubro (config/businessLooks.ts). */
+  headingFontFamily?: string | null;
   borderRadius: number;
   useShadows: boolean;
   autoContrastText: boolean;
@@ -20,6 +22,8 @@ export interface ThemeConfiguration {
 export interface TenantConfig {
   tenantId: string;
   businessName: string;
+  /** Rubro elegido en el onboarding (barberia, salon_belleza…): fotos y look del panel y la página pública. */
+  businessKind?: string | null;
   vertical: 'barbershop' | 'beautysalon' | 'aesthetics';
   /** Zona IANA del negocio (las viejas guardadas como "-3" vuelven ya convertidas). */
   timezone: string;

@@ -45,6 +45,8 @@ import {
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useTenant } from '../contexts/TenantContext';
+import { lookFor } from '../config/businessLooks';
+import LookBackdrop from '../components/common/LookBackdrop';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import PlanUsageCard from '../components/subscription/PlanUsageCard';
 import NewFeaturesCard from '../components/subscription/NewFeaturesCard';
@@ -89,6 +91,7 @@ const Dashboard: React.FC = () => {
   const w = useTenantWording();
   const depositsWithStripe = features.stripeDeposits;
   const { config, getTerm } = useTenant();
+  const look = lookFor(config?.businessKind);
   const navigate = useNavigate();
   const { subscription } = useSubscription();
   const dispatch = useAppDispatch();
@@ -417,7 +420,8 @@ const Dashboard: React.FC = () => {
   );
 
   return (
-    <Box>
+    <Box sx={{ position: 'relative', isolation: 'isolate', '& > :not(.tp-look-backdrop)': { position: 'relative', zIndex: 1 } }}>
+        <Box className="tp-look-backdrop"><LookBackdrop look={look} opacity={0.12} /></Box>
         {/* Aviso: hay servicios con seña pero MercadoPago no está conectado */}
         {canSeeAdmin && mpActive === false && services.some((s: any) => s.requiresDeposit) && (
           <Alert
@@ -474,18 +478,30 @@ const Dashboard: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <Box sx={{ mb: 4 }}>
+          {/* Con rubro elegido, la bienvenida lleva la foto de su look (la misma que la página de reservas). */}
+          <Box
+            sx={look ? {
+              mb: 4,
+              px: { xs: 2.5, md: 4 },
+              py: { xs: 3, md: 4.5 },
+              borderRadius: 3,
+              color: '#FFFFFF',
+              backgroundImage: `linear-gradient(100deg, ${look.palette.ink}e6 0%, ${look.palette.ink}99 45%, ${look.palette.ink}33 100%), url(${look.images.bg})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            } : { mb: 4 }}
+          >
             <Typography 
               variant="h4" 
               sx={{ 
                 fontWeight: 700, 
                 mb: 1,
-                color: '#111827',
+                color: look ? '#FFFFFF' : '#111827',
               }}
             >
               ¡Bienvenido de vuelta, {config?.businessName}!
             </Typography>
-            <Typography variant="body1" sx={{ color: '#6B7280' }}>
+            <Typography variant="body1" sx={{ color: look ? 'rgba(255,255,255,0.85)' : '#6B7280' }}>
               Aquí está el resumen de tu negocio para hoy, {format(new Date(), "EEEE d 'de' MMMM", { locale: es })}
             </Typography>
           </Box>

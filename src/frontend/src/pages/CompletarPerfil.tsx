@@ -13,6 +13,7 @@ import OnboardingWizard, {
   OnboardingPayload,
 } from '../components/onboarding/OnboardingWizard';
 import { onboardingConfigForCountry } from '../config/onboardingConfig';
+import { lookFor, themeFromLook } from '../config/businessLooks';
 import { useTenantOptional } from '../contexts/TenantContext';
 
 // Preload the landing's fonts by injecting <link> tags if not already present.
@@ -177,6 +178,18 @@ const CompletarPerfil: React.FC = () => {
       // Only sent when the user opted in to web login credentials.
       ...(email && password ? { email, password } : {}),
     };
+
+    // El look del rubro queda como tema del negocio (panel + página pública). Va antes del PATCH: si el
+    // nombre nuevo cambia el subdominio, el PATCH redirige y esta sesión ya no sirve en el host nuevo.
+    const look = lookFor(payload.activity);
+    if (look) {
+      try {
+        await api.post('/ThemeConfiguration', themeFromLook(look, payload.primaryColor, payload.secondaryColor));
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('No se pudo guardar el tema del rubro; queda el del vertical.', e);
+      }
+    }
 
     const res = await api.patch('/tenants/current/onboarding', body);
 

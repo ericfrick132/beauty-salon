@@ -53,6 +53,8 @@ import { formatMoney, getCountry } from '../../utils/intl';
 import { getWording } from '../../utils/wording';
 import CustomFieldInput from '../../components/booking/CustomFieldInput';
 import { CouponQuote, normalizeCouponCode, PublicFormField, publicBookingExtrasApi } from '../../services/bookingExtrasApi';
+import { BusinessLook, lookFor } from '../../config/businessLooks';
+import LookBackdrop from '../../components/common/LookBackdrop';
 import { initBusinessTracking, trackBookingCreated, trackDepositCheckout, trackDepositPaid } from '../../utils/businessTracking';
 
 // Steps are computed dynamically depending on whether the service requires a deposit
@@ -66,7 +68,7 @@ const baseSteps = ['Servicio', 'Profesional', 'Fecha y Hora', 'Tus Datos'] as co
  * que funcione igual en una barbería, un centro de estética o una cancha.
  * La paleta y las tipografías son las de la landing ("Editorial Agenda").
  */
-const ui = {
+const DEFAULT_UI = {
   paper: '#F4EFE6',
   surface: '#FAF7F0',
   ink: '#171410',
@@ -76,6 +78,26 @@ const ui = {
   ruleSoft: 'rgba(23, 20, 16, 0.08)',
   display: '"Fraunces", Georgia, serif',
   mono: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
+};
+
+/**
+ * Paleta de la página. Arranca con la de la marca y, cuando llega el rubro del negocio, toma su look
+ * (config/businessLooks.ts). Es un objeto mutable a propósito: lo leen también los helpers de este
+ * archivo y BookingPage lo actualiza en cada render antes de pintar (applyLook).
+ */
+const ui = { ...DEFAULT_UI };
+
+const applyLook = (look: BusinessLook | null) => {
+  Object.assign(ui, look
+    ? {
+        paper: look.palette.paper,
+        ink: look.palette.ink,
+        inkSoft: look.palette.inkSoft,
+        inkMute: look.palette.inkFaint,
+        rule: look.palette.paperRule,
+        display: look.displayFont,
+      }
+    : DEFAULT_UI);
 };
 
 /**
@@ -1516,9 +1538,31 @@ const BookingPage: React.FC = () => {
 
   // No early return; el contenido final se muestra como último paso del stepper
 
+  const look = lookFor(businessInfo?.businessKind);
+  applyLook(look);
+
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: ui.paper, py: { xs: 3, md: 6 } }}>
-      <Container maxWidth="lg">
+    <Box sx={{ position: 'relative', minHeight: '100vh', bgcolor: ui.paper, py: { xs: 3, md: 6 }, transition: 'background-color 400ms ease' }}>
+      <LookBackdrop look={look} />
+      <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
+        {/* Foto del rubro del negocio (barbería, spa…) arriba del nombre */}
+        {look && (
+          <Box
+            role="img"
+            aria-label={look.alts?.bg ?? ''}
+            sx={{
+              height: { xs: 150, sm: 200, md: 260 },
+              mb: { xs: 3, md: 4 },
+              borderRadius: 3,
+              overflow: 'hidden',
+              backgroundImage: `linear-gradient(180deg, transparent 45%, ${look.palette.paper}cc 100%), url(${look.images.bg})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              animation: 'tpHeroIn 600ms ease both',
+              '@keyframes tpHeroIn': { from: { opacity: 0, transform: 'scale(1.02)' } },
+            }}
+          />
+        )}
         {/* Header: el nombre del negocio es lo primero y lo más grande de la página */}
         <Box sx={{ mb: { xs: 3, md: 5 }, textAlign: 'center' }}>
           <Typography

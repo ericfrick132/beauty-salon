@@ -278,6 +278,8 @@ namespace BookingPro.API.Controllers
                 return Ok(new
                 {
                     businessName = tenant.BusinessName,
+                    // Rubro del onboarding: la página de reservas toma su look (paleta, títulos y foto).
+                    businessKind = tenant.BusinessKind,
                     metaPixelId = tracking.Allowed ? tenant.MetaPixelId : null,
                     googleAnalyticsId = tracking.Allowed ? tenant.GoogleAnalyticsId : null,
                     address = "",

@@ -4,15 +4,18 @@
  * Palette + typography are pulled from the landing's "Editorial Agenda" theme
  * (see src/marketing-next/app/(lib)/theme.ts). The wizard must feel like the
  * landing: warm cream paper, forest/coral ink accents, Fraunces serif display,
- * Space Grotesk body, JetBrains Mono kickers. We do NOT recolor anything per-
- * vertical here — the wizard is the moment we show the product-level brand.
+ * Space Grotesk body, JetBrains Mono kickers. Until the owner picks the business
+ * type it's the product brand; from then on the wizard takes the look of that
+ * rubro (config/businessLooks.ts: palette, display font, its own photos).
  */
 
 import React from 'react';
 import type {
   OnboardingConfig,
+  OnboardingLook,
   ThemePreset,
 } from '../components/onboarding/OnboardingWizard';
+import { lookFor } from './businessLooks';
 import AiChatStoryPanel from '../components/onboarding/AiChatStoryPanel';
 import { getWording } from '../utils/wording';
 
@@ -68,6 +71,34 @@ const themePresets: ThemePreset[] = [
     secondary: '#E8593C',
   },
 ];
+
+const STEP_ALTS: Record<1 | 2 | 3 | 4 | 5, string> = {
+  1: 'Foto del rubro',
+  2: 'El oficio en detalle',
+  3: 'Herramientas y productos del rubro',
+  4: 'Un cliente atendido',
+  5: 'El espacio listo para recibir clientes',
+};
+
+/** Look del rubro elegido en el paso 2 (paleta, títulos, fondo, fotos y la paleta como primera opción de marca). */
+const lookForActivity = (activity: string): OnboardingLook | null => {
+  const look = lookFor(activity);
+  if (!look) return null;
+  const steps = look.images.steps;
+  return {
+    palette: look.palette,
+    displayFont: look.displayFont,
+    backgroundUrl: look.images.bg,
+    stepImages: {
+      1: { url: steps[1], alt: look.alts?.step1 ?? STEP_ALTS[1] },
+      2: { url: steps[2], alt: look.alts?.step2 ?? STEP_ALTS[2] },
+      3: { url: steps[3], alt: look.alts?.step3 ?? STEP_ALTS[3] },
+      4: { url: steps[4], alt: look.alts?.step4 ?? STEP_ALTS[4] },
+      5: { url: steps[5], alt: look.alts?.step5 ?? STEP_ALTS[5] },
+    },
+    preset: { code: 'business', label: look.presetLabel, primary: look.palette.primary, secondary: look.palette.secondary },
+  };
+};
 
 export const turnosProOnboardingConfig: OnboardingConfig = {
   productKey: 'turnospro',
@@ -172,6 +203,7 @@ export const turnosProOnboardingConfig: OnboardingConfig = {
     },
   },
   themePresets,
+  lookForActivity,
 };
 
 /**

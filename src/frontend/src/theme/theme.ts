@@ -1,6 +1,9 @@
 import { createTheme } from '@mui/material/styles';
 import { TenantConfig } from '../types';
 
+/** Tipografías de títulos que public/index.html carga (las del look por rubro). */
+const LOADED_DISPLAY_FONTS = ['Fraunces', 'Oswald', 'Cormorant Garamond', 'DM Serif Display', 'Fredoka'];
+
 // Function to create dynamic theme based on tenant config
 export const createTurnosProTheme = (config?: TenantConfig) => {
   const theme = config?.theme;
@@ -24,7 +27,11 @@ export const createTurnosProTheme = (config?: TenantConfig) => {
   // etc.) that aren't actually loaded, which falls back to Roboto and looks
   // off-brand. Tenants can still customize colors through their theme.
   const fontFamily = '"Space Grotesk", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
-  const displayFamily = '"Fraunces", "Space Grotesk", Georgia, serif';
+  // El look del rubro trae su tipografía de títulos; solo se acepta si es una de las que carga index.html.
+  const headingFont = theme?.headingFontFamily;
+  const displayFamily = headingFont && LOADED_DISPLAY_FONTS.some((f) => headingFont.includes(f))
+    ? headingFont
+    : '"Fraunces", "Space Grotesk", Georgia, serif';
   const borderRadius = theme?.borderRadius || 8;
   const useShadows = theme?.useShadows ?? true;
 

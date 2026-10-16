@@ -1,0 +1,226 @@
+{
+  "barberia": {
+    "bg": {
+      "unsplashId": "photo-1585747860715-2ba37e788b70",
+      "page": "https://unsplash.com/photos/EW_rqoSdDes",
+      "alt": "Barbería vintage con sillón de cuero, pared de ladrillo y luces cálidas"
+    },
+    "step1": {
+      "unsplashId": "photo-1593702275687-f8b402bf1fb5",
+      "page": "https://unsplash.com/photos/Q82AM6BWBPM",
+      "alt": "Barbero haciendo un degradé con máquina en la nuca"
+    },
+    "step2": {
+      "unsplashId": "photo-1657105052497-f996284ffff8",
+      "page": "https://unsplash.com/photos/DrG4V5skbMY",
+      "alt": "Barbero emprolijando el corte con tijera de entresacar y peine"
+    },
+    "step3": {
+      "unsplashId": "photo-1621605815971-fbc98d665033",
+      "page": "https://unsplash.com/photos/MNu0n-3BIKs",
+      "alt": "Tijeras, peine y productos de barbería sobre la mesa"
+    },
+    "step4": {
+      "unsplashId": "photo-1493256338651-d82f7acb2b38",
+      "page": "https://unsplash.com/photos/m4Pd_e-4zKs",
+      "alt": "Manos tatuadas de barbero repasando el corte con máquina"
+    },
+    "step5": {
+      "unsplashId": "photo-1621645582931-d1d3e6564943",
+      "page": "https://unsplash.com/photos/dU6eE_j2My8",
+      "alt": "Sillón clásico de barbería en un local en penumbra"
+    }
+  },
+  "salon_belleza": {
+    "bg": {
+      "unsplashId": "photo-1536520002442-39764a41e987",
+      "page": "https://unsplash.com/photos/2seUdPQNy_I",
+      "alt": "Peluquería con hilera de sillones y lámparas colgantes"
+    },
+    "step1": {
+      "unsplashId": "photo-1580618672591-eb180b1a973f",
+      "page": "https://unsplash.com/photos/FkAZqQJTbXM",
+      "alt": "Peluquera haciendo un brushing con secador y cepillo redondo"
+    },
+    "step2": {
+      "unsplashId": "photo-1634449571010-02389ed0f9b0",
+      "page": "https://unsplash.com/photos/Md_DhaFsnCQ",
+      "alt": "Lavado de cabello en el lavacabezas de la peluquería"
+    },
+    "step3": {
+      "unsplashId": "photo-1560869713-7d0a29430803",
+      "page": "https://unsplash.com/photos/MMz03PyCOZg",
+      "alt": "Peluquera armando ondas con buclera"
+    },
+    "step4": {
+      "unsplashId": "photo-1774660810725-fb04e002003d",
+      "page": "https://unsplash.com/photos/g0cSOCHaHiY",
+      "alt": "Estilista armando un recogido a una clienta en el salón"
+    },
+    "step5": {
+      "unsplashId": "photo-1554519934-e32b1629d9ee",
+      "page": "https://unsplash.com/photos/W6cwaL7PMSw",
+      "alt": "Cabello largo con mechas rubias y ondas suaves"
+    }
+  },
+  "estetica": {
+    "bg": {
+      "unsplashId": "photo-1596740926849-2d473dee8d60",
+      "page": "https://unsplash.com/photos/gzfIO69Q6eM",
+      "alt": "Gabinete de estética luminoso con sillones de tratamiento blancos"
+    },
+    "step1": {
+      "unsplashId": "photo-1570172619644-dfd03ed5d881",
+      "page": "https://unsplash.com/photos/Pe9IXUuC6QU",
+      "alt": "Cosmetóloga aplicando una máscara facial con pincel"
+    },
+    "step2": {
+      "unsplashId": "photo-1713085085470-fba013d67e65",
+      "page": "https://unsplash.com/photos/HtXyytr9304",
+      "alt": "Tratamiento facial con aparatología en el gabinete"
+    },
+    "step3": {
+      "unsplashId": "photo-1618479955358-5f8e5ab7d630",
+      "page": "https://unsplash.com/photos/ZuLP20_Hvlc",
+      "alt": "Productos de skincare sobre una mesa dorada"
+    },
+    "step4": {
+      "unsplashId": "photo-1731514771613-991a02407132",
+      "page": "https://unsplash.com/photos/u93nTfWqR9w",
+      "alt": "Cosmetóloga masajeando el rostro de una clienta"
+    },
+    "step5": {
+      "unsplashId": "photo-1761718209835-c8586b7dcac0",
+      "page": "https://unsplash.com/photos/Xxs9WvkUPLo",
+      "alt": "Pincel aplicando crema durante una limpieza facial"
+    }
+  },
+  "spa": {
+    "bg": {
+      "unsplashId": "photo-1696841212541-449ca29397cc",
+      "page": "https://unsplash.com/photos/_TyrA1RUaiI",
+      "alt": "Masaje con piedras calientes en una sala de spa en penumbra"
+    },
+    "step1": {
+      "unsplashId": "photo-1544161515-4ab6ce6db874",
+      "page": "https://unsplash.com/photos/cU53ZFBr3lk",
+      "alt": "Masajista volcando aceite en la mano antes del masaje"
+    },
+    "step2": {
+      "unsplashId": "photo-1600334129128-685c5582fd35",
+      "page": "https://unsplash.com/photos/SMwCQZWayj0",
+      "alt": "Piedras calientes sobre la espalda entre flores blancas"
+    },
+    "step3": {
+      "unsplashId": "photo-1620733723572-11c53f73a416",
+      "page": "https://unsplash.com/photos/W7AyAs7azHc",
+      "alt": "Difusor de aromas, toalla enrollada y velas encendidas"
+    },
+    "step4": {
+      "unsplashId": "photo-1745327883508-b6cd32e5dde5",
+      "page": "https://unsplash.com/photos/7yeqemd-p90",
+      "alt": "Manos de masajista trabajando la espalda con luz natural"
+    },
+    "step5": {
+      "unsplashId": "photo-1772915022472-ffc1df2d6051",
+      "page": "https://unsplash.com/photos/8o3CKlJmjLs",
+      "alt": "Vela encendida sobre un banco de madera junto a la camilla"
+    }
+  },
+  "manicuria": {
+    "bg": {
+      "unsplashId": "photo-1619607146034-5a05296c8f9a",
+      "page": "https://unsplash.com/photos/OpjlRo-31SI",
+      "alt": "Estantes con esmaltes de colores en un salón de uñas"
+    },
+    "step1": {
+      "unsplashId": "photo-1632345031435-8727f6897d53",
+      "page": "https://unsplash.com/photos/gb6gtiTZKB8",
+      "alt": "Manicura trabajando las cutículas de una clienta"
+    },
+    "step2": {
+      "unsplashId": "photo-1457972729786-0411a3b2b626",
+      "page": "https://unsplash.com/photos/Xa8fX8bQCgs",
+      "alt": "Esmaltado de uñas en tono bordó"
+    },
+    "step3": {
+      "unsplashId": "photo-1775500835259-d3b3f6d6e2f2",
+      "page": "https://unsplash.com/photos/vZrRwTOrIL0",
+      "alt": "Lima y palitos de manicuría sobre una toalla"
+    },
+    "step4": {
+      "unsplashId": "photo-1693776529070-2cdea397595b",
+      "page": "https://unsplash.com/photos/refgCopwymo",
+      "alt": "Manicura con guantes preparando las uñas junto a la lámpara"
+    },
+    "step5": {
+      "unsplashId": "photo-1604654894610-df63bc536371",
+      "page": "https://unsplash.com/photos/tXwBDZS2JxQ",
+      "alt": "Uñas negras y carey con anillo dorado"
+    }
+  },
+  "peluqueria_canina": {
+    "bg": {
+      "unsplashId": "photo-1719464454959-9cf304ef4774",
+      "page": "https://unsplash.com/photos/LpK2xddrElI",
+      "alt": "Peluquero canino emprolijando con tijera a un perrito blanco"
+    },
+    "step1": {
+      "unsplashId": "photo-1528846104175-4fd300ee59da",
+      "page": "https://unsplash.com/photos/dHIRbh9En6I",
+      "alt": "Peluquero cepillando a un spitz blanco sobre la mesa"
+    },
+    "step2": {
+      "unsplashId": "photo-1611173622933-91942d394b04",
+      "page": "https://unsplash.com/photos/ZVdZw2p08y4",
+      "alt": "Pomerania secándose con una toalla rosa después del baño"
+    },
+    "step3": {
+      "unsplashId": "photo-1647002380358-fc70ed2f04e0",
+      "page": "https://unsplash.com/photos/ldIghI2FIA0",
+      "alt": "Perro en la bañera esperando su toalla"
+    },
+    "step4": {
+      "unsplashId": "photo-1581887936036-3f4f7f0b6679",
+      "page": "https://unsplash.com/photos/ikv10lHZUas",
+      "alt": "Perro secándose con un guante de microfibra tras el baño"
+    },
+    "step5": {
+      "unsplashId": "photo-1597603413826-cd1c06b05222",
+      "page": "https://unsplash.com/photos/qwIeh5M8bF8",
+      "alt": "Perrito mojado durante el baño"
+    }
+  },
+  "otro": {
+    "bg": {
+      "unsplashId": "photo-1787496994477-e260648f7af4",
+      "page": "https://unsplash.com/photos/KOXfB4jJbtc",
+      "alt": "Consultorio cálido con escritorio de madera y luz natural"
+    },
+    "step1": {
+      "unsplashId": "photo-1754037783933-c25ff9f68f87",
+      "page": "https://unsplash.com/photos/7SVUJ1cwNos",
+      "alt": "Sillón junto a la ventana con plantas en un estudio tranquilo"
+    },
+    "step2": {
+      "unsplashId": "photo-1562564055-71e051d33c19",
+      "page": "https://unsplash.com/photos/HJckKnwCXxQ",
+      "alt": "Profesional atendiendo a una clienta en el escritorio"
+    },
+    "step3": {
+      "unsplashId": "photo-1616740795271-abd6ce1a5a5a",
+      "page": "https://unsplash.com/photos/ewRSEBHyO_c",
+      "alt": "Persona anotando turnos en una agenda"
+    },
+    "step4": {
+      "unsplashId": "photo-1776886099265-6366478b341b",
+      "page": "https://unsplash.com/photos/VBzRklOb7JA",
+      "alt": "Sala de espera luminosa con sillas blancas y plantas"
+    },
+    "step5": {
+      "unsplashId": "photo-1507831273071-5db7707d651b",
+      "page": "https://unsplash.com/photos/Fj1aWk4LcNg",
+      "alt": "Calendario enmarcado sobre un escritorio ordenado"
+    }
+  }
+}

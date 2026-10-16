@@ -43,18 +43,28 @@ namespace BookingPro.API.Controllers
                 DateTime? onboardingCompletedAt = null;
                 string? ownerName = null;
                 string? logoUrl = null;
+                string? businessKind = null;
+                object? savedTheme = null;
                 try
                 {
                     var row = await _context.Tenants
                         .AsNoTracking()
                         .Where(t => t.Id == tenant.Id)
-                        .Select(t => new { t.OnboardingCompletedAt, t.OwnerName, t.LogoUrl })
+                        .Select(t => new { t.OnboardingCompletedAt, t.OwnerName, t.LogoUrl, t.BusinessKind, t.ThemeOverrides })
                         .FirstOrDefaultAsync();
                     if (row != null)
                     {
                         onboardingCompletedAt = row.OnboardingCompletedAt;
                         ownerName = row.OwnerName;
                         logoUrl = row.LogoUrl;
+                        businessKind = row.BusinessKind;
+                        // El tema que guardó el negocio (onboarding o Configuración → Apariencia) pisa al del
+                        // vertical: así la página pública de reservas se ve igual que el panel.
+                        if (!string.IsNullOrWhiteSpace(row.ThemeOverrides))
+                        {
+                            try { savedTheme = JsonSerializer.Deserialize<BookingPro.API.Models.DTOs.ThemeConfigurationDto>(row.ThemeOverrides); }
+                            catch (JsonException) { /* tema viejo malformado: queda el del vertical */ }
+                        }
                     }
                 }
                 catch { /* column may not exist pre-migration; stay graceful */ }
@@ -82,7 +92,9 @@ namespace BookingPro.API.Controllers
                         platformBilling = countryProfile.PlatformBilling,
                         platformCurrency = countryProfile.PlatformCurrency,
                     },
-                    theme = tenant.Theme,
+                    theme = savedTheme ?? tenant.Theme,
+                    // Rubro elegido en el onboarding: look (fotos, títulos) del panel y de la página de reservas.
+                    businessKind,
                     features = tenant.Features,
                     terminology = tenant.Terminology,
                     onboardingCompletedAt,

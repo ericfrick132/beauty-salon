@@ -26,6 +26,8 @@ namespace BookingPro.API.Models.DTOs
         
         // Configuración adicional
         public string FontFamily { get; set; } = "Roboto, Helvetica, Arial, sans-serif";
+        /// <summary>Tipografía de títulos (look del rubro). Null = la misma que FontFamily.</summary>
+        public string? HeadingFontFamily { get; set; }
         public int BorderRadius { get; set; } = 8;
         public bool UseShadows { get; set; } = true;
         

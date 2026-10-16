@@ -7,7 +7,7 @@
  * Agenda" theme (cream paper + Fraunces serif + JetBrains Mono kickers).
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   Alert,
@@ -85,7 +85,8 @@ export interface OnboardingCopy {
 }
 
 export interface ThemePreset {
-  code: 'vibrant' | 'inspiring' | 'light' | 'dark' | 'custom';
+  /** 'business' = la paleta del rubro elegido en el paso 2 (OnboardingLook.preset). */
+  code: 'vibrant' | 'inspiring' | 'light' | 'dark' | 'custom' | 'business';
   label: string;
   primary: string;
   secondary: string;
@@ -110,6 +111,11 @@ export interface OnboardingConfig {
     workMode: QualificationQuestion;
   };
   themePresets: ThemePreset[];
+  /**
+   * Look por rubro: al elegir el tipo de negocio en el paso 2 el wizard cambia en el acto la paleta, la
+   * tipografía de títulos, el fondo y las fotos, y suma la paleta del rubro como primera opción de marca.
+   */
+  lookForActivity?: (activity: string) => OnboardingLook | null;
   prefill?: {
     name?: string;
     businessName?: string;
@@ -117,6 +123,14 @@ export interface OnboardingConfig {
     email?: string;
     phone?: string;
   };
+}
+
+export interface OnboardingLook {
+  palette: Palette;
+  displayFont?: string;
+  backgroundUrl: string;
+  stepImages: Record<1 | 2 | 3 | 4 | 5, { url: string; alt: string }>;
+  preset: ThemePreset;
 }
 
 export interface OnboardingPayload {
@@ -149,6 +163,15 @@ export interface OnboardingWizardProps {
 /* ==================================================================== */
 /*  Motion                                                                */
 /* ==================================================================== */
+
+/** Al cambiar de rubro los colores no saltan: se funden (solo colores, no transform/opacity de las animaciones). */
+const LOOK_TRANSITION = {
+  // transform/opacity/box-shadow siguen con su ritmo corto para no frenar hovers y ripples.
+  '&, & *': {
+    transition:
+      'background-color 520ms ease, color 520ms ease, border-color 520ms ease, fill 520ms ease, transform 200ms ease, opacity 200ms ease, box-shadow 200ms ease',
+  },
+} as const;
 
 const SLIDE_DURATION = 0.28;
 const SLIDE_EASE: [number, number, number, number] = [0.22, 0.8, 0.3, 1];
@@ -502,7 +525,7 @@ const StoryPanel: React.FC<{
           </motion.div>
         ) : (
           <motion.img
-            key={stepIndex}
+            key={`${stepIndex}-${img.url}`}
             src={img.url}
             alt={img.alt}
             initial={{ opacity: 0, scale: 1.04 }}
@@ -1246,19 +1269,18 @@ const StepWelcome: React.FC<
 /* ==================================================================== */
 
 export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
-  config,
+  config: baseConfig,
   onComplete,
   onLogoUpload,
 }) => {
-  const { palette, typography, themePresets } = config;
   const reducedMotion = useReducedMotion();
   const { isMobile } = useViewport();
 
-  const initialTheme = themePresets[0];
+  const initialTheme = baseConfig.themePresets[0];
 
   const [formData, setFormData] = useState<OnboardingPayload>({
-    ownerName: config.prefill?.name ?? '',
-    businessName: config.prefill?.businessName ?? '',
+    ownerName: baseConfig.prefill?.name ?? '',
+    businessName: baseConfig.prefill?.businessName ?? '',
     activity: '',
     volume: '',
     workMode: '',
@@ -1267,10 +1289,10 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
     secondaryColor: initialTheme.secondary,
     logoFile: null,
     ownerBirthday: '',
-    ownerPhone: config.prefill?.phone ?? '',
+    ownerPhone: baseConfig.prefill?.phone ?? '',
     ownerInstagram: '',
     ownerWeb: '',
-    email: config.prefill?.email ?? '',
+    email: baseConfig.prefill?.email ?? '',
     password: '',
   });
 
@@ -1279,9 +1301,42 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
   // (which generates the subdomain). El alta con código por email no captura
   // ninguno de los dos, así que siempre muestra el paso 1.
   const step1Prefilled = Boolean(
-    config.prefill?.name && config.prefill.name.trim().length > 0 &&
-    config.prefill?.businessName && config.prefill.businessName.trim().length > 0
+    baseConfig.prefill?.name && baseConfig.prefill.name.trim().length > 0 &&
+    baseConfig.prefill?.businessName && baseConfig.prefill.businessName.trim().length > 0
   );
+  // Look del rubro: todo el wizard se repinta apenas se elige el tipo de negocio.
+  const look = useMemo(
+    () => (formData.activity ? baseConfig.lookForActivity?.(formData.activity) ?? null : null),
+    [baseConfig, formData.activity]
+  );
+  const config = useMemo<OnboardingConfig>(
+    () =>
+      look
+        ? {
+            ...baseConfig,
+            palette: look.palette,
+            typography: { ...baseConfig.typography, display: look.displayFont ?? baseConfig.typography.display },
+            backgroundUrl: look.backgroundUrl,
+            stepImages: look.stepImages,
+            themePresets: [look.preset, ...baseConfig.themePresets.filter((p) => p.code !== 'business')],
+          }
+        : baseConfig,
+    [baseConfig, look]
+  );
+  const { palette, typography } = config;
+
+  // Mientras no toque la marca a mano, la paleta del negocio sigue al rubro elegido.
+  const autoThemeCode = useRef<ThemePreset['code']>(initialTheme.code);
+  useEffect(() => {
+    if (!look) return;
+    setFormData((prev) =>
+      prev.themeCode !== autoThemeCode.current
+        ? prev
+        : { ...prev, themeCode: look.preset.code, primaryColor: look.preset.primary, secondaryColor: look.preset.secondary }
+    );
+    autoThemeCode.current = look.preset.code;
+  }, [look]);
+
   const [stepIndex, setStepIndex] = useState<number>(step1Prefilled ? 1 : 0);
   const [direction, setDirection] = useState<1 | -1>(1);
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -1349,6 +1404,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
           background: palette.paper,
           color: palette.ink,
           fontFamily: typography.body,
+          ...LOOK_TRANSITION,
           px: 2.5,
           py: 3,
           display: 'flex',
@@ -1431,19 +1487,27 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
         display: 'grid',
         placeItems: 'center',
         p: { md: 4, lg: 6 },
+        ...LOOK_TRANSITION,
       }}
     >
-      {/* Blurred background */}
-      <Box
-        aria-hidden
-        sx={{
-          position: 'absolute',
-          inset: 0,
-          background: `url(${config.backgroundUrl}) center/cover no-repeat`,
-          filter: 'blur(18px) saturate(85%)',
-          transform: 'scale(1.1)',
-        }}
-      />
+      {/* Blurred background: al cambiar de rubro, la foto nueva entra con fundido */}
+      <AnimatePresence initial={false}>
+        <motion.div
+          key={config.backgroundUrl}
+          aria-hidden
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.8, ease: [0.2, 0.7, 0.2, 1] }}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: `url(${config.backgroundUrl}) center/cover no-repeat`,
+            filter: 'blur(18px) saturate(85%)',
+            transform: 'scale(1.1)',
+          }}
+        />
+      </AnimatePresence>
       <Box
         aria-hidden
         sx={{
