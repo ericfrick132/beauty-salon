@@ -96,9 +96,11 @@ async function bookingTour(p: Pilot, round: number) {
   await p.sleep(600);
 }
 
-export default function BookingApp({ today, autoplay = false, onCaption, onTakeover }: {
+export default function BookingApp({ today, autoplay = false, fullscreen = false, onCaption, onTakeover }: {
   today: Date;
   autoplay?: boolean;
+  // En un celular real la demo ocupa toda la pantalla: sin el espacio del notch del celular dibujado.
+  fullscreen?: boolean;
   onCaption?: (text: string) => void;
   onTakeover?: () => void;
 }) {
@@ -196,7 +198,7 @@ export default function BookingApp({ today, autoplay = false, onCaption, onTakeo
   return (
     <ThemeProvider theme={adminTheme}>
       <Box ref={rootRef} sx={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', bgcolor: ui.paper, color: ui.ink, fontFamily: adminTheme.typography.fontFamily }}>
-        <Box sx={{ flex: 1, overflowY: 'auto', px: 1.75, pt: 6.5, pb: 2, scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
+        <Box sx={{ flex: 1, overflowY: 'auto', px: fullscreen ? 2 : 1.75, pt: fullscreen ? 2.5 : 6.5, pb: 2, scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
           <Typography component="h1" sx={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontWeight: 500, color: ui.ink, fontSize: '2.1rem', lineHeight: 0.98, letterSpacing: '-0.035em', textAlign: 'center', mb: 2 }}>
             {BUSINESS}
           </Typography>
@@ -405,7 +407,7 @@ export default function BookingApp({ today, autoplay = false, onCaption, onTakeo
               }]);
             }}
             sx={{
-              position: 'absolute', top: 44, left: 8, right: 8, zIndex: 15, display: 'flex', gap: 1.25, alignItems: 'flex-start', p: 1.25,
+              position: 'absolute', top: fullscreen ? 10 : 44, left: 8, right: 8, zIndex: 15, display: 'flex', gap: 1.25, alignItems: 'flex-start', p: 1.25,
               borderRadius: '16px', border: 0, bgcolor: 'rgba(255,255,255,0.97)', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
               animation: 'tpNotif 420ms cubic-bezier(.2,.9,.3,1.2)', '@keyframes tpNotif': { from: { transform: 'translateY(-120%)', opacity: 0 } },
             }}
@@ -420,7 +422,7 @@ export default function BookingApp({ today, autoplay = false, onCaption, onTakeo
 
         {chat && (
           <Box sx={{ position: 'absolute', inset: 0, zIndex: 18, display: 'flex', flexDirection: 'column', bgcolor: '#efeae2', animation: 'tpChat 260ms ease', '@keyframes tpChat': { from: { transform: 'translateY(30px)', opacity: 0 } } }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, pt: 5.5, pb: 1.25, bgcolor: ui.whatsappDeep, color: '#fff' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, pt: fullscreen ? 1.5 : 5.5, pb: 1.25, bgcolor: ui.whatsappDeep, color: '#fff' }}>
               <Box component="button" type="button" onClick={() => setChat(null)} sx={{ border: 0, bgcolor: 'transparent', color: '#fff', display: 'grid', placeItems: 'center', cursor: 'pointer', p: 0.5 }} aria-label="Volver"><ArrowBack fontSize="small" /></Box>
               <Box sx={{ width: 32, height: 32, borderRadius: '50%', bgcolor: '#fff', color: ui.whatsappDeep, display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 13 }}>EN</Box>
               <Box>
