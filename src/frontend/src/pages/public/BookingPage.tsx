@@ -693,7 +693,7 @@ const BookingPage: React.FC = () => {
       case 0:
         return (
           <Fade in timeout={500}>
-            <Grid container spacing={3}>
+            <Grid container spacing={{ xs: 1.5, md: 2 }}>
               <Grid item xs={12}>
                 <StepHeading title={w.t('Elegí el servicio', 'Elige el servicio')} hint={w.t('Buscalo por nombre o elegilo de la lista.', 'Búscalo por nombre o elígelo de la lista.')} />
               </Grid>
@@ -828,7 +828,7 @@ const BookingPage: React.FC = () => {
                           Popular
                         </Typography>
                       )}
-                      <CardContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                      <CardContent sx={{ p: { xs: 2, md: 2.25 }, '&:last-child': { pb: { xs: 2, md: 2.25 } }, display: 'flex', flexDirection: 'column', height: '100%' }}>
                         <Typography
                           sx={{
                             fontFamily: ui.display,
@@ -843,15 +843,16 @@ const BookingPage: React.FC = () => {
                             WebkitLineClamp: 2,
                             WebkitBoxOrient: 'vertical',
                             overflow: 'hidden',
-                            minHeight: '2.3em',
+                            // Una línea alcanza para casi todos: la segunda aparece solo si el nombre la necesita.
+                            minHeight: '1.15em',
                           }}
                         >
                           {service.name}
                         </Typography>
                         <Typography
                           sx={{
-                            mt: 1,
-                            mb: 2.5,
+                            mt: 0.75,
+                            mb: 1.5,
                             fontSize: '0.85rem',
                             lineHeight: 1.5,
                             color: ui.inkSoft,
@@ -868,7 +869,7 @@ const BookingPage: React.FC = () => {
                         <Box
                           sx={{
                             mt: 'auto',
-                            pt: 1.5,
+                            pt: 1,
                             borderTop: `1px solid ${ui.ruleSoft}`,
                             display: 'flex',
                             justifyContent: 'space-between',
@@ -1550,7 +1551,7 @@ const BookingPage: React.FC = () => {
           <Box
             sx={{
               position: 'relative',
-              height: { xs: 110, sm: 130, md: 150 },
+              height: { xs: 104, sm: 120, md: 128 },
               mb: { xs: 2, md: 3 },
               borderRadius: 3,
               overflow: 'hidden',
