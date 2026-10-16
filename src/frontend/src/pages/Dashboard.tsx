@@ -45,7 +45,7 @@ import {
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useTenant } from '../contexts/TenantContext';
-import { lookFor } from '../config/businessLooks';
+import { lookForTenant } from '../config/businessLooks';
 import LookBackdrop from '../components/common/LookBackdrop';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import PlanUsageCard from '../components/subscription/PlanUsageCard';
@@ -91,7 +91,7 @@ const Dashboard: React.FC = () => {
   const w = useTenantWording();
   const depositsWithStripe = features.stripeDeposits;
   const { config, getTerm } = useTenant();
-  const look = lookFor(config?.businessKind);
+  const look = lookForTenant(config?.businessKind, config?.vertical);
   const navigate = useNavigate();
   const { subscription } = useSubscription();
   const dispatch = useAppDispatch();

@@ -53,7 +53,8 @@ import { formatMoney, getCountry } from '../../utils/intl';
 import { getWording } from '../../utils/wording';
 import CustomFieldInput from '../../components/booking/CustomFieldInput';
 import { CouponQuote, normalizeCouponCode, PublicFormField, publicBookingExtrasApi } from '../../services/bookingExtrasApi';
-import { BusinessLook, lookFor } from '../../config/businessLooks';
+import { BusinessLook, lookForTenant } from '../../config/businessLooks';
+import { useTenantOptional } from '../../contexts/TenantContext';
 import LookBackdrop from '../../components/common/LookBackdrop';
 import { initBusinessTracking, trackBookingCreated, trackDepositCheckout, trackDepositPaid } from '../../utils/businessTracking';
 
@@ -186,6 +187,8 @@ const BookingPage: React.FC = () => {
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [businessInfo, setBusinessInfo] = useState<any>(null);
+  // Sin rubro elegido (negocios anteriores al look por rubro) el look sale del vertical.
+  const tenantVertical = useTenantOptional()?.config?.vertical;
   // Voseo para Argentina/Uruguay; tú y "cita"/"anticipo"/"señal" para México y España.
   const w = getWording(businessInfo?.country);
   
@@ -1539,7 +1542,7 @@ const BookingPage: React.FC = () => {
 
   // No early return; el contenido final se muestra como último paso del stepper
 
-  const look = lookFor(businessInfo?.businessKind);
+  const look = lookForTenant(businessInfo?.businessKind, tenantVertical);
   applyLook(look);
 
   return (

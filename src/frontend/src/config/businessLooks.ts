@@ -163,3 +163,21 @@ export const themeFromLook = (look: BusinessLook, primary: string, secondary: st
   useShadows: true,
   autoContrastText: true,
 });
+
+/**
+ * Rubro de un negocio que todavía no lo eligió en el onboarding (los que se dieron de alta antes del look
+ * por rubro): se deduce del vertical. Lavaderos y deportes quedan sin look: ninguna foto les corresponde.
+ */
+const VERTICAL_TO_KIND: Record<string, BusinessKind> = {
+  barbershop: 'barberia',
+  peluqueria: 'salon_belleza',
+  beautysalon: 'salon_belleza',
+  aesthetics: 'estetica',
+  depilation: 'estetica',
+  nailsalon: 'manicuria',
+  consulting: 'otro',
+};
+
+/** Look del negocio: el rubro que eligió, o el que corresponde a su vertical. */
+export const lookForTenant = (businessKind?: string | null, vertical?: string | null): BusinessLook | null =>
+  lookFor(businessKind) ?? (vertical ? lookFor(VERTICAL_TO_KIND[vertical]) : null);
