@@ -641,6 +641,20 @@ namespace BookingPro.API.Services
                     } : null
                 };
 
+                // App Android: suscripción comprada con Google Play Billing (tabla aparte).
+                var googlePlay = await _context.TenantGooglePlaySubscriptions.AsNoTracking()
+                    .FirstOrDefaultAsync(g => g.TenantId == tenantId);
+                if (googlePlay != null)
+                {
+                    status.GooglePlaySubscriptionActive = subscription.Status != "cancelled"
+                        && (googlePlay.State == "SUBSCRIPTION_STATE_IN_GRACE_PERIOD"
+                            || (googlePlay.ExpiresAt.HasValue && googlePlay.ExpiresAt.Value > DateTime.UtcNow
+                                && googlePlay.State is "SUBSCRIPTION_STATE_ACTIVE" or "SUBSCRIPTION_STATE_CANCELED"));
+                    status.GooglePlayProductId = googlePlay.ProductId;
+                    status.GooglePlayBasePlanId = googlePlay.BasePlanId;
+                    status.GooglePlayAutoRenewing = googlePlay.AutoRenewing;
+                }
+
                 // Si la suscripción no está activa (expirada), generar QR de pago.
                 // La app de iOS lo pide sin link (includePaymentLink=false): no puede mostrar pagos
                 // por fuera del App Store y así tampoco se crea una preferencia de MP por cada consulta.

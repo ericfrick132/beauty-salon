@@ -41,6 +41,15 @@ namespace BookingPro.API.Models.DTOs
         /// para marcar el plan actual.
         /// </summary>
         public bool AppleSubscriptionActive { get; set; }
+
+        /// <summary>
+        /// La suscripción tiene una compra de Google Play (app Android) vigente: se gestiona y cancela
+        /// desde Play, no desde Mercado Pago. Con el producto y el plan base para marcar el plan actual.
+        /// </summary>
+        public bool GooglePlaySubscriptionActive { get; set; }
+        public string? GooglePlayProductId { get; set; }
+        public string? GooglePlayBasePlanId { get; set; }
+        public bool? GooglePlayAutoRenewing { get; set; }
         public DateTime? TrialEndsAt { get; set; }
         public string? PaymentUrl { get; set; }
         public string? QrCodeData { get; set; }

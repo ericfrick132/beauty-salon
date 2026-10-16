@@ -58,6 +58,7 @@ namespace BookingPro.API.Data
         public DbSet<TenantFeatureAddon> TenantFeatureAddons { get; set; }
         public DbSet<FeatureAddonPurchase> FeatureAddonPurchases { get; set; }
         public DbSet<StorePurchase> StorePurchases { get; set; }
+        public DbSet<TenantGooglePlaySubscription> TenantGooglePlaySubscriptions { get; set; }
         public DbSet<DeviceToken> DeviceTokens { get; set; }
         public DbSet<BookingConfirmationRequest> BookingConfirmationRequests { get; set; }
         
@@ -810,6 +811,16 @@ namespace BookingPro.API.Data
                 entity.HasIndex(p => p.TenantId);
                 entity.HasIndex(p => p.OriginalTransactionId);
                 entity.Property(p => p.Price).HasPrecision(18, 2);
+            });
+
+            // Suscripción del negocio comprada con Google Play Billing (app Android). Plataforma: sin
+            // filtro por tenant (el webhook RTDN la busca por purchaseToken).
+            modelBuilder.Entity<TenantGooglePlaySubscription>(entity =>
+            {
+                entity.ToTable("tenant_google_play_subscriptions");
+                entity.HasIndex(s => s.TenantId).IsUnique();
+                entity.HasIndex(s => s.PurchaseToken);
+                entity.HasIndex(s => s.LinkedPurchaseToken);
             });
 
             // Tokens de push (FCM / APNs) de las apps. Plataforma: sin filtro por tenant.

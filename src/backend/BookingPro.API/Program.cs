@@ -143,6 +143,10 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ISubscriptionServi
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ICouponService, BookingPro.API.Services.CouponService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IFeatureAddonService, BookingPro.API.Services.FeatureAddonService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IStorePurchaseService, BookingPro.API.Services.StorePurchaseService>();
+// Google Play Billing (app Android): suscripción del negocio. Sin GooglePlay:ServiceAccountJson el
+// verify responde 503 GOOGLE_PLAY_NOT_CONFIGURED.
+builder.Services.AddScoped<BookingPro.API.Services.IGooglePlayDeveloperService, BookingPro.API.Services.GooglePlayDeveloperService>();
+builder.Services.AddScoped<BookingPro.API.Services.IGooglePlayBillingService, BookingPro.API.Services.GooglePlayBillingService>();
 // Push a las apps (FCM / APNs): turnos nuevos y cancelados.
 builder.Services.AddScoped<BookingPro.API.Services.IPushNotificationService, BookingPro.API.Services.PushNotificationService>();
 // Add-on detección de transferencias: cruza la plata que entra a la cuenta MP del negocio con los turnos con seña pendiente.
