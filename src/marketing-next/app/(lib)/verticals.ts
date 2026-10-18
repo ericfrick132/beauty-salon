@@ -57,7 +57,7 @@ export const verticals: VerticalContent[] = [
         h2: 'Señas con MercadoPago para cortar las ausencias',
         paragraphs: [
           'El problema número uno de una peluquería no es conseguir turnos, es que la gente venga. Un balayage de tres horas que se cae a último momento es una tarde de facturación perdida.',
-          'Por eso TurnosPro integra señas con MercadoPago en el flujo de reserva. Vos decidís qué servicios exigen seña y de cuánto; la clienta paga desde el celular al reservar y el dinero entra en tu propia cuenta de MercadoPago, sin comisiones de TurnosPro por cada turno. Cuando hay plata de por medio, la gente avisa si no puede venir y el horario se libera para otra persona.',
+          'Por eso TurnosPro integra señas con MercadoPago en el flujo de reserva. Vos decidís qué servicios exigen seña y de cuánto; la clienta paga desde el celular al reservar y el dinero entra en tu propia cuenta de MercadoPago (en el plan Pro, sin comisión de TurnosPro; en los demás planes la comisión por cobro va del 1% al 5%). Cuando hay plata de por medio, la gente avisa si no puede venir y el horario se libera para otra persona.',
           'Los negocios que usan señas y recordatorios con TurnosPro reportan hasta un 80% menos de cancelaciones. Es la diferencia entre una agenda llena en papel y una agenda llena en la caja.',
         ],
       },
