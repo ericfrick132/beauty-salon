@@ -11,7 +11,9 @@
  *   - Subir:    POST /preapproval/create { planCode, returnPath } → initPoint (débito de MP o Checkout de
  *               Stripe). Si ya tenía débito, el backend cambia el plan de esa suscripción (planChanged).
  *   - Bajar a Gratuito: POST /subscription/cancel.
- *   - ?highlight=<code> resalta un plan y lo lleva a la vista (lo usan el diálogo de límite y los add-ons).
+ *   - ?highlight=<code> resalta un plan y lo lleva a la vista (lo usan los candados del panel y los add-ons).
+ *   - ?from=<gate> (utils/planGates): de qué función bloqueada viene; arriba se lee "Para usar Cupones pasate al
+ *     plan Advance".
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -42,6 +44,7 @@ import { useTenantWording } from '../utils/wording';
 import { isPlanChanged, planChangedMessage } from '../utils/planChange';
 import { bulletsByPlan, formatPlanPrice, OFFERED_PLAN_CODES, PLAN_FREE, usePlans } from '../utils/plans';
 import { useSubscription } from '../contexts/SubscriptionContext';
+import { gateMessage, isPlanGate } from '../utils/planGates';
 
 interface CurrentStatus {
   isPaid: boolean;
@@ -478,6 +481,7 @@ const SubscriptionPlans: React.FC = () => {
   const { plans, loading } = usePlans();
   const [searchParams] = useSearchParams();
   const highlight = searchParams.get('highlight');
+  const from = searchParams.get('from');
   const [subscribing, setSubscribing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -557,6 +561,7 @@ const SubscriptionPlans: React.FC = () => {
 
   const bullets = useMemo(() => bulletsByPlan(plans, features.stripeDeposits), [plans, features.stripeDeposits]);
   const freePlan = plans.find((p) => p.code === PLAN_FREE);
+  const highlightedPlan = highlight ? plans.find((p) => p.code === highlight) ?? null : null;
   const currentCode = currentStatus ? (currentStatus.isPaid ? currentStatus.planType : PLAN_FREE) : null;
   // Plan pago viejo (pro, promo, 6meses, 12meses): ya no se ofrece pero lo mantiene.
   const isLegacy = !!currentStatus?.isPaid && !OFFERED_PLAN_CODES.includes(currentStatus.planType);
@@ -663,6 +668,12 @@ const SubscriptionPlans: React.FC = () => {
               {w.t(
                 `Tenés el plan ${currentStatus.planName} (anterior), con todo incluido. Lo mantenés mientras siga activo; si te pasás a otro plan, ya no se puede volver.`,
                 `Tienes el plan ${currentStatus.planName} (anterior), con todo incluido. Lo mantienes mientras siga activo; si cambias a otro plan, ya no se puede volver.`)}
+            </Alert>
+          )}
+
+          {isPlanGate(from) && highlightedPlan && currentCode !== highlightedPlan.code && (
+            <Alert severity="info" sx={alertSx(palette.primary, 'rgba(30, 94, 63, 0.06)')}>
+              <strong>{w.t(gateMessage(from, highlightedPlan.name), gateMessage(from, highlightedPlan.name, true))}</strong>
             </Alert>
           )}
 
