@@ -19,6 +19,7 @@ namespace BookingPro.API.Controllers
         private readonly BookingPro.API.Services.IPlatformPaymentConnectionService _platformConnections;
         private readonly IConfiguration _configuration;
         private readonly ITenantProvider _tenantProvider;
+        private readonly IPlanEntitlementService _plans;
 
         /// <summary>Deep link de las apps móviles al que vuelve el callback cuando el flujo se inició desde la app.</summary>
         private const string DefaultAppDeepLink = "turnospro://mercadopago";
@@ -29,8 +30,10 @@ namespace BookingPro.API.Controllers
             ApplicationDbContext context,
             BookingPro.API.Services.IPlatformPaymentConnectionService platformConnections,
             IConfiguration configuration,
-            ITenantProvider tenantProvider)
+            ITenantProvider tenantProvider,
+            IPlanEntitlementService plans)
         {
+            _plans = plans;
             _oauthService = oauthService;
             _logger = logger;
             _context = context;
@@ -276,6 +279,10 @@ namespace BookingPro.API.Controllers
                 {
                     return Forbid();
                 }
+
+                // Argentina con un plan con comisión: solo OAuth (con el token a mano no hay marketplace_fee).
+                var blocked = await BookingPro.API.Utilities.MercadoPagoManualConnection.BlockIfOAuthRequiredAsync(_context, _plans, currentTenantId);
+                if (blocked != null) return blocked;
 
                 var result = await _oauthService.ConnectWithCredentialsAsync(dto);
                 if (result.Success && result.Data != null)
