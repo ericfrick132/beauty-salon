@@ -169,8 +169,8 @@ const RegisterCode: React.FC = () => {
   const [email, setEmail] = useState(emailParam);
   const [dial, setDial] = useState(() => (countryParam ? `+${getCountry(countryParam).dialCode}` : PHONE_COUNTRIES[0].dial));
   const [mobile, setMobile] = useState('');
-  // Consentimiento de marketing por WhatsApp: destildado por defecto, no es obligatorio.
-  const [whatsAppOptIn, setWhatsAppOptIn] = useState(false);
+  // Consentimiento de marketing por WhatsApp: tildado por defecto, no es obligatorio.
+  const [whatsAppOptIn, setWhatsAppOptIn] = useState(true);
   const [code, setCode] = useState('');
   // null = llegamos con ?email= y todavía no sabemos si la cuenta existe.
   const [isExisting, setIsExisting] = useState<boolean | null>(null);

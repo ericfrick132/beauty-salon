@@ -254,7 +254,7 @@ interface FormState {
   dial: string;
   mobile: string;
   password: string;
-  /** Casillero de marketing por WhatsApp: destildado por defecto, no es obligatorio. */
+  /** Casillero de marketing por WhatsApp: tildado por defecto, no es obligatorio. */
   whatsAppOptIn: boolean;
   busy: boolean;
   error: string;
@@ -269,7 +269,7 @@ const initialState: FormState = {
   dial: PHONE_COUNTRIES[0].dial,
   mobile: '',
   password: '',
-  whatsAppOptIn: false,
+  whatsAppOptIn: true,
   busy: false,
   error: '',
   info: '',

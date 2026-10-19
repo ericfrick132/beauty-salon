@@ -356,8 +356,8 @@ const SelfRegistration: React.FC = () => {
   const [mobile, setMobile] = useState('');
   const [businessAddress, setBusinessAddress] = useState('');
   const [promoCode, setPromoCode] = useState('');
-  // Consentimiento de marketing por WhatsApp: destildado por defecto, no es obligatorio.
-  const [whatsAppOptIn, setWhatsAppOptIn] = useState(false);
+  // Consentimiento de marketing por WhatsApp: tildado por defecto, no es obligatorio.
+  const [whatsAppOptIn, setWhatsAppOptIn] = useState(true);
 
   // ----- Final -----
   const [redirectUrl, setRedirectUrl] = useState('');

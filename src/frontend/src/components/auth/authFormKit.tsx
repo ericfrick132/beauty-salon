@@ -192,7 +192,7 @@ export const InlineLink: React.FC<{
   </Box>
 );
 
-// ─── Consentimiento de marketing por WhatsApp (opt-in explícito, destildado por defecto) ───
+// ─── Consentimiento de marketing por WhatsApp (opt-in tildado por defecto) ───
 export const WHATSAPP_OPT_IN_LABEL = 'Acepto recibir novedades y promociones de TurnosPro por WhatsApp.';
 
 export const WhatsAppOptInCheckbox: React.FC<{
