@@ -32,10 +32,12 @@ import {
   Schedule,
   CheckCircle,
   Info,
+  Lock,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import api from '../services/api';
 import { useSubscription } from '../contexts/SubscriptionContext';
+import { usePlanGates } from '../utils/planGates';
 import { ThemeConfiguration } from '../types';
 import TextField from '../components/common/TextField';
 import { TIMEZONES, toIanaTimezone } from '../utils/intl';
@@ -71,6 +73,9 @@ const ThemeSettings: React.FC = () => {
 
   const { subscription, hasFeature } = useSubscription();
   const brandingIncluded = hasFeature('allowCustomBranding');
+  // Sin marca propia en el plan: "Guardar" va grisado con candado y lleva al checkout (Plus).
+  const { isLocked, goToCheckout } = usePlanGates();
+  const brandingLocked = isLocked('branding');
 
   useEffect(() => {
     loadThemeConfiguration();
@@ -247,14 +252,20 @@ const ThemeSettings: React.FC = () => {
             >
               Restablecer
             </Button>
-            <Button
-              variant="contained"
-              startIcon={<Save />}
-              onClick={handleSaveTheme}
-              disabled={saving || !hasChanges}
-            >
-              {saving ? 'Guardando...' : 'Guardar Cambios'}
-            </Button>
+            {brandingLocked ? (
+              <Button variant="contained" startIcon={<Lock />} onClick={() => goToCheckout('branding')} sx={{ opacity: 0.6 }}>
+                Guardar Cambios
+              </Button>
+            ) : (
+              <Button
+                variant="contained"
+                startIcon={<Save />}
+                onClick={handleSaveTheme}
+                disabled={saving || !hasChanges}
+              >
+                {saving ? 'Guardando...' : 'Guardar Cambios'}
+              </Button>
+            )}
           </Box>
         </Box>
 

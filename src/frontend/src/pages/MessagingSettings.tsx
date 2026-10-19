@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Card, CardContent, Typography, Switch, Button, Grid, Alert, Chip } from '@mui/material';
-import { WhatsApp, CheckCircle, Info } from '@mui/icons-material';
+import { WhatsApp, CheckCircle, Info, Lock } from '@mui/icons-material';
 import { messagingApi } from '../services/api';
 import { useSubscription } from '../contexts/SubscriptionContext';
+import { usePlanGates } from '../utils/planGates';
 import TextField from '../components/common/TextField';
 
 const defaultTemplate = 'Hola {customer_name}! Te recordamos tu turno para {service_name} el {date} a las {time}. Si no podés asistir, avisanos respondiendo este mensaje.';
@@ -21,6 +22,9 @@ const MessagingSettings: React.FC = () => {
   const whatsAppIncluded = hasFeature('allowWhatsApp');
   const whatsAppLimit = subscription?.features?.whatsAppMonthlyLimit ?? 0;
   const isWhatsAppUnlimited = isUnlimited('whatsAppMonthlyLimit');
+  // Recordatorios automáticos (Plus en adelante): sin el plan, el switch va grisado con candado y lleva al checkout.
+  const { isLocked, goToCheckout } = usePlanGates();
+  const remindersLocked = isLocked('reminders');
 
   const load = async () => {
     try {
@@ -92,16 +96,32 @@ const MessagingSettings: React.FC = () => {
                     </Box>
                   </Box>
                 ) : (
-                  <Typography variant="body2">
-                    WhatsApp no está incluido en tu plan actual. Actualiza tu suscripción para acceder a esta función.
-                  </Typography>
+                  <Box>
+                    <Typography variant="body2">WhatsApp no está incluido en tu plan actual.</Typography>
+                    <Button size="small" sx={{ mt: 0.5, px: 0 }} onClick={() => goToCheckout('whatsapp')}>
+                      Ver el plan que lo incluye
+                    </Button>
+                  </Box>
                 )}
               </Alert>
 
-              <Box display="flex" alignItems="center" mt={2}>
-                <Switch checked={enabled} onChange={(_, v) => setEnabled(v)} />
-                <Typography>Habilitar</Typography>
-              </Box>
+              {remindersLocked ? (
+                <Box
+                  display="flex" alignItems="center" mt={2} role="button" tabIndex={0}
+                  onClick={() => goToCheckout('reminders')}
+                  onKeyDown={(e) => { if (e.key === 'Enter') goToCheckout('reminders'); }}
+                  sx={{ cursor: 'pointer', opacity: 0.5 }}
+                >
+                  <Switch checked={false} disabled />
+                  <Typography>Habilitar</Typography>
+                  <Lock sx={{ fontSize: 16, ml: 1, color: 'text.secondary' }} />
+                </Box>
+              ) : (
+                <Box display="flex" alignItems="center" mt={2}>
+                  <Switch checked={enabled} onChange={(_, v) => setEnabled(v)} />
+                  <Typography>Habilitar</Typography>
+                </Box>
+              )}
               <TextField
                 label="Minutos antes de la cita"
                 type="number"

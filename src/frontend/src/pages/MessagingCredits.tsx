@@ -60,7 +60,7 @@ const MessagingCredits: React.FC = () => {
                   ) : (
                     <>
                       <Typography variant="body2">Tu plan {usage.planName} no incluye mensajes de WhatsApp.</Typography>
-                      <Button size="small" sx={{ mt: 0.5, px: 0 }} onClick={() => navigate('/subscription/plans?highlight=plus')}>
+                      <Button size="small" sx={{ mt: 0.5, px: 0 }} onClick={() => navigate('/subscription/plans?highlight=plus&from=whatsapp')}>
                         Plus incluye 30 por mes
                       </Button>
                     </>

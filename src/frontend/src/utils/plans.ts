@@ -211,7 +211,7 @@ export const formatPlanPrice = (plan: Pick<SubscriptionPlanInfo, 'price' | 'curr
 /** Texto de un tope: "Ilimitadas" con -1. */
 export const formatLimit = (n: number, unlimitedLabel = 'Ilimitadas') => (unlimited(n) ? unlimitedLabel : num(n));
 
-// Cache de /subscription/plans para la sesión: lo usan la página de planes, el diálogo de límite y el dashboard.
+// Cache de /subscription/plans para la sesión: lo usan la página de planes, los candados del panel y el dashboard.
 let plansPromise: Promise<SubscriptionPlanInfo[]> | null = null;
 
 export const loadPlans = (): Promise<SubscriptionPlanInfo[]> => {
@@ -287,8 +287,8 @@ export const usePlanUsage = (enabled = true) => {
 export const usedPercent = (used: number, max: number) => (max < 0 ? 0 : max === 0 ? 100 : Math.min(100, (used / max) * 100));
 
 /**
- * Abre el diálogo de "pasate de plan" sin pasar por el backend: para las features que se muestran con candado
- * (ej. "Repetir" en una reserva nueva) y que conviene vender antes de que el usuario choque con un 403.
+ * Manda al checkout como si el backend hubiera respondido 403 PLAN_LIMIT (usePlanLimitRedirect lo escucha): para
+ * las features que se muestran con candado (ej. "Repetir" en una reserva nueva), antes de chocar con el 403.
  */
 export const openPlanUpsell = (limit: PlanLimitKind, planCode: string, planName: string, max = 0, used = 0) => {
   const detail: PlanLimitError = { code: 'PLAN_LIMIT', limit, max, used, planCode, planName, message: null };
@@ -297,7 +297,7 @@ export const openPlanUpsell = (limit: PlanLimitKind, planCode: string, planName:
   } catch { /* sin CustomEvent: no se muestra */ }
 };
 
-/** Las features nuevas que se venden en el dashboard, los menús y los paywalls. */
+/** Las features nuevas que se venden en el dashboard. */
 export interface NewFeatureInfo {
   key: 'recurring' | 'custom_fields' | 'coupons' | 'customer_history' | 'tracking';
   title: string;

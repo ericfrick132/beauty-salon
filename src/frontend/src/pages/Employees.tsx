@@ -35,6 +35,7 @@ import {
 import {
   ArrowBack,
   Add,
+  Lock,
   Edit,
   Delete,
   Person,
@@ -53,6 +54,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTenant } from '../contexts/TenantContext';
+import { usePlanGates, usePlanQuotas } from '../utils/planGates';
 import api, { isPlanLimitError } from '../services/api';
 import { format } from 'date-fns';
 import FullCalendar from '@fullcalendar/react';
@@ -100,6 +102,10 @@ interface Commission {
 
 const Employees: React.FC = () => {
   const navigate = useNavigate();
+  // En el tope del plan el alta queda grisada con candado y lleva al checkout del plan que lo levanta.
+  const { goToCheckout } = usePlanGates();
+  const { atLimit } = usePlanQuotas();
+  const staffFull = () => atLimit('staff', employees.filter((x) => x.isActive).length);
   const { getTerm } = useTenant();
   
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -334,7 +340,7 @@ const Employees: React.FC = () => {
       fetchData();
       handleCloseDialog();
     } catch (error: any) {
-      // Tope de agendas del plan: ya lo muestra PlanLimitDialog.
+      // Tope de agendas del plan: el panel ya mandó al checkout (usePlanLimitRedirect).
       if (isPlanLimitError(error)) return;
       console.error('Error saving employee:', error);
       if (error.response?.data?.errors) {
@@ -461,8 +467,9 @@ const Employees: React.FC = () => {
           </Box>
           <Button
             variant="contained"
-            startIcon={<Add />}
-            onClick={() => handleOpenDialog()}
+            startIcon={staffFull() ? <Lock /> : <Add />}
+            onClick={() => (staffFull() ? goToCheckout('staff') : handleOpenDialog())}
+            sx={staffFull() ? { opacity: 0.6 } : undefined}
           >
             Nuevo Empleado
           </Button>
