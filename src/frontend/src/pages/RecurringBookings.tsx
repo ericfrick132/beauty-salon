@@ -26,7 +26,7 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import { Add, ArrowBack, EventRepeat, Repeat, DeleteOutline } from '@mui/icons-material';
+import { Add, ArrowBack, EventRepeat, Repeat, DeleteOutline, Lock } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -34,14 +34,9 @@ import { useSubscription } from '../contexts/SubscriptionContext';
 import { useTenant } from '../contexts/TenantContext';
 import { isPlanLimitError } from '../services/api';
 import { BookingSeriesItem, BookingSeriesList, bookingSeriesApi, frequencyLabel } from '../services/planFeaturesApi';
-import FeaturePaywall from '../components/subscription/FeaturePaywall';
+import PlanCheckoutRedirect from '../components/subscription/PlanCheckoutRedirect';
 import { openPlanUpsell, PLAN_PRO, usedPercent } from '../utils/plans';
-
-const SAMPLE: BookingSeriesItem[] = [
-  { id: 's1', customerId: '', customerName: 'Lucía Fernández', serviceId: '', serviceName: 'Kinesiología', employeeId: '', employeeName: 'Martín', firstStartTime: new Date().toISOString(), intervalWeeks: 1, occurrences: 12, upcomingCount: 9, nextStartTime: new Date(Date.now() + 2 * 86400000).toISOString() },
-  { id: 's2', customerId: '', customerName: 'Diego Romero', serviceId: '', serviceName: 'Corte y barba', employeeId: '', employeeName: 'Sofi', firstStartTime: new Date().toISOString(), intervalWeeks: 2, occurrences: 8, upcomingCount: 6, nextStartTime: new Date(Date.now() + 5 * 86400000).toISOString() },
-  { id: 's3', customerId: '', customerName: 'Carla Gómez', serviceId: '', serviceName: 'Clase de yoga', employeeId: '', employeeName: 'Ana', firstStartTime: new Date().toISOString(), intervalWeeks: 1, occurrences: 20, upcomingCount: 17, nextStartTime: new Date(Date.now() + 86400000).toISOString() },
-];
+import { checkoutPath } from '../utils/planGates';
 
 const fmtNext = (iso?: string | null) => (iso ? format(new Date(iso), "EEE d/MM 'a las' HH:mm", { locale: es }) : '—');
 
@@ -178,32 +173,15 @@ const RecurringBookings: React.FC = () => {
         </Typography>
       </Box>
       {included && (
-        <Button variant="contained" startIcon={<Add />} onClick={create}>Nuevo turno fijo</Button>
+        <Button variant="contained" startIcon={atLimit ? <Lock /> : <Add />} onClick={create} sx={atLimit ? { opacity: 0.6 } : undefined}>
+          Nuevo turno fijo
+        </Button>
       )}
     </Box>
   );
 
-  if (!subLoading && !included) {
-    return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        {header}
-        <FeaturePaywall
-          includes={(f) => f.maxRecurringBookings !== 0}
-          fallbackPlanCode="advance"
-          fallbackPlanName="Advance"
-          icon={<EventRepeat />}
-          title="Agendá de una vez al cliente que viene todas las semanas"
-          description="Elegís el día, la hora y cada cuánto viene, y TurnosPro le reserva todos los turnos. Si algún horario está ocupado, te avisa y agenda el resto."
-          bullets={[
-            'Cada semana, cada 2, 3 o 4 semanas, hasta 52 turnos',
-            'Ves cuántos turnos le quedan y cuándo es el próximo',
-            'Cancelás todos los próximos con un clic',
-          ]}
-          preview={<SeriesTable series={SAMPLE} professionalLabel={getTerm('professional')} />}
-        />
-      </Container>
-    );
-  }
+  // Sin turnos fijos en el plan: directo al checkout (Advance).
+  if (!subLoading && !included) return <PlanCheckoutRedirect gate="recurring_bookings" />;
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -218,7 +196,7 @@ const RecurringBookings: React.FC = () => {
                 Usás <b>{active} de {max}</b> turnos fijos de tu plan {subscription?.planName}
               </Typography>
               {atLimit && (
-                <Button size="small" onClick={() => navigate(`/subscription/plans?highlight=${PLAN_PRO}`)}>
+                <Button size="small" onClick={() => navigate(checkoutPath('recurring_bookings', PLAN_PRO))}>
                   Ilimitados con Pro
                 </Button>
               )}

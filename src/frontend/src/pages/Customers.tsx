@@ -34,6 +34,7 @@ import {
   Phone,
   Email,
   CalendarToday,
+  Lock,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -43,6 +44,7 @@ import api from '../services/api';
 import { useAppSelector } from '../store';
 import { isEmployee } from '../utils/permissions';
 import CustomerHistoryDrawer from '../components/customers/CustomerHistoryDrawer';
+import { usePlanGates } from '../utils/planGates';
 
 interface Customer {
   id: string;
@@ -63,6 +65,9 @@ const Customers: React.FC = () => {
   const w = useTenantWording();
   const currentUser = useAppSelector(state => state.auth.user);
   const hidePhone = isEmployee(currentUser?.role);
+  // La ficha (historial) es del plan Pro: sin el plan, el click en un cliente lleva al checkout.
+  const { isLocked, goToCheckout } = usePlanGates();
+  const fichaLocked = isLocked('customer_history');
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -296,7 +301,7 @@ const Customers: React.FC = () => {
                     .map((customer) => (
                       <TableRow
                         key={customer.id}
-                        onClick={() => setFichaCustomer(customer)}
+                        onClick={() => (fichaLocked ? goToCheckout('customer_history') : setFichaCustomer(customer))}
                         sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'action.hover' } }}
                       >
                         <TableCell>
@@ -307,6 +312,11 @@ const Customers: React.FC = () => {
                             <Typography variant="body1">
                               {`${customer.firstName || ''} ${customer.lastName || ''}`.trim()}
                             </Typography>
+                            {fichaLocked && (
+                              <Tooltip title="La ficha del cliente está incluida en el plan Pro">
+                                <Lock sx={{ ml: 1, fontSize: 16, color: 'text.disabled' }} />
+                              </Tooltip>
+                            )}
                           </Box>
                         </TableCell>
                         <TableCell>
@@ -388,7 +398,7 @@ const Customers: React.FC = () => {
           />
         </Paper>
 
-        {/* Ficha del cliente (Pro; sin el plan, ejemplo borroso con el paywall) */}
+        {/* Ficha del cliente (Pro; sin el plan, el click en el cliente lleva al checkout) */}
         <CustomerHistoryDrawer
           customer={fichaCustomer}
           hidePhone={hidePhone}

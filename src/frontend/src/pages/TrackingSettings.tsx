@@ -15,12 +15,12 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { ArrowBack, Insights, OpenInNew, Save, Visibility, EventAvailable, Payments } from '@mui/icons-material';
+import { ArrowBack, OpenInNew, Save, Visibility, EventAvailable, Payments } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { isPlanLimitError } from '../services/api';
 import { trackingSettingsApi } from '../services/planFeaturesApi';
-import FeaturePaywall from '../components/subscription/FeaturePaywall';
+import PlanCheckoutRedirect from '../components/subscription/PlanCheckoutRedirect';
 
 const PIXEL_RE = /^[0-9]{10,20}$/;
 const GA_RE = /^G-[A-Z0-9]{4,16}$/;
@@ -188,32 +188,8 @@ const TrackingSettings: React.FC = () => {
     );
   }
 
-  if (allowed === false) {
-    return (
-      <Container maxWidth="md" sx={{ py: 4 }}>
-        {header}
-        <FeaturePaywall
-          includes={(f) => f.allowTrackingPixels}
-          fallbackPlanCode="pro_v2"
-          fallbackPlanName="Pro"
-          icon={<Insights />}
-          title="Sabé qué anuncio te trae cada turno"
-          description="Pegá el ID de tu Píxel de Meta y de Google Analytics, y tu página de reservas les avisa cada visita, cada reserva y cada seña cobrada."
-          bullets={[
-            'Optimizá tus campañas de Instagram y Facebook por reservas, no por clics',
-            'Armá públicos de quienes miraron y no reservaron',
-            'Sin tocar código: se activa con solo pegar el ID',
-          ]}
-          preview={
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={7}><Form pixel="123456789012345" ga="G-AB12CD34EF" disabled /></Grid>
-              <Grid item xs={12} md={5}><EventsCard /></Grid>
-            </Grid>
-          }
-        />
-      </Container>
-    );
-  }
+  // El plan no incluye el Píxel: directo al checkout (Pro).
+  if (allowed === false) return <PlanCheckoutRedirect gate="tracking_pixels" />;
 
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>

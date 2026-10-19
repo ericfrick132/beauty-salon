@@ -26,9 +26,9 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import { Add, ArrowDownward, ArrowUpward, Block, DynamicForm, Edit, Replay, Star } from '@mui/icons-material';
+import { Add, ArrowDownward, ArrowUpward, Block, DynamicForm, Edit, Lock, Replay, Star } from '@mui/icons-material';
 import TextField from '../components/common/TextField';
-import FeaturePaywall from '../components/subscription/FeaturePaywall';
+import PlanCheckoutRedirect from '../components/subscription/PlanCheckoutRedirect';
 import CustomFieldInput, { CustomFieldLike } from '../components/booking/CustomFieldInput';
 import { isPlanLimitError } from '../services/api';
 import {
@@ -40,6 +40,7 @@ import {
   FormFieldType,
 } from '../services/bookingExtrasApi';
 import { PLAN_PRO } from '../utils/plans';
+import { checkoutPath } from '../utils/planGates';
 
 interface FormState {
   label: string;
@@ -51,12 +52,6 @@ interface FormState {
 }
 
 const EMPTY_FORM: FormState = { label: '', fieldType: 'text', required: false, options: [], placeholder: '', isActive: true };
-
-const SAMPLE_FIELDS: CustomFieldLike[] = [
-  { id: 's1', label: '¿Tenés alguna alergia?', fieldType: 'text', required: false, placeholder: 'Ej: látex, lidocaína', options: [] },
-  { id: 's2', label: '¿Cómo nos conociste?', fieldType: 'select', required: true, placeholder: null, options: ['Instagram', 'Google', 'Me lo recomendaron'] },
-  { id: 's3', label: 'Es mi primera vez', fieldType: 'checkbox', required: false, placeholder: null, options: [] },
-];
 
 /** Cómo se ve "Tus datos" en la página de reservas con estos campos. */
 const FormPreview: React.FC<{ fields: CustomFieldLike[] }> = ({ fields }) => {
@@ -247,7 +242,7 @@ const BookingFormFields: React.FC = () => {
       severity="info"
       icon={<Star />}
       action={
-        <Button color="inherit" size="small" onClick={() => navigate(`/subscription/plans?highlight=${PLAN_PRO}`)}>
+        <Button color="inherit" size="small" onClick={() => navigate(checkoutPath('custom_fields', PLAN_PRO))}>
           Ver Pro
         </Button>
       }
@@ -258,6 +253,13 @@ const BookingFormFields: React.FC = () => {
 
   const addButton = (
     <Button variant="contained" startIcon={<Add />} onClick={openCreate} sx={{ flexShrink: 0 }}>
+      Agregar campo
+    </Button>
+  );
+
+  // En el tope del plan: el botón queda grisado con candado y lleva al checkout del plan que lo levanta.
+  const lockedAddButton = (
+    <Button variant="contained" startIcon={<Lock />} onClick={() => navigate(checkoutPath('custom_fields', PLAN_PRO))} sx={{ flexShrink: 0, opacity: 0.6 }}>
       Agregar campo
     </Button>
   );
@@ -280,29 +282,8 @@ const BookingFormFields: React.FC = () => {
     </Box>
   );
 
-  if (maxFields === 0) {
-    return (
-      <Box>
-        {header}
-        {loadError && <Alert severity="error" sx={{ mb: 2 }}>{loadError}</Alert>}
-        <FeaturePaywall
-          title="Pedí los datos que necesitás al reservar"
-          description="Sumá preguntas propias al formulario de tu página de reservas y llegá al turno sabiendo todo: nada de perseguir al cliente por WhatsApp."
-          bullets={[
-            'Texto, número, lista desplegable o casilla de sí/no',
-            'Obligatorios u opcionales, en el orden que quieras',
-            'La respuesta aparece en el detalle de cada reserva',
-            'Advance incluye 1 campo; Pro, ilimitados',
-          ]}
-          includes={(f) => (f.maxCustomFields ?? 0) !== 0}
-        >
-          <Box sx={{ maxWidth: 560 }}>
-            <FormPreview fields={SAMPLE_FIELDS} />
-          </Box>
-        </FeaturePaywall>
-      </Box>
-    );
-  }
+  // Sin campos en el plan: directo al checkout (Advance). Si no cargó, no se redirige a quien quizás paga.
+  if (maxFields === 0 && !loadError) return <PlanCheckoutRedirect gate="custom_fields" />;
 
   const dialogPreview: CustomFieldLike = {
     id: 'preview',
@@ -326,7 +307,7 @@ const BookingFormFields: React.FC = () => {
               label={unlimited ? `Usás ${active.length} campos · ilimitados` : `Usás ${active.length} de ${maxFields} ${maxFields === 1 ? 'campo' : 'campos'}`}
               variant="outlined"
             />
-            {!atCap && fields.length > 0 && addButton}
+            {fields.length > 0 && (atCap ? lockedAddButton : addButton)}
           </Box>
           {atCap && <Box sx={{ mb: 2 }}>{proUpsell}</Box>}
 

@@ -32,7 +32,7 @@ import { useTenant } from '../../contexts/TenantContext';
 import { useTenantMoney } from '../../hooks/useTenantMoney';
 import { isPlanLimitError } from '../../services/api';
 import { CustomerHistory, customerHistoryApi } from '../../services/planFeaturesApi';
-import FeaturePaywall from '../subscription/FeaturePaywall';
+import PlanCheckoutRedirect from '../subscription/PlanCheckoutRedirect';
 
 export interface CustomerSummary {
   id: string;
@@ -65,20 +65,6 @@ const waLink = (phone?: string | null) => {
 };
 
 const fmtDate = (iso?: string | null, pattern = "d MMM yyyy") => (iso ? format(new Date(iso), pattern, { locale: es }) : '—');
-
-const SAMPLE: CustomerHistory = {
-  customer: { id: 'x', firstName: 'Lucía', lastName: 'Fernández', email: 'lucia@mail.com', phone: '+54 9 11 5555 1234', notes: 'Prefiere los turnos de la tarde.' },
-  stats: {
-    totalBookings: 14, attended: 12, cancelled: 1, noShows: 1, totalSpent: 168000,
-    firstVisit: new Date(Date.now() - 200 * 86400000).toISOString(), lastVisit: new Date(Date.now() - 9 * 86400000).toISOString(),
-    nextBooking: new Date(Date.now() + 5 * 86400000).toISOString(), avgDaysBetweenVisits: 16, favoriteService: 'Corte y color', favoriteEmployee: 'Sofi',
-  },
-  bookings: [0, 1, 2].map((i) => ({
-    id: `b${i}`, startTime: new Date(Date.now() - (i * 16 + 9) * 86400000).toISOString(), endTime: new Date().toISOString(),
-    status: 'completed', price: 14000, serviceId: '', serviceName: i === 1 ? 'Brushing' : 'Corte y color', employeeId: '', employeeName: 'Sofi',
-    couponCode: i === 0 ? 'VUELVE15' : null, discountAmount: i === 0 ? 2100 : null, customFields: i === 0 ? [{ fieldId: 'f', label: 'Obra social', value: 'OSDE' }] : [],
-  })),
-};
 
 const Stat: React.FC<{ label: string; value: React.ReactNode; hint?: string }> = ({ label, value, hint }) => (
   <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
@@ -188,16 +174,17 @@ const Ficha: React.FC<{ data: CustomerHistory; hidePhone?: boolean; professional
 };
 
 /**
- * Ficha del cliente (plan Pro): drawer a la derecha en desktop, pantalla completa en el celular. Sin el plan se
- * muestra una ficha de ejemplo borrosa con el paywall; el endpoint solo se pide si el plan lo incluye, así no
- * salta el diálogo global de límite con solo abrir un cliente.
+ * Ficha del cliente (plan Pro): drawer a la derecha en desktop, pantalla completa en el celular. Sin el plan,
+ * la lista de clientes ya lleva al checkout en vez de abrirla; si igual se abre (o el backend responde
+ * PLAN_LIMIT), va directo al checkout del plan Pro.
  */
 const CustomerHistoryDrawer: React.FC<Props> = ({ customer, onClose, onEdit, hidePhone }) => {
   const theme = useTheme();
   const mobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { getTerm } = useTenant();
   const { subscription } = useSubscription();
-  const allowed = subscription?.features ? subscription.features.allowCustomerHistory : false;
+  // Sin el plan cargado se pide igual: si no lo incluye, el 403 PLAN_LIMIT lleva al checkout.
+  const allowed = subscription?.features ? subscription.features.allowCustomerHistory : true;
 
   const [data, setData] = useState<CustomerHistory | null>(null);
   const [loading, setLoading] = useState(false);
@@ -227,11 +214,6 @@ const CustomerHistoryDrawer: React.FC<Props> = ({ customer, onClose, onEdit, hid
   const showPaywall = !allowed || locked;
   const professionalLabel = getTerm('professional');
 
-  // Sin plan: los datos básicos del cliente (los tiene igual) + la ficha de ejemplo para vender el historial.
-  const sample: CustomerHistory = customer
-    ? { ...SAMPLE, customer: { ...SAMPLE.customer, firstName: customer.firstName, lastName: customer.lastName, email: customer.email, phone: customer.phone, notes: customer.notes } }
-    : SAMPLE;
-
   const body = (
     <Box sx={{ p: { xs: 2, sm: 3 }, pt: { xs: 1, sm: 2 } }}>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
@@ -241,17 +223,7 @@ const CustomerHistoryDrawer: React.FC<Props> = ({ customer, onClose, onEdit, hid
         <IconButton aria-label="Cerrar" onClick={onClose}><Close /></IconButton>
       </Box>
       {showPaywall ? (
-        <FeaturePaywall
-          dense
-          includes={(f) => f.allowCustomerHistory}
-          fallbackPlanCode="pro_v2"
-          fallbackPlanName="Pro"
-          icon={<PersonSearch />}
-          title="Conocé a cada cliente de un vistazo"
-          description="Cuántas veces vino, cuánto gastó, cada cuántos días vuelve y qué servicio y profesional prefiere, con todo su historial de turnos."
-          bullets={['Estadísticas de cada cliente', 'Historial completo con cupones y respuestas del formulario', 'WhatsApp a un clic']}
-          preview={<Ficha data={sample} hidePhone={hidePhone} professionalLabel={professionalLabel} />}
-        />
+        open ? <PlanCheckoutRedirect gate="customer_history" /> : null
       ) : loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress /></Box>
       ) : error ? (
