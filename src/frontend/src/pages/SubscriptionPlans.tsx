@@ -541,6 +541,20 @@ const SubscriptionPlans: React.FC = () => {
     }
   };
 
+  // Checkout en un clic: si se llega desde un candado del panel (?from=<gate>&highlight=<plan>) y el
+  // negocio no paga ningún plan, se dispara el pago del plan resaltado (la confirmación queda en la
+  // pasarela). A quien ya paga no se le cambia el débito solo: ve el plan resaltado y elige.
+  const autoCheckoutDone = useRef(false);
+  useEffect(() => {
+    if (autoCheckoutDone.current || loading || !currentStatus || !isPlanGate(from) || !highlight) return;
+    const target = plans.find((p) => p.code === highlight);
+    const inStore = currentStatus.appleSubscriptionActive || currentStatus.googlePlaySubscriptionActive;
+    if (!target || target.price <= 0 || currentStatus.isPaid || inStore) return;
+    autoCheckoutDone.current = true;
+    handleSubscribe(target.code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, currentStatus, from, highlight, plans]);
+
   const handleDowngrade = async () => {
     setCancelling(true);
     setError(null);
