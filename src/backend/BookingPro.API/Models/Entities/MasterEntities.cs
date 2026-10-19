@@ -161,6 +161,15 @@ namespace BookingPro.API.Models.Entities
         public string? MetaAttributionSource { get; set; }
         public DateTime? MetaAttributionAt { get; set; }
 
+        // === Consentimiento de marketing por WhatsApp (opt-in explícito del dueño en el alta) ===
+        /// <summary>El dueño tildó "Acepto recibir novedades y promociones de TurnosPro por WhatsApp." al registrarse.</summary>
+        public bool WhatsAppMarketingOptIn { get; set; } = false;
+        /// <summary>Cuándo dio el consentimiento (UTC). Null si nunca lo dio.</summary>
+        public DateTime? WhatsAppMarketingOptInAt { get; set; }
+        /// <summary>Dónde lo dio: "web" | "ios" | "android".</summary>
+        [MaxLength(30)]
+        public string? WhatsAppMarketingOptInSource { get; set; }
+
         /// <summary>
         /// Cupón de promo que el negocio trajo al darse de alta (entró por /promo: utm_campaign = slug de la
         /// promo). Queda pendiente hasta que se suscribe; ahí PromoCouponService lo aplica al débito automático
@@ -482,6 +491,16 @@ namespace BookingPro.API.Models.Entities
         /// que la landing y no compartir sessionStorage.
         /// </summary>
         public string? AttributionJson { get; set; }
+
+        /// <summary>
+        /// Casillero de marketing por WhatsApp tildado en el formulario de email/start. Viaja en la fila
+        /// hasta que el verify crea el tenant (un login de cuenta existente lo ignora).
+        /// </summary>
+        public bool WhatsAppMarketingOptIn { get; set; } = false;
+
+        /// <summary>Plataforma del formulario: "web" | "ios" | "android".</summary>
+        [MaxLength(30)]
+        public string? WhatsAppMarketingOptInSource { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

@@ -957,6 +957,13 @@ namespace BookingPro.API.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("WhatsAppMarketingOptIn")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("WhatsAppMarketingOptInSource")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
@@ -4364,6 +4371,16 @@ namespace BookingPro.API.Migrations
 
                     b.Property<Guid?>("VerticalId")
                         .HasColumnType("uuid");
+
+                    b.Property<bool>("WhatsAppMarketingOptIn")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("WhatsAppMarketingOptInAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("WhatsAppMarketingOptInSource")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.HasKey("Id");
 

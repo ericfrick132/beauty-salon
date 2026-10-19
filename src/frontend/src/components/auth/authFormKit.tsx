@@ -191,3 +191,72 @@ export const InlineLink: React.FC<{
     {children}
   </Box>
 );
+
+// ─── Consentimiento de marketing por WhatsApp (opt-in explícito, destildado por defecto) ───
+export const WHATSAPP_OPT_IN_LABEL = 'Acepto recibir novedades y promociones de TurnosPro por WhatsApp.';
+
+export const WhatsAppOptInCheckbox: React.FC<{
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+}> = ({ checked, onChange, disabled }) => (
+  <Box
+    component="label"
+    sx={{
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: 1.25,
+      cursor: disabled ? 'default' : 'pointer',
+      userSelect: 'none',
+      opacity: disabled ? 0.6 : 1,
+    }}
+  >
+    <Box
+      component="input"
+      type="checkbox"
+      name="whatsAppMarketingOptIn"
+      checked={checked}
+      disabled={disabled}
+      onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.checked)}
+      sx={{
+        appearance: 'none',
+        WebkitAppearance: 'none',
+        flexShrink: 0,
+        width: 18,
+        height: 18,
+        margin: '2px 0 0',
+        border: `1px solid ${authPalette.ink}`,
+        borderRadius: '3px',
+        backgroundColor: 'transparent',
+        display: 'grid',
+        placeContent: 'center',
+        cursor: 'inherit',
+        transition: 'background-color 150ms ease, border-color 150ms ease',
+        '&::after': {
+          content: '""',
+          width: 5,
+          height: 9,
+          border: `solid ${authPalette.paper}`,
+          borderWidth: '0 2px 2px 0',
+          transform: 'translateY(-1px) rotate(45deg)',
+          opacity: 0,
+        },
+        '&:checked': {
+          backgroundColor: authPalette.primary,
+          borderColor: authPalette.primary,
+        },
+        '&:checked::after': { opacity: 1 },
+        '&:focus-visible': {
+          outline: `2px solid ${authPalette.primary}`,
+          outlineOffset: 2,
+        },
+      }}
+    />
+    <Typography
+      component="span"
+      sx={{ fontFamily: authFonts.body, fontSize: 14, lineHeight: 1.45, color: authPalette.inkSoft }}
+    >
+      {WHATSAPP_OPT_IN_LABEL}
+    </Typography>
+  </Box>
+);

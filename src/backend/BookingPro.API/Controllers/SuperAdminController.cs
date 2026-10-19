@@ -156,6 +156,9 @@ namespace BookingPro.API.Controllers
                         subdomain = t.Subdomain,
                         businessName = t.BusinessName,
                         ownerEmail = t.OwnerEmail,
+                        whatsAppMarketingOptIn = t.WhatsAppMarketingOptIn,
+                        whatsAppMarketingOptInAt = t.WhatsAppMarketingOptInAt,
+                        whatsAppMarketingOptInSource = t.WhatsAppMarketingOptInSource,
                         verticalId = t.VerticalId,
                         vertical = new
                         {

@@ -308,6 +308,8 @@ namespace BookingPro.API.Controllers
                 };
                 // utm_* / fbclid / utm_content ({{ad.id}}) que el frontend capturó al aterrizar desde el anuncio.
                 MetaAttribution.Apply(tenant, dto, "web");
+                // Casillero de marketing por WhatsApp (opt-in explícito; solo se guarda si vino tildado).
+                WhatsAppMarketingConsent.Apply(tenant, dto);
 
                 _context.Tenants.Add(tenant);
                 await _context.SaveChangesAsync();
@@ -438,6 +440,8 @@ namespace BookingPro.API.Controllers
                 };
                 // utm_* / fbclid / utm_content ({{ad.id}}) que el frontend capturó al aterrizar desde el anuncio.
                 MetaAttribution.Apply(tenant, dto, "web");
+                // Casillero de marketing por WhatsApp (opt-in explícito; solo se guarda si vino tildado).
+                WhatsAppMarketingConsent.Apply(tenant, dto);
                 _context.Tenants.Add(tenant);
                 await _context.SaveChangesAsync();
 
@@ -879,6 +883,8 @@ namespace BookingPro.API.Controllers
                     Phone = phone,
                     StateToken = stateToken,
                     AttributionJson = attributionJson,
+                    WhatsAppMarketingOptIn = dto.WhatsAppMarketingOptIn,
+                    WhatsAppMarketingOptInSource = WhatsAppMarketingConsent.NormalizeSource(dto.WhatsAppMarketingOptInSource),
                     CreatedAt = now,
                     UpdatedAt = now
                 });
@@ -895,6 +901,13 @@ namespace BookingPro.API.Controllers
                 if (businessName != null) existing.BusinessName = businessName;
                 if (phone != null) existing.Phone = phone;
                 if (attributionJson != null) existing.AttributionJson = attributionJson;
+                // El formulario (con email) manda el estado del casillero tal cual; el reenvío por state
+                // no lo trae, así que no pisa lo que se tildó antes.
+                if (stateParam.Length == 0)
+                {
+                    existing.WhatsAppMarketingOptIn = dto.WhatsAppMarketingOptIn;
+                    existing.WhatsAppMarketingOptInSource = WhatsAppMarketingConsent.NormalizeSource(dto.WhatsAppMarketingOptInSource);
+                }
                 existing.UpdatedAt = now;
             }
             await _context.SaveChangesAsync();
@@ -1064,6 +1077,12 @@ namespace BookingPro.API.Controllers
                     ? dto
                     : (IMetaAttributionSource?)DeserializeAttribution(verification.AttributionJson) ?? dto;
                 MetaAttribution.Apply(tenant, attribution, "web");
+                // Casillero de marketing por WhatsApp: el que se tildó en email/start (o, si el cliente lo
+                // reenvía, el del body del verify).
+                if (verification.WhatsAppMarketingOptIn)
+                    WhatsAppMarketingConsent.Apply(tenant, true, verification.WhatsAppMarketingOptInSource, "web", now);
+                else
+                    WhatsAppMarketingConsent.Apply(tenant, dto, "web", now);
                 _context.Tenants.Add(tenant);
                 await _context.SaveChangesAsync();
 
@@ -1362,6 +1381,8 @@ namespace BookingPro.API.Controllers
                 };
                 // utm_* / fbclid / utm_content ({{ad.id}}) que el frontend capturó al aterrizar desde el anuncio.
                 MetaAttribution.Apply(tenant, dto, "web");
+                // Casillero de marketing por WhatsApp (opt-in explícito; solo se guarda si vino tildado).
+                WhatsAppMarketingConsent.Apply(tenant, dto);
                 _context.Tenants.Add(tenant);
                 await _context.SaveChangesAsync();
 
@@ -1435,8 +1456,15 @@ namespace BookingPro.API.Controllers
         public string ConfirmPassword { get; set; } = string.Empty;
     }
 
-    public class RegistrationQuickDto : MetaAttributionFieldsDto
+    public class RegistrationQuickDto : MetaAttributionFieldsDto, IWhatsAppMarketingOptInSource
     {
+        /// <summary>Casillero "Acepto recibir novedades y promociones de TurnosPro por WhatsApp." (opcional, default false).</summary>
+        public bool WhatsAppMarketingOptIn { get; set; }
+
+        /// <summary>Dónde se tildó: "web" | "ios" | "android".</summary>
+        [System.ComponentModel.DataAnnotations.StringLength(30)]
+        public string? WhatsAppMarketingOptInSource { get; set; }
+
         /// <summary>País del negocio (AR, UY, MX, ES). Null → se deduce del código del teléfono; si no, Argentina.</summary>
         public string? Country { get; set; }
 
@@ -1500,8 +1528,15 @@ namespace BookingPro.API.Controllers
 
     /// <summary>Paso 1 del alta/login por código de email. Trae el email (formulario) o el state (reenvío
     /// desde /register?s=...), más los datos del negocio y la atribución del anuncio.</summary>
-    public class EmailStartDto : MetaAttributionFieldsDto
+    public class EmailStartDto : MetaAttributionFieldsDto, IWhatsAppMarketingOptInSource
     {
+        /// <summary>Casillero "Acepto recibir novedades y promociones de TurnosPro por WhatsApp." (opcional, default false).</summary>
+        public bool WhatsAppMarketingOptIn { get; set; }
+
+        /// <summary>Dónde se tildó: "web" | "ios" | "android".</summary>
+        [System.ComponentModel.DataAnnotations.StringLength(30)]
+        public string? WhatsAppMarketingOptInSource { get; set; }
+
         /// <summary>País del negocio (AR, UY, MX, ES). Null → se deduce del código del teléfono; si no, Argentina.</summary>
         public string? Country { get; set; }
 
@@ -1520,8 +1555,15 @@ namespace BookingPro.API.Controllers
 
     /// <summary>Paso 2 del alta/login por código de email. Trae la atribución (utm_content = {{ad.id}}, fbclid, _fbp)
     /// que el modal guardó en sessionStorage al aterrizar desde el anuncio.</summary>
-    public class EmailVerifyDto : MetaAttributionFieldsDto
+    public class EmailVerifyDto : MetaAttributionFieldsDto, IWhatsAppMarketingOptInSource
     {
+        /// <summary>Casillero "Acepto recibir novedades y promociones de TurnosPro por WhatsApp." (opcional, default false).</summary>
+        public bool WhatsAppMarketingOptIn { get; set; }
+
+        /// <summary>Dónde se tildó: "web" | "ios" | "android".</summary>
+        [System.ComponentModel.DataAnnotations.StringLength(30)]
+        public string? WhatsAppMarketingOptInSource { get; set; }
+
         /// <summary>Token opaco de la transacción (/register?s=...). Si viene, manda sobre Email.</summary>
         public string? State { get; set; }
 
@@ -1532,8 +1574,15 @@ namespace BookingPro.API.Controllers
         public string Code { get; set; } = string.Empty;
     }
 
-    public class RegistrationCompleteDto : MetaAttributionFieldsDto
+    public class RegistrationCompleteDto : MetaAttributionFieldsDto, IWhatsAppMarketingOptInSource
     {
+        /// <summary>Casillero "Acepto recibir novedades y promociones de TurnosPro por WhatsApp." (opcional, default false).</summary>
+        public bool WhatsAppMarketingOptIn { get; set; }
+
+        /// <summary>Dónde se tildó: "web" | "ios" | "android".</summary>
+        [System.ComponentModel.DataAnnotations.StringLength(30)]
+        public string? WhatsAppMarketingOptInSource { get; set; }
+
         /// <summary>País del negocio (AR, UY, MX, ES). Null → se deduce del código del teléfono; si no, Argentina.</summary>
         public string? Country { get; set; }
 

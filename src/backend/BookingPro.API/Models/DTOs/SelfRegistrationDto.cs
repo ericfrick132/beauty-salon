@@ -3,8 +3,15 @@ using BookingPro.API.Services;
 
 namespace BookingPro.API.Models.DTOs
 {
-    public class SelfRegistrationDto
+    public class SelfRegistrationDto : IWhatsAppMarketingOptInSource
     {
+        /// <summary>Casillero "Acepto recibir novedades y promociones de TurnosPro por WhatsApp." (opcional, default false).</summary>
+        public bool WhatsAppMarketingOptIn { get; set; }
+
+        /// <summary>Dónde se tildó: "web" | "ios" | "android".</summary>
+        [System.ComponentModel.DataAnnotations.StringLength(30)]
+        public string? WhatsAppMarketingOptInSource { get; set; }
+
         [Required(ErrorMessage = "El tipo de negocio es requerido")]
         [MaxLength(50)]
         public string VerticalCode { get; set; } = string.Empty;
@@ -94,8 +101,15 @@ namespace BookingPro.API.Models.DTOs
     /// Campos del alta de negocio que comparten los signups sociales (Google y Apple).
     /// El token de identidad lo agrega cada subclase porque el claim viaja distinto.
     /// </summary>
-    public class SocialRegisterDto : MetaAttributionFieldsDto
+    public class SocialRegisterDto : MetaAttributionFieldsDto, IWhatsAppMarketingOptInSource
     {
+        /// <summary>Casillero "Acepto recibir novedades y promociones de TurnosPro por WhatsApp." (opcional, default false).</summary>
+        public bool WhatsAppMarketingOptIn { get; set; }
+
+        /// <summary>Dónde se tildó: "web" | "ios" | "android".</summary>
+        [System.ComponentModel.DataAnnotations.StringLength(30)]
+        public string? WhatsAppMarketingOptInSource { get; set; }
+
         [Required]
         [MaxLength(100)]
         [RegularExpression(@"^[a-z0-9-]+$", ErrorMessage = "El subdominio solo puede contener letras minúsculas, números y guiones")]

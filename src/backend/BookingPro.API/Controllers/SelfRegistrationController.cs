@@ -111,6 +111,18 @@ namespace BookingPro.API.Controllers
 
                 _logger.LogInformation("Self-registered tenant created successfully: {Subdomain}", dto.Subdomain);
 
+                // Casillero de marketing por WhatsApp (opt-in explícito; solo se guarda si vino tildado).
+                if (dto.WhatsAppMarketingOptIn)
+                {
+                    var createdTenant = await _context.Tenants.IgnoreQueryFilters()
+                        .FirstOrDefaultAsync(t => t.Id == result.Data!.Id);
+                    if (createdTenant != null)
+                    {
+                        WhatsAppMarketingConsent.Apply(createdTenant, dto);
+                        await _context.SaveChangesAsync();
+                    }
+                }
+
                 // Build final tenant URL (prod domain or localhost for dev)
                 var host = HttpContext?.Request?.Host.Host ?? string.Empty;
                 var isLocal = host.Contains("localhost") || host.StartsWith("127.") || host.StartsWith("0.0.0.0");

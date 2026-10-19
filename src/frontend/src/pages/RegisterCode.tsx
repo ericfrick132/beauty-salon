@@ -23,7 +23,7 @@ import { Alert, Box, MenuItem, TextField, Typography } from '@mui/material';
 import { motion, useReducedMotion } from 'framer-motion';
 import api, { registrationApi } from '../services/api';
 import AuthShell, { authPalette, authFonts } from '../components/auth/AuthShell';
-import { underlineFieldSx, PillCTA, InlineLink } from '../components/auth/authFormKit';
+import { underlineFieldSx, PillCTA, InlineLink, WhatsAppOptInCheckbox } from '../components/auth/authFormKit';
 import { slugify } from '../utils/slug';
 import { trackFunnel, trackFunnelIfApplicable } from '../utils/funnelTracking';
 import { countryFromPhone, getCountry } from '../utils/intl';
@@ -169,6 +169,8 @@ const RegisterCode: React.FC = () => {
   const [email, setEmail] = useState(emailParam);
   const [dial, setDial] = useState(() => (countryParam ? `+${getCountry(countryParam).dialCode}` : PHONE_COUNTRIES[0].dial));
   const [mobile, setMobile] = useState('');
+  // Consentimiento de marketing por WhatsApp: destildado por defecto, no es obligatorio.
+  const [whatsAppOptIn, setWhatsAppOptIn] = useState(false);
   const [code, setCode] = useState('');
   // null = llegamos con ?email= y todavía no sabemos si la cuenta existe.
   const [isExisting, setIsExisting] = useState<boolean | null>(null);
@@ -236,6 +238,8 @@ const RegisterCode: React.FC = () => {
               phone: fullPhone || undefined,
               // País del negocio por el código del teléfono (AR/UY/MX/ES); el resto queda en Argentina.
               country: countryFromPhone(fullPhone)?.code || countryParam || undefined,
+              whatsAppMarketingOptIn: whatsAppOptIn,
+              whatsAppMarketingOptInSource: 'web',
               ...getAttribution(),
             },
       );
@@ -510,7 +514,7 @@ const RegisterCode: React.FC = () => {
           />
         </Box>
 
-        <Box component={motion.div} {...item(0.38)} sx={{ display: 'flex', gap: 1.5, mb: 3 }}>
+        <Box component={motion.div} {...item(0.38)} sx={{ display: 'flex', gap: 1.5, mb: 2.5 }}>
           <TextField
             select
             variant="filled"
@@ -546,6 +550,10 @@ const RegisterCode: React.FC = () => {
             inputProps={{ inputMode: 'tel' }}
             sx={underlineFieldSx}
           />
+        </Box>
+
+        <Box component={motion.div} {...item(0.41)} sx={{ mb: 3 }}>
+          <WhatsAppOptInCheckbox checked={whatsAppOptIn} onChange={setWhatsAppOptIn} disabled={loading} />
         </Box>
 
         <Box component={motion.div} {...item(0.44)}>

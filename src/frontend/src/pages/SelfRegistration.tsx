@@ -34,6 +34,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 
 import { registrationApi } from '../services/api';
 import GoogleSignInButton from '../components/auth/GoogleSignInButton';
+import { WhatsAppOptInCheckbox } from '../components/auth/authFormKit';
 import AuthShell, { authPalette, authFonts } from '../components/auth/AuthShell';
 import { slugify } from '../utils/slug';
 import { trackFunnel } from '../utils/funnelTracking';
@@ -355,6 +356,8 @@ const SelfRegistration: React.FC = () => {
   const [mobile, setMobile] = useState('');
   const [businessAddress, setBusinessAddress] = useState('');
   const [promoCode, setPromoCode] = useState('');
+  // Consentimiento de marketing por WhatsApp: destildado por defecto, no es obligatorio.
+  const [whatsAppOptIn, setWhatsAppOptIn] = useState(false);
 
   // ----- Final -----
   const [redirectUrl, setRedirectUrl] = useState('');
@@ -550,6 +553,8 @@ const SelfRegistration: React.FC = () => {
             businessAddress: businessAddress || undefined,
             mobile,
             promoCode: promoCode.trim() || undefined,
+            whatsAppMarketingOptIn: whatsAppOptIn,
+            whatsAppMarketingOptInSource: 'web',
           })
         : await registrationApi.complete({
             rememberToken,
@@ -558,6 +563,8 @@ const SelfRegistration: React.FC = () => {
             businessAddress: businessAddress || undefined,
             mobile,
             promoCode: promoCode.trim() || undefined,
+            whatsAppMarketingOptIn: whatsAppOptIn,
+            whatsAppMarketingOptInSource: 'web',
           });
 
       if (response.success) {
@@ -1234,7 +1241,7 @@ const SelfRegistration: React.FC = () => {
           />
         </Box>
 
-        <Box component={motion.div} {...item(0.21)} sx={{ mb: 4 }}>
+        <Box component={motion.div} {...item(0.21)} sx={{ mb: 3 }}>
           <TextField
             fullWidth
             variant="filled"
@@ -1244,6 +1251,10 @@ const SelfRegistration: React.FC = () => {
             onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
             sx={underlineFieldSx}
           />
+        </Box>
+
+        <Box component={motion.div} {...item(0.225)} sx={{ mb: 4 }}>
+          <WhatsAppOptInCheckbox checked={whatsAppOptIn} onChange={setWhatsAppOptIn} disabled={loading} />
         </Box>
 
         <Box component={motion.div} {...item(0.24)}>

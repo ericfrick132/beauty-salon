@@ -12,6 +12,8 @@ import {
   IconButton,
   Stack,
   MenuItem,
+  Checkbox,
+  FormControlLabel,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -252,6 +254,8 @@ interface FormState {
   dial: string;
   mobile: string;
   password: string;
+  /** Casillero de marketing por WhatsApp: destildado por defecto, no es obligatorio. */
+  whatsAppOptIn: boolean;
   busy: boolean;
   error: string;
   info: string;
@@ -265,6 +269,7 @@ const initialState: FormState = {
   dial: PHONE_COUNTRIES[0].dial,
   mobile: '',
   password: '',
+  whatsAppOptIn: false,
   busy: false,
   error: '',
   info: '',
@@ -403,6 +408,8 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
           email: state.email.trim(),
           businessName: state.businessName.trim(),
           phone: fullPhone,
+          whatsAppMarketingOptIn: state.whatsAppOptIn,
+          whatsAppMarketingOptInSource: 'web',
           // País de la landing (/uy, /mx, /es o ?pais=): el alta lo usa en vez de deducirlo del teléfono.
           ...(country ? { country: country.code } : {}),
           // La atribución viaja ya en el start: queda guardada en la transacción y el verify
@@ -463,6 +470,8 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
           businessName: state.businessName.trim(),
           mobile: fullPhone,
           fullName: state.fullName.trim(),
+          whatsAppMarketingOptIn: state.whatsAppOptIn,
+          whatsAppMarketingOptInSource: 'web',
           ...(country ? { country: country.code } : {}),
           ...getAttribution(),
         }),
@@ -496,6 +505,28 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
       set({ error: err.message || 'Error inesperado', busy: false });
     }
   };
+
+  // Opt-in explícito de marketing por WhatsApp (política de WhatsApp): nombra el negocio y el canal.
+  const whatsAppOptInRow = (
+    <FormControlLabel
+      sx={{ alignItems: 'flex-start', mx: 0, mt: 2 }}
+      control={
+        <Checkbox
+          checked={state.whatsAppOptIn}
+          onChange={(e) => set({ whatsAppOptIn: e.target.checked })}
+          disabled={state.busy}
+          size="small"
+          sx={{ p: 0, mr: 1.25, mt: '1px', color: palette.ink, '&.Mui-checked': { color: palette.forest } }}
+          inputProps={{ name: 'whatsAppMarketingOptIn' }}
+        />
+      }
+      label={
+        <Typography component="span" sx={{ fontSize: '0.85rem', lineHeight: 1.45, color: palette.inkSoft }}>
+          Acepto recibir novedades y promociones de TurnosPro por WhatsApp.
+        </Typography>
+      }
+    />
+  );
 
   const phoneRow = (
     <Stack direction="row" spacing={1}>
@@ -615,6 +646,8 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
             {phoneRow}
           </Stack>
 
+          {whatsAppOptInRow}
+
           <Button
             type="submit"
             variant="contained"
@@ -730,6 +763,8 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
               helperText="Mínimo 8 caracteres"
             />
           </Stack>
+
+          {whatsAppOptInRow}
 
           <Box
             sx={{

@@ -386,7 +386,7 @@ export const registrationApi = {
   // Alta/login passwordless por código de email (paso 1 manda el código, paso 2 lo verifica).
   // start: con email (formulario) o con state (reenvío desde la página). Devuelve { state } para
   // identificar la transacción sin exponer el email en la URL (/register?s=...).
-  emailStart: (data: { email?: string; state?: string; businessName?: string; phone?: string; [attribution: string]: string | undefined }) =>
+  emailStart: (data: { email?: string; state?: string; businessName?: string; phone?: string; whatsAppMarketingOptIn?: boolean; [attribution: string]: string | boolean | undefined }) =>
     api.post('/registration/email/start', data).then(res => res.data),
 
   emailState: (state: string) =>
@@ -411,6 +411,8 @@ export const registrationApi = {
     mobile: string;
     planCode?: string;
     promoCode?: string;
+    whatsAppMarketingOptIn?: boolean;
+    whatsAppMarketingOptInSource?: string;
   }) => api.post('/registration/complete', data).then(res => res.data),
 
   checkSubdomain: (subdomain: string) =>
@@ -430,6 +432,8 @@ export const registrationApi = {
     mobile?: string;
     planCode?: string;
     promoCode?: string;
+    whatsAppMarketingOptIn?: boolean;
+    whatsAppMarketingOptInSource?: string;
   }) => api.post('/registration/google-register', data).then(res => res.data),
 
   googleLogin: (idToken: string) =>
