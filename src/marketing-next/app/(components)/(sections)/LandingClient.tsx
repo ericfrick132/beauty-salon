@@ -1,47 +1,43 @@
 'use client';
 import { SignupModalProvider } from './SignupModal';
-import Header from '../Header';
-import Footer from '../Footer';
-import HeroSection from './HeroSection';
-import LogoCarousel from './LogoCarousel';
-import SolutionSection from './SolutionSection';
-import FeatureHighlight from './FeatureHighlight';
-import FeatureGrid from './FeatureGrid';
-import AiBotSection from './AiBotSection';
-import AgendaSection from './AgendaSection';
-import DemoCards from './DemoCards';
-import BusinessTypes from './BusinessTypes';
-import HowItWorks from './HowItWorks';
-import TestimonialsSection from './TestimonialsSection';
-import PricingSection from './PricingSection';
-import FaqSection from './FaqSection';
-import MobileAppSection from './MobileAppSection';
-import SignupSection from './SignupSection';
-import { logoCarouselTitle } from '@/app/(lib)/content';
+import HomeNav from '../(home)/HomeNav';
+import HomeHero from '../(home)/HomeHero';
+import {
+  BookingLinkSection,
+  DepositSection,
+  ReminderSection,
+  AssistantSection,
+  AgendaSection,
+  DemoSection,
+  RubrosSection,
+  AppSection,
+} from '../(home)/HomeSections';
+import HomePricing from '../(home)/HomePricing';
+import HomeFaq from '../(home)/HomeFaq';
+import HomeClosing from '../(home)/HomeClosing';
+import HomeFooter from '../(home)/HomeFooter';
 
+// Home de Argentina (/) con el estilo comunicacional de Ascend: prueba social real arriba del H1,
+// secciones de H2 corto + una línea + producto en card, precios desde la base y cierre con alta.
 export default function LandingClient() {
   return (
     <SignupModalProvider>
-      <Header />
+      <HomeNav />
       <main>
-        <HeroSection />
-        <LogoCarousel title={logoCarouselTitle} />
-        <SolutionSection />
-        <FeatureHighlight />
-        <FeatureGrid />
-        <AiBotSection />
+        <HomeHero />
+        <BookingLinkSection />
+        <DepositSection />
+        <ReminderSection />
+        <AssistantSection />
         <AgendaSection />
-        <DemoCards />
-        <BusinessTypes />
-        <HowItWorks />
-        <LogoCarousel />
-        <TestimonialsSection />
-        <PricingSection />
-        <MobileAppSection />
-        <FaqSection />
-        <SignupSection />
+        <DemoSection />
+        <HomePricing />
+        <RubrosSection />
+        <AppSection />
+        <HomeFaq />
+        <HomeClosing />
       </main>
-      <Footer />
+      <HomeFooter />
     </SignupModalProvider>
   );
 }

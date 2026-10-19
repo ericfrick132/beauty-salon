@@ -109,31 +109,10 @@ export const howItWorksSteps = [
   { number: 5, title: 'Crecé tu negocio', description: 'Analizá reportes y optimizá tu agenda.', time: '' },
 ];
 
-export const testimonials = [
-  {
-    name: 'Gaby Conde',
-    role: 'Esteticista',
-    quote: 'Me cambió totalmente el trabajo, te ahorra tiempo y problema con el tema de las señas.',
-    rating: 5,
-  },
-  {
-    name: 'Angie Aicardi',
-    role: 'Emprendedora',
-    quote: 'Mis turnos incrementaron, ya que los clientes sacan turnos las 24hs.',
-    rating: 5,
-  },
-  {
-    name: 'Erica Rodriguez',
-    role: 'Dueña de salón',
-    quote: 'Es la solución a tu negocio, súper recomendable.',
-    rating: 5,
-  },
-];
-
 export const faqs = [
   {
-    q: '¿Qué hace el agente de IA por WhatsApp?',
-    a: 'Antes de cada turno, la IA le escribe a tu cliente desde tu propio número para pedirle confirmación. Entiende la respuesta y actúa sola: confirma el turno en tu agenda o lo cancela y te libera el horario. Vos elegís con cuánta anticipación y con qué mensaje. Es un add-on: lo sumás a cualquier plan.',
+    q: '¿Qué hace TurnosPro por WhatsApp?',
+    a: 'Desde el plan Plus, antes de cada turno le llega un WhatsApp a tu cliente desde el número de tu negocio para confirmar o cancelar: si responde, tu agenda se actualiza sola y, si cancela, el horario queda libre. Además podés sumar el asistente por menú (add-on), con el que tus clientes reservan, consultan y cancelan turnos solos. El plan Gratuito no incluye WhatsApp.',
   },
   {
     q: '¿Es mi sitio realmente propio?',
@@ -145,7 +124,7 @@ export const faqs = [
   },
   {
     q: '¿Con qué se integra TurnosPro?',
-    a: 'Hoy se integra con MercadoPago (señas y pagos anticipados con tu propia cuenta) y WhatsApp (recordatorios, bot de confirmación y agente IA desde tu número). Si necesitás otra integración, escribinos y la evaluamos.',
+    a: 'Hoy se integra con Mercado Pago (señas y pagos anticipados con tu propia cuenta) y, desde el plan Plus, con WhatsApp (recordatorios, confirmación de turnos y asistente por menú desde tu número). Si necesitás otra integración, escribinos y la evaluamos.',
   },
   {
     q: '¿Puedo agregar funcionalidades a medida?',

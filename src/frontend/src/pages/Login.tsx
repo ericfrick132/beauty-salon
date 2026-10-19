@@ -161,17 +161,17 @@ const Login: React.FC = () => {
             },
           }}
         >
-          Editorial · Iniciar sesión
+          Iniciar sesión
         </Typography>
         <Typography
           component="h1"
           sx={{
             fontFamily: authFonts.display,
-            fontWeight: 400,
-            fontStyle: 'italic',
-            fontSize: { xs: 44, sm: 56 },
-            lineHeight: 0.98,
-            letterSpacing: '-0.025em',
+            fontWeight: 600,
+            fontStyle: 'normal',
+            fontSize: { xs: 36, sm: 44 },
+            lineHeight: 1.02,
+            letterSpacing: '-0.04em',
             color: authPalette.ink,
             mb: 1.5,
             fontVariationSettings: '"opsz" 144, "SOFT" 30',
@@ -181,14 +181,12 @@ const Login: React.FC = () => {
             },
           }}
         >
-          <span className="upright">Bienvenido</span>
-          <br />
-          de nuevo.
+          Bienvenido de nuevo.
         </Typography>
         <Typography
           sx={{
             fontFamily: authFonts.display,
-            fontStyle: 'italic',
+            fontStyle: 'normal',
             fontWeight: 400,
             fontSize: 16,
             lineHeight: 1.5,

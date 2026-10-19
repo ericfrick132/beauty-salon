@@ -4,7 +4,7 @@ import { brand } from '@/app/(lib)/brand';
 import ThemeRegistry from '@/app/(components)/ThemeRegistry';
 import { CssBaseline, ThemeProvider } from '@mui/material';
 import theme from '@/app/(lib)/theme';
-import { Space_Grotesk, Fraunces, JetBrains_Mono } from 'next/font/google';
+import { Space_Grotesk, Fraunces, JetBrains_Mono, Inter } from 'next/font/google';
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -17,6 +17,12 @@ const fraunces = Fraunces({
   // Variable font — weight + opsz/SOFT axes controlled via font-variation-settings inline.
   axes: ['SOFT', 'opsz'],
   variable: '--font-fraunces',
+});
+// Títulos sans de la home (estilo Ascend: grotesk con tracking negativo, sin itálicas).
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
 });
 const mono = JetBrains_Mono({
   subsets: ['latin'],
@@ -41,7 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang={brand.lang}
-      className={`${spaceGrotesk.variable} ${fraunces.variable} ${mono.variable}`}
+      className={`${spaceGrotesk.variable} ${fraunces.variable} ${mono.variable} ${inter.variable}`}
     >
       <body className={spaceGrotesk.className}>
         <ThemeRegistry>

@@ -272,7 +272,7 @@ const EditorialHeader: React.FC<{
       sx={{
         fontFamily: authFonts.display,
         fontWeight: 400,
-        fontStyle: 'italic',
+        fontStyle: 'normal',
         fontSize: { xs: 40, sm: 52 },
         lineHeight: 0.98,
         letterSpacing: '-0.025em',
@@ -295,7 +295,7 @@ const EditorialHeader: React.FC<{
         transition={{ duration: 0.4, delay: 0.5 + delay }}
         sx={{
           fontFamily: authFonts.display,
-          fontStyle: 'italic',
+          fontStyle: 'normal',
           fontWeight: 400,
           fontSize: 16,
           lineHeight: 1.5,
@@ -711,7 +711,7 @@ const SelfRegistration: React.FC = () => {
               sx={{
                 fontFamily: authFonts.display,
                 fontWeight: 500,
-                fontStyle: 'italic',
+                fontStyle: 'normal',
                 fontVariationSettings: '"opsz" 144, "SOFT" 60',
                 fontSize: { xs: '1.35rem', md: '1.75rem' },
                 lineHeight: 1.1,
@@ -725,7 +725,7 @@ const SelfRegistration: React.FC = () => {
                 sx={{
                   color: authPalette.secondary,
                   fontWeight: 600,
-                  fontStyle: 'italic',
+                  fontStyle: 'normal',
                   mr: 0.4,
                 }}
               >
@@ -924,7 +924,7 @@ const SelfRegistration: React.FC = () => {
             sx={{
               color: authPalette.secondary,
               fontFamily: authFonts.display,
-              fontStyle: 'italic',
+              fontStyle: 'normal',
               fontWeight: 500,
               fontSize: 15,
               textDecoration: 'none',
@@ -984,7 +984,7 @@ const SelfRegistration: React.FC = () => {
         component="h1"
         sx={{
           fontFamily: authFonts.display,
-          fontStyle: 'italic',
+          fontStyle: 'normal',
           fontWeight: 400,
           fontSize: { xs: 40, sm: 48 },
           lineHeight: 0.98,
@@ -1000,7 +1000,7 @@ const SelfRegistration: React.FC = () => {
       <Typography
         sx={{
           fontFamily: authFonts.display,
-          fontStyle: 'italic',
+          fontStyle: 'normal',
           fontSize: 16,
           lineHeight: 1.5,
           color: authPalette.inkSoft,
@@ -1197,7 +1197,7 @@ const SelfRegistration: React.FC = () => {
             <Typography
               sx={{
                 fontFamily: authFonts.display,
-                fontStyle: 'italic',
+                fontStyle: 'normal',
                 fontSize: 20,
                 fontWeight: 500,
                 color: authPalette.primary,
@@ -1317,7 +1317,7 @@ const SelfRegistration: React.FC = () => {
         component="h1"
         sx={{
           fontFamily: authFonts.display,
-          fontStyle: 'italic',
+          fontStyle: 'normal',
           fontWeight: 400,
           fontSize: { xs: 48, sm: 64 },
           lineHeight: 0.95,
@@ -1333,7 +1333,7 @@ const SelfRegistration: React.FC = () => {
       <Typography
         sx={{
           fontFamily: authFonts.display,
-          fontStyle: 'italic',
+          fontStyle: 'normal',
           fontSize: 17,
           color: authPalette.inkSoft,
           mb: 4,

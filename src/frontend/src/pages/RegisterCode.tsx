@@ -114,10 +114,10 @@ const kickerSx = {
 
 const titleSx = {
   fontFamily: authFonts.display,
-  fontWeight: 500,
-  fontSize: { xs: 32, sm: 38 },
-  lineHeight: 1.08,
-  letterSpacing: '-0.02em',
+  fontWeight: 600,
+  fontSize: { xs: 30, sm: 36 },
+  lineHeight: 1.06,
+  letterSpacing: '-0.035em',
   color: authPalette.ink,
   mb: 1,
   fontVariationSettings: '"opsz" 144, "SOFT" 30',

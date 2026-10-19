@@ -175,7 +175,7 @@ export const InlineLink: React.FC<{
     sx={{
       color: authPalette.secondary,
       fontFamily: authFonts.display,
-      fontStyle: 'italic',
+      fontStyle: 'normal',
       fontWeight: 500,
       fontSize: 15,
       textDecoration: 'none',

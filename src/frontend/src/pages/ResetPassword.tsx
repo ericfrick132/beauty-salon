@@ -117,14 +117,14 @@ const ResetPassword: React.FC = () => {
             },
           }}
         >
-          Editorial · Nueva contraseña
+          Nueva contraseña
         </Typography>
         <Typography
           component="h1"
           sx={{
             fontFamily: authFonts.display,
             fontWeight: 400,
-            fontStyle: 'italic',
+            fontStyle: 'normal',
             fontSize: { xs: 44, sm: 56 },
             lineHeight: 0.98,
             letterSpacing: '-0.025em',
@@ -141,7 +141,7 @@ const ResetPassword: React.FC = () => {
         <Typography
           sx={{
             fontFamily: authFonts.display,
-            fontStyle: 'italic',
+            fontStyle: 'normal',
             fontWeight: 400,
             fontSize: 16,
             lineHeight: 1.5,

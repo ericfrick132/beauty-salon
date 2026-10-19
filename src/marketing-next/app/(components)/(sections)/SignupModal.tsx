@@ -20,6 +20,8 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import { palette } from '@/app/(lib)/theme';
 import { marketCountryFromLocation, type MarketCountry } from '@/app/(lib)/countries';
+import { usePublicStats, usedByCopy } from '@/app/(lib)/publicStats';
+import { RubroIcons } from '../(home)/SocialProof';
 
 // --- Context ---
 interface SignupModalContextValue {
@@ -277,7 +279,7 @@ const initialState: FormState = {
 
 // --- Estilos compartidos ---
 const titleSx = {
-  fontFamily: 'var(--font-fraunces), serif',
+  fontFamily: 'var(--font-inter), var(--font-grotesk), system-ui, sans-serif',
   fontWeight: 600,
   fontSize: { xs: '1.5rem', sm: '1.75rem' },
   lineHeight: 1.15,
@@ -320,12 +322,14 @@ const backButtonSx = {
 
 const finePrintSx = { fontSize: '0.78rem', color: palette.inkSoft, lineHeight: 1.45, textAlign: 'center' } as const;
 
+// Prueba social real (GET /api/public/stats). Sin número si falla o es bajo: nunca una cifra inventada.
 function SocialProof({ mt = 2 }: { mt?: number }) {
+  const stats = usePublicStats();
   return (
-    <Stack direction="row" justifyContent="center" alignItems="center" spacing={1} sx={{ mt }}>
-      <Box component="span" sx={{ color: palette.amber, letterSpacing: '0.1em' }}>★★★★★</Box>
-      <Typography sx={{ fontSize: '0.78rem', color: palette.inkSoft }}>
-        4.9/5 · +1.200 negocios
+    <Stack direction="row" justifyContent="center" alignItems="center" spacing={1.2} sx={{ mt }}>
+      <RubroIcons size={22} />
+      <Typography sx={{ fontSize: '0.78rem', color: palette.inkSoft, lineHeight: 1.35 }}>
+        {usedByCopy(stats).text}
       </Typography>
     </Stack>
   );
@@ -677,7 +681,7 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
             {t ? t.passwordLink : 'Prefiero crear usuario y contraseña'}
           </Button>
 
-          <SocialProof mt={1} />
+          {isModal && <SocialProof mt={1} />}
         </Box>
       ) : state.step === 1 ? (
         <Box component="form" noValidate onSubmit={(e) => { e.preventDefault(); goToStep2(); }}>
@@ -722,7 +726,7 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
         <Box component="form" noValidate onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
           <Typography variant="h5" component="h3" sx={titleSx}>
             Último paso,{' '}
-            <Box component="span" sx={{ fontStyle: 'italic', color: palette.coral }}>
+            <Box component="span" sx={{ color: palette.forest }}>
               {state.businessName.trim()}
             </Box>
           </Typography>
@@ -805,7 +809,7 @@ export function SignupForm({ variant }: { variant: SignupFormVariant }) {
           <Stack direction="row" justifyContent="center" alignItems="center" spacing={0.7} sx={{ mt: 2 }}>
             <LockOutlinedIcon sx={{ fontSize: '0.95rem', color: palette.inkSoft }} />
             <Typography sx={{ fontSize: '0.76rem', color: palette.inkSoft }}>
-              Sin cargos hasta el día 8. Cancelás cuando quieras.
+              Plan Gratuito para siempre, sin tarjeta.
             </Typography>
           </Stack>
         </Box>
@@ -834,9 +838,9 @@ function SignupModalInner() {
       fullWidth
       PaperProps={{
         sx: {
-          borderRadius: 3,
-          border: `1.5px solid ${palette.ink}`,
-          boxShadow: `8px 8px 0 ${palette.ink}`,
+          borderRadius: '24px',
+          border: '1px solid rgba(23,20,16,0.10)',
+          boxShadow: '0 24px 60px -20px rgba(23,20,16,0.35)',
           overflow: 'hidden',
         },
       }}
