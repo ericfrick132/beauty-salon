@@ -575,6 +575,8 @@ const SubscriptionPlans: React.FC = () => {
 
   const bullets = useMemo(() => bulletsByPlan(plans, features.stripeDeposits), [plans, features.stripeDeposits]);
   const freePlan = plans.find((p) => p.code === PLAN_FREE);
+  // Destacado: siempre el primer plan pago (el que sigue al Gratuito), no el isPopular de la base.
+  const featuredCode = plans.find((p) => p.price > 0)?.code;
   const highlightedPlan = highlight ? plans.find((p) => p.code === highlight) ?? null : null;
   const currentCode = currentStatus ? (currentStatus.isPaid ? currentStatus.planType : PLAN_FREE) : null;
   // Plan pago viejo (pro, promo, 6meses, 12meses): ya no se ofrece pero lo mantiene.
@@ -717,7 +719,7 @@ const SubscriptionPlans: React.FC = () => {
             }}
           >
             {plans.map((plan, idx) => {
-              const isPopular = plan.isPopular;
+              const isPopular = plan.code === featuredCode;
               const isCurrent = currentCode === plan.code;
               const isHighlighted = highlight === plan.code;
               const emphasized = isPopular || isHighlighted;

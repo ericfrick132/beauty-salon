@@ -51,12 +51,12 @@ export const FALLBACK_PLANS: SubscriptionPlanInfo[] = [
   },
   {
     code: PLAN_PLUS, name: 'Plus', tagline: 'Un plus en la gestión de tus reservas.', price: 8000, currency: 'ARS',
-    isPopular: false, displayOrder: 1,
+    isPopular: true, displayOrder: 1,
     features: { ...baseFeatures, maxBookingsPerMonth: 200, maxStaff: 5, commissionPercent: 2, whatsAppMonthlyLimit: 30 },
   },
   {
     code: PLAN_ADVANCE, name: 'Advance', tagline: 'Para ordenar y automatizar todas tus reservas.', price: 18000, currency: 'ARS',
-    isPopular: true, displayOrder: 2,
+    isPopular: false, displayOrder: 2,
     features: { ...baseFeatures, commissionPercent: 1, whatsAppMonthlyLimit: 100, maxRecurringBookings: 10, maxCustomFields: 1,
       allowCoupons: true, allowTransferDetection: true },
   },
