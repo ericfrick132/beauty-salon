@@ -424,6 +424,47 @@ namespace BookingPro.API.Services
             await SendAndLogAsync(toEmail, subject, body, "password_reset", tenantId);
         }
 
+        public async Task SendInvitationAsync(string toEmail, string businessName, string invitationUrl, DateTime expiresAt)
+        {
+            var name = System.Net.WebUtility.HtmlEncode(businessName ?? "");
+            var daysLeft = Math.Max(1, (int)Math.Ceiling((expiresAt - DateTime.UtcNow).TotalDays));
+            var subject = $"Tu invitación a TurnosPro — {businessName}";
+            var body = BaseLayout(
+                headline: "¡Te invitamos a TurnosPro!",
+                leadHtml: $"Ya está todo listo para <strong>{name}</strong>. Tocá el botón para activar tu cuenta y empezar a recibir turnos online.",
+                bodyHtml: $@"
+<table role=""presentation"" cellpadding=""0"" cellspacing=""0"" width=""100%"">
+  <tr>
+    <td align=""center"" style=""padding: 8px 0 24px;"">
+      <a href=""{invitationUrl}"" style=""display: inline-block; background: linear-gradient(135deg, #1565c0, #1e88e5); color: #ffffff; font-size: 15px; font-weight: 600; text-decoration: none; padding: 14px 36px; border-radius: 50px;"">
+        Activar mi cuenta
+      </a>
+    </td>
+  </tr>
+</table>
+<table role=""presentation"" cellpadding=""0"" cellspacing=""0"" width=""100%"">
+  <tr>
+    <td style=""border-top: 1px solid #e8ecf0; padding-top: 20px;"">
+      <p style=""margin: 0 0 12px; font-size: 13px; color: #888; line-height: 1.5;"">
+        Si el botón no funciona, copiá y pegá este link en tu navegador:
+      </p>
+      <p style=""margin: 0 0 20px; font-size: 13px; word-break: break-all;"">
+        <a href=""{invitationUrl}"" style=""color: #1e88e5; text-decoration: underline;"">{invitationUrl}</a>
+      </p>
+    </td>
+  </tr>
+</table>
+<table role=""presentation"" cellpadding=""0"" cellspacing=""0"" width=""100%"">
+  <tr>
+    <td style=""background-color: #f8fafc; border-radius: 10px; padding: 20px; border-left: 4px solid #1e88e5;"">
+      <p style=""margin: 0; font-size: 13px; font-weight: 600; color: #1a1a2e;"">&#128337; La invitación vence en {daysLeft} {(daysLeft == 1 ? "día" : "días")}</p>
+    </td>
+  </tr>
+</table>"
+            );
+            await SendAndLogAsync(toEmail, subject, body, "invitation");
+        }
+
         public async Task SendLoginCodeAsync(string toEmail, string code, string loginUrl)
         {
             var subject = $"{code} es tu código para entrar a TurnosPro";

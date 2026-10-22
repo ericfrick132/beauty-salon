@@ -16,17 +16,26 @@ namespace BookingPro.API.Services
         private readonly ITenantProvisioningService _tenantProvisioningService;
         private readonly IConfiguration _configuration;
         private readonly ILogger<InvitationService> _logger;
+        private readonly IEmailService _emailService;
 
         public InvitationService(
             ApplicationDbContext context,
             ITenantProvisioningService tenantProvisioningService,
             IConfiguration configuration,
-            ILogger<InvitationService> logger)
+            ILogger<InvitationService> logger,
+            IEmailService emailService)
         {
             _context = context;
             _tenantProvisioningService = tenantProvisioningService;
             _configuration = configuration;
             _logger = logger;
+            _emailService = emailService;
+        }
+
+        private string BuildInvitationUrl(string token)
+        {
+            var baseUrl = _configuration["FrontendUrl"] ?? "http://localhost:3000";
+            return $"{baseUrl}/invitation/{token}";
         }
 
         public async Task<ServiceResult<InvitationResponseDto>> CreateInvitationAsync(CreateInvitationDto dto)
@@ -103,9 +112,10 @@ namespace BookingPro.API.Services
                 _context.Invitations.Add(invitation);
                 await _context.SaveChangesAsync();
 
-                // Generar URL de invitación
-                var baseUrl = _configuration["FrontendUrl"] ?? "http://localhost:3000";
-                var invitationUrl = $"{baseUrl}/invitation/{token}";
+                var invitationUrl = BuildInvitationUrl(token);
+
+                if (!string.IsNullOrWhiteSpace(invitation.AdminEmail))
+                    await _emailService.SendInvitationAsync(invitation.AdminEmail, invitation.BusinessName, invitationUrl, invitation.ExpiresAt);
 
                 var response = new InvitationResponseDto
                 {
@@ -489,7 +499,10 @@ namespace BookingPro.API.Services
                     await _context.SaveChangesAsync();
                 }
 
-                // TODO: Aquí se enviaría el email nuevamente
+                if (string.IsNullOrWhiteSpace(invitation.AdminEmail))
+                    return ServiceResult<bool>.Fail("La invitación no tiene email");
+
+                await _emailService.SendInvitationAsync(invitation.AdminEmail, invitation.BusinessName, BuildInvitationUrl(invitation.Token), invitation.ExpiresAt);
                 _logger.LogInformation("Invitation {InvitationId} resent to {Email}", invitationId, invitation.AdminEmail);
 
                 return ServiceResult<bool>.Ok(true);
