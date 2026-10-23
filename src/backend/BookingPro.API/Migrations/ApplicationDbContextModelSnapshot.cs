@@ -3343,6 +3343,41 @@ namespace BookingPro.API.Migrations
                     b.ToTable("product_categories", (string)null);
                 });
 
+            modelBuilder.Entity("BookingPro.API.Models.Entities.ProductMedia", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId", "SortOrder");
+
+                    b.ToTable("product_media", (string)null);
+                });
+
             modelBuilder.Entity("BookingPro.API.Models.Entities.Promo", b =>
                 {
                     b.Property<int>("Id")
@@ -5673,6 +5708,17 @@ namespace BookingPro.API.Migrations
                     b.Navigation("Category");
                 });
 
+            modelBuilder.Entity("BookingPro.API.Models.Entities.ProductMedia", b =>
+                {
+                    b.HasOne("BookingPro.API.Models.Entities.Product", "Product")
+                        .WithMany("Media")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
             modelBuilder.Entity("BookingPro.API.Models.Entities.Promo", b =>
                 {
                     b.HasOne("BookingPro.API.Models.Entities.Coupon", "Coupon")
@@ -5920,6 +5966,8 @@ namespace BookingPro.API.Migrations
 
             modelBuilder.Entity("BookingPro.API.Models.Entities.Product", b =>
                 {
+                    b.Navigation("Media");
+
                     b.Navigation("PriceHistories");
 
                     b.Navigation("SaleItems");

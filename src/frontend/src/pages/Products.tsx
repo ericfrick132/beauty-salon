@@ -31,9 +31,11 @@ import {
   InputLabel,
   Select,
   CircularProgress,
+  Avatar,
 } from '@mui/material';
 import { MoreVert, Add, Delete, Edit, Inventory, LocalOffer, Category } from '@mui/icons-material';
-import { inventoryApi, productCategoryApi } from '../services/api';
+import { inventoryApi, productCategoryApi, ProductMedia } from '../services/api';
+import ProductMediaGallery from '../components/inventory/ProductMediaGallery';
 import TextField from '../components/common/TextField';
 import { useTenantMoney } from '../hooks/useTenantMoney';
 
@@ -59,6 +61,8 @@ interface ProductDto {
   maxDiscountPercentage?: number;
   isActive: boolean;
   trackInventory: boolean;
+  coverUrl?: string | null;
+  media?: ProductMedia[];
 }
 
 interface ProductCategory {
@@ -150,6 +154,13 @@ const Products: React.FC = () => {
   const [categoryToDelete, setCategoryToDelete] = useState<ProductCategory | null>(null);
 
   const isEditing = Boolean(form.id);
+  const editingMedia = items.find((p) => p.id === form.id)?.media ?? [];
+
+  /** La galería sube y borra al toque: actualizamos el producto en la lista sin recargar todo. */
+  const setEditingMedia = (media: ProductMedia[]) => {
+    const cover = media.find((m) => m.kind === 'image')?.url ?? null;
+    setItems((prev) => prev.map((p) => (p.id === form.id ? { ...p, media, coverUrl: cover } : p)));
+  };
 
   const load = async (includeInactive = false) => {
     setLoading(true);
@@ -359,8 +370,13 @@ const Products: React.FC = () => {
           return;
         }
         const createPayload = { ...payload, initialStock };
-        await inventoryApi.createProduct(createPayload);
-        setMessage({ type: 'success', text: 'Producto creado' });
+        const created: ProductDto | undefined = await inventoryApi.createProduct(createPayload);
+        setMessage({ type: 'success', text: 'Producto creado. Ya le podés agregar fotos y videos.' });
+        await load(showInactive);
+        // Queda abierto en edición para sumarle fotos sin buscarlo en la lista.
+        if (created?.id) selectProduct(created);
+        else resetForm();
+        return;
       }
       await load(showInactive);
       resetForm();
@@ -480,6 +496,10 @@ const Products: React.FC = () => {
                   {filteredItems.map((p) => (
                     <TableRow key={p.id} hover selected={form.id === p.id}>
                       <TableCell>
+                        <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                        <Avatar variant="rounded" src={p.coverUrl || undefined} alt="" sx={{ width: 44, height: 44, bgcolor: 'action.hover', color: 'text.disabled' }}>
+                          <Inventory fontSize="small" />
+                        </Avatar>
                         <Stack spacing={0.5}>
                       <Typography variant="subtitle2">{p.name}</Typography>
                       <Typography variant="caption" color="text.secondary">#{p.barcode}</Typography>
@@ -496,6 +516,7 @@ const Products: React.FC = () => {
                               <Chip label="Bajo stock" size="small" color="warning" />
                             ) : null}
                           </Stack>
+                        </Stack>
                         </Stack>
                       </TableCell>
                       <TableCell align="right">{p.trackInventory ? p.currentStock : '—'}</TableCell>
@@ -653,6 +674,15 @@ const Products: React.FC = () => {
                     value={form.description}
                     onChange={(e) => setForm({ ...form, description: e.target.value })}
                   />
+                </Grid>
+                <Grid item xs={12}>
+                  {isEditing && form.id ? (
+                    <ProductMediaGallery productId={form.id} media={editingMedia} onChange={setEditingMedia} />
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">
+                      Después de crear el producto le vas a poder agregar fotos y videos.
+                    </Typography>
+                  )}
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <FormControl fullWidth>

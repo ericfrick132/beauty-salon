@@ -484,6 +484,25 @@ export const inventoryApi = {
     api.post(`/inventory/stock/${id}`, data).then(res => res.data),
 };
 
+/** Foto o video de un producto (ProductMediaDto). La primera foto es la portada. */
+export interface ProductMedia {
+  id: string;
+  url: string;
+  kind: 'image' | 'video';
+  sortOrder: number;
+}
+
+export const productMediaApi = {
+  upload: (productId: string, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    // Un video de 50 MB con una conexión lenta tarda: sin el timeout general.
+    return api.post<ProductMedia>(`/inventory/products/${productId}/media`, fd, { timeout: 10 * 60 * 1000 }).then(res => res.data);
+  },
+  reorder: (productId: string, ids: string[]) => api.put(`/inventory/products/${productId}/media/order`, ids),
+  remove: (productId: string, mediaId: string) => api.delete(`/inventory/products/${productId}/media/${mediaId}`),
+};
+
 export const salesApi = {
   list: (params?: { startDate?: string; endDate?: string }) => api.get('/sales', { params }).then(res => res.data),
   create: (data: any) => api.post('/sales', data).then(res => res.data),

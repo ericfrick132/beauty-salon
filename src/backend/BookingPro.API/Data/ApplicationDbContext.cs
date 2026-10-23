@@ -92,6 +92,7 @@ namespace BookingPro.API.Data
         // Inventory entities
         public DbSet<ProductCategory> ProductCategories { get; set; }
         public DbSet<Product> Products { get; set; }
+        public DbSet<ProductMedia> ProductMedia { get; set; }
         public DbSet<Sale> Sales { get; set; }
         public DbSet<ElectronicInvoice> ElectronicInvoices { get; set; }
         public DbSet<SaleItem> SaleItems { get; set; }
@@ -683,6 +684,16 @@ namespace BookingPro.API.Data
                     .HasForeignKey(p => p.CategoryId)
                     .OnDelete(DeleteBehavior.SetNull);
             });
+
+            modelBuilder.Entity<ProductMedia>(entity =>
+            {
+                entity.ToTable("product_media");
+                entity.HasIndex(m => new { m.ProductId, m.SortOrder });
+                entity.HasOne(m => m.Product)
+                    .WithMany(p => p.Media)
+                    .HasForeignKey(m => m.ProductId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
             
             modelBuilder.Entity<Sale>(entity =>
             {
@@ -895,6 +906,7 @@ namespace BookingPro.API.Data
             // Inventory entities filters
             modelBuilder.Entity<ProductCategory>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<Product>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<ProductMedia>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<Sale>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<SaleItem>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<StockMovement>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());

@@ -105,6 +105,33 @@ namespace BookingPro.API.Models.Entities
         public ICollection<SaleItem> SaleItems { get; set; } = new List<SaleItem>();
         public ICollection<StockMovement> StockMovements { get; set; } = new List<StockMovement>();
         public ICollection<PriceHistory> PriceHistories { get; set; } = new List<PriceHistory>();
+        public ICollection<ProductMedia> Media { get; set; } = new List<ProductMedia>();
+    }
+
+    /// <summary>Foto o video de un producto, guardado en DO Spaces. La primera foto (por SortOrder) es la portada.</summary>
+    public class ProductMedia : ITenantEntity
+    {
+        public Guid TenantId { get; set; }
+        public Guid Id { get; set; } = Guid.NewGuid();
+        public Guid ProductId { get; set; }
+
+        [Required, MaxLength(500)]
+        public string Url { get; set; } = string.Empty;
+
+        /// <summary>image | video</summary>
+        [Required, MaxLength(10)]
+        public string Kind { get; set; } = ProductMediaKinds.Image;
+
+        public int SortOrder { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        public Product? Product { get; set; }
+    }
+
+    public static class ProductMediaKinds
+    {
+        public const string Image = "image";
+        public const string Video = "video";
     }
     
     public class Sale : ITenantEntity
