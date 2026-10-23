@@ -29,6 +29,8 @@ export interface PlanFeatures {
   allowTransferDetection: boolean;
   allowCustomerHistory: boolean;
   allowTrackingPixels: boolean;
+  /** Carga de gastos (alquiler, servicios…), desde Plus. */
+  allowExpenses: boolean;
 }
 
 /** GET /subscription/plans (SubscriptionPlanDto). */
@@ -71,7 +73,8 @@ export type PlanLimitKind =
   | 'custom_fields'
   | 'recurring_bookings'
   | 'customer_history'
-  | 'tracking_pixels';
+  | 'tracking_pixels'
+  | 'expenses';
 
 /** Cuerpo del 403 cuando una acción supera el plan (PlanLimitErrorDto). */
 export interface PlanLimitError {

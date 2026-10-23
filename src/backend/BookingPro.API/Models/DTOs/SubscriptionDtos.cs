@@ -102,6 +102,7 @@ namespace BookingPro.API.Models.DTOs
         public bool AllowTransferDetection { get; set; }
         public bool AllowCustomerHistory { get; set; }
         public bool AllowTrackingPixels { get; set; }
+        public bool AllowExpenses { get; set; }
 
         public static PlanFeaturesDto From(BookingPro.API.Models.Entities.SubscriptionPlan plan) => new()
         {
@@ -127,6 +128,7 @@ namespace BookingPro.API.Models.DTOs
             AllowTransferDetection = plan.AllowTransferDetection,
             AllowCustomerHistory = plan.AllowCustomerHistory,
             AllowTrackingPixels = plan.AllowTrackingPixels,
+            AllowExpenses = plan.AllowExpenses,
         };
     }
 

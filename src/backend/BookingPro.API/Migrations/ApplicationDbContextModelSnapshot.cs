@@ -1293,6 +1293,47 @@ namespace BookingPro.API.Migrations
                     b.ToTable("end_user_payments", (string)null);
                 });
 
+            modelBuilder.Entity("BookingPro.API.Models.Entities.Expense", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("IsRecurring")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Date");
+
+                    b.ToTable("Expenses");
+                });
+
             modelBuilder.Entity("BookingPro.API.Models.Entities.FeatureAddon", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3969,6 +4010,10 @@ namespace BookingPro.API.Migrations
 
                     b.Property<bool>("AllowEmailMarketing")
                         .HasColumnType("boolean");
+
+                    b.Property<bool>("AllowExpenses")
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
 
                     b.Property<bool>("AllowMultiLocation")
                         .HasColumnType("boolean");

@@ -53,6 +53,7 @@ namespace BookingPro.API.Data
         public DbSet<MessagePurchase> MessagePurchases { get; set; }
         public DbSet<MessageLog> MessageLogs { get; set; }
         public DbSet<BookingCoupon> BookingCoupons { get; set; }
+        public DbSet<Expense> Expenses { get; set; }
         public DbSet<BookingFormField> BookingFormFields { get; set; }
         public DbSet<BookingSeries> BookingSeries { get; set; }
 
@@ -303,6 +304,7 @@ namespace BookingPro.API.Data
                 entity.Property(p => p.AllowTransferDetection).HasDefaultValue(true).ValueGeneratedNever();
                 entity.Property(p => p.AllowCustomerHistory).HasDefaultValue(true).ValueGeneratedNever();
                 entity.Property(p => p.AllowTrackingPixels).HasDefaultValue(true).ValueGeneratedNever();
+                entity.Property(p => p.AllowExpenses).HasDefaultValue(true).ValueGeneratedNever();
             });
 
             // === Stripe (suscripción a la plataforma fuera de Argentina) ===
@@ -906,6 +908,12 @@ namespace BookingPro.API.Data
             modelBuilder.Entity<MessageLog>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
 
             // Cupones, campos personalizados y reservas recurrentes (features de Advance / Pro)
+            modelBuilder.Entity<Expense>(entity =>
+            {
+                entity.HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+                entity.HasIndex(e => new { e.TenantId, e.Date });
+                entity.Property(e => e.Amount).HasPrecision(18, 2);
+            });
             modelBuilder.Entity<BookingCoupon>(entity =>
             {
                 entity.HasQueryFilter(e => e.TenantId == GetCurrentTenantId());

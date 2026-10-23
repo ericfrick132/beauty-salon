@@ -34,6 +34,7 @@ namespace BookingPro.API.Services
         public const string RecurringBookings = "recurring_bookings";
         public const string CustomerHistory = "customer_history";
         public const string TrackingPixels = "tracking_pixels";
+        public const string Expenses = "expenses";
     }
 
     public interface IPlanEntitlementService
@@ -176,6 +177,7 @@ namespace BookingPro.API.Services
                 PlanLimits.Coupons => (plan.AllowCoupons, "Los cupones de descuento están incluidos desde el plan Advance."),
                 PlanLimits.CustomerHistory => (plan.AllowCustomerHistory, "La ficha e historial de clientes está incluida en el plan Pro."),
                 PlanLimits.TrackingPixels => (plan.AllowTrackingPixels, "El Píxel de Meta y Google Analytics están incluidos en el plan Pro."),
+                PlanLimits.Expenses => (plan.AllowExpenses, "La carga de gastos está incluida desde el plan Plus."),
                 _ => (false, "Tu plan no incluye esta función."),
             };
             return allowed ? PlanCheck.Ok(plan, feature) : new PlanCheck(false, feature, 0, 0, plan.Code, plan.Name, message);

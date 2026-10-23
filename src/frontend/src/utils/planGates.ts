@@ -52,6 +52,7 @@ export const GATES: Record<PlanGate, GateInfo> = {
   custom_fields: { label: 'los campos del formulario', includes: (f) => f.maxCustomFields !== 0, fallbackPlan: PLAN_ADVANCE },
   customer_history: { label: 'la ficha de clientes', includes: (f) => f.allowCustomerHistory, fallbackPlan: PLAN_PRO },
   tracking_pixels: { label: 'el Píxel y Google Analytics', includes: (f) => f.allowTrackingPixels, fallbackPlan: PLAN_PRO },
+  expenses: { label: 'la carga de gastos', includes: (f) => f.allowExpenses, fallbackPlan: PLAN_PLUS },
   multi_location: { label: 'varias sucursales', includes: (f) => f.allowMultiLocation, fallbackPlan: PLAN_PRO },
   branding: { label: 'tu marca y tus colores', includes: (f) => f.allowCustomBranding, fallbackPlan: PLAN_PLUS },
   bookings_per_month: { label: 'cargando reservas este mes', includes: (f) => f.maxBookingsPerMonth < 0, fallbackPlan: PLAN_PLUS, quota: true },
@@ -60,7 +61,7 @@ export const GATES: Record<PlanGate, GateInfo> = {
 };
 
 const LIMIT_KINDS: PlanLimitKind[] = [
-  'bookings_per_month', 'staff', 'services', 'coupons', 'custom_fields', 'recurring_bookings', 'customer_history', 'tracking_pixels',
+  'bookings_per_month', 'staff', 'services', 'coupons', 'custom_fields', 'recurring_bookings', 'customer_history', 'tracking_pixels', 'expenses',
 ];
 const isLimitKind = (g: string): g is PlanLimitKind => (LIMIT_KINDS as string[]).includes(g);
 
