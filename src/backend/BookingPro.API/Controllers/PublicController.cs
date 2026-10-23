@@ -283,7 +283,7 @@ namespace BookingPro.API.Controllers
                     metaPixelId = tracking.Allowed ? tenant.MetaPixelId : null,
                     googleAnalyticsId = tracking.Allowed ? tenant.GoogleAnalyticsId : null,
                     // Ficha del negocio en la página de reservas (se edita en Configuración → General).
-                    logoUrl = tenant.LogoUrl,
+                    logoUrl = TenantLogo.Usable(tenant.LogoUrl),
                     address = tenant.BusinessAddress ?? "",
                     phone = tenant.OwnerPhone ?? "",
                     email = "",

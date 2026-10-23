@@ -56,7 +56,7 @@ namespace BookingPro.API.Controllers
                     {
                         onboardingCompletedAt = row.OnboardingCompletedAt;
                         ownerName = row.OwnerName;
-                        logoUrl = row.LogoUrl;
+                        logoUrl = TenantLogo.Usable(row.LogoUrl);
                         businessKind = row.BusinessKind;
                         // El tema que guardó el negocio (onboarding o Configuración → Apariencia) pisa al del
                         // vertical: así la página pública de reservas se ve igual que el panel.
@@ -151,7 +151,7 @@ namespace BookingPro.API.Controllers
                     description = GetStringSetting(settings, "description"),
                     website = GetStringSetting(settings, "website"),
                     instagram = tenant.OwnerInstagram,
-                    logoUrl = tenant.LogoUrl,
+                    logoUrl = TenantLogo.Usable(tenant.LogoUrl),
                     taxId = GetStringSetting(settings, "taxId"),
                     defaultPaymentProvider = tenant.DefaultPaymentProvider ?? "mercadopago"
                 });
