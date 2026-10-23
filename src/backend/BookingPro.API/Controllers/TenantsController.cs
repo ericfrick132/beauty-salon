@@ -274,7 +274,7 @@ namespace BookingPro.API.Controllers
                 };
                 await using var upload = file.OpenReadStream();
                 publicUrl = await _storage.UploadAsync(
-                    $"tenants/{tenantInfo.Id}/logo-{DateTime.UtcNow:yyyyMMddHHmmss}{ext}", upload, file.ContentType);
+                    $"turnospro/tenants/{tenantInfo.Id}/logo-{DateTime.UtcNow:yyyyMMddHHmmss}{ext}", upload, file.ContentType);
             }
             else
             {

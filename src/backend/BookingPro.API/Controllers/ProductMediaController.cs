@@ -83,7 +83,7 @@ namespace BookingPro.API.Controllers
 
             var id = Guid.NewGuid();
             await using var stream = file.OpenReadStream();
-            var url = await _storage.UploadAsync($"tenants/{tenantId}/products/{productId}/{id:N}{ext}", stream, file.ContentType);
+            var url = await _storage.UploadAsync($"turnospro/tenants/{tenantId}/products/{productId}/{id:N}{ext}", stream, file.ContentType);
 
             var media = new ProductMedia
             {
