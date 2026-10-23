@@ -35,9 +35,6 @@ import {
   ArrowForward,
   ArrowBack,
   Check,
-  LocationOn,
-  Phone,
-  Email,
   AccessTime,
   Search,
   TrendingUp,
@@ -52,6 +49,7 @@ import api from '../../services/api';
 import { formatMoney, getCountry } from '../../utils/intl';
 import { getWording } from '../../utils/wording';
 import CustomFieldInput from '../../components/booking/CustomFieldInput';
+import BusinessContactBar from '../../components/booking/BusinessContactBar';
 import { CouponQuote, normalizeCouponCode, PublicFormField, publicBookingExtrasApi } from '../../services/bookingExtrasApi';
 import { BusinessLook, lookForTenant } from '../../config/businessLooks';
 import { useTenantOptional } from '../../contexts/TenantContext';
@@ -1570,6 +1568,23 @@ const BookingPage: React.FC = () => {
             }}
           >
             <Box component="span" role="img" aria-label={look.alts?.bg ?? ''} sx={{ position: 'absolute', inset: 0 }} />
+            {businessInfo?.logoUrl && (
+              <Avatar
+                src={businessInfo.logoUrl}
+                alt={businessInfo.businessName || ''}
+                variant="rounded"
+                sx={{
+                  position: 'relative',
+                  width: { xs: 52, md: 64 },
+                  height: { xs: 52, md: 64 },
+                  mr: { xs: 1.5, md: 2 },
+                  bgcolor: '#FFFFFF',
+                  border: '2px solid rgba(255,255,255,0.9)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+                  '& img': { objectFit: 'contain' },
+                }}
+              />
+            )}
             <Typography
               component="h1"
               sx={{
@@ -1589,6 +1604,14 @@ const BookingPage: React.FC = () => {
         ) : (
           /* Header: el nombre del negocio es lo primero y lo más grande de la página */
           <Box sx={{ mb: { xs: 2, md: 3 }, textAlign: 'center' }}>
+            {businessInfo?.logoUrl && (
+              <Avatar
+                src={businessInfo.logoUrl}
+                alt={businessInfo.businessName || ''}
+                variant="rounded"
+                sx={{ width: 72, height: 72, mx: 'auto', mb: 1.5, bgcolor: ui.surface, '& img': { objectFit: 'contain' } }}
+              />
+            )}
             <Typography
               component="h1"
               sx={{
@@ -1605,6 +1628,7 @@ const BookingPage: React.FC = () => {
             </Typography>
           </Box>
         )}
+        {businessInfo && <BusinessContactBar info={businessInfo} color={ui.inkSoft} align={look ? 'left' : 'center'} />}
 
         {/* Stepper */}
         <Paper
@@ -1724,37 +1748,6 @@ const BookingPage: React.FC = () => {
           )}
         </Paper>
 
-        {/* Footer Info */}
-        {businessInfo && (businessInfo.address || businessInfo.phone || businessInfo.email) && (
-          <Paper sx={{ p: 3, mt: 3 }}>
-            <Grid container spacing={2} justifyContent="center">
-              {businessInfo.address && (
-                <Grid item xs={12} sm={4}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <LocationOn sx={{ mr: 1, color: 'text.secondary' }} />
-                    <Typography variant="body2">{businessInfo.address}</Typography>
-                  </Box>
-                </Grid>
-              )}
-              {businessInfo.phone && (
-                <Grid item xs={12} sm={4}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Phone sx={{ mr: 1, color: 'text.secondary' }} />
-                    <Typography variant="body2">{businessInfo.phone}</Typography>
-                  </Box>
-                </Grid>
-              )}
-              {businessInfo.email && (
-                <Grid item xs={12} sm={4}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Email sx={{ mr: 1, color: 'text.secondary' }} />
-                    <Typography variant="body2">{businessInfo.email}</Typography>
-                  </Box>
-                </Grid>
-              )}
-            </Grid>
-          </Paper>
-        )}
       </Container>
     </Box>
   );
