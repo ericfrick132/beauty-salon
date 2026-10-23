@@ -157,6 +157,8 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ITransferDetection
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IWhatsAppMenuBotService, BookingPro.API.Services.WhatsAppMenuBotService>();
 builder.Services.AddHostedService<BookingPro.API.Services.TransferDetectionBackgroundService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IInventoryService, BookingPro.API.Services.InventoryService>();
+// DO Spaces: logos y fotos/videos de productos. El disco del contenedor se borra en cada deploy.
+builder.Services.AddSingleton<BookingPro.API.Services.IObjectStorageService, BookingPro.API.Services.SpacesStorageService>();
 builder.Services.AddScoped<ISettingsService, SettingsService>();
 
 // New B2B/B2C services

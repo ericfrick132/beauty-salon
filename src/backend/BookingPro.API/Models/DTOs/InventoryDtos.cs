@@ -69,6 +69,17 @@ namespace BookingPro.API.Models.DTOs
         public bool IsOutOfStock { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
+        /// <summary>Primera foto: miniatura en Productos y en el punto de venta.</summary>
+        public string? CoverUrl { get; set; }
+        public List<ProductMediaDto> Media { get; set; } = new();
+    }
+
+    public class ProductMediaDto
+    {
+        public Guid Id { get; set; }
+        public string Url { get; set; } = string.Empty;
+        public string Kind { get; set; } = string.Empty;
+        public int SortOrder { get; set; }
     }
     
     public class CreateProductDto

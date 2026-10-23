@@ -79,6 +79,7 @@ interface SubscriptionPlan {
   allowTransferDetection?: boolean;
   allowCustomerHistory?: boolean;
   allowTrackingPixels?: boolean;
+  allowExpenses?: boolean;
   isActive: boolean;
   isPopular: boolean;
   displayOrder: number;
@@ -127,6 +128,7 @@ interface PlanFormData {
   allowTransferDetection: boolean;
   allowCustomerHistory: boolean;
   allowTrackingPixels: boolean;
+  allowExpenses: boolean;
   isActive: boolean;
   isPopular: boolean;
   displayOrder: number;
@@ -164,6 +166,7 @@ const initialFormData: PlanFormData = {
   allowTransferDetection: false,
   allowCustomerHistory: false,
   allowTrackingPixels: false,
+  allowExpenses: false,
   isActive: true,
   isPopular: false,
   displayOrder: 0,
@@ -271,6 +274,7 @@ const SuperAdminPlans: React.FC<SuperAdminPlansProps> = ({ embedded = false }) =
       allowTransferDetection: plan.allowTransferDetection ?? initialFormData.allowTransferDetection,
       allowCustomerHistory: plan.allowCustomerHistory ?? initialFormData.allowCustomerHistory,
       allowTrackingPixels: plan.allowTrackingPixels ?? initialFormData.allowTrackingPixels,
+      allowExpenses: plan.allowExpenses ?? initialFormData.allowExpenses,
       isActive: plan.isActive,
       isPopular: plan.isPopular,
       displayOrder: plan.displayOrder,
@@ -909,6 +913,17 @@ const SuperAdminPlans: React.FC<SuperAdminPlansProps> = ({ embedded = false }) =
                   />
                 }
                 label="Píxel y Google Analytics"
+              />
+            </Grid>
+            <Grid item xs={6} sm={4}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.allowExpenses}
+                    onChange={(e) => setFormData({ ...formData, allowExpenses: e.target.checked })}
+                  />
+                }
+                label="Carga de gastos"
               />
             </Grid>
 

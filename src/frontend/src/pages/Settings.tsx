@@ -36,6 +36,7 @@ import {
   AccordionSummary,
   AccordionDetails,
   CircularProgress,
+  Avatar,
   SelectChangeEvent,
   Checkbox,
 } from '@mui/material';
@@ -63,6 +64,8 @@ import {
   Settings as SettingsIcon,
   CreditCard,
   Chat,
+  Instagram,
+  PhotoCamera,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import api, { authApi, serviceCategoryApi } from '../services/api';
@@ -128,6 +131,32 @@ const Settings: React.FC = () => {
   // Change Password State
   const [pwdForm, setPwdForm] = useState({ next: '', confirm: '' });
 
+  // Logo del negocio: se muestra en la página de reservas.
+  const [logoUrl, setLogoUrl] = useState('');
+  const [logoUploading, setLogoUploading] = useState(false);
+
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      setSnackbar({ open: true, message: 'El logo supera 2 MB', severity: 'error' });
+      return;
+    }
+    setLogoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await api.post('/tenants/current/logo', fd);
+      setLogoUrl(res.data?.url ?? '');
+      setSnackbar({ open: true, message: 'Logo actualizado', severity: 'success' });
+    } catch (err: any) {
+      setSnackbar({ open: true, message: err?.response?.data?.message || 'No se pudo subir el logo', severity: 'error' });
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
   // General Settings State
   const [generalSettings, setGeneralSettings] = useState({
     businessName: '',
@@ -136,6 +165,7 @@ const Settings: React.FC = () => {
     phone: '',
     email: '',
     website: '',
+    instagram: '',
     country: 'AR',
     timezone: 'America/Argentina/Buenos_Aires',
     currency: 'ARS',
@@ -274,12 +304,14 @@ const Settings: React.FC = () => {
           phone: tenantResponse.data.phone || '',
           email: tenantResponse.data.email || '',
           website: tenantResponse.data.website || '',
+          instagram: tenantResponse.data.instagram || '',
           country: getCountry(tenantResponse.data.country).code,
           timezone: toIanaTimezone(tenantResponse.data.timezone, tenantResponse.data.country),
           currency: tenantResponse.data.currency || getCountry(tenantResponse.data.country).currency,
           language: tenantResponse.data.language || 'es',
           taxId: tenantResponse.data.taxId || '',
         }));
+        setLogoUrl(tenantResponse.data.logoUrl || '');
       }
 
       // Load payment configuration
@@ -635,6 +667,35 @@ const Settings: React.FC = () => {
                   <Business sx={{ mr: 1, verticalAlign: 'middle' }} />
                   Información del Negocio
                 </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  El logo, la dirección, el teléfono y el Instagram se muestran en tu página de reservas.
+                </Typography>
+              </Grid>
+
+              <Grid item xs={12}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Avatar
+                    src={logoUrl || undefined}
+                    variant="rounded"
+                    sx={{ width: 72, height: 72, bgcolor: 'action.hover', color: 'text.secondary' }}
+                  >
+                    <Business />
+                  </Avatar>
+                  <Box>
+                    <Button
+                      component="label"
+                      variant="outlined"
+                      startIcon={logoUploading ? <CircularProgress size={16} /> : <PhotoCamera />}
+                      disabled={logoUploading}
+                    >
+                      {logoUrl ? 'Cambiar logo' : 'Subir logo'}
+                      <input hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={handleLogoChange} />
+                    </Button>
+                    <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
+                      JPG, PNG o WEBP, hasta 2 MB. Mejor cuadrado.
+                    </Typography>
+                  </Box>
+                </Box>
               </Grid>
 
               <Grid item xs={12} md={6}>
@@ -705,6 +766,27 @@ const Settings: React.FC = () => {
                     startAdornment: (
                       <InputAdornment position="start">
                         <Public />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Instagram"
+                  placeholder="tunegocio"
+                  value={generalSettings.instagram}
+                  onChange={(e) => setGeneralSettings(prev => ({
+                    ...prev,
+                    instagram: e.target.value
+                  }))}
+                  variant="outlined"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Instagram />
                       </InputAdornment>
                     ),
                   }}

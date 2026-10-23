@@ -171,6 +171,7 @@ namespace BookingPro.API.Controllers
                         p.AllowTransferDetection,
                         p.AllowCustomerHistory,
                         p.AllowTrackingPixels,
+                        p.AllowExpenses,
                         p.CreatedAt,
                         p.UpdatedAt,
                         // Contar suscripciones activas
@@ -541,6 +542,7 @@ namespace BookingPro.API.Controllers
         public bool? AllowTransferDetection { get; set; }
         public bool? AllowCustomerHistory { get; set; }
         public bool? AllowTrackingPixels { get; set; }
+        public bool? AllowExpenses { get; set; }
 
         public void ApplyFreemiumTo(SubscriptionPlan plan)
         {
@@ -554,6 +556,7 @@ namespace BookingPro.API.Controllers
             if (AllowTransferDetection.HasValue) plan.AllowTransferDetection = AllowTransferDetection.Value;
             if (AllowCustomerHistory.HasValue) plan.AllowCustomerHistory = AllowCustomerHistory.Value;
             if (AllowTrackingPixels.HasValue) plan.AllowTrackingPixels = AllowTrackingPixels.Value;
+            if (AllowExpenses.HasValue) plan.AllowExpenses = AllowExpenses.Value;
         }
     }
 

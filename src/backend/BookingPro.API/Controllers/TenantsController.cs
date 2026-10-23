@@ -22,6 +22,7 @@ namespace BookingPro.API.Controllers
         private readonly IAuthService _authService;
         private readonly IMemoryCache _cache;
         private readonly IWebHostEnvironment _env;
+        private readonly IObjectStorageService _storage;
         private readonly ILogger<TenantsController> _logger;
 
         // Subdomains we never hand out automatically.
@@ -42,6 +43,7 @@ namespace BookingPro.API.Controllers
             IAuthService authService,
             IMemoryCache cache,
             IWebHostEnvironment env,
+            IObjectStorageService storage,
             ILogger<TenantsController> logger)
         {
             _context = context;
@@ -50,6 +52,7 @@ namespace BookingPro.API.Controllers
             _authService = authService;
             _cache = cache;
             _env = env;
+            _storage = storage;
             _logger = logger;
         }
 
@@ -258,45 +261,37 @@ namespace BookingPro.API.Controllers
             if (file.Length > 2 * 1024 * 1024)
                 return BadRequest(new { message = "El logo supera 2 MB." });
 
-            // wwwroot/uploads/tenant-logos/{tenantId}-{timestamp}.ext
-            var wwwroot = _env.WebRootPath;
-            if (string.IsNullOrEmpty(wwwroot))
+            // Spaces si está configurado; si no, data URI en la fila del tenant. El disco del
+            // contenedor se borra en cada deploy y /uploads ni siquiera se rutea a la API.
+            string publicUrl;
+            if (_storage.IsConfigured)
             {
-                wwwroot = Path.Combine(_env.ContentRootPath, "wwwroot");
-            }
-
-            var uploadsDir = Path.Combine(wwwroot, "uploads", "tenant-logos");
-            Directory.CreateDirectory(uploadsDir);
-
-            var ext = Path.GetExtension(file.FileName);
-            if (string.IsNullOrEmpty(ext))
-            {
-                ext = file.ContentType switch
+                var ext = file.ContentType switch
                 {
                     "image/jpeg" => ".jpg",
                     "image/png" => ".png",
-                    "image/webp" => ".webp",
-                    _ => ".img",
+                    _ => ".webp",
                 };
+                await using var upload = file.OpenReadStream();
+                publicUrl = await _storage.UploadAsync(
+                    $"turnospro/tenants/{tenantInfo.Id}/logo-{DateTime.UtcNow:yyyyMMddHHmmss}{ext}", upload, file.ContentType);
             }
-
-            var fileName = $"{tenantInfo.Id}-{DateTime.UtcNow:yyyyMMddHHmmss}{ext}";
-            var filePath = Path.Combine(uploadsDir, fileName);
-
-            await using (var stream = System.IO.File.Create(filePath))
+            else
             {
-                await file.CopyToAsync(stream);
+                using var ms = new MemoryStream();
+                await file.CopyToAsync(ms);
+                publicUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}";
             }
-
-            var publicUrl = $"/uploads/tenant-logos/{fileName}";
 
             // Persist to tenant row as well so that subsequent logins pick it up.
             var tenant = await _context.Tenants.FirstOrDefaultAsync(t => t.Id == tenantInfo.Id);
             if (tenant != null)
             {
+                var previous = tenant.LogoUrl;
                 tenant.LogoUrl = publicUrl;
                 tenant.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
+                if (previous != null) await _storage.DeleteAsync(previous);
             }
 
             return Ok(new { url = publicUrl });

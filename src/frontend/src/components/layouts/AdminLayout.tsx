@@ -234,6 +234,7 @@ interface MenuItemType {
 const ROUTE_GATES: { path: string; gate: PlanGate }[] = [
   { path: '/recurring-bookings', gate: 'recurring_bookings' },
   { path: '/coupons', gate: 'coupons' },
+  { path: '/expenses', gate: 'expenses' },
   { path: '/booking-form-fields', gate: 'custom_fields' },
   { path: '/settings/tracking', gate: 'tracking_pixels' },
   { path: '/transfer-detection', gate: 'transfer_detection' },
@@ -364,6 +365,7 @@ export const AdminLayout: React.FC = () => {
           : []),
         { text: 'Productos', path: '/products', icon: <Inventory2Outlined fontSize="small" /> },
         { text: 'Pagos', path: '/payments', icon: <Payment fontSize="small" />, adminOnly: true },
+        { text: 'Gastos', path: '/expenses', icon: <ReceiptLong fontSize="small" />, adminOnly: true, badge: 'Nuevo', gate: 'expenses' },
       ],
     },
     { text: 'Reportes', icon: <Assessment />, path: '/reports', adminOnly: true },

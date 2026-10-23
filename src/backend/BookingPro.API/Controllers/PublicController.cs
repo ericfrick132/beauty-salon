@@ -282,9 +282,14 @@ namespace BookingPro.API.Controllers
                     businessKind = tenant.BusinessKind,
                     metaPixelId = tracking.Allowed ? tenant.MetaPixelId : null,
                     googleAnalyticsId = tracking.Allowed ? tenant.GoogleAnalyticsId : null,
-                    address = "",
-                    phone = "",
+                    // Ficha del negocio en la página de reservas (se edita en Configuración → General).
+                    logoUrl = tenant.LogoUrl,
+                    address = tenant.BusinessAddress ?? "",
+                    phone = tenant.OwnerPhone ?? "",
                     email = "",
+                    instagram = tenant.OwnerInstagram ?? "",
+                    website = PublicSetting(tenant.Settings, "website"),
+                    description = PublicSetting(tenant.Settings, "description"),
                     // País del negocio: moneda/idioma de los precios y teléfono del cliente.
                     country = profile.Code,
                     currency = CountryProfile.CurrencyFor(tenant),
@@ -298,6 +303,22 @@ namespace BookingPro.API.Controllers
             catch (Exception ex)
             {
                 return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        private static string PublicSetting(string? settingsJson, string key)
+        {
+            if (string.IsNullOrWhiteSpace(settingsJson)) return "";
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(settingsJson);
+                return doc.RootElement.TryGetProperty(key, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.String
+                    ? v.GetString() ?? ""
+                    : "";
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                return "";
             }
         }
 

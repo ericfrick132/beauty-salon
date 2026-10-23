@@ -29,6 +29,8 @@ export interface PlanFeatures {
   allowTransferDetection: boolean;
   allowCustomerHistory: boolean;
   allowTrackingPixels: boolean;
+  /** Carga de gastos (alquiler, servicios…), desde Plus. */
+  allowExpenses: boolean;
 }
 
 /** GET /subscription/plans (SubscriptionPlanDto). */
@@ -71,7 +73,8 @@ export type PlanLimitKind =
   | 'custom_fields'
   | 'recurring_bookings'
   | 'customer_history'
-  | 'tracking_pixels';
+  | 'tracking_pixels'
+  | 'expenses';
 
 /** Cuerpo del 403 cuando una acción supera el plan (PlanLimitErrorDto). */
 export interface PlanLimitError {
@@ -479,6 +482,25 @@ export const inventoryApi = {
     api.patch(`/inventory/products/${id}/price`, data).then(res => res.data),
   updateStock: (id: string, data: { quantity: number; movementType: string; reason?: string; notes?: string; unitCost?: number }) =>
     api.post(`/inventory/stock/${id}`, data).then(res => res.data),
+};
+
+/** Foto o video de un producto (ProductMediaDto). La primera foto es la portada. */
+export interface ProductMedia {
+  id: string;
+  url: string;
+  kind: 'image' | 'video';
+  sortOrder: number;
+}
+
+export const productMediaApi = {
+  upload: (productId: string, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    // Un video de 50 MB con una conexión lenta tarda: sin el timeout general.
+    return api.post<ProductMedia>(`/inventory/products/${productId}/media`, fd, { timeout: 10 * 60 * 1000 }).then(res => res.data);
+  },
+  reorder: (productId: string, ids: string[]) => api.put(`/inventory/products/${productId}/media/order`, ids),
+  remove: (productId: string, mediaId: string) => api.delete(`/inventory/products/${productId}/media/${mediaId}`),
 };
 
 export const salesApi = {
