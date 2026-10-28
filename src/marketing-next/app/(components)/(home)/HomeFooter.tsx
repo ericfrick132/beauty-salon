@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Box, Typography } from '@mui/material';
 import { brand } from '@/app/(lib)/brand';
 import { verticalLinks, featureLinks, blogLinks } from '@/app/(lib)/vertical-links';
+import IntegrationsStrip from '../IntegrationsStrip';
 import { BrandMark, Wrap, home, sans } from './ui';
 
 const APP_STORE_URL = 'https://apps.apple.com/app/id6775843253';
@@ -25,6 +26,9 @@ export default function HomeFooter() {
   return (
     <Box component="footer" sx={{ bgcolor: home.ink, color: home.paper, pt: { xs: 7, md: 10 }, pb: 3, overflow: 'hidden' }}>
       <Wrap>
+        <Box sx={{ mb: { xs: 5, md: 7 } }}>
+          <IntegrationsStrip />
+        </Box>
         <Box sx={{ display: 'grid', gap: { xs: 4, md: 6 }, gridTemplateColumns: { xs: '1fr 1fr', md: '1.4fr 1fr 1fr 1fr' } }}>
           <Box sx={{ gridColumn: { xs: '1 / -1', md: 'auto' } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 2 }}>
@@ -58,6 +62,7 @@ export default function HomeFooter() {
               </Box>
             ))}
             <Box component="a" href="/blog/" sx={linkSx}>Blog</Box>
+            <Box component={Link} href="/ayuda" sx={linkSx}>Centro de ayuda</Box>
             <Box component={Link} href="/demo-admin" sx={linkSx}>Demo del panel</Box>
             <Box component={Link} href="/demo-app" sx={linkSx}>Demo de reservas</Box>
             <Box component={Link} href="/uy" sx={linkSx}>Uruguay</Box>

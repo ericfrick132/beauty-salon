@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { brand } from '@/app/(lib)/brand';
 import { palette } from '@/app/(lib)/theme';
 import { verticalLinks, featureLinks, blogLinks } from '@/app/(lib)/vertical-links';
+import IntegrationsStrip from './IntegrationsStrip';
 
 function InstagramIcon() {
   return (
@@ -68,6 +69,9 @@ export default function Footer({ tagline, findUsLabel, countryLinks }: FooterPro
       }}
     >
       <Container maxWidth="lg">
+        <Box sx={{ mb: { xs: 5, md: 6 } }}>
+          <IntegrationsStrip />
+        </Box>
         <Grid container spacing={{ xs: 4, md: 6 }}>
           <Grid item xs={12} md={4}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, mb: 1.8 }}>
@@ -247,6 +251,14 @@ export default function Footer({ tagline, findUsLabel, countryLinks }: FooterPro
                 sx={{ color: 'rgba(244,239,230,0.7)', fontSize: '0.92rem', '&:hover': { color: palette.paper } }}
               >
                 Blog
+              </MuiLink>
+              <MuiLink
+                component={Link}
+                href="/ayuda"
+                underline="hover"
+                sx={{ color: 'rgba(244,239,230,0.7)', fontSize: '0.92rem', '&:hover': { color: palette.paper } }}
+              >
+                Centro de ayuda
               </MuiLink>
               <MuiLink
                 component={Link}
