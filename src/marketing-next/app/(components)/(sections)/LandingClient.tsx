@@ -2,6 +2,7 @@
 import { SignupModalProvider } from './SignupModal';
 import HomeNav from '../(home)/HomeNav';
 import HomeHero from '../(home)/HomeHero';
+import Simulator from '../(home)/Simulator';
 import {
   BookingLinkSection,
   DepositSection,
@@ -25,6 +26,7 @@ export default function LandingClient() {
       <HomeNav />
       <main>
         <HomeHero />
+        <Simulator />
         <BookingLinkSection />
         <DepositSection />
         <ReminderSection />

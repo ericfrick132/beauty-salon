@@ -6,6 +6,7 @@ import { useSignupModal } from '../(sections)/SignupModal';
 import { BrandMark, Wordmark, home, sans } from './ui';
 
 const links = [
+  { href: '#simulador', label: 'Probalo' },
   { href: '#reservas', label: 'Funciones' },
   { href: '#demo', label: 'Demo' },
   { href: '#precios', label: 'Precios' },
