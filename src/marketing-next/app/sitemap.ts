@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next';
 import { brand } from '@/app/(lib)/brand';
 import { verticals } from '@/app/(lib)/verticals';
 import { MARKET_COUNTRY_LIST } from '@/app/(lib)/countries';
+import { LECCIONES } from '@/app/(lib)/curso';
 
 // /turnos queda afuera a propósito: es duplicado de la home (canonical '/', noindex).
 // /blog tampoco va acá: lo sirve el backend con su propio sitemap (/blog/sitemap.xml, listado en robots.txt).
@@ -48,5 +49,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.6,
   }));
 
-  return [...home, ...countryPages, ...verticalPages, ...demos, ...legal];
+  // Centro de ayuda: índice + una URL por lección (app/(lib)/curso.ts).
+  const ayudaDate = new Date('2026-10-28');
+  const ayuda: MetadataRoute.Sitemap = [
+    { url: `${base}/ayuda`, lastModified: ayudaDate, changeFrequency: 'monthly', priority: 0.6 },
+    ...LECCIONES.map((l) => ({ url: `${base}/ayuda/${l.slug}`, lastModified: ayudaDate, changeFrequency: 'monthly' as const, priority: 0.5 })),
+  ];
+
+  return [...home, ...countryPages, ...verticalPages, ...demos, ...ayuda, ...legal];
 }
