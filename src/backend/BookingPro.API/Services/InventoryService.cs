@@ -1100,7 +1100,11 @@ namespace BookingPro.API.Services
                 IsLowStock = p.IsLowStock,
                 IsOutOfStock = p.IsOutOfStock,
                 CreatedAt = p.CreatedAt,
-                UpdatedAt = p.UpdatedAt
+                UpdatedAt = p.UpdatedAt,
+                CoverUrl = p.Media.Where(m => m.Kind == ProductMediaKinds.Image).OrderBy(m => m.SortOrder).Select(m => m.Url).FirstOrDefault(),
+                Media = p.Media.OrderBy(m => m.SortOrder)
+                    .Select(m => new ProductMediaDto { Id = m.Id, Url = m.Url, Kind = m.Kind, SortOrder = m.SortOrder })
+                    .ToList()
             };
         }
     }

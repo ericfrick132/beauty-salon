@@ -39,6 +39,7 @@ const baseFeatures: PlanFeatures = {
   allowTransferDetection: false,
   allowCustomerHistory: false,
   allowTrackingPixels: false,
+  allowExpenses: true,
 };
 
 /** Si /subscription/plans no responde: los planes tal como los siembra el backend (precios en ARS). */
@@ -47,16 +48,16 @@ export const FALLBACK_PLANS: SubscriptionPlanInfo[] = [
     code: PLAN_FREE, name: 'Gratuito', tagline: 'Para empezar a recibir reservas online.', price: 0, currency: 'ARS',
     isPopular: false, displayOrder: 0,
     features: { ...baseFeatures, maxBookingsPerMonth: 100, maxStaff: 3, maxServicesPerStaff: 1, commissionPercent: 5,
-      allowReminders: false, allowWhatsApp: false, allowCustomBranding: false },
+      allowReminders: false, allowWhatsApp: false, allowCustomBranding: false, allowExpenses: false },
   },
   {
     code: PLAN_PLUS, name: 'Plus', tagline: 'Un plus en la gestión de tus reservas.', price: 8000, currency: 'ARS',
-    isPopular: false, displayOrder: 1,
+    isPopular: true, displayOrder: 1,
     features: { ...baseFeatures, maxBookingsPerMonth: 200, maxStaff: 5, commissionPercent: 2, whatsAppMonthlyLimit: 30 },
   },
   {
     code: PLAN_ADVANCE, name: 'Advance', tagline: 'Para ordenar y automatizar todas tus reservas.', price: 18000, currency: 'ARS',
-    isPopular: true, displayOrder: 2,
+    isPopular: false, displayOrder: 2,
     features: { ...baseFeatures, commissionPercent: 1, whatsAppMonthlyLimit: 100, maxRecurringBookings: 10, maxCustomFields: 1,
       allowCoupons: true, allowTransferDetection: true },
   },
@@ -115,6 +116,7 @@ export const planBullets = (
     if (hasWhatsApp(f)) out.push(whatsAppText(f));
     out.push(opts.stripe ? 'Cobros con tarjeta y transferencia' : 'Cobros con MercadoPago y transferencia');
     if (f.allowReports) out.push('Panel de métricas');
+    if (f.allowExpenses) out.push('Gastos y ganancia real del mes');
     if (f.maxRecurringBookings !== 0) out.push(recurringText(f.maxRecurringBookings));
     if (f.maxCustomFields !== 0) out.push(customFieldsText(f.maxCustomFields));
     if (f.allowCoupons) out.push('Cupones de descuento');
@@ -136,6 +138,7 @@ export const planBullets = (
   }
   if (f.maxServicesPerStaff !== p.maxServicesPerStaff) out.push(servicesText(f.maxServicesPerStaff));
   if (f.allowReminders && !p.allowReminders) out.push('Recordatorios automáticos');
+  if (f.allowExpenses && !p.allowExpenses) out.push('Gastos y ganancia real del mes');
   if (hasWhatsApp(f) && (!hasWhatsApp(p) || f.whatsAppMonthlyLimit !== p.whatsAppMonthlyLimit)) out.push(whatsAppText(f));
   if (f.maxRecurringBookings !== 0 && f.maxRecurringBookings !== p.maxRecurringBookings) out.push(recurringText(f.maxRecurringBookings));
   if (f.maxCustomFields !== 0 && f.maxCustomFields !== p.maxCustomFields) out.push(customFieldsText(f.maxCustomFields));
@@ -157,7 +160,7 @@ export const bulletsByPlan = (ordered: SubscriptionPlanInfo[], stripe = false): 
 };
 
 /** Límites que son una feature sí/no (no tienen barra de usados/tope): el diálogo muestra el pitch y el plan. */
-export const FEATURE_LIMITS: PlanLimitKind[] = ['coupons', 'customer_history', 'tracking_pixels'];
+export const FEATURE_LIMITS: PlanLimitKind[] = ['coupons', 'customer_history', 'tracking_pixels', 'expenses'];
 export const isFeatureLimit = (limit: PlanLimitKind) => FEATURE_LIMITS.includes(limit);
 
 /** Valor del tope en un plan; las features sí/no cuentan como ilimitadas (-1) o no incluidas (0). */
@@ -169,6 +172,7 @@ const limitValue = (f: PlanFeatures, limit: PlanLimitKind): number => {
     case 'coupons': return flag(f.allowCoupons);
     case 'customer_history': return flag(f.allowCustomerHistory);
     case 'tracking_pixels': return flag(f.allowTrackingPixels);
+    case 'expenses': return flag(f.allowExpenses);
     case 'custom_fields': return f.maxCustomFields;
     case 'recurring_bookings': return f.maxRecurringBookings;
     case 'services':
@@ -211,7 +215,7 @@ export const formatPlanPrice = (plan: Pick<SubscriptionPlanInfo, 'price' | 'curr
 /** Texto de un tope: "Ilimitadas" con -1. */
 export const formatLimit = (n: number, unlimitedLabel = 'Ilimitadas') => (unlimited(n) ? unlimitedLabel : num(n));
 
-// Cache de /subscription/plans para la sesión: lo usan la página de planes, el diálogo de límite y el dashboard.
+// Cache de /subscription/plans para la sesión: lo usan la página de planes, los candados del panel y el dashboard.
 let plansPromise: Promise<SubscriptionPlanInfo[]> | null = null;
 
 export const loadPlans = (): Promise<SubscriptionPlanInfo[]> => {
@@ -287,8 +291,8 @@ export const usePlanUsage = (enabled = true) => {
 export const usedPercent = (used: number, max: number) => (max < 0 ? 0 : max === 0 ? 100 : Math.min(100, (used / max) * 100));
 
 /**
- * Abre el diálogo de "pasate de plan" sin pasar por el backend: para las features que se muestran con candado
- * (ej. "Repetir" en una reserva nueva) y que conviene vender antes de que el usuario choque con un 403.
+ * Manda al checkout como si el backend hubiera respondido 403 PLAN_LIMIT (usePlanLimitRedirect lo escucha): para
+ * las features que se muestran con candado (ej. "Repetir" en una reserva nueva), antes de chocar con el 403.
  */
 export const openPlanUpsell = (limit: PlanLimitKind, planCode: string, planName: string, max = 0, used = 0) => {
   const detail: PlanLimitError = { code: 'PLAN_LIMIT', limit, max, used, planCode, planName, message: null };
@@ -297,9 +301,9 @@ export const openPlanUpsell = (limit: PlanLimitKind, planCode: string, planName:
   } catch { /* sin CustomEvent: no se muestra */ }
 };
 
-/** Las features nuevas que se venden en el dashboard, los menús y los paywalls. */
+/** Las features nuevas que se venden en el dashboard. */
 export interface NewFeatureInfo {
-  key: 'recurring' | 'custom_fields' | 'coupons' | 'customer_history' | 'tracking';
+  key: 'recurring' | 'custom_fields' | 'coupons' | 'customer_history' | 'tracking' | 'expenses';
   title: string;
   pitch: string;
   path: string;
@@ -308,6 +312,11 @@ export interface NewFeatureInfo {
 }
 
 export const NEW_FEATURES: NewFeatureInfo[] = [
+  {
+    key: 'expenses', title: 'Gastos', path: '/expenses', limit: 'expenses',
+    pitch: 'Cargá alquiler, servicios e insumos y mirá cuánto ganás de verdad.',
+    includes: (f) => f.allowExpenses,
+  },
   {
     key: 'recurring', title: 'Turnos fijos', path: '/recurring-bookings', limit: 'recurring_bookings',
     pitch: 'Agendá de una vez al cliente que viene todas las semanas.',

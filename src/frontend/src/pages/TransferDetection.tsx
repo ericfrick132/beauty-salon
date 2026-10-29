@@ -289,7 +289,7 @@ const TransferDetection: React.FC = () => {
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                       {planWith ? `Desde ${formatPlanPrice(planWith)}/mes, con reservas y agendas ilimitadas y 1% de comisión por cobro.` : 'Viene con los planes Advance y Pro.'}
                     </Typography>
-                    <Button variant="contained" fullWidth sx={{ mt: 2 }} onClick={() => navigate(`/subscription/plans?highlight=${planWithCode}`)}>
+                    <Button variant="contained" fullWidth sx={{ mt: 2 }} onClick={() => navigate(`/subscription/plans?highlight=${planWithCode}&from=transfer_detection`)}>
                       Pasarme a {planWithName}
                     </Button>
                     {addon && addon.monthlyPrice > 0 && (

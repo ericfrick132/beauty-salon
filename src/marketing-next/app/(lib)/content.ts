@@ -338,7 +338,8 @@ export const pricingContent = {
         '2% de comisión por cobro',
       ],
       cta: 'Elegir Plus',
-      highlighted: false,
+      highlighted: true,
+      badge: 'Más elegido',
     },
     {
       code: 'advance',
@@ -355,8 +356,7 @@ export const pricingContent = {
         '1% de comisión por cobro',
       ],
       cta: 'Elegir Advance',
-      highlighted: true,
-      badge: 'Más elegido',
+      highlighted: false,
     },
     {
       code: 'pro_v2',

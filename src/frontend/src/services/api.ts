@@ -29,6 +29,8 @@ export interface PlanFeatures {
   allowTransferDetection: boolean;
   allowCustomerHistory: boolean;
   allowTrackingPixels: boolean;
+  /** Carga de gastos (alquiler, servicios…), desde Plus. */
+  allowExpenses: boolean;
 }
 
 /** GET /subscription/plans (SubscriptionPlanDto). */
@@ -71,7 +73,8 @@ export type PlanLimitKind =
   | 'custom_fields'
   | 'recurring_bookings'
   | 'customer_history'
-  | 'tracking_pixels';
+  | 'tracking_pixels'
+  | 'expenses';
 
 /** Cuerpo del 403 cuando una acción supera el plan (PlanLimitErrorDto). */
 export interface PlanLimitError {
@@ -87,7 +90,7 @@ export interface PlanLimitError {
 /** Evento global que dispara el interceptor con un PlanLimitError en `detail`. */
 export const PLAN_LIMIT_EVENT = 'plan-limit';
 
-/** El error es un 403 PLAN_LIMIT: ya lo muestra PlanLimitDialog, la pantalla no tiene que mostrar otro error. */
+/** El error es un 403 PLAN_LIMIT: el panel ya manda al checkout (usePlanLimitRedirect), la pantalla no muestra otro error. */
 export const isPlanLimitError = (error: any): boolean =>
   error?.response?.status === 403 && error?.response?.data?.code === 'PLAN_LIMIT';
 
@@ -140,15 +143,17 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // 402 queda solo para los add-ons pagos (FEATURE_REQUIRED, ej. Bot de Confirmación): cada pantalla
-    // muestra su paywall. Con freemium ya no existe el 402 de "suscripción vencida".
+    // 402 queda solo para los add-ons pagos (FEATURE_REQUIRED, ej. Bot de Confirmación). Si el add-on viene
+    // incluido en un plan, el panel manda al checkout de ese plan (usePlanLimitRedirect). Con freemium ya no
+    // existe el 402 de "suscripción vencida".
     if (error.response?.status === 402 && error.response?.data?.code === 'FEATURE_REQUIRED') {
       try {
         window.dispatchEvent(new CustomEvent('feature-required', { detail: error.response.data }));
       } catch {}
     }
-    // 403 PLAN_LIMIT: la acción supera el plan (reservas del mes, agendas, servicios). PlanLimitDialog
-    // escucha el evento y ofrece pasarse de plan; las pantallas no muestran su error genérico (isPlanLimitError).
+    // 403 PLAN_LIMIT: la acción supera el plan (reservas del mes, agendas, servicios, cupones…). En el panel,
+    // usePlanLimitRedirect (AdminLayout) escucha el evento y manda directo al checkout con el plan que lo levanta;
+    // las pantallas no muestran su error genérico (isPlanLimitError). La página pública de reservas no lo escucha.
     if (isPlanLimitError(error)) {
       try {
         window.dispatchEvent(new CustomEvent(PLAN_LIMIT_EVENT, { detail: error.response.data }));
@@ -477,6 +482,25 @@ export const inventoryApi = {
     api.patch(`/inventory/products/${id}/price`, data).then(res => res.data),
   updateStock: (id: string, data: { quantity: number; movementType: string; reason?: string; notes?: string; unitCost?: number }) =>
     api.post(`/inventory/stock/${id}`, data).then(res => res.data),
+};
+
+/** Foto o video de un producto (ProductMediaDto). La primera foto es la portada. */
+export interface ProductMedia {
+  id: string;
+  url: string;
+  kind: 'image' | 'video';
+  sortOrder: number;
+}
+
+export const productMediaApi = {
+  upload: (productId: string, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    // Un video de 50 MB con una conexión lenta tarda: sin el timeout general.
+    return api.post<ProductMedia>(`/inventory/products/${productId}/media`, fd, { timeout: 10 * 60 * 1000 }).then(res => res.data);
+  },
+  reorder: (productId: string, ids: string[]) => api.put(`/inventory/products/${productId}/media/order`, ids),
+  remove: (productId: string, mediaId: string) => api.delete(`/inventory/products/${productId}/media/${mediaId}`),
 };
 
 export const salesApi = {

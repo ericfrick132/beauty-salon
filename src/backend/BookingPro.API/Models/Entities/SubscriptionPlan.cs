@@ -52,6 +52,7 @@ namespace BookingPro.API.Models.Entities
         public bool AllowTransferDetection { get; set; } = true;
         public bool AllowCustomerHistory { get; set; } = true;
         public bool AllowTrackingPixels { get; set; } = true;
+        public bool AllowExpenses { get; set; } = true; // carga de gastos (alquiler, servicios...), desde Plus
 
         // MercadoPago integration
         [MaxLength(255)]

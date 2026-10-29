@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
   Drawer,
@@ -72,6 +72,8 @@ import {
   DynamicForm,
   Repeat,
   Insights,
+  Lock,
+  WorkspacePremium,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useAppDispatch, useAppSelector } from '../../store';
@@ -88,12 +90,13 @@ import {
 import ImpersonationBanner from '../common/ImpersonationBanner';
 import AddonTrialBanner from '../common/AddonTrialBanner';
 import PlanUsageBanner from '../subscription/PlanUsageBanner';
-import PlanLimitDialog from '../subscription/PlanLimitDialog';
 import MercadoPagoIcon from '../icons/MercadoPagoIcon';
 import { isAdminLike } from '../../utils/permissions';
 import ChangePasswordDialog from '../auth/ChangePasswordDialog';
 import api from '../../services/api';
 import { useTenantMoney } from '../../hooks/useTenantMoney';
+import { PlanGate, planForGate, usePlanGates, usePlanLimitRedirect, usePlanQuotas } from '../../utils/planGates';
+import { useSubscription } from '../../contexts/SubscriptionContext';
 
 const drawerWidth = 280;
 const mobileDrawerWidth = 260;
@@ -220,7 +223,31 @@ interface MenuItemType {
   children?: MenuItemType[];
   adminOnly?: boolean;
   badge?: string;
+  /** Función del plan: si el plan actual no la incluye, el ítem va grisado con candado y lleva al checkout. */
+  gate?: PlanGate;
 }
+
+/**
+ * Pantallas de funciones pagas: entrando por URL directa sin el plan, se redirige al checkout. Mismo mapa que
+ * los `gate` del menú.
+ */
+const ROUTE_GATES: { path: string; gate: PlanGate }[] = [
+  { path: '/recurring-bookings', gate: 'recurring_bookings' },
+  { path: '/coupons', gate: 'coupons' },
+  { path: '/expenses', gate: 'expenses' },
+  { path: '/booking-form-fields', gate: 'custom_fields' },
+  { path: '/settings/tracking', gate: 'tracking_pixels' },
+  { path: '/transfer-detection', gate: 'transfer_detection' },
+  { path: '/confirmation-bot', gate: 'confirmation_bot' },
+  { path: '/whatsapp-bot', gate: 'menu_bot' },
+  { path: '/messaging', gate: 'whatsapp' },
+  { path: '/whatsapp', gate: 'whatsapp' },
+];
+
+const routeGateFor = (pathname: string): PlanGate | null =>
+  ROUTE_GATES.find((r) => pathname === r.path || pathname.startsWith(`${r.path}/`))?.gate ?? null;
+
+const formatPercent = (n: number) => n.toLocaleString('es-AR', { maximumFractionDigits: 2 });
 
 function filterMenu(items: MenuItemType[], canSeeAdmin: boolean): MenuItemType[] {
   const result: MenuItemType[] = [];
@@ -314,7 +341,7 @@ export const AdminLayout: React.FC = () => {
       children: [
         { text: 'Agenda', path: '/calendar', icon: <Schedule fontSize="small" /> },
         { text: 'Bloqueos', path: '/blocks', icon: <BlockIcon fontSize="small" />, adminOnly: true },
-        { text: 'Turnos fijos', path: '/recurring-bookings', icon: <Repeat fontSize="small" />, badge: 'Nuevo' },
+        { text: 'Turnos fijos', path: '/recurring-bookings', icon: <Repeat fontSize="small" />, badge: 'Nuevo', gate: 'recurring_bookings' },
       ],
     },
     {
@@ -323,7 +350,7 @@ export const AdminLayout: React.FC = () => {
       children: [
         { text: 'Clientes', path: '/customers', icon: <People fontSize="small" /> },
         { text: 'Servicios', path: '/services', icon: <ManageAccounts fontSize="small" /> },
-        { text: 'Cupones de descuento', path: '/coupons', icon: <LocalOffer fontSize="small" />, adminOnly: true, badge: 'Nuevo' },
+        { text: 'Cupones de descuento', path: '/coupons', icon: <LocalOffer fontSize="small" />, adminOnly: true, badge: 'Nuevo', gate: 'coupons' },
         { text: 'Empleados', path: '/employees', icon: <Group fontSize="small" />, adminOnly: true },
       ],
     },
@@ -338,6 +365,7 @@ export const AdminLayout: React.FC = () => {
           : []),
         { text: 'Productos', path: '/products', icon: <Inventory2Outlined fontSize="small" /> },
         { text: 'Pagos', path: '/payments', icon: <Payment fontSize="small" />, adminOnly: true },
+        { text: 'Gastos', path: '/expenses', icon: <ReceiptLong fontSize="small" />, adminOnly: true, badge: 'Nuevo', gate: 'expenses' },
       ],
     },
     { text: 'Reportes', icon: <Assessment />, path: '/reports', adminOnly: true },
@@ -346,15 +374,15 @@ export const AdminLayout: React.FC = () => {
       icon: <Settings />,
       children: [
         { text: 'General', path: '/settings', icon: <Settings fontSize="small" />, adminOnly: true },
-        { text: 'Campos del formulario', path: '/booking-form-fields', icon: <DynamicForm fontSize="small" />, adminOnly: true, badge: 'Nuevo' },
+        { text: 'Campos del formulario', path: '/booking-form-fields', icon: <DynamicForm fontSize="small" />, adminOnly: true, badge: 'Nuevo', gate: 'custom_fields' },
         { text: 'Equipo', path: '/team', icon: <Group fontSize="small" />, adminOnly: true },
         { text: 'Suscripción', path: '/subscription', icon: <CreditCard fontSize="small" />, adminOnly: true },
-        { text: 'Mensajería', path: '/messaging', icon: <WhatsApp fontSize="small" /> },
-        { text: 'Asistente de WhatsApp', path: '/whatsapp-bot', icon: <WhatsApp fontSize="small" />, adminOnly: true, badge: 'Nuevo' },
-        { text: 'Bot de Confirmación', path: '/confirmation-bot', icon: <SmartToy fontSize="small" />, adminOnly: true },
-        { text: 'Píxel y Analytics', path: '/settings/tracking', icon: <Insights fontSize="small" />, adminOnly: true, badge: 'Nuevo' },
+        { text: 'Mensajería', path: '/messaging', icon: <WhatsApp fontSize="small" />, gate: 'whatsapp' },
+        { text: 'Asistente de WhatsApp', path: '/whatsapp-bot', icon: <WhatsApp fontSize="small" />, adminOnly: true, badge: 'Nuevo', gate: 'menu_bot' },
+        { text: 'Bot de Confirmación', path: '/confirmation-bot', icon: <SmartToy fontSize="small" />, adminOnly: true, gate: 'confirmation_bot' },
+        { text: 'Píxel y Analytics', path: '/settings/tracking', icon: <Insights fontSize="small" />, adminOnly: true, badge: 'Nuevo', gate: 'tracking_pixels' },
         ...(countryFeatures.transferDetection
-          ? [{ text: 'Transferencias MP', path: '/transfer-detection', icon: <AttachMoney fontSize="small" />, adminOnly: true, badge: 'Nuevo' }]
+          ? [{ text: 'Transferencias MP', path: '/transfer-detection', icon: <AttachMoney fontSize="small" />, adminOnly: true, badge: 'Nuevo', gate: 'transfer_detection' as PlanGate }]
           : []),
         // España no tiene Mercado Pago: las señas se cobran con Stripe Connect.
         countryFeatures.mercadoPagoConnect === 'none'
@@ -415,6 +443,62 @@ export const AdminLayout: React.FC = () => {
       setDrawerOpen(false);
     }
   };
+
+  // Candados del plan: el ítem bloqueado lleva directo al checkout con el plan que lo desbloquea.
+  const { isLocked, pathFor, plans, currentCode, subscription, features: planFeatures } = usePlanGates();
+  const { loading: subscriptionLoading, refresh: refreshSubscription } = useSubscription();
+  usePlanLimitRedirect();
+  // Tope de reservas del mes (Gratuito: 100): "Nueva reserva" grisado con candado, al checkout.
+  const { atLimit } = usePlanQuotas();
+  const bookingsFull = atLimit('bookings_per_month');
+
+  // El estado del plan se pide al montar la app; si se entró por el login (sin recargar) todavía no está.
+  useEffect(() => {
+    if (!subscription && !subscriptionLoading) refreshSubscription();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const lockedGate = (item: MenuItemType): PlanGate | null => (item.gate && isLocked(item.gate) ? item.gate : null);
+  const lockTooltip = (gate: PlanGate) => {
+    const plan = planForGate(gate, plans, currentCode);
+    return plan ? `Incluido en el plan ${plan.name}` : 'No incluido en tu plan';
+  };
+
+  const handleItemClick = (item: MenuItemType) => {
+    const gate = lockedGate(item);
+    if (gate) {
+      navigate(pathFor(gate));
+      if (isMobile) setDrawerOpen(false);
+      return;
+    }
+    if (item.path) handleNavigation(item.path);
+  };
+
+  const lockedSx = { opacity: 0.5, '&:hover': { opacity: 0.8 } };
+  const lockIcon = <Lock sx={{ fontSize: 16, color: '#6B7280', ml: 0.5 }} />;
+
+  const routeGate = routeGateFor(location.pathname);
+  const blockedRouteGate = routeGate && isLocked(routeGate) ? routeGate : null;
+
+  // Badge del plan actual: "Plan Gratuito · 5% por cobro online". Lleva a los planes (cualquier rol puede pagar).
+  const commission = planFeatures?.commissionPercent ?? 0;
+  const planBadge = subscription ? (
+    <Chip
+      icon={<WorkspacePremium sx={{ fontSize: 18 }} />}
+      label={`Plan ${subscription.planName || 'Gratuito'} · ${commission > 0 ? `${formatPercent(commission)}% por cobro online` : 'Sin comisión'}`}
+      onClick={() => { navigate('/subscription/plans'); if (isMobile) { setDrawerOpen(false); setMoreSheetOpen(false); } }}
+      size="small"
+      variant="outlined"
+      sx={{
+        width: '100%', justifyContent: 'flex-start', fontWeight: 600, borderRadius: '8px', height: 30,
+        color: subscription.isPaid ? '#065F46' : '#92400E',
+        borderColor: subscription.isPaid ? '#A7F3D0' : '#FCD34D',
+        bgcolor: subscription.isPaid ? '#ECFDF5' : '#FFFBEB',
+        '& .MuiChip-icon': { color: 'inherit' },
+        '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' },
+      }}
+    />
+  ) : null;
 
   const handleSubmenuToggle = (text: string) => {
     setOpenSubmenu(openSubmenu === text ? null : text);
@@ -509,6 +593,7 @@ export const AdminLayout: React.FC = () => {
               </Typography>
             </Box>
           </Box>
+          {planBadge && <Box sx={{ mt: -1, mb: 1 }}>{planBadge}</Box>}
         </motion.div>
       </Box>
 
@@ -545,26 +630,30 @@ export const AdminLayout: React.FC = () => {
                 </ListItem>
                 <Collapse in={openSubmenu === item.text} timeout="auto" unmountOnExit>
                   <List component="div" disablePadding>
-                    {item.children.map((child) => (
-                      <ListItem key={child.text} disablePadding sx={{ pl: 2 }}>
+                    {item.children.map((child) => {
+                      const childGate = lockedGate(child);
+                      const button = (
                         <StyledListItemButton
                           active={location.pathname === child.path}
                           primaryColor={primaryColor}
                           accentColor={accentColor}
                           isLightTheme
-                          onClick={() => child.path && handleNavigation(child.path)}
+                          onClick={() => handleItemClick(child)}
+                          aria-label={childGate ? `${child.text} (bloqueado: ${lockTooltip(childGate)})` : undefined}
                           sx={{
                             mx: { xs: 0.5, sm: 1 },
                             '& .MuiListItemText-primary': {
                               fontSize: { xs: '0.8rem', sm: '0.875rem' },
                             },
+                            ...(childGate ? lockedSx : {}),
                           }}
                         >
                           <ListItemIcon sx={{ minWidth: { xs: 30, sm: 35 } }}>
                             {child.icon}
                           </ListItemIcon>
                           <ListItemText primary={child.text} />
-                          {child.badge && (
+                          {childGate && lockIcon}
+                          {child.badge && !childGate && (
                             <Chip
                               label={child.badge}
                               size="small"
@@ -579,8 +668,17 @@ export const AdminLayout: React.FC = () => {
                             />
                           )}
                         </StyledListItemButton>
-                      </ListItem>
-                    ))}
+                      );
+                      return (
+                        <ListItem key={child.text} disablePadding sx={{ pl: 2 }}>
+                          {childGate ? (
+                            <Tooltip title={lockTooltip(childGate)} placement="right">
+                              <Box sx={{ width: '100%' }}>{button}</Box>
+                            </Tooltip>
+                          ) : button}
+                        </ListItem>
+                      );
+                    })}
                   </List>
                 </Collapse>
               </>
@@ -591,12 +689,13 @@ export const AdminLayout: React.FC = () => {
                   primaryColor={primaryColor}
                   accentColor={accentColor}
                   isLightTheme
-                  onClick={() => item.path && handleNavigation(item.path)}
+                  onClick={() => handleItemClick(item)}
                   sx={{
                     mx: { xs: 0.5, sm: 1 },
                     '& .MuiListItemText-primary': {
                       fontSize: { xs: '0.875rem', sm: '1rem' },
                     },
+                    ...(lockedGate(item) ? lockedSx : {}),
                   }}
                   id={
                     item.path === '/calendar' ? 'tp-menu-calendar' :
@@ -609,6 +708,7 @@ export const AdminLayout: React.FC = () => {
                     {item.icon}
                   </ListItemIcon>
                   <ListItemText primary={item.text} />
+                  {lockedGate(item) && lockIcon}
                 </StyledListItemButton>
               </ListItem>
             )}
@@ -677,8 +777,9 @@ export const AdminLayout: React.FC = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {/* Quick actions to guarantee 1–2 click access */}
             <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 1, mr: 2 }}>
-              <Button size="small" variant="contained" startIcon={<AddCircle />} onClick={() => navigate('/new-booking')}
-                sx={{ backgroundColor: '#2563EB', '&:hover': { backgroundColor: '#1D4ED8' } }}>
+              <Button size="small" variant="contained" startIcon={bookingsFull ? <Lock /> : <AddCircle />}
+                onClick={() => navigate(bookingsFull ? pathFor('bookings_per_month') : '/new-booking')}
+                sx={{ backgroundColor: '#2563EB', '&:hover': { backgroundColor: '#1D4ED8' }, ...(bookingsFull ? { opacity: 0.6 } : {}) }}>
                 Nueva reserva
               </Button>
               <Button size="small" variant="outlined" onClick={() => navigate('/customers/new')}
@@ -772,13 +873,13 @@ export const AdminLayout: React.FC = () => {
           <PlanUsageBanner />
           <AddonTrialBanner />
         </Box>
-        <PlanLimitDialog />
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <Outlet />
+          {/* Función que el plan no incluye entrada por URL directa: al checkout, sin pantalla intermedia. */}
+          {blockedRouteGate ? <Navigate to={pathFor(blockedRouteGate)} replace /> : <Outlet />}
         </motion.div>
       </MainContent>
 
@@ -880,6 +981,7 @@ export const AdminLayout: React.FC = () => {
               <Typography variant="caption" sx={{ color: '#6B7280' }}>{user?.email}</Typography>
             </Box>
           </Box>
+          {planBadge && <Box sx={{ px: 2, pt: 1.5, flexShrink: 0 }}>{planBadge}</Box>}
 
           {/* Navigation items */}
           <List sx={{ overflow: 'auto', flex: 1, py: 1 }}>
@@ -903,12 +1005,13 @@ export const AdminLayout: React.FC = () => {
                     {filteredChildren.map((child) => (
                       <ListItemButton
                         key={child.text}
-                        onClick={() => { if (child.path) handleNavigation(child.path); setMoreSheetOpen(false); }}
+                        onClick={() => { handleItemClick(child); setMoreSheetOpen(false); }}
                         sx={{
                           pl: 4.5, py: 1, mx: 1, borderRadius: 1,
                           bgcolor: location.pathname === child.path ? `${primaryColor}10` : 'transparent',
                           borderLeft: location.pathname === child.path ? `3px solid ${primaryColor}` : '3px solid transparent',
                           '&:hover': { bgcolor: '#F9FAFB' },
+                          ...(lockedGate(child) ? lockedSx : {}),
                         }}
                       >
                         <ListItemIcon sx={{ minWidth: 36, color: location.pathname === child.path ? primaryColor : '#6B7280' }}>
@@ -922,6 +1025,7 @@ export const AdminLayout: React.FC = () => {
                             color: location.pathname === child.path ? primaryColor : '#374151',
                           }}
                         />
+                        {lockedGate(child) && lockIcon}
                       </ListItemButton>
                     ))}
                   </React.Fragment>
@@ -931,12 +1035,13 @@ export const AdminLayout: React.FC = () => {
               return (
                 <ListItemButton
                   key={item.text}
-                  onClick={() => { if (item.path) handleNavigation(item.path); setMoreSheetOpen(false); }}
+                  onClick={() => { handleItemClick(item); setMoreSheetOpen(false); }}
                   sx={{
                     py: 1, mx: 1, borderRadius: 1,
                     bgcolor: location.pathname === item.path ? `${primaryColor}10` : 'transparent',
                     borderLeft: location.pathname === item.path ? `3px solid ${primaryColor}` : '3px solid transparent',
                     '&:hover': { bgcolor: '#F9FAFB' },
+                    ...(lockedGate(item) ? lockedSx : {}),
                   }}
                 >
                   <ListItemIcon sx={{ minWidth: 40, color: location.pathname === item.path ? primaryColor : '#6B7280' }}>
@@ -950,6 +1055,7 @@ export const AdminLayout: React.FC = () => {
                       color: location.pathname === item.path ? primaryColor : '#374151',
                     }}
                   />
+                  {lockedGate(item) && lockIcon}
                 </ListItemButton>
               );
             })}

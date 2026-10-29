@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using BookingPro.API.Data;
 using BookingPro.API.Services;
 using BookingPro.API.Models.Entities;
+using BookingPro.API.Utilities;
 
 namespace BookingPro.API.Controllers
 {
@@ -100,8 +101,17 @@ namespace BookingPro.API.Controllers
                     }
                 }
 
-                // Ganancia neta = Facturación - Sueldos - Comisiones - Costo de productos vendidos
-                var netProfit = totalRevenue - totalSalaries - totalCommissions - productCost;
+                // Gastos cargados a mano (alquiler, servicios...). Expense.Date es un día calendario: se
+                // compara contra los días locales del período, no contra las horas UTC.
+                var tz = TenantTime.For(_tenantService.GetCurrentTenant());
+                var firstDay = DateTime.SpecifyKind(TenantTime.ToLocal(startDate.Value, tz).Date, DateTimeKind.Utc);
+                var lastDay = DateTime.SpecifyKind(TenantTime.ToLocal(endDate.Value, tz).Date, DateTimeKind.Utc);
+                var otherExpenses = await _context.Expenses
+                    .Where(e => e.Date >= firstDay && e.Date <= lastDay)
+                    .SumAsync(e => e.Amount);
+
+                // Ganancia neta = Facturación - Sueldos - Comisiones - Costo de productos vendidos - Gastos
+                var netProfit = totalRevenue - totalSalaries - totalCommissions - productCost - otherExpenses;
 
                 // Comparación con período anterior
                 var previousStart = startDate.Value.AddMonths(-1);
@@ -126,7 +136,8 @@ namespace BookingPro.API.Controllers
                     productCost,
                     totalSalaries,
                     totalCommissions,
-                    totalExpenses = totalSalaries + totalCommissions + productCost,
+                    otherExpenses,
+                    totalExpenses = totalSalaries + totalCommissions + productCost + otherExpenses,
                     netProfit,
                     profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0,
                     revenueGrowth,
@@ -140,6 +151,7 @@ namespace BookingPro.API.Controllers
                         salariesPercentage = totalRevenue > 0 ? (totalSalaries / totalRevenue) * 100 : 0,
                         commissionsPercentage = totalRevenue > 0 ? (totalCommissions / totalRevenue) * 100 : 0,
                         productCostPercentage = totalRevenue > 0 ? (productCost / totalRevenue) * 100 : 0,
+                        otherExpensesPercentage = totalRevenue > 0 ? (otherExpenses / totalRevenue) * 100 : 0,
                         netProfitPercentage = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0
                     }
                 });

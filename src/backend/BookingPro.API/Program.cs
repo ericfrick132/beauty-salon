@@ -14,6 +14,24 @@ Console.WriteLine($"Environment: {Environment.GetEnvironmentVariable("ASPNETCORE
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Chytapay: mismas env vars CHYTAPAY_* que GymHero (se copian tal cual entre apps de DO).
+// Se mapean a Chytapay:* solo si vienen con valor, para que el "" de appsettings no las pise.
+var chytapayEnv = new Dictionary<string, string>
+{
+    ["CHYTAPAY_CLIENT_ID"] = "Chytapay:ClientId",
+    ["CHYTAPAY_CLIENT_SECRET"] = "Chytapay:ClientSecret",
+    ["CHYTAPAY_AUTH_API_URL"] = "Chytapay:AuthApiUrl",
+    ["CHYTAPAY_INTEGRATION_API_URL"] = "Chytapay:IntegrationApiUrl",
+    ["CHYTAPAY_ADMIN_API_URL"] = "Chytapay:IntegrationAdminApiUrl",
+    ["CHYTAPAY_WEBHOOK_VALIDATION_TOKEN"] = "Chytapay:ValidationToken",
+    ["CHYTAPAY_REDIRECT_URI"] = "Chytapay:RedirectUri",
+    ["CHYTAPAY_IS_TEST_MODE"] = "Chytapay:IsTestMode",
+};
+builder.Configuration.AddInMemoryCollection(chytapayEnv
+    .Select(kv => (Key: kv.Value, Value: Environment.GetEnvironmentVariable(kv.Key)))
+    .Where(x => !string.IsNullOrWhiteSpace(x.Value))
+    .Select(x => new KeyValuePair<string, string?>(x.Key, x.Value)));
+
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -157,6 +175,8 @@ builder.Services.AddScoped<BookingPro.API.Services.Interfaces.ITransferDetection
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IWhatsAppMenuBotService, BookingPro.API.Services.WhatsAppMenuBotService>();
 builder.Services.AddHostedService<BookingPro.API.Services.TransferDetectionBackgroundService>();
 builder.Services.AddScoped<BookingPro.API.Services.Interfaces.IInventoryService, BookingPro.API.Services.InventoryService>();
+// DO Spaces: logos y fotos/videos de productos. El disco del contenedor se borra en cada deploy.
+builder.Services.AddSingleton<BookingPro.API.Services.IObjectStorageService, BookingPro.API.Services.SpacesStorageService>();
 builder.Services.AddScoped<ISettingsService, SettingsService>();
 
 // New B2B/B2C services

@@ -35,7 +35,7 @@ import { Add, Block, Edit, LocalOffer, WhatsApp } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import TextField from '../components/common/TextField';
-import FeaturePaywall from '../components/subscription/FeaturePaywall';
+import PlanCheckoutRedirect from '../components/subscription/PlanCheckoutRedirect';
 import { isPlanLimitError } from '../services/api';
 import {
   BookingCoupon,
@@ -91,12 +91,6 @@ const STATE_CHIP: Record<CouponState, { label: string; color: 'success' | 'defau
   expired: { label: 'Vencido', color: 'warning' },
   exhausted: { label: 'Agotado', color: 'warning' },
 };
-
-const SAMPLE_COUPONS: BookingCoupon[] = [
-  { id: 's1', code: 'VUELVE15', description: 'Clientes que no vienen hace 2 meses', discountType: 'percent', discountValue: 15, maxUses: null, usedCount: 12, expiresAt: null, isActive: true, createdAt: '', updatedAt: '' },
-  { id: 's2', code: 'PRIMERAVEZ', description: 'Para nuevos clientes de Instagram', discountType: 'fixed', discountValue: 2000, maxUses: 50, usedCount: 18, expiresAt: null, isActive: true, createdAt: '', updatedAt: '' },
-  { id: 's3', code: 'MARTES20', description: 'Llenar los martes a la tarde', discountType: 'percent', discountValue: 20, maxUses: 10, usedCount: 3, expiresAt: null, isActive: true, createdAt: '', updatedAt: '' },
-];
 
 const BookingCoupons: React.FC = () => {
   const theme = useTheme();
@@ -338,25 +332,15 @@ const BookingCoupons: React.FC = () => {
     );
   }
 
+  // El plan no incluye cupones (el backend lo dice en el GET): directo al checkout (Advance).
+  if (!allowed) return <PlanCheckoutRedirect gate="coupons" />;
+
   return (
     <Box>
       {header}
       {loadError && <Alert severity="error" sx={{ mb: 2 }}>{loadError}</Alert>}
 
-      {!allowed ? (
-        <FeaturePaywall
-          title="Llená huecos de la agenda con cupones"
-          description="Creá un código como VUELVE15 y compartilo por WhatsApp o Instagram: tus clientes lo cargan al reservar y el descuento se aplica solo, también a la seña."
-          bullets={[
-            'Porcentaje o monto fijo, con tope de usos y fecha de vencimiento',
-            'Se valida al reservar: nadie usa un código vencido o agotado',
-            'Ves cuántas veces se usó cada cupón',
-          ]}
-          includes={(f) => !!f.allowCoupons}
-        >
-          {renderList(coupons.length > 0 ? coupons : SAMPLE_COUPONS, true)}
-        </FeaturePaywall>
-      ) : coupons.length === 0 && !loadError ? (
+      {coupons.length === 0 && !loadError ? (
         <Card variant="outlined" sx={{ textAlign: 'center', py: { xs: 4, sm: 6 }, px: 2 }}>
           <LocalOffer color="primary" sx={{ fontSize: 48, mb: 1 }} />
           <Typography variant="h6" fontWeight={700} gutterBottom>Todavía no tenés cupones</Typography>

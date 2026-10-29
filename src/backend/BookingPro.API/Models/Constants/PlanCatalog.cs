@@ -36,7 +36,7 @@ namespace BookingPro.API.Models.Constants
                 AllowReminders = false, AllowWhatsApp = false, WhatsAppMonthlyLimit = 0,
                 MaxRecurringBookings = 0, MaxCustomFields = 0,
                 AllowCoupons = false, AllowTransferDetection = false, AllowCustomerHistory = false, AllowTrackingPixels = false,
-                AllowCustomBranding = false,
+                AllowExpenses = false, AllowCustomBranding = false,
             },
             new SubscriptionPlan
             {

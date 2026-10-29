@@ -309,7 +309,7 @@ const NewBooking: React.FC = () => {
       window.dispatchEvent(new Event(PLAN_USAGE_REFRESH_EVENT));
       navigate('/calendar');
     } catch (error: any) {
-      // Tope del plan: ya lo muestra PlanLimitDialog (403 PLAN_LIMIT), sin error genérico acá.
+      // Tope del plan (403 PLAN_LIMIT): el panel ya mandó al checkout, sin error genérico acá.
       if (error?.code === 'PLAN_LIMIT') return;
       console.error('Error creating booking:', error);
       setErrors({ submit: extractApiError(error) });

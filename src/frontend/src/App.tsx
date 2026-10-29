@@ -63,6 +63,7 @@ import WhatsAppSettings from './pages/WhatsAppSettings';
 import ConfirmationBot from './pages/ConfirmationBot';
 import TransferDetection from './pages/TransferDetection';
 import BookingCoupons from './pages/BookingCoupons';
+import Expenses from './pages/Expenses';
 import BookingFormFields from './pages/BookingFormFields';
 import WhatsAppBot from './pages/WhatsAppBot';
 import AiAgent from './pages/AiAgent';
@@ -445,6 +446,7 @@ function App() {
                   <Route path="/invoicing" element={<CountryFeatureGate feature="arcaInvoicing"><InvoicingPage /></CountryFeatureGate>} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/coupons" element={<BookingCoupons />} />
+                  <Route path="/expenses" element={<Expenses />} />
                   <Route path="/booking-form-fields" element={<BookingFormFields />} />
                   <Route path="/settings/tracking" element={<TrackingSettings />} />
                   <Route path="/theme-settings" element={<ThemeSettings />} />

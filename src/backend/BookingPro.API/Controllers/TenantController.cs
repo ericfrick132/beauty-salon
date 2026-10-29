@@ -56,7 +56,7 @@ namespace BookingPro.API.Controllers
                     {
                         onboardingCompletedAt = row.OnboardingCompletedAt;
                         ownerName = row.OwnerName;
-                        logoUrl = row.LogoUrl;
+                        logoUrl = TenantLogo.Usable(row.LogoUrl);
                         businessKind = row.BusinessKind;
                         // El tema que guardó el negocio (onboarding o Configuración → Apariencia) pisa al del
                         // vertical: así la página pública de reservas se ve igual que el panel.
@@ -150,6 +150,8 @@ namespace BookingPro.API.Controllers
                     language = tenant.Language ?? "es",
                     description = GetStringSetting(settings, "description"),
                     website = GetStringSetting(settings, "website"),
+                    instagram = tenant.OwnerInstagram,
+                    logoUrl = TenantLogo.Usable(tenant.LogoUrl),
                     taxId = GetStringSetting(settings, "taxId"),
                     defaultPaymentProvider = tenant.DefaultPaymentProvider ?? "mercadopago"
                 });
@@ -185,6 +187,12 @@ namespace BookingPro.API.Controllers
 
                 if (!string.IsNullOrWhiteSpace(request.Email))
                     tenant.OwnerEmail = request.Email.Trim();
+
+                if (request.Instagram != null)
+                {
+                    var ig = request.Instagram.Trim().TrimStart('@');
+                    tenant.OwnerInstagram = string.IsNullOrWhiteSpace(ig) ? null : ig;
+                }
 
                 if (!string.IsNullOrWhiteSpace(request.Country))
                 {
@@ -386,6 +394,7 @@ namespace BookingPro.API.Controllers
         public string? Phone { get; set; }
         public string? Email { get; set; }
         public string? Website { get; set; }
+        public string? Instagram { get; set; }
         public string? Timezone { get; set; }
         public string? Country { get; set; }
         public string? Currency { get; set; }

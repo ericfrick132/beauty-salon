@@ -366,7 +366,7 @@ const ConfirmationBot: React.FC = () => {
                       color="success"
                       size="large"
                       startIcon={<WhatsApp />}
-                      onClick={() => navigate(`/subscription/plans?highlight=${planWithBotCode}`)}
+                      onClick={() => navigate(`/subscription/plans?highlight=${planWithBotCode}&from=confirmation_bot`)}
                     >
                       Pasarme a {planWithBotName}
                     </Button>
@@ -555,7 +555,7 @@ const ConfirmationBot: React.FC = () => {
                           <Button variant="outlined" color="success" onClick={handlePurchase} disabled={purchasing}>
                             {purchasing ? 'Generando pago…' : `Extender 1 mes (${priceLabel})`}
                           </Button>
-                          <Button color="success" onClick={() => navigate(`/subscription/plans?highlight=${planWithBotCode}`)}>
+                          <Button color="success" onClick={() => navigate(`/subscription/plans?highlight=${planWithBotCode}&from=confirmation_bot`)}>
                             Incluido en {planWithBotName}
                           </Button>
                         </Box>

@@ -3,7 +3,7 @@ import api from './api';
 /**
  * Cupones del negocio para sus clientes y campos personalizados del formulario de reserva.
  * Panel: /booking-coupons y /booking-form-fields (staff). Página pública: /public/form-fields y
- * /public/coupons/validate. Los 403 PLAN_LIMIT los muestra PlanLimitDialog (interceptor de api.ts).
+ * /public/coupons/validate. Con los 403 PLAN_LIMIT el panel manda al checkout (interceptor de api.ts + usePlanLimitRedirect).
  */
 
 export type CouponDiscountType = 'percent' | 'fixed';

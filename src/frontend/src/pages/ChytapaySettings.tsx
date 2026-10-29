@@ -160,8 +160,15 @@ const ChytapaySettings: React.FC = () => {
       } else {
         setMessage({ type: 'error', text: res.data.error || 'Error iniciando OAuth' });
       }
-    } catch (err) {
-      setMessage({ type: 'error', text: 'Error al conectar con Chytapay' });
+    } catch (err: any) {
+      const data = err?.response?.data;
+      const backendError = data?.error || data?.message;
+      setMessage({
+        type: 'error',
+        text: backendError === 'Chytapay OAuth not configured'
+          ? 'La integración con Chytapay todavía no está configurada en el servidor. Contactá a soporte.'
+          : backendError || 'Error al conectar con Chytapay',
+      });
     }
   };
 

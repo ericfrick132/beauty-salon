@@ -32,6 +32,7 @@ import {
 import {
   ArrowBack,
   Add,
+  Lock,
   Edit,
   Delete,
   DeleteSweep,
@@ -44,6 +45,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTenant } from '../contexts/TenantContext';
+import { usePlanGates, usePlanQuotas } from '../utils/planGates';
 import api, { isPlanLimitError, serviceCategoryApi } from '../services/api';
 import TextField from '../components/common/TextField';
 import { useTenantMoney } from '../hooks/useTenantMoney';
@@ -80,6 +82,10 @@ const Services: React.FC = () => {
   // "Seña" en AR/UY, "Anticipo" en México, "Señal" en España.
   const w = useTenantWording();
   const navigate = useNavigate();
+  // En el tope del plan el alta queda grisada con candado y lleva al checkout del plan que lo levanta.
+  const { goToCheckout } = usePlanGates();
+  const { atLimit } = usePlanQuotas();
+  const servicesFull = () => atLimit('services', services.filter((x) => x.isActive).length);
   const { config } = useTenant();
   
   const [services, setServices] = useState<Service[]>([]);
@@ -255,7 +261,7 @@ const Services: React.FC = () => {
       fetchServices();
       handleCloseDialog();
     } catch (error) {
-      // Tope de servicios del plan: ya lo muestra PlanLimitDialog.
+      // Tope de servicios del plan: el panel ya mandó al checkout (usePlanLimitRedirect).
       if (isPlanLimitError(error)) return;
       console.error('Error saving service:', error);
       setErrors({ submit: 'Error al guardar el servicio' });
@@ -372,8 +378,9 @@ const Services: React.FC = () => {
             </Menu>
             <Button
               variant="contained"
-              startIcon={<Add />}
-              onClick={() => handleOpenDialog()}
+              startIcon={servicesFull() ? <Lock /> : <Add />}
+              onClick={() => (servicesFull() ? goToCheckout('services') : handleOpenDialog())}
+              sx={servicesFull() ? { opacity: 0.6 } : undefined}
             >
               Nuevo Servicio
             </Button>

@@ -4,10 +4,11 @@ import { CheckCircle, Lock, ChevronRight, AutoAwesome } from '@mui/icons-materia
 import { useNavigate } from 'react-router-dom';
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import { firstPlanWith, FALLBACK_PLANS, NEW_FEATURES, usePlans } from '../../utils/plans';
+import { checkoutPath } from '../../utils/planGates';
 
 /**
  * "Novedades de tu plan": las features nuevas, cada una con "Incluido" o el candado y el plan que la trae.
- * Cada fila lleva a su página (que, si no está incluida, muestra su paywall).
+ * Cada fila lleva a su página; si el plan no la incluye, va grisada con candado y lleva al checkout.
  */
 const NewFeaturesCard: React.FC = () => {
   const navigate = useNavigate();
@@ -31,8 +32,8 @@ const NewFeaturesCard: React.FC = () => {
             return (
               <ButtonBase
                 key={f.key}
-                onClick={() => navigate(f.path)}
-                sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: 1, borderRadius: 2, textAlign: 'left', justifyContent: 'flex-start', '&:hover': { bgcolor: 'action.hover' } }}
+                onClick={() => navigate(included ? f.path : checkoutPath(f.limit, plan?.code))}
+                sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: 1, borderRadius: 2, textAlign: 'left', justifyContent: 'flex-start', '&:hover': { bgcolor: 'action.hover' }, ...(included ? {} : { opacity: 0.6 }) }}
               >
                 {included ? <CheckCircle color="success" fontSize="small" /> : <Lock color="action" fontSize="small" />}
                 <Box sx={{ flex: 1, minWidth: 0 }}>

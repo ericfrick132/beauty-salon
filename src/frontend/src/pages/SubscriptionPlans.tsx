@@ -11,7 +11,9 @@
  *   - Subir:    POST /preapproval/create { planCode, returnPath } → initPoint (débito de MP o Checkout de
  *               Stripe). Si ya tenía débito, el backend cambia el plan de esa suscripción (planChanged).
  *   - Bajar a Gratuito: POST /subscription/cancel.
- *   - ?highlight=<code> resalta un plan y lo lleva a la vista (lo usan el diálogo de límite y los add-ons).
+ *   - ?highlight=<code> resalta un plan y lo lleva a la vista (lo usan los candados del panel y los add-ons).
+ *   - ?from=<gate> (utils/planGates): de qué función bloqueada viene; arriba se lee "Para usar Cupones pasate al
+ *     plan Advance".
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -42,6 +44,7 @@ import { useTenantWording } from '../utils/wording';
 import { isPlanChanged, planChangedMessage } from '../utils/planChange';
 import { bulletsByPlan, formatPlanPrice, OFFERED_PLAN_CODES, PLAN_FREE, usePlans } from '../utils/plans';
 import { useSubscription } from '../contexts/SubscriptionContext';
+import { gateMessage, isPlanGate } from '../utils/planGates';
 
 interface CurrentStatus {
   isPaid: boolean;
@@ -478,6 +481,7 @@ const SubscriptionPlans: React.FC = () => {
   const { plans, loading } = usePlans();
   const [searchParams] = useSearchParams();
   const highlight = searchParams.get('highlight');
+  const from = searchParams.get('from');
   const [subscribing, setSubscribing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -537,6 +541,20 @@ const SubscriptionPlans: React.FC = () => {
     }
   };
 
+  // Checkout en un clic: si se llega desde un candado del panel (?from=<gate>&highlight=<plan>) y el
+  // negocio no paga ningún plan, se dispara el pago del plan resaltado (la confirmación queda en la
+  // pasarela). A quien ya paga no se le cambia el débito solo: ve el plan resaltado y elige.
+  const autoCheckoutDone = useRef(false);
+  useEffect(() => {
+    if (autoCheckoutDone.current || loading || !currentStatus || !isPlanGate(from) || !highlight) return;
+    const target = plans.find((p) => p.code === highlight);
+    const inStore = currentStatus.appleSubscriptionActive || currentStatus.googlePlaySubscriptionActive;
+    if (!target || target.price <= 0 || currentStatus.isPaid || inStore) return;
+    autoCheckoutDone.current = true;
+    handleSubscribe(target.code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, currentStatus, from, highlight, plans]);
+
   const handleDowngrade = async () => {
     setCancelling(true);
     setError(null);
@@ -557,6 +575,9 @@ const SubscriptionPlans: React.FC = () => {
 
   const bullets = useMemo(() => bulletsByPlan(plans, features.stripeDeposits), [plans, features.stripeDeposits]);
   const freePlan = plans.find((p) => p.code === PLAN_FREE);
+  // Destacado: siempre el primer plan pago (el que sigue al Gratuito), no el isPopular de la base.
+  const featuredCode = plans.find((p) => p.price > 0)?.code;
+  const highlightedPlan = highlight ? plans.find((p) => p.code === highlight) ?? null : null;
   const currentCode = currentStatus ? (currentStatus.isPaid ? currentStatus.planType : PLAN_FREE) : null;
   // Plan pago viejo (pro, promo, 6meses, 12meses): ya no se ofrece pero lo mantiene.
   const isLegacy = !!currentStatus?.isPaid && !OFFERED_PLAN_CODES.includes(currentStatus.planType);
@@ -666,6 +687,12 @@ const SubscriptionPlans: React.FC = () => {
             </Alert>
           )}
 
+          {isPlanGate(from) && highlightedPlan && currentCode !== highlightedPlan.code && (
+            <Alert severity="info" sx={alertSx(palette.primary, 'rgba(30, 94, 63, 0.06)')}>
+              <strong>{w.t(gateMessage(from, highlightedPlan.name), gateMessage(from, highlightedPlan.name, true))}</strong>
+            </Alert>
+          )}
+
           {success && (
             <Alert severity="success" onClose={() => setSuccess(null)} sx={alertSx(palette.primary, 'rgba(30, 94, 63, 0.06)')}>
               {success}
@@ -692,7 +719,7 @@ const SubscriptionPlans: React.FC = () => {
             }}
           >
             {plans.map((plan, idx) => {
-              const isPopular = plan.isPopular;
+              const isPopular = plan.code === featuredCode;
               const isCurrent = currentCode === plan.code;
               const isHighlighted = highlight === plan.code;
               const emphasized = isPopular || isHighlighted;

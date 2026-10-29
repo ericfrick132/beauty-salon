@@ -53,6 +53,7 @@ namespace BookingPro.API.Data
         public DbSet<MessagePurchase> MessagePurchases { get; set; }
         public DbSet<MessageLog> MessageLogs { get; set; }
         public DbSet<BookingCoupon> BookingCoupons { get; set; }
+        public DbSet<Expense> Expenses { get; set; }
         public DbSet<BookingFormField> BookingFormFields { get; set; }
         public DbSet<BookingSeries> BookingSeries { get; set; }
 
@@ -91,6 +92,7 @@ namespace BookingPro.API.Data
         // Inventory entities
         public DbSet<ProductCategory> ProductCategories { get; set; }
         public DbSet<Product> Products { get; set; }
+        public DbSet<ProductMedia> ProductMedia { get; set; }
         public DbSet<Sale> Sales { get; set; }
         public DbSet<ElectronicInvoice> ElectronicInvoices { get; set; }
         public DbSet<SaleItem> SaleItems { get; set; }
@@ -303,6 +305,7 @@ namespace BookingPro.API.Data
                 entity.Property(p => p.AllowTransferDetection).HasDefaultValue(true).ValueGeneratedNever();
                 entity.Property(p => p.AllowCustomerHistory).HasDefaultValue(true).ValueGeneratedNever();
                 entity.Property(p => p.AllowTrackingPixels).HasDefaultValue(true).ValueGeneratedNever();
+                entity.Property(p => p.AllowExpenses).HasDefaultValue(true).ValueGeneratedNever();
             });
 
             // === Stripe (suscripción a la plataforma fuera de Argentina) ===
@@ -681,6 +684,16 @@ namespace BookingPro.API.Data
                     .HasForeignKey(p => p.CategoryId)
                     .OnDelete(DeleteBehavior.SetNull);
             });
+
+            modelBuilder.Entity<ProductMedia>(entity =>
+            {
+                entity.ToTable("product_media");
+                entity.HasIndex(m => new { m.ProductId, m.SortOrder });
+                entity.HasOne(m => m.Product)
+                    .WithMany(p => p.Media)
+                    .HasForeignKey(m => m.ProductId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
             
             modelBuilder.Entity<Sale>(entity =>
             {
@@ -893,6 +906,7 @@ namespace BookingPro.API.Data
             // Inventory entities filters
             modelBuilder.Entity<ProductCategory>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<Product>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<ProductMedia>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<Sale>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<SaleItem>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
             modelBuilder.Entity<StockMovement>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
@@ -906,6 +920,12 @@ namespace BookingPro.API.Data
             modelBuilder.Entity<MessageLog>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
 
             // Cupones, campos personalizados y reservas recurrentes (features de Advance / Pro)
+            modelBuilder.Entity<Expense>(entity =>
+            {
+                entity.HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+                entity.HasIndex(e => new { e.TenantId, e.Date });
+                entity.Property(e => e.Amount).HasPrecision(18, 2);
+            });
             modelBuilder.Entity<BookingCoupon>(entity =>
             {
                 entity.HasQueryFilter(e => e.TenantId == GetCurrentTenantId());

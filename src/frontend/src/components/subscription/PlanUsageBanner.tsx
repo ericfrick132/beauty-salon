@@ -51,7 +51,7 @@ const PlanUsageBanner: React.FC = () => {
             size="small"
             variant={atLimit ? 'contained' : 'text'}
             color={atLimit ? 'error' : 'inherit'}
-            onClick={() => navigate('/subscription/plans?highlight=plus')}
+            onClick={() => navigate(atLimit ? '/subscription/plans?highlight=plus&from=bookings_per_month' : '/subscription/plans?highlight=plus')}
             sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}
           >
             Mejorar plan

@@ -37,6 +37,7 @@ interface ProductDto {
   currentStock: number;
   taxRate: number;
   trackInventory: boolean;
+  coverUrl?: string | null;
 }
 
 interface CartItem {
@@ -49,6 +50,7 @@ interface CartItem {
   taxRate: number;
   currentStock: number;
   trackInventory: boolean;
+  coverUrl?: string | null;
 }
 
 const SalesPOS: React.FC = () => {
@@ -157,6 +159,7 @@ const SalesPOS: React.FC = () => {
             taxRate: p.taxRate || 0,
             currentStock: p.currentStock,
             trackInventory: p.trackInventory,
+            coverUrl: p.coverUrl,
           }
         ];
       });
@@ -336,8 +339,15 @@ const SalesPOS: React.FC = () => {
                     return (
                       <TableRow key={item.productId}>
                         <TableCell>
-                          <Typography variant="body2" fontWeight={600}>{item.name}</Typography>
-                          <Typography variant="caption">{item.barcode}</Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                            {item.coverUrl && (
+                              <Box component="img" src={item.coverUrl} alt="" sx={{ width: 36, height: 36, borderRadius: 1, objectFit: 'cover', flexShrink: 0 }} />
+                            )}
+                            <Box>
+                              <Typography variant="body2" fontWeight={600}>{item.name}</Typography>
+                              <Typography variant="caption">{item.barcode}</Typography>
+                            </Box>
+                          </Box>
                         </TableCell>
                         <TableCell align="center">
                           {item.trackInventory ? item.currentStock : '—'}
