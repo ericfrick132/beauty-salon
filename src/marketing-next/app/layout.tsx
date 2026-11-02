@@ -41,6 +41,14 @@ const gscVerification = process.env.NEXT_PUBLIC_GSC_VERIFICATION;
 // para que cada URL sea auto-referencial y no apunte a la home.
 export const metadata: Metadata = {
   metadataBase: new URL(brand.brand_domain),
+  // Imagen al compartir por defecto: la heredan las páginas sin openGraph propio
+  // (privacidad, términos, demos). Las que definen openGraph ya la incluyen.
+  openGraph: {
+    siteName: 'TurnosPro',
+    type: 'website',
+    images: [{ url: brand.og_image, width: 1200, height: 630 }],
+  },
+  twitter: { card: 'summary_large_image', images: [brand.og_image] },
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
