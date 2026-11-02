@@ -156,6 +156,12 @@ function fbqTrack(event: string) {
   (window as any).fbq('track', event, {}, { eventID: sid ? `${sid}-${event}` : undefined });
 }
 
+/** Lead del formulario de demo de la sección de precios: mismo evento Lead que el alta (Clarity, GA4, Meta Pixel y /api/tracking/event). */
+export function trackDemoLead(extra: Record<string, any>) {
+  sendTrackingEvent('Lead', { ...extra, source: 'demo-form' });
+  fbqTrack('Lead');
+}
+
 // --- Países para el WhatsApp ---
 export const PHONE_COUNTRIES = [
   { dial: '+54', label: 'Argentina (+54)', placeholder: '11 2345 6789' },
