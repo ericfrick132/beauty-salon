@@ -86,7 +86,7 @@ const ctaSx = {
 } as const;
 
 /** Primera columna fija al scrollear la tabla en mobile. */
-const stickySx = { position: 'sticky', left: 0, zIndex: 1, bgcolor: home.card } as const;
+const stickySx = { position: 'sticky', left: 0, zIndex: 1, bgcolor: home.card, width: { xs: 140, sm: 'auto' }, maxWidth: { xs: 140, sm: 'none' }, fontSize: { xs: '0.8rem', sm: 'inherit' } } as const;
 
 export default function HomePricing() {
   const { open } = useSignupModal();
@@ -204,7 +204,7 @@ export default function HomePricing() {
             <Box component="table" sx={{ width: '100%', minWidth: 760, borderCollapse: 'separate', borderSpacing: 0, fontFamily: sans, fontSize: '0.88rem' }}>
               <thead>
                 <Box component="tr" sx={{ textAlign: 'left' }}>
-                  <Box component="th" sx={{ ...stickySx, py: 1.25, pl: { xs: 2, sm: 2 }, pr: 2, color: home.inkSoft, fontWeight: 500, minWidth: 190 }}>{cmp.featureHeader}</Box>
+                  <Box component="th" sx={{ ...stickySx, py: 1.25, pl: { xs: 2, sm: 2 }, pr: 2, color: home.inkSoft, fontWeight: 500, minWidth: { xs: 140, sm: 190 } }}>{cmp.featureHeader}</Box>
                   {plans.map((p) => (
                     <Box component="th" key={p.code} sx={{ py: 1.25, px: 1, fontWeight: 600, textAlign: 'center', verticalAlign: 'bottom' }}>
                       {p.name}
