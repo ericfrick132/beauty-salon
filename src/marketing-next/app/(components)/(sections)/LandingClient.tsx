@@ -17,6 +17,8 @@ import HomePricing from '../(home)/HomePricing';
 import HomeFaq from '../(home)/HomeFaq';
 import HomeClosing from '../(home)/HomeClosing';
 import HomeFooter from '../(home)/HomeFooter';
+import KeyMoments from '../(home)/KeyMoments';
+import ExitIntent from '../(home)/ExitIntent';
 
 // Home de Argentina (/) con el estilo comunicacional de Ascend: prueba social real arriba del H1,
 // secciones de H2 corto + una línea + producto en card, precios desde la base y cierre con alta.
@@ -32,6 +34,7 @@ export default function LandingClient() {
         <ReminderSection />
         <AssistantSection />
         <AgendaSection />
+        <KeyMoments />
         <DemoSection />
         <HomePricing />
         <RubrosSection />
@@ -40,6 +43,7 @@ export default function LandingClient() {
         <HomeClosing />
       </main>
       <HomeFooter />
+      <ExitIntent />
     </SignupModalProvider>
   );
 }

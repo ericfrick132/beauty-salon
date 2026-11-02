@@ -8,6 +8,8 @@ import { Accent, home, sans, titleSx } from './ui';
 /** Endpoint público de sales-hub: crea el lead en el CRM (origen LandingForm) y arranca el seguimiento por WhatsApp. */
 const LEADS_URL = 'https://api.sales.efcloud.tech/api/public/landing-leads';
 const CALENDLY_URL = 'https://calendly.com/efcloud/demo';
+/** sessionStorage: ya pidió demo en esta visita (el popup de salida no vuelve a aparecer). */
+export const DEMO_SENT_KEY = 'tp_demo_sent';
 
 export const SIZE_OPTIONS = ['Solo yo', '2 a 3 profesionales', '4 a 5 profesionales', '6 a 10 profesionales', 'Más de 10 profesionales'];
 export const PLAN_OPTIONS = ['Gratuito', 'Plus', 'Advance', 'Pro', 'A medida', 'Todavía no sé'];
@@ -49,11 +51,10 @@ function Field({ label, required, children }: { label: string; required?: boolea
 }
 
 /**
- * Bloque "pedí una demo o cotizá" que abre la sección de precios (card #24): formulario a la
- * derecha, qué pasa después a la izquierda. El plan es controlado desde HomePricing para que la
- * tarjeta "A medida" lo pueda preseleccionar.
+ * Formulario de demo (el mismo en la sección de precios y en el popup "¿Antes de irte?").
+ * `pageSuffix` marca de dónde vino el pedido en la nota del CRM (ej. "#salida").
  */
-export default function DemoRequest({ plan, onPlanChange }: { plan: string; onPlanChange: (p: string) => void }) {
+export function DemoForm({ plan, onPlanChange, pageSuffix = '' }: { plan: string; onPlanChange: (p: string) => void; pageSuffix?: string }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [business, setBusiness] = useState('');
@@ -80,7 +81,7 @@ export default function DemoRequest({ plan, onPlanChange }: { plan: string; onPl
           business: business.trim() || undefined,
           size: size || undefined,
           plan: plan || undefined,
-          page: window.location.pathname,
+          page: window.location.pathname + pageSuffix,
           website,
         }),
       });
@@ -88,6 +89,7 @@ export default function DemoRequest({ plan, onPlanChange }: { plan: string; onPl
       const body = await res.json().catch(() => ({}));
       if (!res.ok || !body.ok) throw new Error(body.error || 'No pudimos enviar tu pedido.');
       trackDemoLead({ name: business.trim() || name.trim(), phone: toArPhone(phone) });
+      try { sessionStorage.setItem(DEMO_SENT_KEY, '1'); } catch { /* modo privado */ }
       setStatus('done');
     } catch (err) {
       setError((err as Error).message || 'No pudimos enviar tu pedido.');
@@ -95,6 +97,102 @@ export default function DemoRequest({ plan, onPlanChange }: { plan: string; onPl
     }
   };
 
+  return (
+    <Box sx={{ p: { xs: 2.5, md: 3.5 }, borderRadius: home.radius, bgcolor: home.paperSoft, border: `1px solid ${home.line}`, boxShadow: home.shadow }}>
+      {status === 'done' ? (
+        <Box role="status" sx={{ textAlign: 'center', py: 3 }}>
+          <Typography sx={{ ...titleSx, fontSize: '1.6rem' }}>¡Listo! Te escribimos por WhatsApp.</Typography>
+          <Typography sx={{ mt: 1.5, fontFamily: sans, color: home.inkSoft, lineHeight: 1.5 }}>
+            Si preferís, elegí vos el día y la hora de la demo.
+          </Typography>
+          <Box
+            component="a"
+            href={CALENDLY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            sx={{ mt: 3, display: 'inline-flex', px: 3, py: 1.3, borderRadius: 999, bgcolor: 'rgba(23,20,16,0.06)', color: home.ink, fontFamily: sans, fontWeight: 600, textDecoration: 'none', '&:hover': { bgcolor: 'rgba(23,20,16,0.11)' } }}
+          >
+            Elegir día y hora
+          </Box>
+        </Box>
+      ) : (
+        <Box component="form" onSubmit={submit} noValidate sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
+          <Field label="Nombre" required>
+            <Box component="input" required autoComplete="name" value={name} onChange={(e: any) => setName(e.target.value)} sx={fieldSx} />
+          </Field>
+          <Field label="WhatsApp" required>
+            <Box component="input" required type="tel" inputMode="tel" autoComplete="tel" placeholder="11 2345 6789" value={phone} onChange={(e: any) => setPhone(e.target.value)} sx={fieldSx} />
+          </Field>
+          <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
+            <Field label="Nombre del negocio">
+              <Box component="input" autoComplete="organization" value={business} onChange={(e: any) => setBusiness(e.target.value)} sx={fieldSx} />
+            </Field>
+          </Box>
+          <Field label="Profesionales">
+            <Box component="select" value={size} onChange={(e: any) => setSize(e.target.value)} sx={fieldSx}>
+              <option value="">Elegí</option>
+              {SIZE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+            </Box>
+          </Field>
+          <Field label="Plan de interés">
+            <Box component="select" value={plan} onChange={(e: any) => onPlanChange(e.target.value)} sx={fieldSx}>
+              <option value="">Elegí</option>
+              {PLAN_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+            </Box>
+          </Field>
+          {/* Honeypot: invisible para personas; si llega con texto, el backend lo descarta. */}
+          <Box aria-hidden sx={{ position: 'absolute', left: '-10000px', width: 1, height: 1, overflow: 'hidden' }}>
+            <label>
+              Sitio web
+              <input tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} name="website" />
+            </label>
+          </Box>
+          <Box sx={{ gridColumn: '1 / -1' }}>
+            <Box
+              component="button"
+              type="submit"
+              disabled={!valid || status === 'sending'}
+              sx={{
+                width: '100%',
+                py: 1.6,
+                borderRadius: 999,
+                border: 'none',
+                cursor: 'pointer',
+                fontFamily: sans,
+                fontWeight: 600,
+                fontSize: '1.05rem',
+                bgcolor: home.forest,
+                color: home.paperSoft,
+                '&:hover': { bgcolor: home.forestDeep },
+                '&:disabled': { opacity: 0.5, cursor: 'not-allowed' },
+              }}
+            >
+              {status === 'sending' ? 'Enviando…' : 'Quiero mi demo'}
+            </Box>
+            {status === 'error' && (
+              <Typography role="alert" sx={{ mt: 1.5, fontFamily: sans, fontSize: '0.9rem', color: home.coralDeep, lineHeight: 1.5 }}>
+                {error}{' '}
+                <Box component="a" href={SALES_WA_URL} target="_blank" rel="noopener noreferrer" sx={{ color: home.forest, fontWeight: 600 }}>
+                  Escribinos por WhatsApp
+                </Box>
+              </Typography>
+            )}
+            <Typography sx={{ mt: 1.5, textAlign: 'center', fontFamily: sans, fontSize: '0.8rem', color: home.inkMute }}>
+              Sin compromiso. Usamos tus datos solo para contactarte por la demo.
+            </Typography>
+          </Box>
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+/**
+ * Bloque "pedí una demo o cotizá" que abre la sección de precios (card #24): formulario a la
+ * derecha, qué pasa después a la izquierda. El plan es controlado desde HomePricing para que la
+ * tarjeta "A medida" lo pueda preseleccionar.
+ */
+export default function DemoRequest({ plan, onPlanChange }: { plan: string; onPlanChange: (p: string) => void }) {
   return (
     <Box
       id="cotizar"
@@ -129,92 +227,7 @@ export default function DemoRequest({ plan, onPlanChange }: { plan: string; onPl
         </Box>
       </Box>
 
-      <Box sx={{ p: { xs: 2.5, md: 3.5 }, borderRadius: home.radius, bgcolor: home.paperSoft, border: `1px solid ${home.line}`, boxShadow: home.shadow }}>
-        {status === 'done' ? (
-          <Box role="status" sx={{ textAlign: 'center', py: 3 }}>
-            <Typography sx={{ ...titleSx, fontSize: '1.6rem' }}>¡Listo! Te escribimos por WhatsApp.</Typography>
-            <Typography sx={{ mt: 1.5, fontFamily: sans, color: home.inkSoft, lineHeight: 1.5 }}>
-              Si preferís, elegí vos el día y la hora de la demo.
-            </Typography>
-            <Box
-              component="a"
-              href={CALENDLY_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              sx={{ mt: 3, display: 'inline-flex', px: 3, py: 1.3, borderRadius: 999, bgcolor: 'rgba(23,20,16,0.06)', color: home.ink, fontFamily: sans, fontWeight: 600, textDecoration: 'none', '&:hover': { bgcolor: 'rgba(23,20,16,0.11)' } }}
-            >
-              Elegir día y hora
-            </Box>
-          </Box>
-        ) : (
-          <Box component="form" onSubmit={submit} noValidate sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
-            <Field label="Nombre" required>
-              <Box component="input" required autoComplete="name" value={name} onChange={(e: any) => setName(e.target.value)} sx={fieldSx} />
-            </Field>
-            <Field label="WhatsApp" required>
-              <Box component="input" required type="tel" inputMode="tel" autoComplete="tel" placeholder="11 2345 6789" value={phone} onChange={(e: any) => setPhone(e.target.value)} sx={fieldSx} />
-            </Field>
-            <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
-              <Field label="Nombre del negocio">
-                <Box component="input" autoComplete="organization" value={business} onChange={(e: any) => setBusiness(e.target.value)} sx={fieldSx} />
-              </Field>
-            </Box>
-            <Field label="Profesionales">
-              <Box component="select" value={size} onChange={(e: any) => setSize(e.target.value)} sx={fieldSx}>
-                <option value="">Elegí</option>
-                {SIZE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-              </Box>
-            </Field>
-            <Field label="Plan de interés">
-              <Box component="select" value={plan} onChange={(e: any) => onPlanChange(e.target.value)} sx={fieldSx}>
-                <option value="">Elegí</option>
-                {PLAN_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-              </Box>
-            </Field>
-            {/* Honeypot: invisible para personas; si llega con texto, el backend lo descarta. */}
-            <Box aria-hidden sx={{ position: 'absolute', left: '-10000px', width: 1, height: 1, overflow: 'hidden' }}>
-              <label>
-                Sitio web
-                <input tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} name="website" />
-              </label>
-            </Box>
-            <Box sx={{ gridColumn: '1 / -1' }}>
-              <Box
-                component="button"
-                type="submit"
-                disabled={!valid || status === 'sending'}
-                sx={{
-                  width: '100%',
-                  py: 1.6,
-                  borderRadius: 999,
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontFamily: sans,
-                  fontWeight: 600,
-                  fontSize: '1.05rem',
-                  bgcolor: home.forest,
-                  color: home.paperSoft,
-                  '&:hover': { bgcolor: home.forestDeep },
-                  '&:disabled': { opacity: 0.5, cursor: 'not-allowed' },
-                }}
-              >
-                {status === 'sending' ? 'Enviando…' : 'Quiero mi demo'}
-              </Box>
-              {status === 'error' && (
-                <Typography role="alert" sx={{ mt: 1.5, fontFamily: sans, fontSize: '0.9rem', color: home.coralDeep, lineHeight: 1.5 }}>
-                  {error}{' '}
-                  <Box component="a" href={SALES_WA_URL} target="_blank" rel="noopener noreferrer" sx={{ color: home.forest, fontWeight: 600 }}>
-                    Escribinos por WhatsApp
-                  </Box>
-                </Typography>
-              )}
-              <Typography sx={{ mt: 1.5, textAlign: 'center', fontFamily: sans, fontSize: '0.8rem', color: home.inkMute }}>
-                Sin compromiso. Usamos tus datos solo para contactarte por la demo.
-              </Typography>
-            </Box>
-          </Box>
-        )}
-      </Box>
+      <DemoForm plan={plan} onPlanChange={onPlanChange} />
     </Box>
   );
 }

@@ -5,6 +5,10 @@ import { ProofPill } from './SocialProof';
 import { BookingPageMock, DepositMock } from './Mocks';
 import { Accent, PrimaryButton, SecondaryButton, Wrap, home, sans, titleSx } from './ui';
 
+/** Video cinemático de fondo (Higgsfield, 7 s en loop, sin audio) y su póster. Versionados: nginx los cachea 1 año. */
+const HERO_VIDEO = '/media/hero-salon-v1.mp4';
+const HERO_POSTER = '/media/hero-salon-v1.jpg';
+
 export default function HomeHero() {
   const { open } = useSignupModal();
   return (
@@ -27,11 +31,19 @@ export default function HomeHero() {
           </Typography>
         </Box>
 
-        {/* Producto "en vivo": la página de reservas y el ticket con la seña. */}
+        {/* Producto "en vivo" sobre el video cinemático del salón (card #22): el titular queda en
+            crema y legible; el video es el fondo del bloque, con las tarjetas blancas encima. Con
+            movimiento reducido se ve solo el póster (mismo encuadre, fondo del bloque). */}
         <Box
           sx={{
+            position: 'relative',
+            overflow: 'hidden',
+            isolation: 'isolate',
             mt: { xs: 5, md: 8 },
             bgcolor: home.cardAlt,
+            backgroundImage: `url(${HERO_POSTER})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
             borderRadius: home.radius,
             border: `1px solid ${home.line}`,
             p: { xs: 2, sm: 3, md: 5 },
@@ -41,6 +53,30 @@ export default function HomeHero() {
             alignItems: 'center',
           }}
         >
+          <Box
+            component="video"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            poster={HERO_POSTER}
+            aria-hidden
+            tabIndex={-1}
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              zIndex: -2,
+              '@media (prefers-reduced-motion: reduce)': { display: 'none' },
+            }}
+          >
+            <source src={HERO_VIDEO} type="video/mp4" />
+          </Box>
+          {/* Velo cálido: baja el contraste del video para que las tarjetas manden. */}
+          <Box aria-hidden sx={{ position: 'absolute', inset: 0, zIndex: -1, background: 'linear-gradient(180deg, rgba(23,20,16,0.10) 0%, rgba(23,20,16,0.28) 100%)' }} />
           <BookingPageMock />
           <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
             <DepositMock />
