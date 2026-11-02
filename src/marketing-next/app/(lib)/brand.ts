@@ -6,7 +6,7 @@ export const brand = {
   primary_keyword: 'reservas con seña y recordatorios automáticos',
   secondary_keywords: ['señas con MercadoPago', 'recordatorios por WhatsApp', 'agenda online 24/7', 'software de turnos', 'menos ausencias'],
   city_country_variants: ['Argentina', 'Buenos Aires', 'LatAm'],
-  og_image: '/og-cover.jpg',
+  og_image: '/og-turnospro.jpg',
   logo_url: '/logo.png',
   support_email: 'eric.frick@efcloud.tech',
   support_phone: '+1 689 256 4251',

@@ -41,6 +41,13 @@ const gscVerification = process.env.NEXT_PUBLIC_GSC_VERIFICATION;
 // para que cada URL sea auto-referencial y no apunte a la home.
 export const metadata: Metadata = {
   metadataBase: new URL(brand.brand_domain),
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon-192.png', type: 'image/png', sizes: '192x192' },
+    ],
+    apple: { url: '/apple-touch-icon.png', sizes: '180x180' },
+  },
   ...(gscVerification ? { verification: { google: gscVerification } } : {}),
 };
 
