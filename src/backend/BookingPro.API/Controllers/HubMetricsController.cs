@@ -162,9 +162,11 @@ public class HubMetricsController : ControllerBase
             }
 
             // MRR del tenant: último pago aprobado normalizado a mes; si no, monto de la
-            // suscripción; si no, precio del plan.
+            // suscripción; si no, precio del plan. Las bajas también lo mandan (lo último que
+            // pagaban): SalesHub cuenta como MRR solo los active, y con eso reconstruye el MRR
+            // de antes de sus fotos diarias.
             decimal monthlyAmount = 0;
-            if (status is "active" or "past_due")
+            if (status is "active" or "past_due" or "cancelled")
             {
                 var lastTsp = tsp.OrderByDescending(p => p.PaidAt ?? p.PeriodStart).FirstOrDefault();
                 var lastSp = sp.OrderByDescending(p => p.PaymentDate).FirstOrDefault();
@@ -196,7 +198,16 @@ public class HubMetricsController : ControllerBase
                 currency,
                 createdAt = Iso(t.CreatedAt),
                 firstPaidAt = Iso(firstPaidAt),
-                cancelledAt = Iso(cancelledAt)
+                cancelledAt = Iso(cancelledAt),
+                // Cobros aprobados y qué período cubre cada uno: con esto sales-hub arma el MRR
+                // histórico real (antes de sus fotos diarias).
+                periods = tsp
+                    .Where(p => p.Amount > 0 && p.PeriodEnd > p.PeriodStart)
+                    .Select(p => new { from = Iso(p.PeriodStart), to = Iso(p.PeriodEnd), monthlyAmount = Math.Round(p.Amount / PeriodMonths(p.Period), 2) })
+                    .Concat(sp
+                        .Where(p => p.Amount > 0 && p.PaymentDate <= now)
+                        .Select(p => new { from = Iso(p.PaymentDate), to = Iso(p.PaymentDate.AddMonths(1)), monthlyAmount = Math.Round(p.Amount, 2) }))
+                    .ToList()
             });
         }
 
