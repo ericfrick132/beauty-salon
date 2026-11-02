@@ -11,8 +11,8 @@ type Shot = { src: string; alt: string; caption: string; w: number; h: number };
 
 const AGENDA: Shot = {
   src: '/media/captura-agenda-v1.jpg',
-  alt: 'Agenda semanal de TurnosPro con los turnos de cada profesional por color de estado',
-  caption: 'La semana de todo tu equipo de un vistazo, con cada turno por estado.',
+  alt: 'Panel de inicio de TurnosPro con los turnos de hoy, los ingresos del día y las confirmaciones del bot de WhatsApp',
+  caption: 'Abrís el panel y ves los turnos de hoy, lo que ingresó y cuántos confirmó el bot por WhatsApp.',
   w: 1440,
   h: 900,
 };
