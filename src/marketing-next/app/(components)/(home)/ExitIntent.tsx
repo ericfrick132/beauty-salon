@@ -7,8 +7,6 @@ import { home, sans, titleSx } from './ui';
 
 /** sessionStorage: el popup ya se mostró en esta visita. */
 const SHOWN_KEY = 'tp_exit_shown';
-/** En mobile no hay "mouse que sale": se ofrece a los 45 s si no tocó ningún formulario. */
-const MOBILE_DELAY_MS = 45_000;
 /** Rutas donde nunca aparece (demos, login y alta). */
 const BLOCKED = /^\/(demo-admin|demo-app|login|register|registro|signup|alta|onboarding)(\/|$)/;
 
@@ -20,9 +18,55 @@ function mark(key: string) {
 }
 
 /**
+ * Intención real de irse (ajuste del 02/11/2026: antes salía "random", con un timer de 45 s en mobile).
+ *  - Nunca en los primeros 10 s en la página.
+ *  - Escritorio (puntero fino): el cursor sale de la ventana por arriba (pestañas, barra, cerrar) y
+ *    solo si ya scrolleó al menos 30% del alto del viewport (o sea, ya leyó algo).
+ *  - Táctil (pointer: coarse): sin timer. Si ya llegó al 40% del alto scrolleable y después sube
+ *    rápido (≥ 60% del viewport en ≤ 600 ms), el gesto típico antes de ir a la barra o volver atrás.
+ * Llama a onExit una sola vez y devuelve la función que saca los listeners.
+ */
+function watchExitIntent(onExit: () => void): () => void {
+  const MIN_MS = 10_000;
+  const start = Date.now();
+  let maxY = window.scrollY;
+  let fired = false;
+  const samples: { y: number; t: number }[] = [];
+  const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+  const fire = () => {
+    if (fired || Date.now() - start < MIN_MS) return;
+    fired = true;
+    onExit();
+  };
+  const onScroll = () => {
+    const y = window.scrollY;
+    const t = Date.now();
+    if (y > maxY) maxY = y;
+    if (!coarse) return;
+    samples.push({ y, t });
+    while (samples.length && t - samples[0].t > 600) samples.shift();
+    const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+    if (scrollable <= 0 || maxY < scrollable * 0.4) return;
+    const peak = Math.max(...samples.map((s) => s.y));
+    if (peak - y >= window.innerHeight * 0.6) fire();
+  };
+  const onMouseOut = (e: MouseEvent) => {
+    if (e.relatedTarget || e.clientY > 0) return;
+    if (maxY < window.innerHeight * 0.3) return;
+    fire();
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  if (!coarse) document.addEventListener('mouseout', onMouseOut);
+  return () => {
+    window.removeEventListener('scroll', onScroll);
+    document.removeEventListener('mouseout', onMouseOut);
+  };
+}
+
+/**
  * Popup de salida "¿Antes de irte?" (card #22): una vez por sesión, ofrece la demo con el mismo
- * formulario de la sección de precios. Escritorio: cuando el mouse sale por arriba de la ventana.
- * Mobile: a los 45 s, salvo que ya haya tocado un formulario. Nunca si ya pidió la demo.
+ * formulario de la sección de precios. Solo con intención real de irse (ver watchExitIntent), nunca
+ * si ya pidió la demo o tocó un formulario.
  */
 export default function ExitIntent() {
   const [open, setOpen] = useState(false);
@@ -47,23 +91,11 @@ export default function ExitIntent() {
     };
     document.addEventListener('focusin', onFocusIn);
 
-    const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-    let timer: number | undefined;
-    const onMouseOut = (e: MouseEvent) => {
-      if (!e.relatedTarget && e.clientY <= 0) show();
-    };
-    if (finePointer) {
-      document.addEventListener('mouseout', onMouseOut);
-    } else {
-      timer = window.setTimeout(() => {
-        if (!touchedForm.current) show();
-      }, MOBILE_DELAY_MS);
-    }
+    const stop = watchExitIntent(() => { if (!touchedForm.current) show(); });
 
     return () => {
       document.removeEventListener('focusin', onFocusIn);
-      document.removeEventListener('mouseout', onMouseOut);
-      if (timer) window.clearTimeout(timer);
+      stop();
     };
   }, []);
 

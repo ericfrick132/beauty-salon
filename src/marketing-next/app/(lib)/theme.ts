@@ -89,7 +89,10 @@ const theme = createTheme({
           backgroundColor: palette.paper,
           color: palette.ink,
           fontFamily: 'var(--font-grotesk), system-ui, sans-serif',
-          overflowX: 'hidden',
+          // clip (no hidden): con hidden en html y body, body pasa a ser contenedor de scroll y
+          // rompe position: sticky (la Header de las páginas de contenido se iba con el scroll).
+          // El hidden de html se propaga al viewport y sigue evitando el scroll horizontal.
+          overflowX: 'clip',
           // Subtle paper grain — purely decorative, no perf hit.
           backgroundImage: `url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.09  0 0 0 0 0.08  0 0 0 0 0.06  0 0 0 0.05 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>")`,
           backgroundRepeat: 'repeat',
