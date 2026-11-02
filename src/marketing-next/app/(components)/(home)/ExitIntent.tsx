@@ -87,9 +87,9 @@ export default function ExitIntent() {
           ¿Antes de irte?
         </Typography>
         <Typography sx={{ mt: 1, mb: 3, fontFamily: sans, fontSize: '1.02rem', color: home.inkSoft, lineHeight: 1.5 }}>
-          Te mostramos TurnosPro con tu caso, en una demo corta.
+          Te llamamos dentro de los próximos 10 minutos.
         </Typography>
-        <DemoForm plan={plan} onPlanChange={setPlan} pageSuffix="#salida" />
+        <DemoForm plan={plan} onPlanChange={setPlan} pageSuffix="#salida" variant="callback" />
       </Box>
     </Dialog>
   );

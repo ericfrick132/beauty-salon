@@ -54,16 +54,19 @@ function Field({ label, required, children }: { label: string; required?: boolea
  * Formulario de demo (el mismo en la sección de precios y en el popup "¿Antes de irte?").
  * `pageSuffix` marca de dónde vino el pedido en la nota del CRM (ej. "#salida").
  */
-export function DemoForm({ plan, onPlanChange, pageSuffix = '' }: { plan: string; onPlanChange: (p: string) => void; pageSuffix?: string }) {
+export function DemoForm({ plan, onPlanChange, pageSuffix = '', variant = 'demo' }: { plan: string; onPlanChange: (p: string) => void; pageSuffix?: string; /** "callback": popup de salida (nombre, WhatsApp y mail; te llamamos). */ variant?: 'demo' | 'callback' }) {
+  const callback = variant === 'callback';
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [business, setBusiness] = useState('');
   const [size, setSize] = useState('');
   const [website, setWebsite] = useState('');
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState('');
 
-  const valid = name.trim().length >= 2 && phone.replace(/\D/g, '').length >= 8;
+  const valid = name.trim().length >= 2 && phone.replace(/\D/g, '').length >= 8
+    && (!callback || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()));
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -78,9 +81,10 @@ export function DemoForm({ plan, onPlanChange, pageSuffix = '' }: { plan: string
           productKey: 'turnospro',
           name: name.trim(),
           phone: toArPhone(phone),
-          business: business.trim() || undefined,
-          size: size || undefined,
-          plan: plan || undefined,
+          email: callback ? email.trim() : undefined,
+          business: callback ? undefined : business.trim() || undefined,
+          size: callback ? undefined : size || undefined,
+          plan: callback ? undefined : plan || undefined,
           page: window.location.pathname + pageSuffix,
           website,
         }),
@@ -99,7 +103,11 @@ export function DemoForm({ plan, onPlanChange, pageSuffix = '' }: { plan: string
 
   return (
     <Box sx={{ p: { xs: 2.5, md: 3.5 }, borderRadius: home.radius, bgcolor: home.paperSoft, border: `1px solid ${home.line}`, boxShadow: home.shadow }}>
-      {status === 'done' ? (
+      {status === 'done' && callback ? (
+        <Box role="status" sx={{ textAlign: 'center', py: 3 }}>
+          <Typography sx={{ ...titleSx, fontSize: '1.6rem' }}>¡Listo! Te llamamos en un rato.</Typography>
+        </Box>
+      ) : status === 'done' ? (
         <Box role="status" sx={{ textAlign: 'center', py: 3 }}>
           <Typography sx={{ ...titleSx, fontSize: '1.6rem' }}>¡Listo! Te escribimos por WhatsApp.</Typography>
           <Typography sx={{ mt: 1.5, fontFamily: sans, color: home.inkSoft, lineHeight: 1.5 }}>
@@ -123,6 +131,13 @@ export function DemoForm({ plan, onPlanChange, pageSuffix = '' }: { plan: string
           <Field label="WhatsApp" required>
             <Box component="input" required type="tel" inputMode="tel" autoComplete="tel" placeholder="11 2345 6789" value={phone} onChange={(e: any) => setPhone(e.target.value)} sx={fieldSx} />
           </Field>
+          {callback ? (
+          <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
+            <Field label="Email" required>
+              <Box component="input" required type="email" inputMode="email" autoComplete="email" value={email} onChange={(e: any) => setEmail(e.target.value)} sx={fieldSx} />
+            </Field>
+          </Box>
+          ) : (<>
           <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
             <Field label="Nombre del negocio">
               <Box component="input" autoComplete="organization" value={business} onChange={(e: any) => setBusiness(e.target.value)} sx={fieldSx} />
@@ -140,6 +155,7 @@ export function DemoForm({ plan, onPlanChange, pageSuffix = '' }: { plan: string
               {PLAN_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
             </Box>
           </Field>
+          </>)}
           {/* Honeypot: invisible para personas; si llega con texto, el backend lo descarta. */}
           <Box aria-hidden sx={{ position: 'absolute', left: '-10000px', width: 1, height: 1, overflow: 'hidden' }}>
             <label>
@@ -167,7 +183,7 @@ export function DemoForm({ plan, onPlanChange, pageSuffix = '' }: { plan: string
                 '&:disabled': { opacity: 0.5, cursor: 'not-allowed' },
               }}
             >
-              {status === 'sending' ? 'Enviando…' : 'Quiero mi demo'}
+              {status === 'sending' ? 'Enviando…' : callback ? 'Quiero que me llamen' : 'Quiero mi demo'}
             </Box>
             {status === 'error' && (
               <Typography role="alert" sx={{ mt: 1.5, fontFamily: sans, fontSize: '0.9rem', color: home.coralDeep, lineHeight: 1.5 }}>
