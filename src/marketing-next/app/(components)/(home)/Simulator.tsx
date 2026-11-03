@@ -321,7 +321,7 @@ export default function Simulator() {
           title="Probalo"
           line="Tocá un caso y mirá cómo responde."
         />
-        <Box ref={rootRef} sx={{ display: 'grid', gap: { xs: 1.5, md: 5 }, gridTemplateColumns: { xs: '1fr', md: 'minmax(280px, 0.85fr) 1.15fr' }, alignItems: 'start' }}>
+        <Box ref={rootRef} sx={{ display: 'grid', gap: { xs: 1.5, md: 5 }, gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(280px, 0.85fr) minmax(0, 1.15fr)' }, alignItems: 'start' }}>
           <Box sx={{ order: { xs: 0, md: 0 } }}>
             <CaseTabs current={current} onPick={pick} variant="list" />
             <CaseTabs current={current} onPick={pick} variant="chips" />
