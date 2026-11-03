@@ -24,6 +24,8 @@ export type VerticalContent = VerticalLink & {
   kind?: 'feature';
   /** Textos de VerticalLanding para landings 'feature' que no son la de señas (default: los de señas). */
   featureCopy?: { callout: string; pricingIntro: string; faqTitle: string };
+  /** Landings de rubro: reemplaza la frase destacada del callout (default: la cifra de turnos por mes). */
+  callout?: string;
 };
 
 export const verticals: VerticalContent[] = [
@@ -441,6 +443,117 @@ export const verticals: VerticalContent[] = [
     ],
     datePublished: '2026-09-03',
     dateModified: '2026-10-16',
+  },
+  {
+    // Rubro uñas/manicura (keyword-map A, 03/11). Hechos: límites y precios de /api/subscription-plans y
+    // PlanEntitlementService (Gratuito: 1 servicio por agenda); seña por servicio en % o monto fijo y a quién
+    // se le pide (Service.RequiresDeposit/DepositPolicy, ver landing de señas); recurrentes desde Advance y
+    // ficha e historial de clientes en Pro (planes de content.ts). Sin cifras de clientes ni de ausencias.
+    ...verticalLinks[4],
+    title: 'Sistema de turnos para uñas y manicura | TurnosPro',
+    description:
+      'Agenda online para manicuras y salones de uñas: cada servicio con su duración, seña con Mercado Pago al reservar y recordatorios por WhatsApp. Empezá gratis.',
+    h1: 'Sistema de turnos para manicuras y salones de uñas',
+    eyebrow: 'Uñas y manicura',
+    callout: 'Lo armás en un rato y arrancás gratis, sin tarjeta.',
+    intro: [
+      'Si trabajás con uñas, tu agenda tiene un problema propio: un esmaltado semipermanente, un kapping, unas esculpidas y un retiro no duran lo mismo, y las clientas te escriben por WhatsApp a cualquier hora, justo cuando tenés las manos ocupadas. TurnosPro es un sistema de turnos online para manicuras y salones de uñas: tus clientas reservan solas desde tu link, eligen el servicio y la manicura, la agenda bloquea el tiempo real de cada trabajo y, si querés, pagan una seña con Mercado Pago al reservar.',
+      'Sirve igual si atendés sola en tu casa o si tenés un salón con varias manicuras. Te registrás con tu mail, sin tarjeta, y en el día ya tenés tu link de turnos para la bio de Instagram.',
+    ],
+    sections: [
+      {
+        h2: 'Cada servicio con su duración, para que la agenda no se pise',
+        paragraphs: [
+          'El error más común de la agenda en papel o en el chat es meter unas esculpidas en el hueco de un esmaltado y terminar atrasada toda la tarde. En TurnosPro cargás tu menú de servicios con la duración y el precio de cada uno: esmaltado tradicional, semipermanente, kapping, esculpidas, service o mantenimiento, retiro, pedicura, nail art.',
+          'Cuando una clienta reserva, solo ve los horarios donde ese servicio entra completo. Si una esculpida te lleva dos horas, la agenda le ofrece únicamente los huecos de dos horas libres. Y si cambiás un precio, se actualiza en el momento en tu página de reservas.',
+        ],
+        bullets: [
+          'Agenda por manicura, con vista diaria, semanal y mensual.',
+          'Bloqueos de horario para el almuerzo, un curso o un día libre.',
+          'Disponibilidad en tiempo real: dos clientas no pueden tomar el mismo turno.',
+          'Aviso en el momento cada vez que entra una reserva.',
+        ],
+      },
+      {
+        h2: 'Reservas desde Instagram y WhatsApp, sin contestar cada mensaje',
+        paragraphs: [
+          'La mayoría de las clientas de un salón de uñas llegan por Instagram: ven un trabajo, te escriben "¿tenés turno el jueves?" y empieza el ida y vuelta. Con TurnosPro ponés el link de tu página de reservas en la bio, en el estado de WhatsApp y en tu perfil de Google. La clienta entra, elige el servicio, la manicura y el horario, deja sus datos y listo: no tiene que descargar una app ni crearse una cuenta.',
+          'Vos ves la reserva en tu agenda y seguís trabajando. Los mensajes de WhatsApp quedan para las consultas que de verdad necesitan tu respuesta, como un diseño especial.',
+        ],
+      },
+      {
+        h2: 'Seña con Mercado Pago para los turnos largos',
+        paragraphs: [
+          'Unas esculpidas que se caen a último momento son dos horas que ya no vendés. Por eso podés pedir una seña al reservar: la clienta paga con Mercado Pago desde el celular, el turno se confirma solo cuando el pago se aprueba y la plata entra directo en tu cuenta.',
+          'La seña se configura servicio por servicio. Podés pedirla solo en los trabajos largos y dejar sin seña el esmaltado común, y elegir si es un porcentaje del precio o un monto fijo. También decidís a quién se la pedís: a todas, solo a las clientas nuevas o solo a los turnos que se reservan con muchos días de anticipación.',
+        ],
+        bullets: [
+          'Seña en porcentaje o monto fijo, por servicio.',
+          'Cobro con tu propia cuenta de Mercado Pago.',
+          'Comisión por cobro online de 5% en Gratuito, 2% en Plus, 1% en Advance y 0% en Pro.',
+          'Los pagos en efectivo o por transferencia manual no pagan comisión.',
+        ],
+      },
+      {
+        h2: 'Recordatorios por WhatsApp y clientas que vuelven cada dos o tres semanas',
+        paragraphs: [
+          'El semipermanente y las esculpidas se mantienen cada pocas semanas, así que buena parte de tu agenda son clientas que vuelven. Desde el plan Plus, TurnosPro manda recordatorios automáticos por WhatsApp antes de cada turno, para que nadie se olvide.',
+          'Desde Advance podés cargar turnos recurrentes: la clienta que viene cada tres semanas al service queda agendada sola y no tiene que volver a reservar. En Pro, además, tenés la ficha y el historial de cada clienta, para ver qué se hizo la última vez.',
+        ],
+      },
+      {
+        h2: 'Qué plan conviene para un salón de uñas',
+        paragraphs: [
+          'Todos los planes son los mismos para cualquier rubro, pero en uñas hay un detalle que conviene saber antes de arrancar:',
+        ],
+        bullets: [
+          'Gratuito ($0, para siempre): 100 reservas por mes y hasta 3 agendas, con 1 servicio por agenda. Alcanza para probar con tus servicios principales.',
+          'Plus ($8.000 por mes): servicios ilimitados para cargar todo tu menú, 200 reservas por mes, hasta 5 agendas, recordatorios automáticos y 30 mensajes de WhatsApp.',
+          'Advance ($18.000 por mes): reservas y agendas ilimitadas, turnos recurrentes y 100 mensajes de WhatsApp.',
+          'Pro ($30.000 por mes): todo lo de Advance, ficha e historial de clientas, 250 mensajes de WhatsApp y sin comisión por cobro online.',
+        ],
+        after: [
+          'Los precios son finales en pesos y no hay permanencia: cambiás de plan desde el panel cuando quieras.',
+        ],
+      },
+      {
+        h2: 'Cómo arrancar',
+        bullets: [
+          'Te registrás con tu mail: te llega un código y entrás al panel, sin tarjeta.',
+          'Cargás tus servicios con duración y precio, y los horarios de cada manicura.',
+          'Si querés seña, conectás tu cuenta de Mercado Pago y la activás en los servicios largos.',
+          'Ponés el link de reservas en la bio de Instagram y en tu WhatsApp.',
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: '¿Sirve si atiendo sola, en mi casa?',
+        a: 'Sí. Cargás una sola agenda con tus horarios y tus servicios. Tus clientas reservan desde tu link y vos ves los turnos en el panel o en la app. Si después sumás otra manicura, le agregás su agenda.',
+      },
+      {
+        q: '¿La agenda respeta lo que dura cada servicio?',
+        a: 'Sí. Cada servicio tiene su duración y la agenda solo ofrece los horarios donde ese servicio entra completo. Unas esculpidas no se pueden reservar en el hueco de un esmaltado.',
+      },
+      {
+        q: '¿Puedo pedir seña solo en algunos servicios?',
+        a: 'Sí. La seña se activa servicio por servicio, en porcentaje o monto fijo, y podés pedirla a todas las clientas, solo a las nuevas o solo a los turnos reservados con anticipación. Se cobra con tu cuenta de Mercado Pago y el turno se confirma cuando se aprueba el pago.',
+      },
+      {
+        q: '¿Mis clientas tienen que descargar una app?',
+        a: 'No. Reservan desde el navegador del celular, con el link que ponés en Instagram o WhatsApp, sin registrarse ni instalar nada.',
+      },
+      {
+        q: '¿Puedo usar el plan gratis con todos mis servicios?',
+        a: 'El plan Gratuito incluye 1 servicio por agenda: con 3 agendas, hasta 3 servicios. Si querés cargar todo tu menú (semipermanente, kapping, esculpidas, retiro y demás), el plan Plus tiene servicios ilimitados y cuesta $8.000 por mes, sin permanencia.',
+      },
+      {
+        q: '¿Cuánto cuesta un sistema de turnos para manicuras?',
+        a: 'Hay un plan Gratuito para siempre, sin tarjeta, con 100 reservas por mes; los planes pagos cuestan $8.000 (Plus), $18.000 (Advance) y $30.000 (Pro) por mes, precio final en pesos, y no tienen permanencia.',
+      },
+    ],
+    datePublished: '2026-11-03',
+    dateModified: '2026-11-03',
   },
   {
     // Landing de funcionalidad (no es un rubro): no va en verticalLinks para no aparecer en BusinessTypes/Footer.

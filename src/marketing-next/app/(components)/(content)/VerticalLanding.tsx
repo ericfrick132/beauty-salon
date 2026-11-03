@@ -67,7 +67,14 @@ export default function VerticalLanding({ v }: { v: VerticalContent }) {
         ) : (
           <div className="tp-callout">
             <p>
-              <strong>Más de 1.200 turnos por mes</strong> pasan por TurnosPro. Es el mismo producto para todos los
+              {v.callout ? (
+                <strong>{v.callout}</strong>
+              ) : (
+                <>
+                  <strong>Más de 1.200 turnos por mes</strong> pasan por TurnosPro.
+                </>
+              )}{' '}
+              Es el mismo producto para todos los
               rubros: si querés ver todas las funciones, mirá la <Link href="/">página principal de TurnosPro</Link>; si
               estás comparando opciones, leé{' '}
               <a href={blogLinks[0].path}>cuál es el mejor sistema de turnos online en Argentina</a>.
