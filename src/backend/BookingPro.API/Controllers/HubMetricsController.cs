@@ -63,8 +63,10 @@ public class HubMetricsController : ControllerBase
         var now = DateTime.UtcNow;
 
         var tenants = await _db.Tenants.IgnoreQueryFilters().AsNoTracking()
-            // Negocios de prueba del equipo (altas con mails @efcloud.tech): no son clientes.
-            .Where(t => !t.OwnerEmail.ToLower().EndsWith("@efcloud.tech"))
+            // Negocios de prueba del equipo (altas con mails @efcloud.tech) y la demo de revisión
+            // de Apple/Google (@turnospro.app, ver ReviewDemoTenants): no son clientes.
+            .Where(t => !t.OwnerEmail.ToLower().EndsWith("@efcloud.tech")
+                && !t.OwnerEmail.ToLower().EndsWith(Utilities.ReviewDemoTenants.OwnerEmailDomain))
             .Select(t => new
             {
                 t.Id, t.BusinessName, t.Status, t.IsDemo, t.DemoExpiresAt, t.TrialEndsAt,

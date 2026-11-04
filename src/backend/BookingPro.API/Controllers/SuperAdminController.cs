@@ -595,6 +595,18 @@ namespace BookingPro.API.Controllers
             if (tenant == null)
                 return NotFound(new { success = false, message = "Tenant no encontrado" });
 
+            if (Utilities.ReviewDemoTenants.IsProtected(tenant))
+            {
+                _logger.LogWarning(
+                    "SuperAdmin {Admin} tried to delete review demo tenant {TenantId} ({Subdomain}) — blocked",
+                    adminEmail, tenantId, tenant.Subdomain);
+                return Conflict(new
+                {
+                    success = false,
+                    message = "Este negocio es la cuenta demo con la que Apple y Google revisan la app. No se puede eliminar."
+                });
+            }
+
             // Hard delete — remove tenant row; FK cascades handle related data via DB constraints.
             // Tables without FK cascade are cleaned explicitly below.
             _context.Tenants.Remove(tenant);
