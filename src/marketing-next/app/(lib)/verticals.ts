@@ -752,7 +752,7 @@ export const verticals: VerticalContent[] = [
     },
     title: 'Sistema de turnos online gratis para siempre | TurnosPro',
     description:
-      'Sistema de turnos online gratis, sin tarjeta y sin vencimiento: 100 reservas por mes, hasta 3 agendas, cobros con Mercado Pago y panel de métricas. Empezá en 2 minutos.',
+      'Sistema de turnos online gratis, sin tarjeta ni vencimiento: 100 reservas por mes, hasta 3 agendas, cobros con Mercado Pago y métricas. Empezá en 2 minutos.',
     h1: 'Sistema de turnos online gratis, para siempre y sin tarjeta',
     eyebrow: 'Plan gratuito',
     intro: [

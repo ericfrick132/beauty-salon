@@ -276,9 +276,9 @@ export const MARKET_COUNTRIES: Record<MarketCountryCode, MarketCountry> = {
     currency: 'MXN',
     dial: '+52',
     meta: {
-      title: 'TurnosPro México | Agenda de citas en línea con anticipos y WhatsApp',
+      title: 'Citas en línea con anticipos y WhatsApp | TurnosPro México',
       description:
-        'Sistema de citas en línea para negocios de México: reservas 24/7, anticipos con Mercado Pago y recordatorios por WhatsApp. Plan gratuito para siempre, sin tarjeta.',
+        'Sistema de citas en línea para negocios de México: reservas 24/7, anticipos con Mercado Pago y recordatorios por WhatsApp. Plan gratuito, sin tarjeta.',
     },
     hero: {
       label: 'TurnosPro en México',
