@@ -33,7 +33,7 @@ export const verticals: VerticalContent[] = [
     ...verticalLinks[0],
     title: 'Sistema de turnos para peluquerías | TurnosPro',
     description:
-      'Sistema de turnos para peluquerías: agenda online por estilista, señas con MercadoPago y recordatorios por WhatsApp. Empezá gratis, sin tarjeta.',
+      'Sistema de turnos para peluquerías: turnos disponibles por estilista a la vista, señas con MercadoPago y recordatorios por WhatsApp. Gratis, sin tarjeta.',
     h1: 'Sistema de turnos para peluquerías',
     eyebrow: 'Peluquerías',
     intro: [
@@ -53,6 +53,19 @@ export const verticals: VerticalContent[] = [
           'Turnos recurrentes para las clientas que vienen cada dos o tres semanas.',
           'Disponibilidad en tiempo real: lo que ve la clienta es lo que tenés libre.',
           'Notificaciones en el momento ante cada reserva nueva.',
+        ],
+      },
+      {
+        h2: 'Turnos disponibles de tu peluquería, a la vista de tus clientas',
+        paragraphs: [
+          'La pregunta que más se repite en el WhatsApp de una peluquería es "¿qué turnos tenés disponibles?". Con TurnosPro la respuesta está en tu link de reservas: la clienta elige el servicio y el estilista, toca un día y ve solo los horarios libres, sin escribirte ni esperar a que le contestes entre una clienta y otra.',
+          'Los turnos disponibles se calculan solos con el horario de cada estilista, la duración del servicio elegido y los turnos que ya están tomados. Si alguien reserva, ese horario deja de aparecer para el resto; si una clienta cancela, vuelve a quedar disponible para otra persona.',
+        ],
+        bullets: [
+          'Horarios libres por estilista y por servicio: un color largo solo aparece donde entra entero.',
+          'Lo que se reserva desaparece de la grilla en el momento, sin dobles turnos.',
+          'Las cancelaciones devuelven el horario a la grilla de turnos disponibles.',
+          'Funciona las 24 horas, también cuando la peluquería está cerrada.',
         ],
       },
       {
@@ -130,6 +143,10 @@ export const verticals: VerticalContent[] = [
         a: 'Sí. Cada profesional tiene su propia agenda con sus horarios, servicios y bloqueos. Tus clientas eligen con quién atenderse y solo ven los huecos reales de esa persona, en vista diaria, semanal o mensual.',
       },
       {
+        q: '¿Cómo ven mis clientas los turnos disponibles de la peluquería?',
+        a: 'Entran a tu link de reservas (el de tu Instagram o tu WhatsApp), eligen servicio y estilista y ven los horarios libres de cada día, calculados con la duración del servicio y los turnos ya tomados. Reservan ahí mismo, sin registrarse ni descargar una app.',
+      },
+      {
         q: '¿Cómo funcionan las señas para una peluquería?',
         a: 'Elegís qué servicios exigen seña y de cuánto. Al reservar, la clienta paga con MercadoPago y el dinero entra directo en tu cuenta. TurnosPro no cobra por turno: según el plan se descuenta una comisión del cobro online (5% en Gratuito, 2% en Plus, 1% en Advance, 0% en Pro).',
       },
@@ -151,7 +168,7 @@ export const verticals: VerticalContent[] = [
       },
     ],
     datePublished: '2026-09-03',
-    dateModified: '2026-10-16',
+    dateModified: '2026-11-05',
   },
   {
     ...verticalLinks[1],
