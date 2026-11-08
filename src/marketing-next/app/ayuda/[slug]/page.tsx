@@ -17,7 +17,9 @@ export function generateMetadata({ params }: { params: { slug: string } }): Meta
   const l = leccionPorSlug(params.slug);
   if (!l) return {};
   const path = `/ayuda/${l.slug}`;
-  const title = `${l.titulo} | Centro de ayuda de TurnosPro`;
+  // Title ≤ 60: el sufijo del curso solo si entra.
+  const conSufijo = `${l.titulo} | Centro de ayuda de TurnosPro`;
+  const title = conSufijo.length <= 60 ? conSufijo : `${l.titulo} | TurnosPro`;
   return {
     title,
     description: l.descripcion,
