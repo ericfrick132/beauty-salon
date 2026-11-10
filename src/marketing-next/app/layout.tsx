@@ -3,6 +3,7 @@ import Script from 'next/script';
 import { brand } from '@/app/(lib)/brand';
 import ThemeRegistry from '@/app/(components)/ThemeRegistry';
 import WhatsAppFloat from '@/app/(components)/WhatsAppFloat';
+import TurnstileInstaller from '@/app/(components)/TurnstileInstaller';
 import { CssBaseline, ThemeProvider } from '@mui/material';
 import theme from '@/app/(lib)/theme';
 import { Space_Grotesk, Fraunces, JetBrains_Mono, Inter } from 'next/font/google';
@@ -71,6 +72,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <CssBaseline />
             {children}
             <WhatsAppFloat />
+            {/* Captcha de Cloudflare en el alta (SignupModal): ver (lib)/turnstile. */}
+            <TurnstileInstaller />
           </ThemeProvider>
         </ThemeRegistry>
         {/* Microsoft Clarity: solo en el dominio principal. Nunca en los subdominios de los

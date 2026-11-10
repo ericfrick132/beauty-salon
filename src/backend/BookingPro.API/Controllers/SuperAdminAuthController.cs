@@ -1,3 +1,4 @@
+using BookingPro.API.Attributes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using BookingPro.API.Data;
@@ -27,6 +28,7 @@ namespace BookingPro.API.Controllers
             _configuration = configuration;
         }
 
+        [RequireTurnstile]
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] SuperAdminLoginDto loginDto)
         {

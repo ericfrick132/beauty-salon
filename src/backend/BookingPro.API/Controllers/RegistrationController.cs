@@ -1,3 +1,4 @@
+using BookingPro.API.Attributes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using BookingPro.API.Data;
@@ -102,6 +103,7 @@ namespace BookingPro.API.Controllers
         /// <summary>
         /// Step 1: Start registration - receives email + password, creates PendingRegistration, "sends" confirmation email.
         /// </summary>
+        [RequireTurnstile]
         [HttpPost("start")]
         public async Task<IActionResult> Start([FromBody] RegistrationStartDto dto)
         {
@@ -226,6 +228,7 @@ namespace BookingPro.API.Controllers
         /// <summary>
         /// Step 3: Complete registration - creates tenant and admin user.
         /// </summary>
+        [RequireTurnstile]
         [HttpPost("complete")]
         public async Task<IActionResult> Complete([FromBody] RegistrationCompleteDto dto)
         {
@@ -380,6 +383,7 @@ namespace BookingPro.API.Controllers
         /// /start → /verify → /complete endpoints are kept for backward compatibility with
         /// users that already received an email link from the old flow.
         /// </summary>
+        [RequireTurnstile]
         [HttpPost("quick")]
         public async Task<IActionResult> Quick([FromBody] RegistrationQuickDto dto)
         {
@@ -808,6 +812,7 @@ namespace BookingPro.API.Controllers
         /// Devuelve `state`, el token opaco de la transacción que viaja en /register?s=... y en el link
         /// del mail (el email no va en la URL).
         /// </summary>
+        [RequireTurnstile]
         [HttpPost("email/start")]
         public async Task<IActionResult> EmailStart([FromBody] EmailStartDto dto)
         {
@@ -1292,6 +1297,7 @@ namespace BookingPro.API.Controllers
         /// Signup con Google: verifica el ID token, crea tenant + admin user + trial subscription
         /// en una sola transacción. Retorna JWT para auto-login.
         /// </summary>
+        [RequireTurnstile]
         [HttpPost("google-register")]
         public async Task<IActionResult> GoogleRegister([FromBody] GoogleRegisterDto dto)
         {

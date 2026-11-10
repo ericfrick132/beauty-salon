@@ -1,3 +1,4 @@
+using BookingPro.API.Attributes;
 using Microsoft.AspNetCore.Mvc;
 using BookingPro.API.Services;
 using BookingPro.API.DTOs;
@@ -44,6 +45,7 @@ namespace BookingPro.API.Controllers
             _logger = logger;
         }
 
+        [RequireTurnstile]
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto loginDto)
         {
@@ -80,6 +82,7 @@ namespace BookingPro.API.Controllers
             return Ok(result);
         }
 
+        [RequireTurnstile]
         [HttpPost("google-login")]
         public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginDto dto)
         {
@@ -195,6 +198,7 @@ namespace BookingPro.API.Controllers
             return Ok(new { isValid });
         }
 
+        [RequireTurnstile]
         [HttpPost("forgot-password")]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
         {

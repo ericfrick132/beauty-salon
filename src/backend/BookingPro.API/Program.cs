@@ -210,6 +210,8 @@ builder.Services.AddHostedService<BookingPro.API.Services.OtpFollowupBackgroundS
 
 // Facturación electrónica (ARCA) vía el facturador compartido con PlayCrew / GymHero / DashFlow
 builder.Services.AddHttpClient<BookingPro.API.Services.Invoicing.IFacturadorClient, BookingPro.API.Services.Invoicing.FacturadorClient>(c => c.Timeout = TimeSpan.FromSeconds(60));
+// Captcha de Cloudflare en logins y altas web (ver RequireTurnstileAttribute).
+builder.Services.AddHttpClient<BookingPro.API.Services.ITurnstileVerifier, BookingPro.API.Services.TurnstileVerifier>(c => c.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddScoped<BookingPro.API.Services.Invoicing.SalonInvoicingService>();
 builder.Services.AddHostedService<BookingPro.API.Services.Invoicing.SalonInvoicingBackgroundService>();
 // Follow-up de onboarding incompleto, milestone-aware — apagado por default (OnboardingFollowup:Enabled)
