@@ -273,11 +273,11 @@ export const verticals: VerticalContent[] = [
     ...verticalLinks[2],
     title: 'Sistema de turnos para centros de estética | TurnosPro',
     description:
-      'Tratamientos largos, señas obligatorias con MercadoPago, recordatorios por WhatsApp y agenda por cabina o profesional. Empezá gratis con TurnosPro.',
+      'Tratamientos largos, señas obligatorias con MercadoPago, recordatorios por WhatsApp y agenda por profesional. Empezá gratis con TurnosPro.',
     h1: 'Sistema de turnos para centros de estética',
     eyebrow: 'Centros de estética',
     intro: [
-      'En un centro de estética un turno no es un corte de 30 minutos: es una limpieza facial de una hora, una sesión de depilación definitiva, un tratamiento corporal que ocupa la cabina toda la tarde. Cuando esa clienta no aparece, la pérdida es grande. TurnosPro es un sistema de turnos online para centros de estética que resuelve justo eso: señas obligatorias con MercadoPago, recordatorios y confirmación por WhatsApp, y una agenda por cabina o por profesional que nunca se superpone.',
+      'En un centro de estética un turno no es un corte de 30 minutos: es una limpieza facial de una hora, una sesión de depilación definitiva, un tratamiento corporal que ocupa la cabina toda la tarde. Cuando esa clienta no aparece, la pérdida es grande. TurnosPro es un sistema de turnos online para centros de estética que resuelve justo eso: señas obligatorias con MercadoPago, recordatorios y confirmación por WhatsApp, y una agenda por profesional que nunca se superpone.',
       'Tus clientas reservan solas las 24 horas desde tu propio sitio, con tu marca. Vos dejás de perseguir confirmaciones y llenás la agenda con turnos que se cumplen.',
     ],
     sections: [
@@ -290,24 +290,24 @@ export const verticals: VerticalContent[] = [
         ],
       },
       {
-        h2: 'Agenda por cabina y por profesional',
+        h2: 'Agenda por profesional, con la duración de cada tratamiento',
         paragraphs: [
-          'Un centro de estética tiene recursos que no se pueden duplicar: cabinas, camillas, equipos. Y profesionales con distintas especialidades: una hace faciales, otra depilación, otra masajes. La agenda tiene que respetar todo eso.',
-          'TurnosPro te da una agenda por profesional con vista diaria, semanal y mensual, donde cada servicio ocupa exactamente el tiempo que dura. Cargás bloqueos para limpieza de cabina, capacitaciones o descansos, y turnos recurrentes para las sesiones que se repiten, como los planes de depilación o los tratamientos en varias etapas.',
+          'En un centro de estética cada profesional tiene su especialidad: una hace faciales, otra depilación, otra masajes. Y cada tratamiento dura distinto. La agenda tiene que respetar las dos cosas.',
+          'TurnosPro te da una agenda por profesional con vista diaria, semanal y mensual, donde cada servicio ocupa exactamente el tiempo que dura. Cargás bloqueos para limpieza de cabina, capacitaciones o descansos y, desde el plan Advance, turnos recurrentes para las sesiones que se repiten, como los planes de depilación o los tratamientos en varias etapas. TurnosPro no reserva cabinas ni equipos por separado: la agenda es por profesional.',
         ],
         bullets: [
           'Duración real por tratamiento: nada de encajar una hora y media en un hueco de 45 minutos.',
           'Bloqueos de horario por profesional.',
-          'Turnos recurrentes para sesiones periódicas.',
+          'Turnos recurrentes para sesiones periódicas, desde Advance.',
           'Disponibilidad en tiempo real en tu sitio de reservas.',
-          'Varias sucursales, cada una con su equipo y su agenda.',
+          'Varias sucursales, cada una con su equipo y su agenda, en el plan Pro.',
         ],
       },
       {
         h2: 'Recordatorios y confirmación automática por WhatsApp',
         paragraphs: [
           'Aunque haya seña, el recordatorio sigue siendo clave: la clienta reservó hace tres semanas y ya no se acuerda del horario. TurnosPro envía recordatorios y confirmaciones por WhatsApp de forma automática, con la anticipación que vos elijas.',
-          'Si además querés que la confirmación sea inteligente, activás el agente de IA como add-on. Le escribe a cada clienta desde el número de WhatsApp de tu centro, entiende la respuesta y actúa solo: confirma el turno o lo cancela y libera la cabina para otra persona. Sale con tu marca y tu tono, y vos no intervenís.',
+          'Si además querés que la confirmación sea inteligente, activás el agente de IA como add-on. Le escribe a cada clienta desde el número de WhatsApp de tu centro, entiende la respuesta y actúa solo: confirma el turno o lo cancela y libera el horario para otra persona. Sale con tu marca y tu tono, y vos no intervenís.',
         ],
       },
       {
@@ -361,7 +361,7 @@ export const verticals: VerticalContent[] = [
       },
     ],
     datePublished: '2026-09-03',
-    dateModified: '2026-10-16',
+    dateModified: '2026-11-11',
   },
   {
     ...verticalLinks[3],
@@ -571,6 +571,118 @@ export const verticals: VerticalContent[] = [
     ],
     datePublished: '2026-11-03',
     dateModified: '2026-11-03',
+  },
+  {
+    // Rubro spa y masajes (keyword-map A: "software para spa", 11/11). Mismos hechos que manicuras
+    // (/api/subscription-plans, PlanEntitlementService, Service.RequiresDeposit/DepositPolicy) más:
+    // Service.DurationMinutes sin tope (un day spa entra como un servicio), cupones desde Advance y
+    // multi-sucursal solo en Pro (allowMultiLocation). No hay modelo de salas/camillas/equipos ni gift cards:
+    // la agenda es por profesional y no se promete otra cosa.
+    ...verticalLinks[5],
+    title: 'Software para spa y masajes: turnos y señas | TurnosPro',
+    description:
+      'Turnos online para spa y masajistas: cada tratamiento con su duración, seña con Mercado Pago al reservar y recordatorios por WhatsApp. Empezá gratis.',
+    h1: 'Software para spa y centros de masajes',
+    eyebrow: 'Spa y masajes',
+    callout: 'Arrancás gratis, sin tarjeta, y cambiás de plan cuando tu agenda lo pida.',
+    intro: [
+      'En un spa el turno es largo y la camilla queda tomada: un masaje descontracturante de una hora, piedras calientes de noventa minutos, un day spa que ocupa media mañana. Si el cliente no viene, ese tiempo no se recupera. TurnosPro es un software de turnos para spa y centros de masajes: tus clientes reservan solos desde tu link, eligen el tratamiento y el masajista, la agenda bloquea la duración real de cada servicio y, si querés, pagan una seña con Mercado Pago al reservar.',
+      'Sirve si trabajás en un solo gabinete o si tenés un spa con varios masajistas y terapeutas. Te registrás con tu mail, sin tarjeta, y en el día ya tenés tu página de reservas para Instagram, WhatsApp y tu perfil de Google.',
+    ],
+    sections: [
+      {
+        h2: 'Cada tratamiento con su duración, también los de varias horas',
+        paragraphs: [
+          'Cargás tu carta de tratamientos con la duración y el precio de cada uno: masaje relajante, descontracturante, piedras calientes, drenaje linfático, reflexología, tratamientos corporales y faciales. Si vendés un day spa o un circuito, lo cargás como un servicio más, con su duración total y su precio.',
+          'Cuando un cliente reserva, solo ve los horarios donde ese tratamiento entra completo: un masaje de noventa minutos no se ofrece en un hueco de una hora. Los bloqueos que cargás, como la preparación de la sala, un descanso o un día libre, tampoco se ofrecen.',
+        ],
+        bullets: [
+          'Agenda por masajista o terapeuta, con vista diaria, semanal y mensual.',
+          'Disponibilidad en tiempo real: dos clientes no pueden tomar el mismo turno.',
+          'Bloqueos de horario por profesional.',
+          'Aviso en el momento cada vez que entra una reserva.',
+        ],
+      },
+      {
+        h2: 'Una agenda por profesional, no por sala',
+        paragraphs: [
+          'En TurnosPro cada agenda es la de una persona: el masajista o la terapeuta que hace el tratamiento. El cliente elige con quién atenderse y ve solo los horarios libres de esa persona.',
+          'TurnosPro no reserva salas, camillas ni equipos por separado. Si dos profesionales comparten una sala, ese cruce lo manejás con bloqueos en la agenda de cada uno.',
+        ],
+      },
+      {
+        h2: 'Seña con Mercado Pago para los turnos largos',
+        paragraphs: [
+          'Un masaje de noventa minutos que se cae a último momento es una camilla vacía durante una hora y media. Por eso podés pedir una seña al reservar: el cliente paga con Mercado Pago desde el celular, el turno se confirma solo cuando el pago se aprueba y la plata entra directo en tu cuenta.',
+          'La seña se configura tratamiento por tratamiento, en porcentaje del precio o monto fijo. Podés pedirla a todos, solo a los clientes nuevos o solo a los turnos que se reservan con muchos días de anticipación.',
+        ],
+        bullets: [
+          'Seña en porcentaje o monto fijo, por tratamiento.',
+          'Cobro con tu propia cuenta de Mercado Pago.',
+          'Comisión por cobro online de 5% en Gratuito, 2% en Plus, 1% en Advance y 0% en Pro.',
+          'Los pagos en efectivo o por transferencia manual no pagan comisión.',
+        ],
+      },
+      {
+        h2: 'Recordatorios por WhatsApp, turnos fijos y promociones',
+        paragraphs: [
+          'Desde el plan Plus, TurnosPro manda recordatorios automáticos por WhatsApp antes de cada turno, desde el número de tu spa, para que nadie se olvide.',
+          'Desde Advance podés cargar turnos recurrentes para los clientes que vienen todas las semanas al mismo masaje, y crear cupones de descuento para una promoción. En Pro, además, tenés la ficha y el historial de cada cliente, para saber qué tratamiento se hizo la última vez.',
+        ],
+      },
+      {
+        h2: 'Qué plan conviene para un spa',
+        paragraphs: [
+          'Todos los planes son los mismos para cualquier rubro, pero en un spa, con una carta de varios tratamientos, conviene mirar esto:',
+        ],
+        bullets: [
+          'Gratuito ($0, para siempre): 100 reservas por mes y hasta 3 agendas, con 1 servicio por agenda. Alcanza para probar con tus tratamientos principales.',
+          'Plus ($8.000 por mes): servicios ilimitados para cargar toda tu carta, 200 reservas por mes, hasta 5 agendas, recordatorios automáticos y 30 mensajes de WhatsApp.',
+          'Advance ($18.000 por mes): reservas y agendas ilimitadas, turnos recurrentes, cupones de descuento y 100 mensajes de WhatsApp.',
+          'Pro ($30.000 por mes): todo lo de Advance, ficha e historial de clientes, varias sucursales, 250 mensajes de WhatsApp y sin comisión por cobro online.',
+        ],
+        after: [
+          'Los precios son finales en pesos y no hay permanencia: cambiás de plan desde el panel cuando quieras.',
+        ],
+      },
+      {
+        h2: 'Cómo arrancar',
+        bullets: [
+          'Te registrás con tu mail: te llega un código y entrás al panel, sin tarjeta.',
+          'Cargás tus tratamientos con duración y precio, y los horarios de cada masajista.',
+          'Si querés seña, conectás tu cuenta de Mercado Pago y la activás en los tratamientos largos.',
+          'Ponés el link de reservas en Instagram, en tu WhatsApp y en tu perfil de Google.',
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: '¿TurnosPro sirve como software para un spa?',
+        a: 'Sí. Tus clientes reservan solos desde tu link, eligen el tratamiento y el masajista, y la agenda respeta lo que dura cada servicio. Podés pedir seña con Mercado Pago y, desde el plan Plus, mandar recordatorios por WhatsApp. La agenda es por profesional: TurnosPro no reserva salas ni camillas por separado.',
+      },
+      {
+        q: '¿Puedo cargar tratamientos largos o un day spa?',
+        a: 'Sí. Cada servicio tiene su duración y su precio, dure media hora o tres horas. Un day spa o un circuito se carga como un servicio con su duración total, y la agenda solo lo ofrece en los horarios donde entra completo.',
+      },
+      {
+        q: '¿Puedo pedir seña solo en algunos tratamientos?',
+        a: 'Sí. La seña se activa tratamiento por tratamiento, en porcentaje o monto fijo, y podés pedirla a todos los clientes, solo a los nuevos o solo a los turnos reservados con anticipación. Se cobra con tu cuenta de Mercado Pago y el turno se confirma cuando se aprueba el pago.',
+      },
+      {
+        q: '¿Mis clientes tienen que descargar una app?',
+        a: 'No. Reservan desde el navegador del celular, con el link que ponés en Instagram, WhatsApp o Google, sin registrarse ni instalar nada.',
+      },
+      {
+        q: '¿Puedo usar el plan gratis con toda mi carta de tratamientos?',
+        a: 'El plan Gratuito incluye 1 servicio por agenda: con 3 agendas, hasta 3 tratamientos. Si querés cargar toda tu carta, el plan Plus tiene servicios ilimitados y cuesta $8.000 por mes, sin permanencia.',
+      },
+      {
+        q: '¿Cuánto cuesta un software para spa?',
+        a: 'TurnosPro tiene un plan Gratuito para siempre, sin tarjeta, con 100 reservas por mes; los planes pagos cuestan $8.000 (Plus), $18.000 (Advance) y $30.000 (Pro) por mes, precio final en pesos, y no tienen permanencia.',
+      },
+    ],
+    datePublished: '2026-11-11',
+    dateModified: '2026-11-11',
   },
   {
     // Landing de funcionalidad (no es un rubro): no va en verticalLinks para no aparecer en BusinessTypes/Footer.
