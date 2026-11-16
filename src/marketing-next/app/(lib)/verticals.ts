@@ -186,11 +186,11 @@ export const verticals: VerticalContent[] = [
         h2: 'Turnos cortos, muchos por día, cero superposiciones',
         paragraphs: [
           'Un sistema de turnos para barberías tiene que aguantar veinte o treinta reservas diarias por barbero sin confundirse. En TurnosPro cada servicio tiene su duración exacta: corte, corte y barba, perfilado, afeitado clásico o diseño. La agenda arma los huecos con esa duración y muestra al cliente solo los horarios que realmente están libres.',
-          'Si un barbero se toma el mediodía o falta un día, lo bloqueás en dos toques y esos horarios desaparecen del sitio. Si un cliente viene cada dos semanas, le dejás un turno recurrente y no tiene que reservar de nuevo.',
+          'Si un barbero se toma el mediodía o falta un día, lo bloqueás en dos toques y esos horarios desaparecen del sitio. Si un cliente viene cada dos semanas, desde el plan Advance le dejás un turno recurrente y no tiene que reservar de nuevo.',
         ],
         bullets: [
           'Agenda independiente por barbero con vista diaria, semanal y mensual.',
-          'Bloqueos de horario y turnos recurrentes.',
+          'Bloqueos de horario, y turnos recurrentes desde el plan Advance.',
           'Disponibilidad en tiempo real: sin dobles reservas.',
           'Notificaciones en el momento cada vez que entra una reserva.',
           'Reservas online ilimitadas desde el plan Advance.',
@@ -227,7 +227,7 @@ export const verticals: VerticalContent[] = [
         h2: 'Catálogo de servicios con precios claros',
         paragraphs: [
           'Corte, corte y barba, barba sola, afeitado con toalla caliente, diseño, color: cada servicio con su precio, su duración y qué barbero lo hace. El catálogo se ve en tu sitio de reservas, así el cliente sabe qué va a pagar antes de sentarse, y la agenda sabe cuánto va a durar.',
-          'Si tenés más de un local, cargás las sucursales y cada una tiene su equipo y su agenda. Y con los reportes y métricas ves qué barbero factura más, qué días se llenan y qué servicios conviene empujar.',
+          'Si tenés más de un local, en el plan Pro cargás las sucursales y cada una tiene su equipo y su agenda. Y con los reportes y métricas ves qué barbero factura más, qué días se llenan y qué servicios conviene empujar.',
         ],
       },
       {
@@ -247,7 +247,7 @@ export const verticals: VerticalContent[] = [
     faqs: [
       {
         q: '¿Sirve para una barbería con varios barberos?',
-        a: 'Sí. Cada barbero tiene su propia agenda, sus horarios y sus servicios. El cliente elige con quién cortarse y solo ve los horarios libres de esa persona. También podés cargar más de una sucursal.',
+        a: 'Sí. Cada barbero tiene su propia agenda, sus horarios y sus servicios. El cliente elige con quién cortarse y solo ve los horarios libres de esa persona. En el plan Pro también podés cargar más de una sucursal.',
       },
       {
         q: '¿Puedo cobrar el corte completo por adelantado?',
@@ -267,7 +267,7 @@ export const verticals: VerticalContent[] = [
       },
     ],
     datePublished: '2026-09-03',
-    dateModified: '2026-10-16',
+    dateModified: '2026-11-16',
   },
   {
     ...verticalLinks[2],
@@ -379,10 +379,10 @@ export const verticals: VerticalContent[] = [
         h2: 'Turnos recurrentes para pacientes que vienen todas las semanas',
         paragraphs: [
           'En psicología, nutrición o kinesiología la mayoría de los pacientes repiten: el mismo día, a la misma hora, semana tras semana. Un sistema de turnos para consultorios tiene que hacer eso en un solo paso, no obligarte a cargar cada sesión a mano.',
-          'En TurnosPro creás el turno recurrente una vez y la agenda lo repite con la frecuencia que definas. Si el paciente necesita cambiar una sesión puntual, la movés sin romper la serie. Y si se da de alta o pausa el tratamiento, cortás la recurrencia y esos horarios quedan libres para pacientes nuevos.',
+          'En TurnosPro, desde el plan Advance, creás el turno recurrente una vez y la agenda lo repite con la frecuencia que definas. Si el paciente necesita cambiar una sesión puntual, la movés sin romper la serie. Y si se da de alta o pausa el tratamiento, cortás la recurrencia y esos horarios quedan libres para pacientes nuevos.',
         ],
         bullets: [
-          'Turnos recurrentes semanales o con la frecuencia que elijas.',
+          'Turnos recurrentes semanales o con la frecuencia que elijas, desde el plan Advance.',
           'Vista diaria, semanal y mensual por profesional.',
           'Bloqueos de horario para supervisiones, cursos o vacaciones.',
           'Disponibilidad en tiempo real en tu sitio de reservas.',
@@ -398,7 +398,7 @@ export const verticals: VerticalContent[] = [
       {
         h2: 'Historial de turnos de cada paciente',
         paragraphs: [
-          'TurnosPro guarda el historial de turnos y las preferencias de cada paciente, con la comunicación centralizada en un solo lugar: cuándo vino, qué servicio tomó, si confirmó o canceló, si dejó seña. Eso te sirve para ver rápido quién falta seguido, quién está al día y cuándo fue la última sesión.',
+          'En el plan Pro, TurnosPro guarda el historial de turnos y las preferencias de cada paciente, con la comunicación centralizada en un solo lugar: cuándo vino, qué servicio tomó, si confirmó o canceló, si dejó seña. Eso te sirve para ver rápido quién falta seguido, quién está al día y cuándo fue la última sesión.',
           'Aclaración importante: TurnosPro es un sistema de gestión de turnos, no una historia clínica. Los datos de cada consultorio están aislados de los demás negocios y solo los ve el equipo que vos autorizás, según su rol.',
         ],
       },
@@ -417,7 +417,7 @@ export const verticals: VerticalContent[] = [
         ],
         bullets: [
           'Catálogo de prestaciones con duración y precio.',
-          'Varios profesionales y sucursales bajo la misma cuenta.',
+          'Varios profesionales bajo la misma cuenta, y varias sedes en el plan Pro.',
           'Notificaciones en tiempo real ante cada reserva.',
           'Reportes de ocupación y facturación.',
         ],
@@ -439,7 +439,7 @@ export const verticals: VerticalContent[] = [
     faqs: [
       {
         q: '¿Puedo cargar un turno fijo semanal para un paciente?',
-        a: 'Sí. Creás el turno recurrente una sola vez, con la frecuencia que quieras, y la agenda lo repite. Podés mover una sesión puntual sin afectar el resto o cortar la serie cuando el paciente termina el tratamiento.',
+        a: 'Sí, desde el plan Advance. Creás el turno recurrente una sola vez, con la frecuencia que quieras, y la agenda lo repite. Podés mover una sesión puntual sin afectar el resto o cortar la serie cuando el paciente termina el tratamiento.',
       },
       {
         q: '¿La confirmación por WhatsApp es automática?',
@@ -447,11 +447,11 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿TurnosPro reemplaza la historia clínica?',
-        a: 'No. TurnosPro gestiona turnos, recordatorios, señas y el historial de turnos de cada paciente. No es una historia clínica ni reemplaza tu sistema de registros clínicos.',
+        a: 'No. TurnosPro gestiona turnos, recordatorios, señas y, en el plan Pro, el historial de turnos de cada paciente. No es una historia clínica ni reemplaza tu sistema de registros clínicos.',
       },
       {
         q: '¿Sirve para un consultorio con varios profesionales?',
-        a: 'Sí. Cada profesional tiene su agenda, sus horarios y sus prestaciones. El paciente elige con quién atenderse y ve solo los horarios libres de esa persona. También podés cargar más de una sede.',
+        a: 'Sí. Cada profesional tiene su agenda, sus horarios y sus prestaciones. El paciente elige con quién atenderse y ve solo los horarios libres de esa persona. En el plan Pro también podés cargar más de una sede.',
       },
       {
         q: '¿Cuánto cuesta un sistema de turnos para consultorios?',
@@ -459,7 +459,7 @@ export const verticals: VerticalContent[] = [
       },
     ],
     datePublished: '2026-09-03',
-    dateModified: '2026-10-16',
+    dateModified: '2026-11-16',
   },
   {
     // Rubro uñas/manicura (keyword-map A, 03/11). Hechos: límites y precios de /api/subscription-plans y
@@ -703,8 +703,8 @@ export const verticals: VerticalContent[] = [
       {
         h2: 'Tu web de reservas, abierta las 24 horas',
         paragraphs: [
-          'TurnosPro te da un sitio de reservas propio, rápido y pensado para el celular. Cargás tu catálogo de servicios con duración y precio, tus profesionales con sus horarios y, si tenés más de una, tus sucursales. El cliente entra desde el link que compartís en Instagram, en tu perfil de Google o en el estado de WhatsApp, elige servicio, profesional y horario, y reserva sin descargar ninguna app ni crear una cuenta.',
-          'La disponibilidad se calcula en tiempo real: dos clientes no pueden tomar el mismo horario, los bloqueos que cargás (almuerzo, cursos, vacaciones) no se ofrecen y los turnos recurrentes se repiten solos. Vos ves todo en una agenda por profesional con vista diaria, semanal y mensual.',
+          'TurnosPro te da un sitio de reservas propio, rápido y pensado para el celular. Cargás tu catálogo de servicios con duración y precio, tus profesionales con sus horarios y, en el plan Pro, tus sucursales. El cliente entra desde el link que compartís en Instagram, en tu perfil de Google o en el estado de WhatsApp, elige servicio, profesional y horario, y reserva sin descargar ninguna app ni crear una cuenta.',
+          'La disponibilidad se calcula en tiempo real: dos clientes no pueden tomar el mismo horario, los bloqueos que cargás (almuerzo, cursos, vacaciones) no se ofrecen y, desde el plan Advance, los turnos recurrentes se repiten solos. Vos ves todo en una agenda por profesional con vista diaria, semanal y mensual.',
         ],
       },
       {
@@ -729,7 +729,7 @@ export const verticals: VerticalContent[] = [
       {
         h2: 'Gestión de clientes y reportes',
         paragraphs: [
-          'Cada cliente tiene su ficha con historial de turnos y preferencias, así que la persona que atiende sabe quién viene y qué se hizo la última vez. Los reportes te muestran ocupación y facturación por profesional y por sucursal, para saber qué horarios se llenan, qué servicios se venden y a quién conviene darle más agenda.',
+          'En el plan Pro, cada cliente tiene su ficha con historial de turnos y preferencias, así que la persona que atiende sabe quién viene y qué se hizo la última vez. Los reportes te muestran ocupación y facturación por profesional (y por sucursal, en Pro), para saber qué horarios se llenan, qué servicios se venden y a quién conviene darle más agenda.',
         ],
       },
       {
@@ -772,11 +772,11 @@ export const verticals: VerticalContent[] = [
       },
       {
         q: '¿Sirve para varios profesionales o varias sucursales?',
-        a: 'Sí. Cada profesional tiene su agenda, sus servicios y sus horarios, y podés cargar más de una sucursal bajo la misma cuenta, sin pagar por profesional: el plan Gratuito incluye hasta 3 agendas, Plus hasta 5 y Advance y Pro, ilimitadas.',
+        a: 'Sí. Cada profesional tiene su agenda, sus servicios y sus horarios, y en el plan Pro podés cargar más de una sucursal bajo la misma cuenta. No pagás por profesional: el plan Gratuito incluye hasta 3 agendas, Plus hasta 5 y Advance y Pro, ilimitadas.',
       },
     ],
     datePublished: '2026-09-04',
-    dateModified: '2026-10-16',
+    dateModified: '2026-11-16',
   },
   {
     // Landing de funcionalidad (señas). Cada afirmación sale del backend:
