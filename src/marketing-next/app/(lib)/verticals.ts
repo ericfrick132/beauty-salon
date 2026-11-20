@@ -685,6 +685,116 @@ export const verticals: VerticalContent[] = [
     dateModified: '2026-11-11',
   },
   {
+    // Rubro psicólogos (keyword-map A: "ampliar consultorios a psicólogos", 20/11). Hechos: precios y límites
+    // de /api/subscription-plans; turnos recurrentes cada 1 a 4 semanas desde Advance (BookingSeriesController,
+    // IntervalWeeks 1-4); recordatorios, bot de confirmación (1 o 2) y cancelación por WhatsApp con
+    // "Anticipación para cancelar" desde Plus (curso.ts); datos extra al reservar desde Advance; seña por
+    // servicio (Service.RequiresDeposit/DepositPolicy); ficha e historial en Pro. No hay historia clínica,
+    // obras sociales ni link de videollamada: la sesión online es una prestación más y no se promete otra cosa.
+    ...verticalLinks[6],
+    title: 'Agenda online para psicólogos | TurnosPro',
+    description:
+      'Agenda online para psicólogos: sesiones fijas cada semana o cada quince días, recordatorio y confirmación por WhatsApp y seña con Mercado Pago. Empezá gratis.',
+    h1: 'Agenda online y turnos para psicólogos',
+    eyebrow: 'Psicólogos',
+    callout: 'Lo armás en un rato y arrancás gratis, sin tarjeta.',
+    intro: [
+      'La agenda de un psicólogo es casi toda de pacientes que vuelven: el mismo día y a la misma hora, cada semana o cada quince días. El trabajo no es dar turnos nuevos, es sostener esa agenda: recordarle la sesión a cada paciente, enterarte a tiempo de quién no viene y reacomodar cuando alguien cambia el horario o se toma vacaciones. TurnosPro es una agenda online para psicólogos: cargás la sesión fija de cada paciente una sola vez, los pacientes nuevos piden la primera entrevista solos desde tu link y, desde el plan Plus, cada uno recibe el recordatorio por WhatsApp antes de su sesión.',
+      'Sirve si atendés solo, en tu consultorio o en tu casa, y también si compartís un espacio con otros terapeutas y cada uno tiene su agenda. Te registrás con tu mail, sin tarjeta, y en el día ya tenés tu link de turnos.',
+    ],
+    sections: [
+      {
+        h2: 'Sesiones fijas cada semana o cada quince días',
+        paragraphs: [
+          'Desde el plan Advance cargás el turno recurrente de cada paciente una sola vez: elegís el día, la hora y si se repite cada semana, cada dos, tres o cuatro semanas, y la agenda lo reserva solo. Si un paciente necesita mover una sesión puntual, la cambiás sin romper el resto de la serie; si termina el tratamiento o lo pausa, cortás la serie y esos horarios vuelven a quedar libres.',
+          'Para tus vacaciones, una supervisión o un curso, cargás un bloqueo de horario y ese tiempo deja de ofrecerse en tu página de reservas.',
+        ],
+        bullets: [
+          'Turnos recurrentes cada 1, 2, 3 o 4 semanas, desde el plan Advance.',
+          'Vista diaria, semanal y mensual de tu agenda.',
+          'Bloqueos de horario para vacaciones, supervisiones o cursos.',
+          'Disponibilidad en tiempo real: dos pacientes no pueden tomar el mismo horario.',
+        ],
+      },
+      {
+        h2: 'Recordatorio y confirmación por WhatsApp antes de cada sesión',
+        paragraphs: [
+          'Desde el plan Plus, TurnosPro le manda a cada paciente un WhatsApp automático antes de su sesión, con la anticipación que elijas. Con el bot de confirmación, el paciente responde 1 para confirmar o 2 si no puede ir, y tu agenda se actualiza sola: si cancela, el horario queda libre para otro paciente.',
+          'Así te enterás antes de la sesión, y no con el consultorio vacío, de quién no va a venir. Los recordatorios salen desde el WhatsApp de tu consultorio, con tu nombre.',
+        ],
+      },
+      {
+        h2: 'Primera entrevista desde tu link, con la sesión online como una prestación más',
+        paragraphs: [
+          'Los pacientes nuevos piden la primera entrevista desde tu página de reservas, sin registrarse ni instalar nada: eligen la prestación y un horario libre y dejan sus datos. Cargás cada prestación con su duración y, si querés, su precio: primera entrevista, sesión individual, sesión de pareja o sesión online. Desde el plan Advance podés sumar una pregunta propia al formulario de reserva, como el motivo de consulta o cómo te conoció.',
+          'Si atendés por videollamada, la sesión online es una prestación más de tu agenda. TurnosPro no genera el link de la videollamada: lo mandás vos por el medio que ya usás.',
+        ],
+      },
+      {
+        h2: 'Seña con Mercado Pago para la primera entrevista',
+        paragraphs: [
+          'Si una primera entrevista se cae sin aviso, ese horario se pierde. Podés pedir una seña al reservar: el paciente paga con Mercado Pago desde el celular, el turno se confirma cuando se aprueba el pago y la plata entra en tu cuenta. La seña se configura prestación por prestación, en porcentaje o monto fijo, y podés pedírsela a todos los pacientes o solo a los nuevos.',
+        ],
+        bullets: [
+          'Seña en porcentaje o monto fijo, por prestación.',
+          'Cobro con tu propia cuenta de Mercado Pago.',
+          'Comisión por cobro online de 5% en Gratuito, 2% en Plus, 1% en Advance y 0% en Pro.',
+          'Los pagos en efectivo o por transferencia manual no pagan comisión.',
+        ],
+      },
+      {
+        h2: 'Una agenda de turnos, no una historia clínica',
+        paragraphs: [
+          'TurnosPro organiza tus turnos, recordatorios y cobros. En el plan Pro tenés además la ficha y el historial de turnos de cada paciente: cuándo vino, qué prestación tomó, si confirmó o canceló. No es una historia clínica ni gestiona obras sociales o prepagas, así que tus notas de sesión siguen donde las llevás hoy.',
+          'Los datos de tu agenda están separados de los de los demás negocios y solo los ve el equipo que vos autorizás.',
+        ],
+      },
+      {
+        h2: 'Qué plan conviene para un psicólogo',
+        paragraphs: [
+          'Todos los planes son los mismos para cualquier rubro, pero con pacientes de sesión fija conviene mirar esto:',
+        ],
+        bullets: [
+          'Gratuito ($0, para siempre): 100 reservas por mes y hasta 3 agendas. Alcanza para recibir primeras entrevistas desde tu link.',
+          'Plus ($8.000 por mes): 200 reservas por mes, hasta 5 agendas, recordatorios y confirmación por WhatsApp y 30 mensajes de WhatsApp.',
+          'Advance ($18.000 por mes): reservas y agendas ilimitadas, turnos recurrentes para tus pacientes de sesión fija y 100 mensajes de WhatsApp.',
+          'Pro ($30.000 por mes): todo lo de Advance, ficha e historial de cada paciente, 250 mensajes de WhatsApp y sin comisión por cobro online.',
+        ],
+        after: [
+          'Los precios son finales en pesos y no hay permanencia: cambiás de plan desde el panel cuando quieras.',
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: '¿TurnosPro sirve como agenda online para psicólogos?',
+        a: 'Sí. Cargás tus prestaciones y tus horarios, los pacientes nuevos reservan solos desde tu link y, desde el plan Advance, la sesión fija de cada paciente se repite sola cada 1 a 4 semanas. Desde el plan Plus, cada paciente recibe el recordatorio por WhatsApp antes de su sesión.',
+      },
+      {
+        q: '¿Puedo cargar la sesión fija semanal de cada paciente?',
+        a: 'Sí, desde el plan Advance. Creás el turno recurrente una vez, elegís si se repite cada semana o cada 2, 3 o 4 semanas, y la agenda lo reserva sola. Podés mover una sesión puntual sin afectar el resto o cortar la serie cuando el paciente termina el tratamiento.',
+      },
+      {
+        q: '¿El paciente puede confirmar o cancelar la sesión por WhatsApp?',
+        a: 'Sí, desde el plan Plus. Le llega el recordatorio y responde 1 para confirmar o 2 si no puede ir; si cancela, el horario se libera en tu agenda.',
+      },
+      {
+        q: '¿Sirve para sesiones online?',
+        a: 'Sí, como una prestación más: cargás la sesión online con su duración y su precio y el paciente la reserva como cualquier otra. TurnosPro no genera el link de la videollamada; lo mandás vos por el medio que ya usás.',
+      },
+      {
+        q: '¿TurnosPro reemplaza la historia clínica?',
+        a: 'No. TurnosPro gestiona turnos, recordatorios, señas y, en el plan Pro, el historial de turnos de cada paciente. No es una historia clínica ni gestiona obras sociales o prepagas.',
+      },
+      {
+        q: '¿Cuánto cuesta una agenda online para psicólogos?',
+        a: 'TurnosPro tiene un plan Gratuito para siempre, sin tarjeta, con 100 reservas por mes; los planes pagos cuestan $8.000 (Plus), $18.000 (Advance) y $30.000 (Pro) por mes, precio final en pesos, y no tienen permanencia.',
+      },
+    ],
+    datePublished: '2026-11-20',
+    dateModified: '2026-11-20',
+  },
+  {
     // Landing de funcionalidad (no es un rubro): no va en verticalLinks para no aparecer en BusinessTypes/Footer.
     slug: 'reservas-online',
     path: '/reservas-online',

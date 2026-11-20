@@ -9,6 +9,7 @@ export const verticalLinks: VerticalLink[] = [
   { slug: 'sistema-de-turnos-para-consultorios', path: '/sistema-de-turnos-para-consultorios', label: 'Consultorios', businessTypeLabel: 'Consultorios' },
   { slug: 'sistema-de-turnos-para-manicuras', path: '/sistema-de-turnos-para-manicuras', label: 'Salones de uñas', businessTypeLabel: 'Uñas' },
   { slug: 'sistema-de-turnos-para-spa', path: '/sistema-de-turnos-para-spa', label: 'Spa y masajes', businessTypeLabel: 'Spa' },
+  { slug: 'sistema-de-turnos-para-psicologos', path: '/sistema-de-turnos-para-psicologos', label: 'Psicólogos', businessTypeLabel: 'Psicólogos' },
 ];
 
 // Landings de funcionalidad (no son rubros): van al Footer pero no a BusinessTypes ni a RelatedVerticals.
