@@ -162,6 +162,9 @@ const Settings: React.FC = () => {
     businessName: '',
     description: '',
     address: '',
+    // Directorio público de TurnosPro (turnos-pro.com/negocios): ciudad y si el negocio aparece.
+    city: '',
+    isListed: true,
     phone: '',
     email: '',
     website: '',
@@ -177,6 +180,9 @@ const Settings: React.FC = () => {
       workingDays: [1, 2, 3, 4, 5, 6], // Monday to Saturday
     }
   });
+
+  // El directorio público lista negocios de Argentina y Uruguay (BusinessDirectoryRules.ListedCountries).
+  const directoryCountry = ['AR', 'UY'].includes(generalSettings.country);
 
   const [businessHoursSettings, setBusinessHoursSettings] = useState({
     openingTime: '09:00',
@@ -301,6 +307,8 @@ const Settings: React.FC = () => {
           businessName: tenantResponse.data.businessName || '',
           description: tenantResponse.data.description || '',
           address: tenantResponse.data.address || '',
+          city: tenantResponse.data.city || '',
+          isListed: tenantResponse.data.isListed ?? true,
           phone: tenantResponse.data.phone || '',
           email: tenantResponse.data.email || '',
           website: tenantResponse.data.website || '',
@@ -793,7 +801,7 @@ const Settings: React.FC = () => {
                 />
               </Grid>
 
-              <Grid item xs={12}>
+              <Grid item xs={12} md={directoryCountry ? 8 : 12}>
                 <TextField
                   fullWidth
                   label="Dirección"
@@ -812,6 +820,47 @@ const Settings: React.FC = () => {
                   }}
                 />
               </Grid>
+
+              {directoryCountry && (
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    fullWidth
+                    label="Ciudad"
+                    placeholder="Ej: Plottier"
+                    value={generalSettings.city}
+                    onChange={(e) => setGeneralSettings(prev => ({
+                      ...prev,
+                      city: e.target.value
+                    }))}
+                    variant="outlined"
+                    inputProps={{ maxLength: 80 }}
+                    helperText="Si la dejás vacía, la tomamos de la dirección."
+                  />
+                </Grid>
+              )}
+
+              {directoryCountry && (
+                <Grid item xs={12}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={generalSettings.isListed}
+                        onChange={(e) => setGeneralSettings(prev => ({
+                          ...prev,
+                          isListed: e.target.checked
+                        }))}
+                      />
+                    }
+                    label="Mostrar mi negocio en el directorio de TurnosPro"
+                  />
+                  <Typography variant="body2" color="text.secondary">
+                    Tu negocio aparece en turnos-pro.com/negocios, en la página de tu ciudad y de tu rubro, con el
+                    nombre, el rubro, la dirección, hasta 5 servicios y el botón para reservar. No se muestran el
+                    teléfono, el mail ni los precios. Aparecen los negocios con ciudad o dirección cargada y turnos
+                    en los últimos 90 días.
+                  </Typography>
+                </Grid>
+              )}
 
               <Grid item xs={12}>
                 <TextField
