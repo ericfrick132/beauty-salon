@@ -35,7 +35,11 @@ export default function robots() {
           { userAgent: AI_TRAINING_BOTS, disallow: '/' },
         ]
       : [{ userAgent: '*', disallow: '/' }],
-    // El blog central lo sirve el backend (/blog) con su propio sitemap.
-    sitemap: [`${brand.brand_domain}/sitemap.xml`, `${brand.brand_domain}/blog/sitemap.xml`],
+    // El blog central (/blog) y el directorio de negocios (/negocios) los sirve el backend, cada uno con su sitemap.
+    sitemap: [
+      `${brand.brand_domain}/sitemap.xml`,
+      `${brand.brand_domain}/blog/sitemap.xml`,
+      `${brand.brand_domain}/negocios/sitemap.xml`,
+    ],
   };
 }

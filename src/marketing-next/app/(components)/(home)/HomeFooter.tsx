@@ -61,6 +61,8 @@ export default function HomeFooter() {
                 {b.label}
               </Box>
             ))}
+            {/* /negocios lo sirve el backend (directorio público), igual que /blog: <a> común, no next/link. */}
+            <Box component="a" href="/negocios/" sx={linkSx}>Negocios que usan TurnosPro</Box>
             <Box component="a" href="/blog/" sx={linkSx}>Blog</Box>
             <Box component={Link} href="/ayuda" sx={linkSx}>Centro de ayuda</Box>
             <Box component={Link} href="/demo-admin" sx={linkSx}>Demo del panel</Box>

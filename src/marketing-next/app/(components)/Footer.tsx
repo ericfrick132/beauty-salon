@@ -245,6 +245,14 @@ export default function Footer({ tagline, findUsLabel, countryLinks }: FooterPro
                   {b.label}
                 </MuiLink>
               ))}
+              {/* /negocios lo sirve el backend (directorio público), igual que /blog: link común, no next/link. */}
+              <MuiLink
+                href="/negocios/"
+                underline="hover"
+                sx={{ color: 'rgba(244,239,230,0.7)', fontSize: '0.92rem', '&:hover': { color: palette.paper } }}
+              >
+                Negocios que usan TurnosPro
+              </MuiLink>
               <MuiLink
                 href="/blog/"
                 underline="hover"

@@ -7,6 +7,7 @@ TurnosPro es un producto de efcloud (Argentina). Cada negocio tiene su página p
 ## Producto
 
 - [Inicio](https://turnos-pro.com/): qué hace TurnosPro, para quién es y precios.
+- [Directorio de negocios](https://turnos-pro.com/negocios/): negocios de Argentina y Uruguay que toman turnos online con TurnosPro, por ciudad y por rubro (peluquerías, barberías, centros de estética, manicuras, spas), con nombre, dirección, servicios y el link para reservar en cada uno.
 - [Sistema de turnos para peluquerías](https://turnos-pro.com/sistema-de-turnos-para-peluquerias): agenda por estilista, señas y recordatorios.
 - [Sistema de turnos para barberías](https://turnos-pro.com/sistema-de-turnos-para-barberias): turnos cortos, reservas desde Instagram.
 - [Sistema de turnos para centros de estética](https://turnos-pro.com/sistema-de-turnos-para-centros-de-estetica): agenda por profesional (no reserva cabinas ni equipos por separado), tratamientos largos y señas.
@@ -44,4 +45,4 @@ TurnosPro es un producto de efcloud (Argentina). Cada negocio tiene su página p
 ## Optional
 
 - [Política de privacidad](https://turnos-pro.com/privacidad) y [términos](https://turnos-pro.com/terminos)
-- [Sitemap](https://turnos-pro.com/sitemap.xml) y [sitemap del blog](https://turnos-pro.com/blog/sitemap.xml)
+- [Sitemap](https://turnos-pro.com/sitemap.xml), [sitemap del blog](https://turnos-pro.com/blog/sitemap.xml) y [sitemap del directorio de negocios](https://turnos-pro.com/negocios/sitemap.xml)
