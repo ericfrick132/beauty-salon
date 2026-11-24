@@ -203,6 +203,10 @@ namespace BookingPro.API.Data
                 entity.HasIndex(t => t.SchemaName).IsUnique();
                 entity.HasIndex(t => t.CustomDomain).IsUnique();
                 entity.Property(t => t.Country).HasDefaultValue("AR");
+                // Directorio público: los negocios que ya existen quedan listados (default de la columna) y cada
+                // uno puede salir desde su panel. ValueGeneratedNever: EF manda siempre el valor del objeto, así
+                // un false explícito no se reemplaza por el default.
+                entity.Property(t => t.IsListed).HasDefaultValue(true).ValueGeneratedNever();
 
                 entity.HasOne(t => t.Vertical)
                     .WithMany(v => v.Tenants)

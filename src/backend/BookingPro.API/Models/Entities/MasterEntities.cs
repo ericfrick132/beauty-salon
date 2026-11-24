@@ -64,6 +64,19 @@ namespace BookingPro.API.Models.Entities
         
         [MaxLength(500)]
         public string? BusinessAddress { get; set; }
+
+        /// <summary>
+        /// Ciudad del negocio para el directorio público (/negocios/&lt;ciudad&gt;/). Null = se deduce de
+        /// BusinessAddress (ver BusinessDirectoryRules.EffectiveCity).
+        /// </summary>
+        [MaxLength(80)]
+        public string? City { get; set; }
+
+        /// <summary>
+        /// El negocio aparece en el directorio público de TurnosPro. Prendido por defecto; el dueño lo apaga
+        /// en Configuración → General.
+        /// </summary>
+        public bool IsListed { get; set; } = true;
         
         [MaxLength(100)]
         public string? TimeZone { get; set; } = "UTC";

@@ -53,6 +53,8 @@ namespace BookingPro.API.Utilities
                 path.StartsWith("/api/auth/apple-login") ||
                 path.StartsWith("/api/tracking") ||
                 path.StartsWith("/blog") ||
+                // Directorio público de negocios: se sirve en el dominio principal, sin tenant.
+                path.StartsWith("/negocios") ||
                 path.StartsWith("/health") ||
                 path.StartsWith("/ping") ||
                 path.StartsWith("/swagger"))

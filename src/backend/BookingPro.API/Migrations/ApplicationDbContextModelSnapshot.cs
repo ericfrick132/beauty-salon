@@ -4238,6 +4238,10 @@ namespace BookingPro.API.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
 
+                    b.Property<string>("City")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
                     b.Property<string>("Country")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -4291,6 +4295,10 @@ namespace BookingPro.API.Migrations
 
                     b.Property<bool>("IsDemo")
                         .HasColumnType("boolean");
+
+                    b.Property<bool>("IsListed")
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
 
                     b.Property<string>("Language")
                         .HasMaxLength(10)

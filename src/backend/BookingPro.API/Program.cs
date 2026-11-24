@@ -298,15 +298,16 @@ if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Ena
 
 app.UseHttpsRedirection();
 
-// /blog vive solo en turnos-pro.com: el ingress de DO lo manda directo acá
-// (no pasa por nginx) y en el subdominio de cada negocio era una copia que
-// Google marcaba "página alternativa con canónica". 301 al dominio principal.
+// /blog y /negocios (directorio público) viven solo en turnos-pro.com: el ingress
+// de DO los manda directo acá (no pasan por nginx) y en el subdominio de cada
+// negocio serían una copia que Google marca "página alternativa con canónica".
+// 301 al dominio principal.
 app.Use(async (context, next) =>
 {
     var req = context.Request;
     var host = req.Host.Host.ToLowerInvariant();
     if ((HttpMethods.IsGet(req.Method) || HttpMethods.IsHead(req.Method)) &&
-        req.Path.StartsWithSegments("/blog") &&
+        (req.Path.StartsWithSegments("/blog") || req.Path.StartsWithSegments("/negocios")) &&
         host.EndsWith(".turnos-pro.com"))
     {
         context.Response.StatusCode = StatusCodes.Status301MovedPermanently;

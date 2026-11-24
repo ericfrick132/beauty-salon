@@ -141,6 +141,9 @@ namespace BookingPro.API.Controllers
                     vertical = tenantInfo.VerticalCode,
                     domain = tenantInfo.Domain,
                     address = tenant.BusinessAddress,
+                    // Directorio público (/negocios): ciudad cargada a mano y si el negocio se lista.
+                    city = tenant.City,
+                    isListed = tenant.IsListed,
                     phone = tenant.OwnerPhone,
                     email = tenant.OwnerEmail,
                     ownerName = tenant.OwnerName,
@@ -181,6 +184,19 @@ namespace BookingPro.API.Controllers
 
                 if (request.Address != null)
                     tenant.BusinessAddress = string.IsNullOrWhiteSpace(request.Address) ? null : request.Address.Trim();
+
+                // Directorio público. Vacío = la ciudad se deduce de la dirección. Las apps que todavía no
+                // mandan estos campos no los pisan (null = sin cambio).
+                if (request.City != null)
+                {
+                    var city = request.City.Trim();
+                    if (city.Length > 80)
+                        return BadRequest(new { message = "La ciudad no puede tener más de 80 caracteres" });
+                    tenant.City = city.Length == 0 ? null : city;
+                }
+
+                if (request.IsListed.HasValue)
+                    tenant.IsListed = request.IsListed.Value;
 
                 if (request.Phone != null)
                     tenant.OwnerPhone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
@@ -223,6 +239,8 @@ namespace BookingPro.API.Controllers
                 _cache.Remove($"tenant_header_{tenant.Subdomain}");
                 _cache.Remove($"tenant_qs_{tenant.Subdomain}");
                 _cache.Remove($"tenant_{host}");
+                // Nombre, dirección, ciudad y "mostrar en el directorio" salen en /negocios: que se vea ya.
+                _cache.Remove(BusinessDirectoryController.CacheKey);
 
                 return Ok(new { message = "Configuración guardada correctamente" });
             }
@@ -391,6 +409,10 @@ namespace BookingPro.API.Controllers
         public string? BusinessName { get; set; }
         public string? Description { get; set; }
         public string? Address { get; set; }
+        /// <summary>Ciudad para el directorio público. "" la borra (se vuelve a deducir de la dirección).</summary>
+        public string? City { get; set; }
+        /// <summary>Mostrar el negocio en el directorio público (/negocios). null = sin cambio.</summary>
+        public bool? IsListed { get; set; }
         public string? Phone { get; set; }
         public string? Email { get; set; }
         public string? Website { get; set; }
