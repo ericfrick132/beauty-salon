@@ -14,8 +14,11 @@ namespace BookingPro.API.Utilities
         /// <summary>Un negocio entra si tiene turnos no cancelados con fecha en esta ventana o más adelante (cuentas de prueba afuera).</summary>
         public const int RecentBookingDays = 90;
 
-        /// <summary>Cuántos turnos no cancelados tiene que tener en la ventana.</summary>
-        public const int MinRecentBookings = 1;
+        /// <summary>
+        /// Cuántos turnos no cancelados tiene que tener en la ventana. Con 1 alcanzaba el turno de prueba de
+        /// alguien que se registró para mirar; 5 es un negocio que lo está usando.
+        /// </summary>
+        public const int MinRecentBookings = 5;
 
         public const int MaxServicesPerCard = 5;
 
@@ -75,9 +78,10 @@ namespace BookingPro.API.Utilities
 
         // Vertical.Code (ApplicationDbContextSeed). En producción hoy existen barbershop, peluqueria,
         // aesthetics y nailsalon; el resto solo está en el seed. "sports" (canchas) no tiene rubro acá.
+        // "barbershop" no está a propósito: es el vertical que le queda a quien eligió el template "en blanco"
+        // (el primero de la tabla), así que sin BusinessKind no se sabe si es una barbería. Va a "Otros".
         private static readonly Dictionary<string, Rubro> ByVerticalCode = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["barbershop"] = Barberias,
             ["peluqueria"] = Peluquerias,
             ["aesthetics"] = Estetica,
             ["nailsalon"] = Manicuras,
