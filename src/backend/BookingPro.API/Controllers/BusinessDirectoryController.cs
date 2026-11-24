@@ -16,10 +16,14 @@ namespace BookingPro.API.Controllers
     /// El ingress de DO tiene que enrutar el prefijo /negocios al backend (igual que /api y /blog); en el
     /// subdominio de un negocio, Program.cs lo manda con 301 a turnos-pro.com.
     ///
-    /// Entra un negocio si (todas): está activo, no es demo, no se ocultó (Tenant.IsListed), es de un país
-    /// listado, no es de prueba ni del equipo, se le puede sacar una ciudad, tiene al menos un servicio y un
-    /// profesional activos y tuvo turnos en los últimos 90 días. Las reglas que no son de base están en
+    /// Entra un negocio si (todas): está activo, no se ocultó (Tenant.IsListed), es de un país listado, no
+    /// es de prueba ni del equipo, se le puede sacar una ciudad, tiene al menos un servicio y un profesional
+    /// activos y tuvo turnos en los últimos 90 días. Las reglas que no son de base están en
     /// BusinessDirectoryRules y el HTML en BusinessDirectoryPages. Caché en memoria de 10 minutos.
+    ///
+    /// Tenant.IsDemo NO se mira: todo alta por la web nace con IsDemo = true (RegistrationController,
+    /// SelfRegistrationController) y nada lo apaga, así que no distingue una demo de un cliente. Las cuentas
+    /// de prueba quedan afuera por la actividad mínima y por BusinessDirectoryRules.IsExcluded.
     /// </summary>
     [ApiController]
     [AllowAnonymous]
@@ -150,7 +154,6 @@ namespace BookingPro.API.Controllers
                 // Activo: los mismos estados con los que TenantService resuelve el subdominio. Suspendidos y
                 // cancelados quedan afuera; el plan no se mira (el Gratuito cuenta).
                 .Where(t => (t.Status == "active" || t.Status == "trial")
-                    && !t.IsDemo
                     && t.IsListed
                     && ((t.City != null && t.City != "") || (t.BusinessAddress != null && t.BusinessAddress != "")))
                 .Select(t => new
@@ -189,7 +192,11 @@ namespace BookingPro.API.Controllers
                     _logger.LogWarning(ex, "Directorio de negocios: se saltea {Subdomain}", t.Subdomain);
                 }
             }
-            if (candidates.Count == 0) return Array.Empty<DirectoryBusiness>();
+            if (candidates.Count == 0)
+            {
+                _logger.LogInformation("Directorio de negocios: {Base} activos con dirección, 0 con ciudad y sin exclusiones", tenants.Count);
+                return Array.Empty<DirectoryBusiness>();
+            }
 
             var ids = candidates.Select(c => c.Id).ToList();
 
@@ -256,6 +263,11 @@ namespace BookingPro.API.Controllers
                     _logger.LogWarning(ex, "Directorio de negocios: se saltea {Subdomain}", business.Subdomain);
                 }
             }
+            // Solo conteos (sin nombres): sirve para ver en qué etapa queda afuera la mayoría.
+            _logger.LogInformation(
+                "Directorio de negocios: {Base} activos con dirección, {Candidates} con ciudad y sin exclusiones, {Staff} con profesional activo, {Listed} listados (mínimo {Min} turnos en {Days} días)",
+                tenants.Count, candidates.Count, candidates.Count(c => withStaff.Contains(c.Id)), listed.Count,
+                BusinessDirectoryRules.MinRecentBookings, BusinessDirectoryRules.RecentBookingDays);
             return listed;
         }
 
