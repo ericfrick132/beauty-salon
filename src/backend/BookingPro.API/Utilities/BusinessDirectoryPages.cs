@@ -43,7 +43,10 @@ namespace BookingPro.API.Utilities
         private const string DirectoryUrl = BaseUrl + DirectoryPath;
         private const int MaxRelatedLinks = 12;
 
-        private static readonly StringComparer ByName = StringComparer.Create(CultureInfo.GetCultureInfo("es-AR"), ignoreCase: true);
+        // Orden alfabético sin culturas (producción corre .NET en modo "globalization-invariant" y no tiene
+        // es-AR): se compara el nombre sin tildes ni mayúsculas.
+        private static readonly IComparer<string> ByName = Comparer<string>.Create((a, b) =>
+            string.CompareOrdinal(BusinessDirectoryRules.Slugify(a), BusinessDirectoryRules.Slugify(b)));
 
         private static readonly JsonSerializerOptions JsonLdOptions = new()
         {

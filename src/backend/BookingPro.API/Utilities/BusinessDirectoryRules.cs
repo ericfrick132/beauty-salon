@@ -162,8 +162,6 @@ namespace BookingPro.API.Utilities
 
         // ---------- Ciudad ----------
 
-        private static readonly CultureInfo Es = CultureInfo.GetCultureInfo("es-AR");
-
         private static readonly string[] ArProvinces =
         {
             "Buenos Aires", "Catamarca", "Chaco", "Chubut", "Córdoba", "Corrientes", "Entre Ríos", "Formosa",
@@ -221,18 +219,34 @@ namespace BookingPro.API.Utilities
         public static string Slugify(string? value)
         {
             if (string.IsNullOrWhiteSpace(value)) return "";
-            var normalized = value.Normalize(NormalizationForm.FormD);
-            var sb = new StringBuilder(normalized.Length);
-            foreach (var ch in normalized)
+            // Sin string.Normalize ni culturas: el contenedor de producción corre .NET en modo
+            // "globalization-invariant" (sin ICU), donde Normalize no descompone nada y pedir la cultura
+            // es-AR tira CultureNotFoundException. Las tildes se sacan con la tabla de Fold, que da lo mismo
+            // con o sin ICU.
+            var sb = new StringBuilder(value.Length);
+            foreach (var ch in value)
             {
+                // Tilde suelta de un texto que ya vino descompuesto (a + ´).
                 if (CharUnicodeInfo.GetUnicodeCategory(ch) == UnicodeCategory.NonSpacingMark) continue;
-                var c = char.ToLowerInvariant(ch);
-                sb.Append(char.IsLetterOrDigit(c) && c < 128 ? c : '-');
+                var c = char.ToLowerInvariant(Fold(ch));
+                sb.Append((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ? c : '-');
             }
             var slug = sb.ToString();
             while (slug.Contains("--")) slug = slug.Replace("--", "-");
             return slug.Trim('-');
         }
+
+        private static char Fold(char c) => c switch
+        {
+            'á' or 'à' or 'ä' or 'â' or 'ã' or 'å' or 'Á' or 'À' or 'Ä' or 'Â' or 'Ã' or 'Å' => 'a',
+            'é' or 'è' or 'ë' or 'ê' or 'É' or 'È' or 'Ë' or 'Ê' => 'e',
+            'í' or 'ì' or 'ï' or 'î' or 'Í' or 'Ì' or 'Ï' or 'Î' => 'i',
+            'ó' or 'ò' or 'ö' or 'ô' or 'õ' or 'Ó' or 'Ò' or 'Ö' or 'Ô' or 'Õ' => 'o',
+            'ú' or 'ù' or 'ü' or 'û' or 'Ú' or 'Ù' or 'Ü' or 'Û' => 'u',
+            'ñ' or 'Ñ' => 'n',
+            'ç' or 'Ç' => 'c',
+            _ => c
+        };
 
         private static string Plain(string value) => Slugify(value).Replace('-', ' ');
 
@@ -315,13 +329,13 @@ namespace BookingPro.API.Utilities
 
         private static string TitleCase(string value)
         {
-            var words = value.ToLower(Es).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var words = value.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
             for (var i = 0; i < words.Length; i++)
             {
                 var w = words[i];
                 var afterDe = i > 0 && words[i - 1].Equals("de", StringComparison.OrdinalIgnoreCase);
                 if (i > 0 && (w is "de" or "del" or "y" || (afterDe && w is "la" or "el" or "las" or "los"))) continue;
-                words[i] = char.ToUpper(w[0], Es) + w[1..];
+                words[i] = char.ToUpperInvariant(w[0]) + w[1..];
             }
             return string.Join(' ', words);
         }
