@@ -42,12 +42,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.3,
   }));
 
-  const demos: MetadataRoute.Sitemap = ['/demo-admin', '/demo-app'].map((p) => ({
-    url: `${base}${p}`,
-    lastModified: new Date('2026-09-14'),
-    changeFrequency: 'monthly',
-    priority: 0.6,
-  }));
+  // /demo-admin y /demo-app quedan afuera: robots.ts las bloquea y Search Console
+  // marca como advertencia cada URL del sitemap que robots no deja rastrear.
 
   // Centro de ayuda: índice + una URL por lección (app/(lib)/curso.ts).
   const ayudaDate = new Date('2026-10-28');
@@ -56,5 +52,5 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...LECCIONES.map((l) => ({ url: `${base}/ayuda/${l.slug}`, lastModified: ayudaDate, changeFrequency: 'monthly' as const, priority: 0.5 })),
   ];
 
-  return [...home, ...countryPages, ...verticalPages, ...demos, ...ayuda, ...legal];
+  return [...home, ...countryPages, ...verticalPages, ...ayuda, ...legal];
 }
